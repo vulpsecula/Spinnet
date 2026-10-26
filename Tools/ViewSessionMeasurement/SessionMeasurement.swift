@@ -75,8 +75,8 @@ final class SessionMeasurement {
     }
 
     /// The field change typing `text` into the `query` field sends: a page's
-    /// (Plugin API Level 2's pages) with every input of the page, or a
-    /// Level 1 form's.
+    /// (pages) with every input of the page, or a
+    /// form's.
     private func typed(_ text: String) -> PluginViewEvent {
         let field = options.pageField
         guard let page = rig.session?.page else {

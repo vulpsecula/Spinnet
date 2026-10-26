@@ -4,8 +4,8 @@ public enum ActionUnavailableReason: Equatable, Hashable, CustomStringConvertibl
     case pluginMissing
     case pluginDisabled
     /// The Plugin is a Refused Plugin: installed, but not loaded at launch,
-    /// such as one declaring a Candidate Contract revision the Host does not
-    /// provide. It holds the reason, which is what the user sees.
+    /// such as an incompatible Host range or obsolete declaration. It holds
+    /// the reason, which is what the user sees.
     case pluginRefused(String)
     case commandMissing
     case commandChanged
@@ -61,10 +61,32 @@ public enum ActionResourceAvailability {
     /// provide an application resolver to validate bundle identifiers.
     public static func missingReason(
         for action: ActionConfiguration,
+        command: CommandDeclaration? = nil,
         applicationExists: ((String) -> Bool)? = nil
     ) -> ActionUnavailableReason? {
-        guard action.execution == .host,
-              let hostCommand = action.hostCommand else { return nil }
+        guard action.execution == .host else { return nil }
+        if let id = action.hostServiceID, let operation = HostServiceCatalogue.operation(id) {
+            let declaration = command ?? action.declaredCommand
+            let input = operation.commandInput(for: declaration, actionInput: action.input)
+            switch id {
+            case "open.application":
+                guard let value = stringValue(in: input, keys: ["application"]) else { return nil }
+                return resourceExists(kind: .application, value: value, applicationExists: applicationExists)
+                    ? nil : .resourceMissing
+            case "open.path":
+                guard let value = stringValue(in: input, keys: ["path"]) else { return nil }
+                let kind = declaration.configurationField?.kind
+                    ?? declaration.configurationFields.first(where: { $0.key == "path" })?.kind
+                if let kind, kind == .file || kind == .folder {
+                    return resourceExists(kind: kind, value: value) ? nil : .resourceMissing
+                }
+                // A generic open.path Command intentionally accepts either kind.
+                return FileManager.default.fileExists(atPath: fileURL(for: value).path) ? nil : .resourceMissing
+            default:
+                return nil
+            }
+        }
+        guard let hostCommand = action.hostCommand else { return nil }
 
         switch hostCommand {
         case .openApplication:
@@ -525,11 +547,21 @@ public final class PluginRegistry {
         resourceAvailability: ((ActionConfiguration) -> ActionUnavailableReason?)?
     ) -> ActionAvailability {
         let availability = availability(for: action)
-        guard availability.isAvailable,
-              let reason = resourceAvailability?(action) else {
-            return availability
+        guard availability.isAvailable, let resourceAvailability else { return availability }
+        let command = package(for: action.pluginID)?.manifest.commands.first { $0.id == action.commandID }
+        if let reason = ActionResourceAvailability.missingReason(for: action, command: command) {
+            return .unavailable(reason)
         }
-        return .unavailable(reason)
+        // Saved Actions retain identity and user input, while fixed targets and
+        // picker kinds belong to the current declaration. Resolve the same input
+        // execution uses before the Host checks App bundle IDs or other resources.
+        var resolved = action
+        if let command, let operation = command.hostServiceID.flatMap(HostServiceCatalogue.operation),
+           let prepared = try? ActionConfiguration(id: action.id, pluginID: action.pluginID, command: command,
+               input: operation.commandInput(for: command, actionInput: action.input)) {
+            resolved = prepared
+        }
+        return resourceAvailability(resolved).map(ActionAvailability.unavailable) ?? availability
     }
 
     public func package(for pluginID: PluginID) -> PluginPackage? {

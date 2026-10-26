@@ -12,17 +12,16 @@ enum TargetGroup: String, CaseIterable {
     /// The current Host only: a pinned view left open, the script path,
     /// line breaks and a tab, a long text, and Chinese input.
     case hostExtra = "host-extra"
-    /// The current Host only, on request: Candidate Contract
-    /// `host_operations`' insertion, whose target is captured at the gesture
+    /// The current Host only, on request: targeted insertion, whose target is captured at the gesture
     /// and compared at insertion, App and focused element (#76).
-    case candidate
+    case targeted
 
     /// What a run visits unless told otherwise.
     static var defaults: [TargetGroup] {
         #if HOST_CURRENT
-        allCases.filter { ![.panel, .panelKeys, .candidate].contains($0) }
+        allCases.filter { ![.panel, .panelKeys, .targeted].contains($0) }
         #else
-        allCases.filter { ![.hostExtra, .candidate].contains($0) }
+        allCases.filter { ![.hostExtra, .targeted].contains($0) }
         #endif
     }
 }
@@ -43,7 +42,7 @@ enum Variant {
     // The current Host (--host current).
     /// The Host's call from a pinned view that stays open.
     case hostStaysOpen
-    /// The synchronous `insert_text`, into the App in front.
+    /// The synchronous `selection.replace`, into the App in front.
     case hostScript
     /// A text with line breaks (LF and CRLF) and a tab.
     case hostLines
@@ -51,9 +50,9 @@ enum Variant {
     case hostLong
     /// With the named input source selected, restored afterwards.
     case hostIME(String)
-    /// `host_operations`: the target captured with the panel key, as at the
+    /// Targeted insertion: the target captured with the panel key, as at the
     /// user's gesture, and compared when the Host inserts.
-    case hostCandidate
+    case hostTargeted
 
     var label: String {
         switch self {
@@ -64,11 +63,11 @@ enum Variant {
             return "Host A2 as-is"
             #endif
         case .hostStaysOpen: return "current Host, pinned view stays open"
-        case .hostScript: return "current Host, insert_text into the App in front"
+        case .hostScript: return "current Host, selection.replace into the App in front"
         case .hostLines: return "current Host, line breaks and a tab"
         case .hostLong: return "current Host, long text"
         case .hostIME(let source): return "current Host, input source \(source)"
-        case .hostCandidate: return "current Host, host_operations: target captured at the gesture, compared at insertion"
+        case .hostTargeted: return "current Host, targeted insertion: target captured at the gesture, compared at insertion"
         case .experiment(let attribute): return "experiment: \(attribute) set first"
         case .keystrokes: return "experiment: Unicode keystrokes, no Host call"
         case .panelHoldsKey: return "Host A2 as-is while a non-activating panel holds key"
@@ -88,7 +87,7 @@ enum Variant {
         case .hostLines: return "lines"
         case .hostLong: return "long"
         case .hostIME(let source): return "ime-" + (source.split(separator: ".").last.map(String.init) ?? source)
-        case .hostCandidate: return "candidate"
+        case .hostTargeted: return "targeted"
         }
     }
 
@@ -223,17 +222,17 @@ final class ProbeRun {
                 #else
                 addNote("host-extra runs only with --host current")
                 #endif
-            case .candidate:
+            case .targeted:
                 #if HOST_CURRENT
-                addNote(Self.candidateNote)
-                runFixture(variants: [.hostCandidate])
-                runTextEdit(kinds: ["plain"], variants: [.hostCandidate])
-                runSafari(plan: WebFieldKind.allCases.map { ($0, Variant.hostCandidate) })
-                runChrome(plan: WebFieldKind.allCases.map { ($0, Variant.hostCandidate) })
-                runElectron(.vscode, variants: [.hostCandidate])
-                runElectron(.cursor, variants: [.hostCandidate])
+                addNote(Self.targetedNote)
+                runFixture(variants: [.hostTargeted])
+                runTextEdit(kinds: ["plain"], variants: [.hostTargeted])
+                runSafari(plan: WebFieldKind.allCases.map { ($0, Variant.hostTargeted) })
+                runChrome(plan: WebFieldKind.allCases.map { ($0, Variant.hostTargeted) })
+                runElectron(.vscode, variants: [.hostTargeted])
+                runElectron(.cursor, variants: [.hostTargeted])
                 #else
-                addNote("candidate runs only with --host current")
+                addNote("targeted insertion runs only with --host current")
                 #endif
             }
             for row in rows[before...] {
@@ -295,7 +294,7 @@ final class ProbeRun {
         switch activeVariant {
         case .hostStaysOpen: insertion.mode = .viewStaysOpen
         case .hostScript: insertion.mode = .script
-        case .hostCandidate: insertion.mode = .candidate
+        case .hostTargeted: insertion.mode = .targeted
         default: insertion.mode = .viewCloses
         }
         #endif
@@ -813,7 +812,7 @@ final class ProbeRun {
             case .hostLines: short = "l"
             case .hostLong: short = "g"
             case .hostIME: short = "i"
-            case .hostCandidate: short = "c"
+            case .hostTargeted: short = "c"
             }
             let root = URL(fileURLWithPath: "/tmp/\(marker)-\(String(describing: electron))-\(short)", isDirectory: true)
             try? FileManager.default.removeItem(at: root)
@@ -1005,7 +1004,7 @@ final class ProbeRun {
             }
             row.notes.append("the probe read only window titles; every window of this instance is the probe's own")
             keystrokesAfterPanel(&row, into: pid, axQueries: false, gate: frontmostGate(pid), verify: check)
-        case .hostStaysOpen, .hostScript, .hostLines, .hostLong, .hostIME, .hostCandidate:
+        case .hostStaysOpen, .hostScript, .hostLines, .hostLong, .hostIME, .hostTargeted:
             insert(&row, into: pid, preQuery: false, verify: check)
         }
     }
@@ -1016,9 +1015,9 @@ final class ProbeRun {
 
     static let panelKeysNote = "P3 flow rows: no Host call. The panel is shown and confirmed key, then closed; the target is activated with NSRunningApplication.activate() and the probe waits until it is frontmost (at most 1 s) and 50 ms more, as ClipboardHistoryPaster does; the text is then posted as Unicode keyboard events through the HID event tap, the tap the Host's paste keystroke uses, and only while the probe's gate confirms the target is frontmost and its focus is in the probe's own window (or nothing in it is focused). TextEdit and the Safari address bar are read back through Accessibility, TextEdit also from its saved file."
 
-    static let hostExtraNote = "Current Host rows: before each Host call the probe shows its stand-in Plugin View panel (key, non-activating) over the target, whose origin is the target. \"view closes on Insert\" closes the panel, then calls HostTextInserter.insertAndWait(text, into: .application(origin)); \"pinned view stays open\" makes the same call with the panel left on screen; \"insert_text into the App in front\" calls it with .frontmost while the panel is key. Line-break rows type LF and CRLF (each one Shift-Return) and a tab (the Tab key); they count as found when the value holds the text with every line break as LF. IME rows select the input source with TISSelectInputSource and reselect the previous one afterwards; Pinyin's own Chinese/English mode is not visible to the probe."
+    static let hostExtraNote = "Current Host rows: before each Host call the probe shows its stand-in Plugin View panel (key, non-activating) over the target, whose origin is the target. \"view closes on Insert\" closes the panel, then calls HostTextInserter.insertAndWait(text, into: .application(origin)); \"pinned view stays open\" makes the same call with the panel left on screen; \"selection.replace into the App in front\" calls it with .frontmost while the panel is key. Line-break rows type LF and CRLF (each one Shift-Return) and a tab (the Tab key); they count as found when the value holds the text with every line break as LF. IME rows select the input source with TISSelectInputSource and reselect the previous one afterwards; Pinyin's own Chinese/English mode is not visible to the probe."
 
-    static let candidateNote = "Candidate rows (host_operations, #76): with the stand-in panel key over the target, as when the user makes a gesture in a Plugin View, the probe captures the target through the current Host's InsertionTargetTracker (the App in front and, where Accessibility exposes one, its focused element), waits 0.3 s, reads the focused element again, then calls TargetedTextInserter.insertAndWait(text, shown: capture), the Host's path for a requested or synchronous selection.replace, with the panel still on screen as a requested insertion finds it. A refusal with target_changed while focus did not move is a finding against the element-level check."
+    static let targetedNote = "Targeted insertion rows: with the stand-in panel key over the target, as when the user makes a gesture in a Plugin View, the probe captures the target through the current Host's InsertionTargetTracker (the App in front and, where Accessibility exposes one, its focused element), waits 0.3 s, reads the focused element again, then calls TargetedTextInserter.insertAndWait(text, shown: capture), the Host's path for a requested or synchronous selection.replace, with the panel still on screen as a requested insertion finds it. A refusal with target_changed while focus did not move is a finding against the element-level check."
 
     private func frontmostGate(_ processIdentifier: pid_t) -> () -> String? {
         { Apps.frontmost()?.processIdentifier == processIdentifier ? nil : "the target is not frontmost" }

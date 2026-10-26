@@ -3,16 +3,13 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// Each Bundled Plugin satisfies the published manifest schema for its
-/// declared Plugin API Level (ADR 0013). The Level 1/2 schema also turns away
-/// the mistakes a Plugin author is likely to make.
+/// Every shipped Plugin satisfies the current manifest schema and Host
+/// Compatibility policy; invalid declarations identify their failing member.
 final class ManifestSchemaTests: XCTestCase {
     private static let repositoryRoot = TestRepository.root
 
-    private func validator(level: Int = 1) throws -> JSONSchemaSubsetValidator {
-        let schema = level >= 3 ? "manifest-level-\(level).schema.json" : "manifest.schema.json"
-        return try JSONSchemaSubsetValidator(schemaAt: Self.repositoryRoot
-            .appendingPathComponent("PluginAPI/schemas/\(schema)"))
+    private func validator() throws -> JSONSchemaSubsetValidator {
+        try JSONSchemaSubsetValidator(schemaAt: Self.repositoryRoot.appendingPathComponent("PluginAPI/schemas/manifest.schema.json"))
     }
 
     private func bundledManifestURLs() throws -> [URL] {
@@ -20,24 +17,15 @@ final class ManifestSchemaTests: XCTestCase {
             .sorted { $0.path < $1.path }
     }
 
-    func testEveryBundledManifestValidatesAndDeclaresItsLevel() throws {
+    func testEveryBundledManifestValidatesAndDeclaresHostCompatibility() throws {
         let urls = try bundledManifestURLs()
         XCTAssertEqual(urls.count, 22, "Twenty-two Bundled Plugins ship with Spinnet")
-        let promotedLevels = ["CurrentApp.spinnetplugin": 2, "KeepAwake.spinnetplugin": 2,
-                              "Homebrew.spinnetplugin": 7, "Spotify.spinnetplugin": 3,
-                              "SystemMonitor.spinnetplugin": 3]
-
         for url in urls {
-            let name = url.deletingLastPathComponent().lastPathComponent
             let manifest = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
-            guard case .object(let members) = manifest,
-                  case .number(let level)? = members["api_level"] else {
-                XCTFail("\(name) must declare its Plugin API Level")
-                continue
-            }
-            XCTAssertEqual(try validator(level: Int(level)).errors(for: manifest), [], name)
-            let expectedLevel = promotedLevels[name, default: 1]
-            XCTAssertEqual(level, Double(expectedLevel), "\(name) declares Plugin API Level \(expectedLevel)")
+            XCTAssertEqual(try validator().errors(for: manifest), [], url.lastPathComponent)
+            XCTAssertEqual(manifest.value(atPointer: "/engines/spinnet"), .string("^1.0.0"))
+            let decoded = try PluginManifestLoader.decode(JSONEncoder().encode(manifest))
+            XCTAssertNoThrow(try PluginInterfaceContracts.host.check(decoded, origin: .bundled))
         }
     }
 
@@ -47,7 +35,7 @@ final class ManifestSchemaTests: XCTestCase {
     private static let valid: JSONValue = try! JSONDecoder().decode(JSONValue.self, from: Data("""
     {
       "protocol_version": "1.0",
-      "api_level": 1,
+      "engines":{"spinnet":"^1.0.0"},
       "id": "com.example.plugin",
       "name": "Example",
       "version": "1.0.0",
@@ -60,7 +48,7 @@ final class ManifestSchemaTests: XCTestCase {
       "default_settings": {"mode": "fast"},
       "preset": {"readiness": "ready_to_use", "is_configurable": true, "default_primary_command_id": "example.fetch"},
       "commands": [
-        {"id": "example.open", "title": "Open", "execution": "host", "is_configurable": true, "host_command": "url.open"},
+        {"id": "example.open", "title": "Open", "execution": "host", "is_configurable": true, "host_command": "open.url"},
         {"id": "example.fetch", "title": "Fetch", "execution": "javascript", "is_configurable": false, "script": "fetch.js"}
       ],
       "migrations": {
@@ -107,10 +95,11 @@ final class ManifestSchemaTests: XCTestCase {
     func testKnownInvalidManifestsAreRejected() throws {
         let validator = try validator()
         let cases: [(String, JSONValue, String)] = [
-            ("no api_level", changed { $0["api_level"] = nil }, ""),
-            ("api_level 0", changed { $0["api_level"] = .number(0) }, "/api_level"),
-            ("fractional api_level", changed { $0["api_level"] = .number(1.5) }, "/api_level"),
-            ("api_level as a string", changed { $0["api_level"] = .string("1") }, "/api_level"),
+            ("no engines", changed { $0["engines"] = nil }, ""),
+            ("missing spinnet", changed { $0["engines"] = .object([:]) }, "/engines"),
+            ("invalid range", changed { $0["engines"] = .object(["spinnet": .string(">=1.0.0")]) }, "/engines/spinnet"),
+            ("retired declaration", changed { $0["api_level"] = .number(1) }, "/api_level"),
+            ("retired candidate declaration", changed { $0["candidate_contracts"] = .null }, "/candidate_contracts"),
             ("another protocol_version", changed { $0["protocol_version"] = .string("2.0") }, "/protocol_version"),
             ("blank id", changed { $0["id"] = .string("  ") }, "/id"),
             ("name over 256 characters", changed { $0["name"] = .string(String(repeating: "n", count: 257)) }, "/name"),
@@ -130,7 +119,7 @@ final class ManifestSchemaTests: XCTestCase {
             ("unknown host_command", changed("commands", 0) { $0["host_command"] = .string("disk.erase") },
              "/commands/0/host_command"),
             ("deep_link.open without its template", changed("commands", 0) {
-                $0["host_command"] = .string("deep_link.open")
+                $0["host_command"] = .string("apps.openDeepLink")
             }, "/commands/0"),
             ("a script naming a Deep Link Template", changed("commands", 1) {
                 $0["deep_link_template"] = .string("open")
@@ -240,7 +229,10 @@ final class DocumentedManifestSchemaTests: XCTestCase {
 
     func testTheSchemaAllowsWhatTheHostDecodes() throws {
         XCTAssertEqual(try allowedValues(of: "capability"), Set(PluginCapability.allCases.map(\.rawValue)))
-        XCTAssertEqual(try allowedValues(of: "hostCommand"), Set(HostCommand.allCases.map(\.rawValue)))
+        let namespaceURL = TestRepository.root.appendingPathComponent("PluginAPI/schemas/namespaces.schema.json")
+        let namespace = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: namespaceURL))
+        guard case .array(let ids)? = namespace.value(atPointer: "/$defs/host_command_id/enum") else { return XCTFail("Missing current Command IDs") }
+        XCTAssertEqual(Set(ids.compactMap { if case .string(let id) = $0 { return id }; return nil }), Set(HostServiceCatalogue.operations.filter { $0.isOffered(at: .command) }.map(\.id)))
         XCTAssertEqual(try allowedValues(of: "fieldKind"),
                        Set(CommandConfigurationFieldKind.allCases.map(\.rawValue)))
         guard case .object(let properties)? = try schema()["properties"],
@@ -274,7 +266,7 @@ final class DocumentedManifestSchemaTests: XCTestCase {
             "ordered_choices", "list"
         ])
 
-        XCTAssertEqual(Set(try PublishedTable.column(0, under: "### Host Commands", in: "reference/manifest.md")), try allowedValues(of: "hostCommand"),
+        XCTAssertEqual(Set(try PublishedTable.column(0, under: "### Host Commands", in: "reference/manifest.md")), Set(HostServiceCatalogue.operations.filter { $0.isOffered(at: .command) }.map(\.id)),
                        "The Host Commands table in \(page) lists exactly the schema's Host Commands")
 
         XCTAssertPublished("one to eight, each a `key`, a `kind`", in: page)

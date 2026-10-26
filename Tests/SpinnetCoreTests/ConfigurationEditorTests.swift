@@ -68,7 +68,7 @@ final class ConfigurationEditorTests: XCTestCase {
             command: CommandDeclaration(
                 id: CommandID("fixture.open"),
                 title: "Open",
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             ),
             input: .string("https://example.com")
         )
@@ -427,12 +427,12 @@ final class ConfigurationEditorTests: XCTestCase {
                 CommandDeclaration(
                     id: CommandID("fixture.open"),
                     title: "Open",
-                    hostCommand: .openURL
+                    hostServiceID: "open.url"
                 ),
                 CommandDeclaration(
                     id: CommandID("fixture.copy"),
                     title: "Copy",
-                    hostCommand: .openURL
+                    hostServiceID: "open.url"
                 ),
                 CommandDeclaration(
                     id: CommandID("fixture.transform_text"),
@@ -460,12 +460,12 @@ final class ConfigurationEditorTests: XCTestCase {
                 CommandDeclaration(
                     id: CommandID("resource.file"),
                     title: "Open File",
-                    hostCommand: .openFile
+                    hostServiceID: "open.path"
                 ),
                 CommandDeclaration(
                     id: CommandID("resource.folder"),
                     title: "Open Folder",
-                    hostCommand: .openFolder
+                    hostServiceID: "open.path"
                 )
             ]
         )

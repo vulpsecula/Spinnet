@@ -1,5 +1,5 @@
 {
-  "description": "Each fixture names the definition of ../../schemas/host-operations.schema.json it is checked against and whether it is valid. The Host reads every answer fixture as it reads an answer of a Plugin API Level 2 Plugin: it accepts the valid ones and refuses the invalid ones as protocol violations.",
+  "description": "Each fixture names the definition of ../../schemas/host-operations.schema.json it is checked against and whether it is valid. The Host reads every answer fixture as it reads an answer of a compatible Plugin: it accepts the valid ones and refuses the invalid ones as protocol violations.",
   "fixtures": [
     {
       "file": "answers/insert-with-view.json",
@@ -23,7 +23,7 @@
       "file": "answers/insert-notify-closes-view.json",
       "definition": "answer",
       "valid": true,
-      "note": "Emoji's insertion asks to hear its outcome and to close the view on success: Level 2 delivers the outcome after the view closed"
+      "note": "Emoji's insertion asks to hear its outcome and to close the view on success: the Host delivers the outcome after the view closed"
     },
     {
       "file": "answers/copy-bare-string.json",
@@ -44,10 +44,10 @@
       "note": "host.showPluginSettings takes no input"
     },
     {
-      "file": "answers/level1-answer.json",
+      "file": "answers/form-detail-answer.json",
       "definition": "answer",
       "valid": true,
-      "note": "Every Level 1 answer stays valid for a Level 2 script"
+      "note": "Form/detail answers are a current supported shape"
     },
     {
       "file": "answers/null.json",
@@ -71,13 +71,13 @@
       "file": "answers/reserved-id.json",
       "definition": "answer",
       "valid": false,
-      "note": "host.confirm is reserved: no Level requests it yet"
+      "note": "host.confirm is reserved: no current request entry point"
     },
     {
-      "file": "answers/level1-name.json",
+      "file": "answers/retired-service-name.json",
       "definition": "answer",
       "valid": false,
-      "note": "A request names the catalogue ID, selection.replace, not Level 1's insert_text"
+      "note": "A request names the catalogue ID, selection.replace, refusing the retired insert_text spelling"
     },
     {
       "file": "answers/call-only-id.json",
@@ -164,10 +164,10 @@
       "note": "An operation cancelled before it ran is never delivered after its view closed"
     },
     {
-      "file": "events/level1-submitted.json",
+      "file": "events/form-submitted.json",
       "definition": "event",
       "valid": true,
-      "note": "Level 1 events are unchanged"
+      "note": "Form/detail events preserve their fields"
     },
     {
       "file": "events/finished-refused-without-reason.json",
@@ -197,7 +197,7 @@
       "file": "events/finished-text-rejected.json",
       "definition": "event",
       "valid": false,
-      "note": "Keyboard-event insertion cannot tell whether the App took the text, so text_rejected is not a reason at Level 2"
+      "note": "Keyboard-event insertion cannot tell whether the App took the text, so text_rejected is not a reason at the Host"
     },
     {
       "file": "answers/quit-front-app.json",

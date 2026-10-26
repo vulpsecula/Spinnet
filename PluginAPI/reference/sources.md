@@ -1,9 +1,9 @@
-# Host-run sources (Plugin API Level 2)
+# Host-run sources (current interface)
 
 Implemented by #82, #85, #86 and #87. A visible page may name up to eight `http.request`, `tools.read`, reviewed `apps.perform` or `system.metrics` sources.
 The Host performs them without keeping the helper alive and renders each result
 as plain text through bindings. HTTPS samples once and has a 15-second deadline;
-`every` is refused. Homebrew reads also sample once with a 15-second deadline and the same scope and result as a call; see [Reviewed Homebrew reads](tools.md). The local Spotify playback adapter samples at a minimum of one second with a three-second deadline, without launching Spotify or prompting for Automation; see [Local Spotify](spotify.md). `system.metrics` reads aggregate CPU, memory, startup disk capacity and internal battery under `read_system_status`, with a one-second minimum and deadline; see [metric meanings, units and unavailable values](namespaces.md#systemmetrics-level-2-86). Its snapshots are bound without invoking a helper and its CPU baseline is discarded on hide, close or source replacement.
+`every` is refused. Homebrew reads also sample once with a 15-second deadline and the same scope and result as a call; see [Reviewed Homebrew reads](tools.md). The local Spotify playback adapter samples at a minimum of one second with a three-second deadline, without launching Spotify or prompting for Automation; see [Local Spotify](spotify.md). `system.metrics` reads aggregate CPU, memory, startup disk capacity and internal battery under `read_system_status`, with a one-second minimum and deadline; see [metric meanings, units and unavailable values](namespaces.md#systemmetrics). Its snapshots are bound without invoking a helper and its CPU baseline is discarded on hide, close or source replacement.
 
 ```js
 const c = spinnet.ui.components;
@@ -63,10 +63,10 @@ Supported failure categories are `capability_denied`, `host_service_failed` and
 `timed_out`; reviewed App sources also offer `external_app_missing`,
 `external_app_not_running`, `automation_permission_needed`,
 `automation_permission_denied` and `external_app_operation_unsupported`, plus `tool_missing`, `tool_timed_out`, `tool_failed` and `output_too_large` for reviewed tool sources. It is not a gesture; its answer may not request an operation.
-Deliveries of one source ID are at least 15 seconds apart, across redefinitions,
-for Levels 1–3 and for every non-activity source at Level 4. A Level 4
+Deliveries of a non-activity source ID are at least 15 seconds apart, across
+redefinitions. An
 `activities.list` source may deliver changed state at a minimum interval of
-one second; see [Level 4](level-4.md).
+one second; see [current](activities.md).
 At most one waits per source; newer results replace older waiting ones. A floor-held
 result waits while hidden and is considered on show; a result already queued in
 the View Session may dispatch while hidden, because sampling has already ended.
@@ -91,7 +91,7 @@ bound text at most 4,096; failure message at most 512. Existing HTTPS limits
 still apply (128 KiB response body, three redirects and four Credential Uses).
 See [schemas](../schemas/host-run-sources.schema.json) and
 [recordings](../fixtures/sources/index.json).
-Level 1 Host-Fetched Sections and their cache/deadlines retain their existing contract.
+current Host-Fetched Sections and their cache/deadlines retain their existing contract.
 
 Regression coverage checks hidden-page cancellation, retained once-only reads,
 coalesced delivery, authority changes and page provenance. Native visibility

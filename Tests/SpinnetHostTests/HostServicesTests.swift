@@ -10,7 +10,7 @@ final class HostServicesTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = directory.appendingPathComponent("source.spinnetplugin")
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
-        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostServiceID: "clipboard.write")
         let original = try PluginManifest(id: PluginID("example.inherit"), name: "Inherit", version: "1",
             capabilities: [.writeClipboard], commands: [command])
         let updated = try PluginManifest(id: original.id, name: original.name, version: "2",
@@ -62,7 +62,7 @@ final class HostServicesTests: XCTestCase {
     }
 
     func testExternalAppScopeNamesOperationsAndRechecksDependency() throws {
-        let command = CommandDeclaration(id: CommandID("capture"), title: "Capture", hostCommand: .presentFeedback)
+        let command = CommandDeclaration(id: CommandID("capture"), title: "Capture", hostServiceID: "host.toast")
         let scope = PluginCapabilityScope(capability: .controlExternalApp, commandIDs: [command.id], externalApps: [
             .init(bundleID: "com.hezongyidev.Bob", operationFamilies: ["translate"])
         ])
@@ -85,7 +85,7 @@ final class HostServicesTests: XCTestCase {
     }
 
     func testLiteralCopyDisclosesOnlyItsActualInputRequirements() throws {
-        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostServiceID: "clipboard.write")
         let manifest = try PluginManifest(id: PluginID("example.literal"), name: "Literal", version: "1",
             capabilities: [.readSelectedText, .writeClipboard], commands: [command])
         let disclosure = PluginPermissionDisclosure(manifest: manifest, commandIDs: [command.id], inputs: [command.id: .string("literal")])
@@ -95,8 +95,8 @@ final class HostServicesTests: XCTestCase {
     }
 
     func testScopedClipboardGrantCannotAuthorizeAnExcludedCommand() throws {
-        let first = CommandDeclaration(id: CommandID("first"), title: "First", hostCommand: .copyText)
-        let second = CommandDeclaration(id: CommandID("second"), title: "Second", hostCommand: .copyText)
+        let first = CommandDeclaration(id: CommandID("first"), title: "First", hostServiceID: "clipboard.write")
+        let second = CommandDeclaration(id: CommandID("second"), title: "Second", hostServiceID: "clipboard.write")
         let scope = PluginCapabilityScope(capability: .writeClipboard, commandIDs: [first.id], dataTypes: ["text"])
         let manifest = try PluginManifest(id: PluginID("example.exclusion"), name: "Exclusion", version: "1",
             capabilities: [.writeClipboard], capabilityScopes: [scope], commands: [first, second])
@@ -125,7 +125,7 @@ final class HostServicesTests: XCTestCase {
     }
 
     func testScopedHostExpansionRequiresFreshConsent() throws {
-        let command = CommandDeclaration(id: CommandID("translate"), title: "Translate", hostCommand: .presentFeedback)
+        let command = CommandDeclaration(id: CommandID("translate"), title: "Translate", hostServiceID: "host.toast")
         let scope = PluginCapabilityScope(capability: .contactHTTPS, commandIDs: [command.id],
                                           dataTypes: ["text"], httpsHosts: ["api.example.com"])
         let expandedScope = PluginCapabilityScope(capability: .contactHTTPS, commandIDs: [command.id],
@@ -158,7 +158,7 @@ final class HostServicesTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = directory.appendingPathComponent("source.spinnetplugin")
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
-        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostServiceID: "clipboard.write")
         let manifest = try PluginManifest(id: PluginID("example.installed"), name: "Installed", version: "1",
                                          capabilities: [.writeClipboard], commands: [command])
         try JSONEncoder().encode(manifest).write(to: source.appendingPathComponent("manifest.json"))
@@ -203,7 +203,7 @@ final class HostServicesTests: XCTestCase {
         var trusted = true
         let grants = PluginCapabilityGrantStore()
         let registry = PluginRegistry(grantStore: grants, systemPermissionCheck: { _ in trusted })
-        let command = CommandDeclaration(id: CommandID("paste"), title: "Paste", hostCommand: .pasteText)
+        let command = CommandDeclaration(id: CommandID("paste"), title: "Paste", hostServiceID: "selection.paste")
         let manifest = try PluginManifest(id: PluginID("example.system"), name: "System", version: "1", commands: [command])
         try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/system.spinnetplugin"), manifest: manifest))
         let action = try ActionConfiguration(id: ActionID("paste"), pluginID: manifest.id, command: command, input: .null)
@@ -220,7 +220,7 @@ final class HostServicesTests: XCTestCase {
     func testExpandedUpdateCannotReuseEvenSameVersionGrant() throws {
         let grants = PluginCapabilityGrantStore()
         let registry = PluginRegistry(grantStore: grants)
-        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostServiceID: "clipboard.write")
         let original = try PluginManifest(id: PluginID("example.update"), name: "Update", version: "1",
                                          capabilities: [.writeClipboard], commands: [command])
         let root = URL(fileURLWithPath: "/tmp/update.spinnetplugin")
@@ -245,7 +245,7 @@ final class HostServicesTests: XCTestCase {
     func testPermissionRepairAndRevocationUpdateVisibleAvailabilityAndBoundHostAction() throws {
         let grants = PluginCapabilityGrantStore()
         let registry = PluginRegistry(grantStore: grants, systemPermissionCheck: { _ in true })
-        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostServiceID: "clipboard.write")
         let manifest = try PluginManifest(id: PluginID("example.permissions"), name: "Permissions",
                                           version: "1", capabilities: [.writeClipboard], commands: [command])
         try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/permissions.spinnetplugin"), manifest: manifest))
@@ -291,8 +291,6 @@ final class HostServicesTests: XCTestCase {
             rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
             manifest: manifest
         )
-        let registry = PluginRegistry()
-        try registry.register(package)
         let grants = PluginCapabilityGrantStore()
         grants.setDecision(
             .granted,
@@ -332,10 +330,7 @@ final class HostServicesTests: XCTestCase {
                 command: command,
                 input: try XCTUnwrap(inputs[try XCTUnwrap(command.hostCommand)])
             )
-            let outcome = HostActionRunner(executor: executor).invoke(action, using: registry)
-            guard case .succeeded = outcome.terminal else {
-                return XCTFail("Expected \(command.id.rawValue) to succeed: \(outcome)")
-            }
+            _ = try executor.execute(action, in: package)
         }
 
         XCTAssertEqual(adapter.openedApplications, ["com.apple.TextEdit"])
@@ -353,9 +348,8 @@ final class HostServicesTests: XCTestCase {
         XCTAssertEqual(feedback, ["fixture feedback"])
     }
 
-    /// A Level 2 Plugin names the Host
-    /// Service a Command runs by catalogue ID; the Host performs it through
-    /// the same adapters and checks as Level 1's Host Command, shows a toast
+    /// A Plugin names the Host Service by catalogue ID. The Host uses native
+    /// adapters and current permission checks, shows a toast
     /// near the pointer for `host.toast`, and opens the Plugin's settings for
     /// `host.showPluginSettings`.
     func testCatalogueCommandsRunThroughTheSameAdaptersAndChecks() throws {
@@ -376,7 +370,7 @@ final class HostServicesTests: XCTestCase {
             command("fixture.settings", "host.showPluginSettings")
         ]
         let manifest = try PluginManifest(
-            apiLevel: 2, id: PluginID("com.example.catalogue"),
+            id: PluginID("com.example.catalogue"),
             name: "Catalogue Fixture", version: "1.0.0", capabilities: [.writeClipboard], commands: commands,
             preset: MenuItemPresetDeclaration(readiness: .setupRequired)
         )
@@ -425,7 +419,7 @@ final class HostServicesTests: XCTestCase {
         let command = CommandDeclaration(
             id: CommandID("fixture.copy_text"),
             title: "Copy Text",
-            hostCommand: .copyText
+            hostServiceID: "clipboard.write"
         )
         let manifest = try PluginManifest(
             id: PluginID("com.example.fixture"),
@@ -467,7 +461,7 @@ final class HostServicesTests: XCTestCase {
             id: CommandID("builtin.copy_selected_text"),
             title: "Copy Selected Text",
             isConfigurable: false,
-            hostCommand: .copyText
+            hostServiceID: "selection.copy"
         )
         let manifest = try PluginManifest(
             id: PluginID("com.spinnet.builtin.copy"),
@@ -522,7 +516,7 @@ final class HostServicesTests: XCTestCase {
             id: CommandID("builtin.copy_selected_text"),
             title: "Copy Selected Text",
             isConfigurable: false,
-            hostCommand: .copyText
+            hostServiceID: "selection.copy"
         )
         let manifest = try PluginManifest(
             id: PluginID("com.spinnet.builtin.copy"),
@@ -567,7 +561,7 @@ final class HostServicesTests: XCTestCase {
     }
 
     func testCopyTextMayUseSimulatedFallbackOnlyWithTextScopedClipboardGrant() throws {
-        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostCommand: .copyText)
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostServiceID: "selection.copy")
         let clipboardScope = PluginCapabilityScope(
             capability: .readCurrentClipboard,
             commandIDs: [command.id],
@@ -640,7 +634,7 @@ final class HostServicesTests: XCTestCase {
         XCTAssertTrue(presets.contains { $0.name == "Cut" && $0.readiness == .readyToUse })
         let copy = try XCTUnwrap(presets.first { $0.name == "Copy Selected Text" })
         XCTAssertFalse(copy.isConfigurable)
-        XCTAssertEqual(copy.commands.first?.hostCommand, .copyText)
+        XCTAssertEqual(copy.commands.first?.hostServiceID, "selection.copy")
     }
 
     func testPasteAndCutPresetsRequireAccessibilityBeforeSendingTheEdit() throws {
@@ -679,7 +673,7 @@ final class HostServicesTests: XCTestCase {
         let command = CommandDeclaration(
             id: CommandID("fixture.keyboard_shortcut"),
             title: "Keyboard Shortcut",
-            hostCommand: .invokeKeyboardShortcut
+            hostServiceID: "keyboard.press"
         )
         let manifest = try PluginManifest(
             id: PluginID("com.example.fixture"),
@@ -718,7 +712,7 @@ final class HostServicesTests: XCTestCase {
         let command = CommandDeclaration(
             id: CommandID("fixture.keyboard_shortcut"),
             title: "Keyboard Shortcut",
-            hostCommand: .invokeKeyboardShortcut
+            hostServiceID: "keyboard.press"
         )
         let manifest = try PluginManifest(
             id: PluginID("com.example.fixture"),
@@ -756,11 +750,11 @@ final class HostServicesTests: XCTestCase {
         )
     }
 
-    func testMalformedHostCommandInputHasStableInvalidConfigurationOutcome() throws {
+    func testMalformedCatalogueCommandInputHasStableFailureOutcome() throws {
         let command = CommandDeclaration(
             id: CommandID("fixture.open_url"),
             title: "Open URL",
-            hostCommand: .openURL
+            hostServiceID: "open.url"
         )
         let manifest = try PluginManifest(
             id: PluginID("com.example.fixture"),
@@ -790,14 +784,14 @@ final class HostServicesTests: XCTestCase {
         guard case .failed(let failure) = outcome.terminal else {
             return XCTFail("Malformed input must fail")
         }
-        XCTAssertEqual(failure.category, .invalidConfiguration)
+        XCTAssertEqual(failure.category, .hostServiceFailed)
     }
 
     func testUnavailableHostCommandHasStableUserVisibleFailure() throws {
         let command = CommandDeclaration(
             id: CommandID("fixture.open_file"),
             title: "Open File",
-            hostCommand: .openFile
+            hostServiceID: "open.path"
         )
         let manifest = try PluginManifest(
             id: PluginID("com.example.fixture"),
@@ -827,15 +821,15 @@ final class HostServicesTests: XCTestCase {
         guard case .failed(let failure) = outcome.terminal else {
             return XCTFail("An unavailable resource must fail")
         }
-        XCTAssertEqual(failure.category, .commandUnavailable)
-        XCTAssertTrue(failure.userMessage.contains("command_unavailable"))
+        XCTAssertEqual(failure.category, .hostServiceFailed)
+        XCTAssertTrue(failure.userMessage.contains("host_service_failed"))
     }
 
-    func testMalformedKeyboardModifierNumberHasStableInvalidConfigurationOutcome() throws {
+    func testMalformedKeyboardModifierNumberHasStableCatalogueFailureOutcome() throws {
         let command = CommandDeclaration(
             id: CommandID("fixture.keyboard_shortcut"),
             title: "Keyboard Shortcut",
-            hostCommand: .invokeKeyboardShortcut
+            hostServiceID: "keyboard.press"
         )
         let manifest = try PluginManifest(
             id: PluginID("com.example.fixture"),
@@ -869,7 +863,7 @@ final class HostServicesTests: XCTestCase {
         guard case .failed(let failure) = outcome.terminal else {
             return XCTFail("Malformed modifiers must fail")
         }
-        XCTAssertEqual(failure.category, .invalidConfiguration)
+        XCTAssertEqual(failure.category, .hostServiceFailed)
     }
 }
 

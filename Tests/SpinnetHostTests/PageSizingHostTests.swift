@@ -36,7 +36,7 @@ final class PageSizingHostTests: XCTestCase {
     }
 
     /// The page window carries the page's declaration, and a later page
-    /// without it takes it away; a Level 1 view never has it.
+    /// without it takes it away; a form/detail view never has it.
     func testThePanelIsResizableAsThePageDeclares() throws {
         let harness = try PageHarness()
         try harness.open(Self.page(resizable: .object(["min_height": .number(300)])))
@@ -49,9 +49,9 @@ final class PageSizingHostTests: XCTestCase {
         try harness.answer(Self.page())
         XCTAssertNil(pageWindow.resizing, "A page that does not declare it keeps the default layout")
 
-        let levelOne = try PluginViewHarness()
-        try levelOne.present(PluginViewHarness.form(title: "Form"))
-        XCTAssertNil(try XCTUnwrap(levelOne.window()).resizing)
+        let form = try PluginViewHarness()
+        try form.present(PluginViewHarness.form(title: "Form"))
+        XCTAssertNil(try XCTUnwrap(form.window()).resizing)
     }
 
     /// Widened by the user, an adaptive Grid takes more columns, so moving

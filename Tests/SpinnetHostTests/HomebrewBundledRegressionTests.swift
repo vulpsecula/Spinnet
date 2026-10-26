@@ -26,11 +26,13 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         try registry.register(package)
         // Exercise the actual startup transition from the saved declaration;
         // the historical access fixture remains tied to its original version.
-        let previous = try JSONDecoder().decode(PluginManifest.self, from: Data(contentsOf:
-            Self.baseline.appendingPathComponent("historical-candidate-manifest.json")))
+        let previousData = try Data(contentsOf: Self.baseline.appendingPathComponent("historical-candidate-manifest.json"))
+        let previous = try JSONDecoder().decode(JSONValue.self, from: previousData)
+        guard case .string(let previousID)? = previous.value(atPointer: "/id") else { return XCTFail("Missing predecessor ID") }
+        XCTAssertThrowsError(try PluginManifestLoader.decode(previousData), "Historical metadata must never become an executable package")
         let pluginsDirectory = directory.appendingPathComponent("Plugins")
         try FileManager.default.createDirectory(at: pluginsDirectory, withIntermediateDirectories: true)
-        try JSONEncoder().encode([previous.id.rawValue: previous]).write(to:
+        try JSONEncoder().encode([previousID: previous]).write(to:
             pluginsDirectory.appendingPathComponent("bundled-manifests.json"))
         let priorDecisions = grants.allGrants
         try PluginInstallationStore(directory: pluginsDirectory, registry: registry, grants: grants, persistGrants: {}).restore()
@@ -78,17 +80,23 @@ final class HomebrewBundledRegressionTests: XCTestCase {
     }
 
     func testHistoricalCandidateActionsRetainIdentityWithoutRegisteringRetiredContracts() throws {
-        let historical = try JSONDecoder().decode(PluginManifest.self, from: Data(contentsOf:
-            Self.baseline.appendingPathComponent("historical-candidate-manifest.json")))
-        XCTAssertEqual(historical.apiLevel, 2)
-        XCTAssertEqual(historical.candidateContracts, [AdaptiveViewportLayout.declaration, HomebrewAutoremove.declaration])
+        let data = try Data(contentsOf: Self.baseline.appendingPathComponent("historical-candidate-manifest.json"))
+        let historical = try JSONDecoder().decode(JSONValue.self, from: data)
+        XCTAssertEqual(historical.value(atPointer: "/api_level"), .number(2))
+        XCTAssertNotNil(historical.value(atPointer: "/candidate_contracts"))
+        XCTAssertThrowsError(try PluginManifestLoader.decode(data)) {
+            XCTAssertEqual($0.localizedDescription,
+                ConfigurationError.invalidManifest(PluginManifest.compatibilityMigrationMessage).localizedDescription)
+        }
+        guard case .string(let rawID)? = historical.value(atPointer: "/id"),
+              let commandValue = historical.value(atPointer: "/commands") else { return XCTFail("Missing historical commands") }
+        let commands = try JSONDecoder().decode([CommandDeclaration].self, from: JSONEncoder().encode(commandValue))
         let stored = try fixture.configuration()
-        XCTAssertEqual(stored.actions, try zip(stored.actions, historical.commands).map { saved, command in
-            try ActionConfiguration(id: saved.id, pluginID: historical.id, command: command, input: saved.input)
+        XCTAssertEqual(stored.actions, try zip(stored.actions, commands).map { saved, command in
+            try ActionConfiguration(id: saved.id, pluginID: PluginID(rawID), command: command, input: saved.input)
         })
         let package = try ShippedPluginPackages.named("Homebrew")
-        XCTAssertEqual(package.manifest.apiLevel, 7)
-        XCTAssertTrue(package.manifest.candidateContracts.isEmpty)
+        XCTAssertEqual(package.manifest.hostCompatibility, .current)
     }
 
     func testBrowserCannotUseUndeclaredAnalyticsReadsEvenWithAHistoricalGrant() throws {

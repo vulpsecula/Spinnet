@@ -1,7 +1,6 @@
 import Foundation
 
-/// Where a Plugin names a Host Service in the Plugin API catalogue
-/// (Candidate Contract `namespaces`, ADR 0020).
+/// Where a Plugin names a Host Service in the current catalogue.
 public enum HostServiceEntryPoint: String, CaseIterable, Hashable {
     /// A script calls it inside its invocation: `spinnet.<id>(input)` or
     /// `requestHostService("<id>", input)`.
@@ -23,10 +22,8 @@ public enum HostServiceEntryPoint: String, CaseIterable, Hashable {
 
 /// How the catalogue offers a Host Service at one entry point.
 public enum HostServiceOffering: Hashable {
-    /// Offered in its catalogue-ID form by `candidate`, or by Level 2 itself
-    /// (`level_2`) for an addition made while Level 2 is open. `level1` says
-    /// Plugin API Level 1 already offers it there under a Level 1 name.
-    case offered(candidate: String, level1: Bool)
+    /// Offered at this entry point under its catalogue ID.
+    case offered
     /// Kept for a later revision or another ticket; naming it there is
     /// refused.
     case reserved
@@ -35,12 +32,6 @@ public enum HostServiceOffering: Hashable {
     public var isOffered: Bool {
         if case .offered = self { return true }
         return false
-    }
-
-    /// The Candidate Contract, or `level_2`, that first offered it here.
-    public var origin: String? {
-        if case .offered(let candidate, _) = self { return candidate }
-        return nil
     }
 }
 
@@ -81,7 +72,7 @@ public enum HostServiceFailure: String, Hashable {
 
 /// One Host Service of the Plugin API catalogue, under its one
 /// `namespace.verb` ID: what it needs, how it fails, where it is offered,
-/// and the Plugin API Level 1 names it replaces.
+/// and the internal execution adapters it uses.
 public struct HostServiceDefinition: Hashable {
     public let id: String
     /// Kept for a later revision or ticket: offered nowhere yet.
@@ -99,9 +90,9 @@ public struct HostServiceDefinition: Hashable {
     /// `capabilities`: a Command's input is what the user configured
     /// (decision N7).
     public let commandCapabilityOverride: [PluginCapability]?
-    /// The Level 1 Host Services and Host Commands it replaces.
-    public let levelOneHostServices: [PluginHostService]
-    public let levelOneHostCommands: [HostCommand]
+    /// Internal execution adapters; their raw names are not public IDs.
+    public let serviceAdapters: [PluginHostService]
+    public let commandAdapters: [HostCommand]
 
     /// The area of Spinnet's domain it belongs to.
     public var namespace: String { String(id.prefix { $0 != "." }) }
@@ -116,72 +107,41 @@ public struct HostServiceDefinition: Hashable {
     public var commandCapabilities: [PluginCapability] { commandCapabilityOverride ?? capabilities }
 }
 
-/// The Plugin API catalogue this Host provides: Plugin API Level 2's,
-/// published in `PluginAPI/catalogue.json`, which Candidate Contract
-/// `namespaces` revision 1 (`PluginAPI/candidates/namespaces/r1/`, retired
-/// into Level 2) proved. Every operation has one ID, which a Level 2 Plugin
-/// uses at every entry point; inside the Host each is routed to the
-/// implementation Level 1 already has, so Level 1 names and catalogue IDs
-/// reach the same effect. `promoted` is the retired revision's record,
-/// whose members Level 2 holds; an offering's candidate names the revision
-/// that first offered the ID there.
+/// Current Host Services and their public catalogue IDs. Internal adapters
+/// implement the operations without exposing their raw names to Plugins.
 public enum HostServiceCatalogue {
-    public static let candidateName = "namespaces"
-    public static let revision = 1
-
-    /// The rule that a declaring Plugin names operations by catalogue ID
-    /// only, which also decides that its helper injects the namespaced SDK.
     public static let catalogueIDsOnly = PluginInterfaceMember.behaviour("catalogue_ids_only")
 
-    /// The candidate's own declaration.
-    public static var declaration: CandidateContractRevision {
-        CandidateContractRevision(name: candidateName, revision: revision)
-    }
-
-    /// Candidate Contract `namespaces` r1 as its `candidate.json` published
-    /// it: every ID a script may call, every ID a Command may run, and the
-    /// rules a Level 2 Plugin gets.
-    public static let promoted = CandidateContract(
-        name: candidateName, revision: revision, baseLevel: 1,
-        members: operations.filter { $0.offering(at: .call).origin == candidateName }.map { .hostService($0.id) }
-            + operations.filter { $0.offering(at: .command).origin == candidateName }.map { .hostCommand($0.id) }
-            + [catalogueIDsOnly.name, "primary_member_shorthand", "command_fixed_input", "configured_input_authority",
-               "operation_failures_at_every_entry_point", "screen_capture_preferences", "namespaced_sdk"]
-                .map(PluginInterfaceMember.behaviour),
-        tag: "plugin-api-candidate/\(candidateName)/r\(revision)"
-    )
+    public static let members: [PluginInterfaceMember] =
+        operations.filter { $0.isOffered(at: .call) }.map { .hostService($0.id) }
+        + operations.filter { $0.isOffered(at: .command) }.map { .hostCommand($0.id) }
+        + [catalogueIDsOnly.name, "primary_member_shorthand", "command_fixed_input", "configured_input_authority",
+           "operation_failures_at_every_entry_point", "screen_capture_preferences", "namespaced_sdk"]
+            .map(PluginInterfaceMember.behaviour)
 
     public static func operation(_ id: String) -> HostServiceDefinition? { operations.first { $0.id == id } }
 
-    /// The IDs a Plugin declaring the catalogue names instead of a Level 1
-    /// Host Service.
+    /// Public IDs implemented by this internal Host Service adapter.
     public static func ids(replacing service: PluginHostService) -> [String] {
-        operations.filter { $0.levelOneHostServices.contains(service) }.map(\.id)
+        operations.filter { $0.serviceAdapters.contains(service) }.map(\.id)
     }
 
-    /// The IDs a Plugin declaring the catalogue names instead of a Level 1
-    /// Host Command; `clipboard.copy` divides by its input into two.
+    /// Public IDs implemented by this internal Command adapter.
+    /// The copy adapter implements selection.copy and clipboard.write.
     public static func ids(replacing command: HostCommand) -> [String] {
-        operations.filter { $0.levelOneHostCommands.contains(command) }.map(\.id)
+        operations.filter { $0.commandAdapters.contains(command) }.map(\.id)
     }
 
     // MARK: - The operations
 
-    private static let ns = HostServiceOffering.offered(candidate: candidateName, level1: true)
-    private static let nsNew = HostServiceOffering.offered(candidate: candidateName, level1: false)
-    private static let collections = HostServiceOffering.offered(candidate: "collections", level1: true)
-    private static let collectionsNew = HostServiceOffering.offered(candidate: "collections", level1: false)
-    private static let operationsNew = HostServiceOffering.offered(candidate: "host_operations", level1: false)
-    /// Added to Level 2 itself while it is open.
-    private static let levelTwo = HostServiceOffering.offered(candidate: CurrentAppAddition.origin, level1: false)
     private static let calledOnly: [HostServiceEntryPoint: HostServiceOffering] = [
-        .call: ns, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered
+        .call: .offered, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered
     ]
     private static let performed: [HostServiceEntryPoint: HostServiceOffering] = [
-        .call: ns, .command: ns, .viewAction: collections, .request: operationsNew
+        .call: .offered, .command: .offered, .viewAction: .offered, .request: .offered
     ]
     private static let commandOnly: [HostServiceEntryPoint: HostServiceOffering] = [
-        .call: .notOffered, .command: ns, .viewAction: .reserved, .request: .reserved
+        .call: .notOffered, .command: .offered, .viewAction: .reserved, .request: .reserved
     ]
     private static let failures: [HostServiceFailure] = [.capabilityDenied, .hostServiceFailed]
     private static let permissionFailures: [HostServiceFailure] = [.capabilityDenied, .systemPermissionDenied, .hostServiceFailed]
@@ -196,7 +156,7 @@ public enum HostServiceCatalogue {
         HostServiceDefinition(id: id, isReserved: false, capabilities: capabilities, systemPermission: permission,
                               failures: failures, primaryMember: primary, inputMembers: input,
                               entryPoints: entryPoints, commandCapabilityOverride: commandCapabilities,
-                              levelOneHostServices: services, levelOneHostCommands: commands)
+                              serviceAdapters: services, commandAdapters: commands)
     }
 
     private static func reserve(_ id: String, at reserved: [HostServiceEntryPoint],
@@ -209,23 +169,23 @@ public enum HostServiceCatalogue {
         return HostServiceDefinition(id: id, isReserved: true, capabilities: [], systemPermission: nil,
                                      failures: [.hostServiceFailed], primaryMember: nil, inputMembers: [],
                                      entryPoints: entryPoints, commandCapabilityOverride: nil,
-                                     levelOneHostServices: [], levelOneHostCommands: [])
+                                     serviceAdapters: [], commandAdapters: [])
     }
 
     /// Every operation, offered or reserved, in the catalogue's order.
     public static let operations: [HostServiceDefinition] = [
-        define("host.toast", [.call: .notOffered, .command: ns, .viewAction: .notOffered, .request: .notOffered, .answer: ns],
+        define("host.toast", [.call: .notOffered, .command: .offered, .viewAction: .notOffered, .request: .notOffered, .answer: .offered],
                primary: "text", input: ["text"], commands: [.presentFeedback]),
         define("host.closeView", [.call: .notOffered, .command: .notOffered, .viewAction: .notOffered,
-                                  .request: .notOffered, .answer: ns]),
-        define("host.showPluginSettings", [.call: .notOffered, .command: nsNew, .viewAction: collections,
-                                           .request: operationsNew]),
+                                  .request: .notOffered, .answer: .offered]),
+        define("host.showPluginSettings", [.call: .notOffered, .command: .offered, .viewAction: .offered,
+                                           .request: .offered]),
         reserve("host.confirm", at: [.request]),
         reserve("host.launchCommand", at: [.viewAction, .request]),
 
         define("selection.readText", calledOnly, capabilities: [.readSelectedText], permission: .accessibility,
                failures: permissionFailures, input: ["best_effort"], services: [.readSelectedText]),
-        define("selection.replace", [.call: ns, .command: .reserved, .viewAction: collections, .request: operationsNew],
+        define("selection.replace", [.call: .offered, .command: .reserved, .viewAction: .offered, .request: .offered],
                capabilities: [.insertIntoFocusedApp], permission: .accessibility,
                failures: permissionFailures + [.insertionTargetChanged], primary: "text", input: ["text"],
                services: [.insertText]),
@@ -249,68 +209,68 @@ public enum HostServiceCatalogue {
                input: ["offset"], services: [.readClipboardHistory]),
         define("clipboardHistory.readContent", calledOnly, capabilities: [.readClipboardHistory], failures: failures,
                input: ["entry_id", "offset", "length"], services: [.readClipboardHistoryContent]),
-        define("clipboardHistory.show", [.call: ns, .command: nsNew, .viewAction: collectionsNew, .request: operationsNew],
+        define("clipboardHistory.show", [.call: .offered, .command: .offered, .viewAction: .offered, .request: .offered],
                capabilities: [.readClipboardHistory], failures: failures, services: [.presentClipboardHistory]),
 
         define("open.url", performed, capabilities: [.openURL], failures: failures, primary: "url", input: ["url"],
                commandCapabilities: [], services: [.openURL], commands: [.openURL]),
-        define("open.path", [.call: ns, .command: ns, .viewAction: collectionsNew, .request: operationsNew],
+        define("open.path", [.call: .offered, .command: .offered, .viewAction: .offered, .request: .offered],
                capabilities: [.openLocalPath], failures: failures, primary: "path", input: ["path"],
                commandCapabilities: [], services: [.openLocalPath], commands: [.openFile, .openFolder]),
-        define("open.application", [.call: nsNew, .command: ns, .viewAction: collectionsNew, .request: operationsNew],
+        define("open.application", [.call: .offered, .command: .offered, .viewAction: .offered, .request: .offered],
                capabilities: [.openLocalPath], failures: failures, primary: "application", input: ["application"],
                commandCapabilities: [], commands: [.openApplication]),
         reserve("open.reveal", at: [.call, .command, .viewAction, .request]),
 
-        define("apps.perform", [.call: ns, .command: nsNew, .viewAction: collectionsNew, .request: operationsNew, .source: levelTwo],
+        define("apps.perform", [.call: .offered, .command: .offered, .viewAction: .offered, .request: .offered, .source: .offered],
                capabilities: [.controlExternalApp], permission: .automation,
                failures: [.capabilityDenied, .automationPermissionDenied, .automationPermissionNeeded, .externalAppNotRunning, .externalAppMissing,
                           .externalAppOperationUnsupported, .hostServiceFailed],
                input: ["bundle_id", "operation", "arguments"], services: [.performAppOperation]),
-        define("apps.openDeepLink", [.call: ns, .command: ns, .viewAction: collectionsNew, .request: operationsNew],
+        define("apps.openDeepLink", [.call: .offered, .command: .offered, .viewAction: .offered, .request: .offered],
                capabilities: [.controlExternalApp], failures: [.capabilityDenied, .externalAppMissing, .hostServiceFailed],
                input: ["template", "parameters"], services: [.openDeepLink], commands: [.openDeepLink]),
-        // The App in front and its exits (#83), appended to Level 2. Quit
+        // The App in front and its exits (#83), appended to the current interface. Quit
         // presses the App's ⌘Q item through Accessibility, but Force Quit,
         // under the same ID, needs no System Permission; Close always
         // presses its ⌘W item.
-        define(CurrentAppAddition.frontmostID, [.call: levelTwo, .command: .notOffered, .viewAction: .notOffered,
+        define(CurrentAppAddition.frontmostID, [.call: .offered, .command: .notOffered, .viewAction: .notOffered,
                                                 .request: .notOffered],
                capabilities: [.readFrontmostApp], failures: failures, services: []),
-        define(CurrentAppAddition.quitID, [.call: .notOffered, .command: .reserved, .viewAction: levelTwo,
-                                           .request: levelTwo],
+        define(CurrentAppAddition.quitID, [.call: .notOffered, .command: .reserved, .viewAction: .offered,
+                                           .request: .offered],
                capabilities: [.quitFrontmostApp], failures: permissionFailures, input: ["target", "force"]),
-        define(CurrentAppAddition.closeID, [.call: .notOffered, .command: .reserved, .viewAction: levelTwo,
-                                            .request: levelTwo],
+        define(CurrentAppAddition.closeID, [.call: .notOffered, .command: .reserved, .viewAction: .offered,
+                                            .request: .offered],
                capabilities: [.quitFrontmostApp], permission: .accessibility, failures: permissionFailures,
                input: ["target"]),
 
-        define("system.runShortcut", [.call: .reserved, .command: ns, .viewAction: .reserved, .request: .reserved],
+        define("system.runShortcut", [.call: .reserved, .command: .offered, .viewAction: .reserved, .request: .reserved],
                primary: "name", input: ["name", "input"], commands: [.invokeShortcut]),
-        define("system.runService", [.call: .reserved, .command: ns, .viewAction: .reserved, .request: .reserved],
+        define("system.runService", [.call: .reserved, .command: .offered, .viewAction: .reserved, .request: .reserved],
                primary: "name", input: ["name", "input"], commands: [.invokeService]),
-        define(KeepAwakeAddition.id, [.call: .notOffered, .command: levelTwo, .viewAction: levelTwo, .request: levelTwo],
+        define(KeepAwakeAddition.id, [.call: .notOffered, .command: .offered, .viewAction: .offered, .request: .offered],
                capabilities: [.keepAwake], failures: failures, input: ["mode", "seconds", "target"]),
-        define(SystemMetrics.id, [.call: levelTwo, .source: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readSystemStatus], failures: failures, input: ["metrics"]),
+        define(SystemMetrics.id, [.call: .offered, .source: .offered, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readSystemStatus], failures: failures, input: ["metrics"]),
 
         define("window.read", calledOnly, capabilities: [.positionFocusedWindow], permission: .accessibility,
                failures: permissionFailures, services: [.readFocusedWindow]),
         define("window.setFrame", calledOnly, capabilities: [.positionFocusedWindow], permission: .accessibility,
                failures: permissionFailures, input: ["x", "y", "width", "height"], services: [.setFocusedWindowFrame]),
-        define("window.toggleFullScreen", [.call: ns, .command: nsNew, .viewAction: .reserved, .request: .reserved],
+        define("window.toggleFullScreen", [.call: .offered, .command: .offered, .viewAction: .reserved, .request: .reserved],
                capabilities: [.positionFocusedWindow], permission: .accessibility, failures: permissionFailures,
                services: [.toggleFocusedWindowFullScreen]),
-        define("window.restore", [.call: ns, .command: nsNew, .viewAction: .reserved, .request: .reserved],
+        define("window.restore", [.call: .offered, .command: .offered, .viewAction: .reserved, .request: .reserved],
                capabilities: [.positionFocusedWindow], permission: .accessibility, failures: permissionFailures,
                services: [.restoreFocusedWindowFrame]),
 
-        define("screen.capture", [.call: ns, .command: ns, .viewAction: .reserved, .request: .reserved],
+        define("screen.capture", [.call: .offered, .command: .offered, .viewAction: .reserved, .request: .reserved],
                capabilities: [.captureScreen], permission: .screenRecording, failures: permissionFailures,
                primary: "source", input: ["source", "copy_to_clipboard", "save"],
                services: [.captureScreen], commands: [.captureArea, .captureFullScreen, .captureWindow]),
 
-        define("http.request", [.call: ns, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered,
-                                .source: ns],
+        define("http.request", [.call: .offered, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered,
+                                .source: .offered],
                capabilities: [.contactHTTPS], failures: failures, services: [.httpsRequest]),
 
         define("text.detectLanguage", calledOnly, primary: "text", input: ["text"], services: [.detectLanguage]),
@@ -322,14 +282,14 @@ public enum HostServiceCatalogue {
         define("storage.keys", calledOnly, services: [.listStorageKeys]),
         define("storage.clear", calledOnly, services: [.clearStorage]),
 
-        define(KeepAwakeAddition.listID, [.call: levelTwo, .source: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered]),
-        define(KeepAwakeAddition.stopID, [.call: .notOffered, .command: .notOffered, .viewAction: levelTwo, .request: levelTwo],
+        define(KeepAwakeAddition.listID, [.call: .offered, .source: .offered, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered]),
+        define(KeepAwakeAddition.stopID, [.call: .notOffered, .command: .notOffered, .viewAction: .offered, .request: .offered],
                input: ["id"]),
-        define(ReviewedToolReads.id, [.call: levelTwo, .source: levelTwo, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readReviewedTools],
+        define(ReviewedToolReads.id, [.call: .offered, .source: .offered, .command: .notOffered, .viewAction: .notOffered, .request: .notOffered], capabilities: [.readReviewedTools],
                failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge],
                input: ["tool", "operation", "kind", "greedy", "query", "names", "name", "tap", "target", "id", "offset"]),
-        define(ReviewedServicesAddition.id, [.call: .notOffered, .source: .notOffered, .command: levelTwo, .viewAction: levelTwo, .request: levelTwo], capabilities: [.readReviewedTools], failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge], input: ["tool", "presentation"]),
-        define(ReviewedToolTasksAddition.id, [.call: .notOffered, .command: .notOffered, .viewAction: levelTwo, .request: levelTwo], capabilities: [.runReviewedToolTasks],
+        define(ReviewedServicesAddition.id, [.call: .notOffered, .source: .notOffered, .command: .offered, .viewAction: .offered, .request: .offered], capabilities: [.readReviewedTools], failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolTimedOut, .toolFailed, .outputTooLarge], input: ["tool", "presentation"]),
+        define(ReviewedToolTasksAddition.id, [.call: .notOffered, .command: .notOffered, .viewAction: .offered, .request: .offered], capabilities: [.runReviewedToolTasks],
                failures: [.capabilityDenied, .hostServiceFailed, .toolMissing, .toolFailed, .toolBusy, .packageNotFound, .sourceNotAllowed, .alreadyInstalled, .notOutdated, .taskNotFound, .taskFinished, .planChanged],
                input: ["tool", "operation", "kind", "name", "names", "tap", "target", "zap", "greedy", "pruneAll", "days"])
     ]
@@ -338,7 +298,7 @@ public enum HostServiceCatalogue {
 // MARK: - Refusals
 
 /// Why the Host refuses the name a Plugin gives a Host Service. The message
-/// names the operation by its ID and, for a Level 1 name, the ID to use
+/// names the operation by its ID and, for an internal adapter name, the ID to use
 /// instead. A Command's refusal is what the Library shows; a call's ends the
 /// invocation with `host_service_failed`.
 public enum HostServiceRefusal: Error, Equatable, LocalizedError {
@@ -348,32 +308,30 @@ public enum HostServiceRefusal: Error, Equatable, LocalizedError {
         case command(CommandID, plugin: String)
     }
 
-    /// A Plugin declaring the catalogue named a Plugin API Level 1 name.
-    case levelOneName(String, replacements: [String], use: Use)
+    /// An internal adapter name was used in place of a public catalogue ID.
+    case internalName(String, replacements: [String], use: Use)
     /// The ID is reserved where it was named.
     case reserved(String, use: Use)
     /// The catalogue does not offer the ID where it was named.
     case notOffered(String, use: Use)
     /// No operation of the catalogue has this ID.
     case notCatalogued(String, use: Use)
-    /// The ID belongs to a Candidate Contract the Plugin does not declare.
-    case undeclared(String, apiLevel: Int, plugin: String, use: Use)
     /// A Command names an operation it may run, with input it may not give.
     case invalidCommand(CommandID, plugin: String, reason: String)
 
     public var errorDescription: String? {
         switch self {
-        case let .levelOneName(name, replacements, .call):
-            return "\(name) is a Plugin API Level 1 name; a Plugin API Level 2 Plugin calls "
+        case let .internalName(name, replacements, .call):
+            return "\(name) is an internal adapter name; call "
                 + replacements.joined(separator: " or ")
-        case let .levelOneName(name, replacements, .command(command, plugin)):
-            return "Command \(command.rawValue) of \(plugin) names \(name), a Plugin API Level 1 Host Command; a Plugin "
-                + "API Level 2 Plugin names it \(replacements.joined(separator: " or "))."
+        case let .internalName(name, replacements, .command(command, plugin)):
+            return "Command \(command.rawValue) of \(plugin) names internal adapter \(name); use "
+                + "\(replacements.joined(separator: " or "))."
         case let .reserved(id, .call):
-            return "\(id) is reserved: no Plugin API Level lets a script call it yet"
+            return "\(id) is reserved: scripts cannot call it"
         case let .reserved(id, .command(command, plugin)):
-            return "Command \(command.rawValue) of \(plugin) names \(id), which is reserved: no Plugin API Level runs "
-                + "it as a Command yet."
+            return "Command \(command.rawValue) of \(plugin) names \(id), which is reserved and cannot run "
+                + "as a Command."
         case let .notOffered(id, .call):
             let hint = HostServiceCatalogue.operation(id)?.isOffered(at: .command) == true ? "; a Command can run it" : ""
             return "\(id) cannot be called from a script\(hint)"
@@ -384,11 +342,6 @@ public enum HostServiceRefusal: Error, Equatable, LocalizedError {
         case let .notCatalogued(name, .command(command, plugin)):
             return "Command \(command.rawValue) of \(plugin) names \(name), which is not a Host Service of the Plugin "
                 + "API catalogue."
-        case let .undeclared(id, level, plugin, .call):
-            return "\(id) is not part of Plugin API Level \(level) or a Candidate Contract \(plugin) declares"
-        case let .undeclared(id, level, plugin, .command(command, _)):
-            return "Command \(command.rawValue) of \(plugin) names \(id), which is not part of Plugin API Level \(level) "
-                + "or a Candidate Contract \(plugin) declares."
         case let .invalidCommand(command, plugin, reason):
             return "Command \(command.rawValue) of \(plugin): \(reason)."
         }
@@ -399,7 +352,7 @@ public enum HostServiceRefusal: Error, Equatable, LocalizedError {
 
 public extension HostServiceCatalogue {
     /// The operation a Command opens a Deep Link Template with, which names
-    /// its template in `deep_link_template` as Level 1's `deep_link.open` does.
+    /// its template in `deep_link_template` as the internal adapter's `deep_link.open` does.
     static let deepLinkOperation = "apps.openDeepLink"
 
     /// Why `name` cannot be used at `entryPoint`: reserved there, not
@@ -410,24 +363,16 @@ public extension HostServiceCatalogue {
         return operation.offering(at: entryPoint) == .reserved ? .reserved(name, use: use) : .notOffered(name, use: use)
     }
 
-    /// Holds `manifest`'s scriptless Commands to what it declares, when it
-    /// is reviewed, installed or registered and before each run. A Plugin
-    /// declaring the catalogue names each Command's Host Service by an ID
-    /// offered as a Command, with input that belongs to it (decisions N5 and
-    /// N8); a Plugin that does not keeps Level 1's Host Commands.
+    /// Validates scriptless Commands at review, registration and execution:
+    /// every Command names an offered catalogue ID with its allowed input.
     static func checkCommands(of manifest: PluginManifest, under contracts: PluginInterfaceContracts) throws {
-        let usesIDs = contracts.permits(catalogueIDsOnly, declaredBy: manifest)
         for command in manifest.commands where command.execution == .host {
             let use = HostServiceRefusal.Use.command(command.id, plugin: manifest.name)
-            if let levelOne = command.hostCommand {
-                guard usesIDs else { continue }
-                throw HostServiceRefusal.levelOneName(levelOne.rawValue, replacements: ids(replacing: levelOne), use: use)
+            if let adapter = command.hostCommand {
+                throw HostServiceRefusal.internalName(adapter.rawValue, replacements: ids(replacing: adapter), use: use)
             }
             guard let id = command.hostServiceID else { continue }
             guard contracts.permits(.hostCommand(id), declaredBy: manifest) else {
-                guard usesIDs else {
-                    throw HostServiceRefusal.undeclared(id, apiLevel: manifest.apiLevel, plugin: manifest.name, use: use)
-                }
                 throw refusal(for: id, at: .command, use: use)
             }
             guard let operation = operation(id), operation.isOffered(at: .command) else {
@@ -436,7 +381,7 @@ public extension HostServiceCatalogue {
             if id == "apps.perform", command.fixedInput?.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID),
                case .string(let name)? = command.fixedInput?.value(atPointer: "/operation"),
                SpotifyControls.operationNames.contains(name), !contracts.permits(SpotifyControls.member, declaredBy: manifest) {
-                throw HostServiceRefusal.invalidCommand(command.id, plugin: manifest.name, reason: "Spotify \(name) requires Plugin API Level 3")
+                throw HostServiceRefusal.invalidCommand(command.id, plugin: manifest.name, reason: "Spotify \(name) is not provided by this Host")
             }
             try operation.check(command, of: manifest)
         }
@@ -516,29 +461,15 @@ extension HostServiceDefinition {
 // MARK: - Calls
 
 public extension PluginInterfaceContracts {
-    /// The Host Service request a script's call makes, as the Host performs
-    /// it, or why the Plugin may not make it. A Plugin declaring the
-    /// catalogue calls by ID only (decision N5): a Level 1 name, a reserved
-    /// ID or one not offered to a script is refused as a Host Service
-    /// failure naming the ID. Any other Plugin calls Level 1's names, and a
-    /// name it does not know is a broken message, as it always was.
+    /// Resolves a public catalogue ID or returns its refusal. Internal names,
+    /// reserved IDs and operations unavailable to calls fail consistently.
     func resolve(_ call: PluginRuntimeHostServiceCall,
                  declaredBy manifest: PluginManifest) throws -> Result<PluginRuntimeHostServiceRequest, PluginHostServiceError> {
         func refuse(_ refusal: HostServiceRefusal) -> Result<PluginRuntimeHostServiceRequest, PluginHostServiceError> {
             .failure(.unavailable(refusal.localizedDescription))
         }
-        guard permits(HostServiceCatalogue.catalogueIDsOnly, declaredBy: manifest) else {
-            guard let service = PluginHostService(rawValue: call.name) else {
-                throw PluginRuntimeError.protocolViolation("Host Service request is malformed")
-            }
-            guard permits(.hostService(service.rawValue), declaredBy: manifest) else {
-                return refuse(.undeclared(service.rawValue, apiLevel: manifest.apiLevel, plugin: manifest.name, use: .call))
-            }
-            return .success(PluginRuntimeHostServiceRequest(invocationID: call.invocationID, actionID: call.actionID,
-                                                            requestID: call.requestID, service: service, input: call.input))
-        }
-        if let levelOne = PluginHostService(rawValue: call.name), levelOne.isLevelOne {
-            return refuse(.levelOneName(call.name, replacements: HostServiceCatalogue.ids(replacing: levelOne), use: .call))
+        if let adapter = PluginHostService(rawValue: call.name), adapter.usesInternalName {
+            return refuse(.internalName(call.name, replacements: HostServiceCatalogue.ids(replacing: adapter), use: .call))
         }
         guard permits(.hostService(call.name), declaredBy: manifest),
               let operation = HostServiceCatalogue.operation(call.name), operation.isOffered(at: .call) else {
@@ -553,7 +484,7 @@ public extension PluginInterfaceContracts {
             if service == .performAppOperation, input.value(atPointer: "/bundle_id") == .string(SpotifyPlayback.bundleID),
                case .string(let name)? = input.value(atPointer: "/operation"),
                SpotifyControls.operationNames.contains(name), !permits(SpotifyControls.member, declaredBy: manifest) {
-                return .failure(.unavailable("Spotify \(name) requires Plugin API Level 3"))
+                return .failure(.unavailable("Spotify \(name) is not provided by this Host"))
             }
             return .success(PluginRuntimeHostServiceRequest(invocationID: call.invocationID, actionID: call.actionID,
                                                             requestID: call.requestID, service: service, input: input,
@@ -566,7 +497,7 @@ public extension PluginInterfaceContracts {
 
 public extension PluginRuntimeHostServiceRequest {
     /// Performs the request, so that invalid input is reported in the words
-    /// of the ID the Plugin called rather than of the Level 1 Host Service
+    /// of the ID the Plugin called rather than of the internal Host Service
     /// that performs it.
     func namingItsOperation<T>(_ perform: () throws -> T) throws -> T {
         do {
@@ -578,7 +509,7 @@ public extension PluginRuntimeHostServiceRequest {
 }
 
 extension HostServiceDefinition {
-    /// The Level 1 Host Service that performs a call of this operation, and
+    /// The internal Host Service that performs a call of this operation, and
     /// the input as that service takes it. A bare string or an object of the
     /// primary member alone are the same call (`primary_member_shorthand`);
     /// `screen.capture` with only a source follows the user's screenshot
@@ -600,10 +531,10 @@ extension HostServiceDefinition {
         case CurrentAppAddition.frontmostID:
             service = .identifyFrontmostApp
         default:
-            guard levelOneHostServices.count == 1 else {
+            guard serviceAdapters.count == 1 else {
                 throw PluginHostServiceError.unavailable("\(id) has no implementation for a call")
             }
-            service = levelOneHostServices[0]
+            service = serviceAdapters[0]
         }
         guard let primary = primaryMember else { return (service, input) }
         let value: JSONValue
@@ -613,7 +544,7 @@ extension HostServiceDefinition {
                   case .string = member {
             value = member
         } else if id == "screen.capture" {
-            // Level 1's options, which the Host Service reads as it always has.
+            // The adapter reads explicit capture options.
             return (service, input)
         } else {
             throw PluginHostServiceError.invalidInput("\(id) expects \(primary) as a string, or an object of \(primary) alone")
@@ -625,13 +556,13 @@ extension HostServiceDefinition {
 // MARK: - Running a Command
 
 /// Performs what a scriptless Command naming a catalogue ID needs besides a
-/// Host Service: a Level 1 Host Command's effect with the input the
+/// Host Service: an internal Host Command's effect with the input the
 /// catalogue gives it, a toast near the pointer, and the Plugin's settings.
 /// The Host's executor checks the Command's current authority itself, as it
-/// does for a Level 1 Host Command.
+/// does for an internal Host Command.
 public protocol CatalogueCommandExecutor: HostCommandExecutor {
     /// Performs `command`'s effect with `input` for `action`, whose Command
-    /// names a catalogue ID that Level 1 performs as `command`.
+    /// names a catalogue ID that the internal adapter performs as `command`.
     func perform(_ command: HostCommand, input: JSONValue, for action: ActionConfiguration,
                  in package: PluginPackage) throws -> JSONValue
     /// `host.toast`: a short message near the pointer (decision N2).
@@ -650,6 +581,19 @@ enum HostServiceCommandStep: Equatable {
 }
 
 extension HostServiceDefinition {
+    /// Validates configured native input without opening a resource or querying
+    /// the desktop. The current Command resolves fixed/configured members first;
+    /// the native adapter then applies its existing input grammar.
+    func acceptsConfiguredInput(_ input: JSONValue, for command: CommandDeclaration) -> Bool {
+        let resolved = commandInput(for: command, actionInput: input)
+        guard let step = try? commandStep(input: resolved, isDirectory: { _ in false }) else { return false }
+        switch step {
+        case .hostCommand(let adapter, let value): return adapter.isValidInput(value)
+        case .toast(let text): return HostCommand.presentFeedback.isValidInput(.string(text))
+        case .hostService, .pluginSettings: return true
+        }
+    }
+
     /// The operation's input for an Action of `command`: the Command's fixed
     /// members, then the configured ones. A single configuration field gives
     /// the primary member, or the whole input of an operation without one;
@@ -687,7 +631,7 @@ extension HostServiceDefinition {
         return .object(members)
     }
 
-    /// The implementation Level 1 already has for this operation's Command
+    /// The native implementation for this operation's Command
     /// form, given its `input`. `isDirectory` says whether a path names an
     /// existing folder, so `open.path` opens whichever exists.
     func commandStep(input: JSONValue, isDirectory: (String) -> Bool) throws -> HostServiceCommandStep {
@@ -724,7 +668,7 @@ extension HostServiceDefinition {
         case "window.restore": return .hostService(.restoreFocusedWindowFrame, .null)
         case "screen.capture":
             // Only a source: the user's screenshot preferences decide, as
-            // they do for Level 1's three capture Commands (decision N9).
+            // they do for the internal adapter's three capture Commands (decision N9).
             if case .object(let members) = input, members.count == 1, case .string(let raw)? = members["source"],
                let source = ScreenCaptureSource(rawValue: raw) {
                 switch source {
@@ -743,8 +687,7 @@ extension HostServiceDefinition {
 extension HostActionRunner {
     /// Runs a Command naming catalogue ID `action.hostServiceID`: no helper
     /// starts; the operation's input is assembled from the Command and the
-    /// Action, and performed by the Host Service or Host Command Level 1
-    /// performs it with. A failure is the operation's category, the same as
+    /// Action, and performed by the native Host Service or Command adapter. A failure is the operation's category, the same as
     /// a call's (design 6.5).
     func invokeCatalogueCommand(_ action: ActionConfiguration, in package: PluginPackage,
                                 executor: HostCommandExecutor, broker: PluginHostServiceBroker?,

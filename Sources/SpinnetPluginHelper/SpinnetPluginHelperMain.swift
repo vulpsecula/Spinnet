@@ -200,49 +200,30 @@ struct SpinnetPluginHelperMain {
         }
     }
 
-    /// Defines the `spinnet` global from `PluginAPI/spinnet.js`, over the
-    /// `requestHostService` already in `context`; for a Plugin declaring
-    /// Plugin API Level 2 the object `spinnet-level-2.js` builds over Level
-    /// 1's. Level 3 adds the proved adaptive viewport and autoremove
-    /// builders without exposing them to Plugins declaring earlier Levels.
+    /// Defines the complete current SDK for every compatible Plugin.
     private static func injectSDK(into context: JSContext, for invocation: PluginRuntimeInvocation) -> Bool {
         let environment: [String: Any] = [
-            "apiLevel": invocation.environment.apiLevel,
             "hostVersion": invocation.environment.hostVersion,
-            "preferredLanguage": invocation.environment.preferredLanguage,
-            "pluginID": invocation.pluginID.rawValue,
-            "commandID": invocation.commandID.rawValue,
-            "actionID": invocation.actionID.rawValue,
-            "invocationID": invocation.invocationID
+            "preferredLanguage": invocation.environment.preferredLanguage
         ]
         guard let makeSDK = context.evaluateScript(SpinnetSDK.source), makeSDK.isObject,
               let requestHostService = context.objectForKeyedSubscript("requestHostService"),
               var sdk = makeSDK.call(withArguments: [requestHostService, environment]), sdk.isObject else {
             return false
         }
-        if invocation.apiLevel >= 2 {
-            guard let makeLevelTwo = context.evaluateScript(SpinnetSDK.levelTwoSource), makeLevelTwo.isObject,
-                  let levelTwo = makeLevelTwo.call(withArguments: [requestHostService, environment, sdk]),
-                  levelTwo.isObject else {
-                return false
-            }
-            sdk = levelTwo
-        }
-        if invocation.apiLevel >= 3 {
-            guard let makeAdaptive = context.evaluateScript(SpinnetSDK.levelThreeAdaptiveSource), makeAdaptive.isObject,
-                  let adaptive = makeAdaptive.call(withArguments: [sdk]), adaptive.isObject else { return false }
-            sdk = adaptive
-        }
-        if invocation.apiLevel >= 3 {
-            guard let makeAutoremove = context.evaluateScript(SpinnetSDK.levelThreeAutoremoveSource), makeAutoremove.isObject,
-                  let autoremove = makeAutoremove.call(withArguments: [sdk, requestHostService]), autoremove.isObject else { return false }
-            sdk = autoremove
-        }
-        if invocation.apiLevel >= 6 || invocation.candidateContracts.contains(HomebrewCommandOutput.declaration) {
-            guard let makeOutput = context.evaluateScript(SpinnetSDK.commandOutputSource), makeOutput.isObject,
-                  let output = makeOutput.call(withArguments: [sdk, requestHostService]), output.isObject else { return false }
-            sdk = output
-        }
+        guard let makeCurrent = context.evaluateScript(SpinnetSDK.currentSource), makeCurrent.isObject,
+              let current = makeCurrent.call(withArguments: [requestHostService, environment, sdk]),
+              current.isObject else { return false }
+        sdk = current
+        guard let makeAdaptive = context.evaluateScript(SpinnetSDK.adaptiveSource), makeAdaptive.isObject,
+              let adaptive = makeAdaptive.call(withArguments: [sdk]), adaptive.isObject else { return false }
+        sdk = adaptive
+        guard let makeAutoremove = context.evaluateScript(SpinnetSDK.autoremoveSource), makeAutoremove.isObject,
+              let autoremove = makeAutoremove.call(withArguments: [sdk, requestHostService]), autoremove.isObject else { return false }
+        sdk = autoremove
+        guard let makeOutput = context.evaluateScript(SpinnetSDK.commandOutputSource), makeOutput.isObject,
+              let output = makeOutput.call(withArguments: [sdk, requestHostService]), output.isObject else { return false }
+        sdk = output
         context.setObject(sdk, forKeyedSubscript: "spinnet" as NSString)
         return true
     }
@@ -307,20 +288,14 @@ private final class PluginRuntimeHostServiceClient {
     }
 
     func request(serviceName: String, inputJSON: String) throws -> String {
-        // A Plugin declaring the catalogue names operations by ID, which the
-        // Host resolves and refuses with its reason; any other Plugin may
-        // name only Level 1's Host Services, as before.
-        let namesCatalogueIDs = invocation.namesCatalogueIDs
-        guard namesCatalogueIDs
-                ? !serviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && serviceName.count <= 256
-                : PluginHostService(rawValue: serviceName) != nil else {
+        // The Host resolves catalogue IDs and reports invalid names.
+        guard !serviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && serviceName.count <= 256 else {
             throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
                 category: .helperError,
                 message: "Unsupported Host Service"
             ))
         }
-        let writesStorage = serviceName == PluginHostService.setStorageValue.rawValue
-            || (namesCatalogueIDs && serviceName == "storage.set")
+        let writesStorage = serviceName == "storage.set"
         guard let inputData = inputJSON.data(using: .utf8),
               let input = try? JSONDecoder().decode(JSONValue.self, from: inputData) else {
             throw PluginRuntimeHostServiceClientError(failure: PluginRuntimeFailure(
@@ -396,10 +371,6 @@ private final class PluginRuntimeHostServiceClient {
 }
 
 private extension PluginRuntimeInvocation {
-    /// Whether the Plugin names Host Services by catalogue ID: from Plugin
-    /// API Level 2.
-    var namesCatalogueIDs: Bool { apiLevel >= 2 }
-
     var inputJSON: String {
         guard let data = try? JSONEncoder().encode(input) else { return "null" }
         return String(decoding: data, as: UTF8.self)

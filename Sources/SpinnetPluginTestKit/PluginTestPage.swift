@@ -1,7 +1,7 @@
 import Foundation
 import SpinnetCore
 
-/// One View Session of a Plugin API Level 2 Plugin's pages, driven by recorded gestures the way the Host drives it: answers are read
+/// One View Session of a compatible Plugin's pages, driven by recorded gestures the way the Host drives it: answers are read
 /// and applied as the Host applies them, through the same page memory, so
 /// typed text, choices, selection and focus survive refreshes and come back
 /// with a remembered page; gestures produce the events, with their
@@ -19,8 +19,8 @@ public final class PluginTestPage {
     public private(set) var memory = PluginPageMemory()
     /// The state the script returned with its last page or view.
     public private(set) var state: JSONValue = .null
-    /// The Level 1 view on screen instead of a page, if the script answered one.
-    public private(set) var levelOneView: JSONValue?
+    /// The form/detail view on screen instead of a page, if the script answered one.
+    public private(set) var viewJSON: JSONValue?
     /// The page as the script last wrote it.
     public private(set) var pageJSON: JSONValue?
     /// Every event delivered to the script in the session, in order.
@@ -53,7 +53,7 @@ public final class PluginTestPage {
 
     /// The Command and input of the Action handling the session: the one
     /// that opened it, or the last call whose answer committed a page or
-    /// view (Candidate Contract `collections` r2).
+    /// view.
     public private(set) var handler: (commandID: String, input: JSONValue)
 
     private let helper: PluginTestHelper
@@ -120,7 +120,7 @@ public final class PluginTestPage {
     }
 
     /// What the Host would show for each `image` component of the page
-    /// (Plugin API Level 2, #81), by component ID, without the network: a
+    /// (the current interface, #81), by component ID, without the network: a
     /// package resource is read and decoded within the Host's budgets, to
     /// its pixel size; an HTTPS source is checked against what the
     /// handler's Command declares and the hosts the user added, and
@@ -159,12 +159,9 @@ public final class PluginTestPage {
     /// Settings and the Menu Item's overrides already merged, by default the
     /// handler's own.
     ///
-    /// For a Level 2 Plugin the call runs in the session as `called`, from the last good state, as a gesture with no
-    /// insertion target shown; only an answer with a page or view makes it
-    /// the handler, and a failure throws and keeps the handler, page and
-    /// state. For any other Plugin, Level 1's rule: the Action starts again
-    /// with no event and no state, and an answer with a view replaces the
-    /// session's.
+    /// Calls run as `called` from the last good state with no insertion
+    /// target shown. Only an answer with a page or view replaces the handler;
+    /// a failure preserves the previous handler, page and state.
     @discardableResult
     public func call(_ commandID: String? = nil, input: JSONValue? = nil) throws -> PluginScriptAnswer {
         let called = (commandID ?? handler.commandID, input ?? handler.input)
@@ -434,7 +431,7 @@ public final class PluginTestPage {
         if let event { events.append(event) }
         let runner = action ?? handler
         let invocation = PluginTestInvocation(runner.commandID, input: runner.input, event: event,
-                                              state: state ?? self.state, view: pageJSON ?? levelOneView)
+                                              state: state ?? self.state, view: pageJSON ?? viewJSON)
         let run = helper.run(invocation, of: plugin, answering: services)
         runs.append(run)
         let answer: PluginScriptAnswer
@@ -460,11 +457,11 @@ public final class PluginTestPage {
         if let page = answer.page {
             memory.show(page, composing: composing, answersRange: answersRange)
             pageJSON = answer.pageJSON
-            levelOneView = nil
+            viewJSON = nil
             state = answer.state
         } else if let view = answer.view {
-            memory.showLevelOneView()
-            levelOneView = view
+            memory.showViewPayload()
+            viewJSON = view
             pageJSON = nil
             state = answer.state
         }

@@ -55,12 +55,13 @@ let package = Package(
         // reads a file at run time.
         .target(
             name: "SpinnetPluginAPI",
-            path: "PluginAPI",
-            exclude: ["LICENSE", "README.md", "reference", "schemas", "spinnet.d.ts",
-                      "spinnet-level-2.d.ts", "spinnet-level-3.d.ts", "spinnet-level-4.d.ts", "spinnet-level-5.d.ts", "spinnet-level-6.d.ts", "spinnet-level-7.d.ts", "adaptive-layout.d.ts", "external-app-connections.d.ts",
-                      "homebrew-autoremove.d.ts", "spotify-controls.d.ts", "homebrew-management.d.ts", "catalogue.json", "catalogue-level-3.json", "fixtures", "candidates"],
+            path: "PluginAPI/sdk",
+            exclude: ["adaptive-layout.d.ts", "external-app-connections.d.ts", "homebrew-autoremove.d.ts",
+                      "homebrew-management.d.ts", "spinnet.d.ts", "views.d.ts", "spotify-controls.d.ts"],
             sources: ["SpinnetSDK.swift"],
-            resources: [.embedInCode("spinnet.js"), .embedInCode("spinnet-command-output.js"), .embedInCode("spinnet-level-2.js"), .embedInCode("spinnet-level-3-adaptive.js"), .embedInCode("spinnet-level-3-autoremove.js")]
+            resources: [.embedInCode("view-builders.js"), .embedInCode("spinnet.js"),
+                        .embedInCode("adaptive-layout.js"), .embedInCode("autoremove.js"),
+                        .embedInCode("command-output.js")]
         ),
         .executableTarget(
             name: "SpinnetPluginHelper",

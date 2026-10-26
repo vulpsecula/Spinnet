@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 import IOKit.ps
 
-/// Basic system snapshots, appended to stable Level 2 (#86).
+/// Basic system snapshots, appended to stable the current interface (#86).
 public enum SystemMetrics {
     public static let id = "system.metrics"
     public static let members: [PluginInterfaceMember] = [.hostService(id), .source(id)]

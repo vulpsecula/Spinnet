@@ -20,14 +20,14 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// A Host-Fetched Section in `deliver` mode received its answer.
     case sectionDelivered(section: String, response: JSONValue)
     /// A Requested Host Operation that asked to `notify` reached its
-    /// outcome (Candidate Contract `host_operations`). `id` is the Plugin's
+    /// outcome. `id` is the Plugin's
     /// own label for it, `perform` its catalogue ID. `viewClosed` marks one
     /// delivered after its view closed, to a viewless invocation
     /// (`host_operations` r2); `item` is the item a Host-performed item
     /// action acted on, as shown then (`collections` r3).
     case operationFinished(id: String?, perform: String, outcome: HostOperationOutcome, viewClosed: Bool = false,
                            item: PluginPageItemSnapshot? = nil)
-    /// Candidate Contract `collections`: the user changed `field` of `page`.
+    /// the user changed `field` of `page`.
     /// `values` holds every input of the page as committed text, never text
     /// an input method is still composing.
     case pageFieldChanged(page: String, field: String, values: JSONValue)
@@ -44,7 +44,7 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// they are on screen or about to be. A newer request for the same
     /// collection replaces one still waiting.
     case loadRange(page: String, collection: String, start: Int, count: Int)
-    /// Candidate Contract `collections` r2: the user called one of the
+    /// the user called one of the
     /// Plugin's Actions while its View Session was open. It carries nothing:
     /// the invocation's input is the called Action's and its state the
     /// session's last good state. It names no page, so no page change drops
@@ -220,17 +220,14 @@ public struct PluginScriptAnswer: Equatable {
         self.operation = operation
     }
 
-    /// Reads a Plugin API Level 1 answer.
+    /// Reads a form/detail answer.
     public init(parsing value: JSONValue) throws {
-        try self.init(parsing: value, permits: { _ in false })
+        try self.init(parsing: value, permits: { PluginInterfaceContracts.host.members.contains($0) })
     }
 
-    /// Reads an answer of a Plugin to which `permits` says which interface
-    /// members its declarations offer: one declaring `host_operations` may
-    /// add `operation`, which may come with a view, a toast, both or
-    /// neither, but not with `close`, and one declaring `collections` may
-    /// describe a `page` instead of a `view`, never both. Whether the answer
-    /// answers a gesture is the View Session's to check.
+    /// Reads an answer against offered Host members. An operation may accompany
+    /// a view or toast, but never close. A page and form/detail view are mutually
+    /// exclusive. The View Session checks whether this answers a gesture.
     public init(parsing value: JSONValue, permits: (PluginInterfaceMember) -> Bool) throws {
         guard case .object(let members) = value else {
             guard value == .null else { throw Self.violation("must be an object or null") }

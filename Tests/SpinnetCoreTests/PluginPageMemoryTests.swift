@@ -66,7 +66,7 @@ enum PageBuilder {
         try PluginPage(parsing: pageJSON(id, content, reset: reset, focus: focus), permits: permits)
     }
 
-    /// What a Level 2 Plugin's pages may use.
+    /// Current members available to these page fixtures.
     static var permits: (PluginInterfaceMember) -> Bool { CollectionsFixtures.permits }
 
     /// The Emoji search page: a row with the query and category, and a grid.
@@ -164,7 +164,7 @@ final class PluginPageMemoryTests: XCTestCase {
 
     /// Scenario 05: another page ID is remembered with its state; returning
     /// to it restores what the user left; the fifth page forgets the
-    /// oldest; a Level 1 view counts as a page change; reset "page" clears
+    /// oldest; a form/detail view counts as a page change; reset "page" clears
     /// the memory.
     func testPageMemoryRemembersTheLastFourPages() throws {
         var memory = PluginPageMemory()
@@ -190,7 +190,7 @@ final class PluginPageMemoryTests: XCTestCase {
         XCTAssertEqual(memory.state.texts["query"], "", "search was not among the last 4 pages, so it is new")
 
         memory.setText("py", of: "query")
-        memory.showLevelOneView()
+        memory.showViewPayload()
         XCTAssertNil(memory.page)
         memory.show(try B.search())
         XCTAssertEqual(memory.state.texts["query"], "py", "A Level 1 view is a page change, not a reset")

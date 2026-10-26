@@ -41,7 +41,7 @@ final class PluginViewPins {
     }
 
     /// Remembers where a pinned window is now. A window whose size is not
-    /// the user's (a page that cannot be resized, or a Level 1 view) keeps
+    /// the user's (a page that cannot be resized, or a form/detail view) keeps
     /// a size the user chose earlier: only its top-left is taken, so the
     /// user's size comes back with the next resizable page (#80).
     func remember(_ geometry: PluginPanelGeometry, for pluginID: PluginID) {

@@ -93,7 +93,7 @@ final class HostRunSourcesContractTests: XCTestCase {
         XCTAssertEqual(helper.launchCount, 2)
         XCTAssertEqual(recording.requests.count, 1)
     }
-    func testPublishedRecordsAndLevelOneIsolation() throws {
+    func testPublishedRecordsAndDeniedMembership() throws {
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }
         struct Index: Decodable { let fixtures: [Entry] }
         let folder = api.appendingPathComponent("fixtures/sources")
@@ -105,11 +105,11 @@ final class HostRunSourcesContractTests: XCTestCase {
             if record.definition == "answer" {
                 if record.valid { XCTAssertNoThrow(try PluginScriptAnswer(parsing: value, permits: CollectionsFixtures.permits)) }
                 else { XCTAssertThrowsError(try PluginScriptAnswer(parsing: value, permits: CollectionsFixtures.permits)) }
-                XCTAssertThrowsError(try PluginScriptAnswer(parsing: value, permits: CollectionsFixtures.levelOne))
+                XCTAssertThrowsError(try PluginScriptAnswer(parsing: value, permits: CollectionsFixtures.denied))
             }
         }
         for member in HostRunSourceAddition.members {
-            XCTAssertTrue(CollectionsFixtures.permits(member)); XCTAssertFalse(CollectionsFixtures.levelOne(member))
+            XCTAssertTrue(CollectionsFixtures.permits(member)); XCTAssertFalse(CollectionsFixtures.denied(member))
         }
     }
     func testSessionKeepsOnlyLatestQueuedSourceAndDropsInvalidProvenance() throws {

@@ -19,7 +19,7 @@ public struct PluginViewDescription: Equatable {
     public let detail: PluginViewDetail?
     public let actions: [PluginViewAction]
     /// The view asks the Host to draw a line naming the App insertion would
-    /// go to now (Candidate Contract `host_operations`). The name is the
+    /// go to now. The name is the
     /// Host's; the Plugin never learns it.
     public let showsInsertionTarget: Bool
 
@@ -34,17 +34,16 @@ public struct PluginViewDescription: Equatable {
     /// `settingsFields` are the Plugin's declared `settings_fields`, which a
     /// setting control must name.
     public init(parsing view: JSONValue, settingsFields: [CommandConfigurationField]) throws {
-        try self.init(parsing: view, settingsFields: settingsFields, permits: { _ in false })
+        try self.init(parsing: view, settingsFields: settingsFields, permits: { PluginInterfaceContracts.host.members.contains($0) })
     }
 
-    /// Reads the view of a Plugin to which `permits` says which interface
-    /// members its declarations offer: one declaring `host_operations` may
-    /// set `shows_insertion_target`.
+    /// Reads the view against the Host's offered interface members, including
+    /// shows_insertion_target.
     public init(parsing view: JSONValue, settingsFields: [CommandConfigurationField],
                 permits: (PluginInterfaceMember) -> Bool) throws {
-        let candidateMembers: Set<String> = permits(HostOperationsContract.showsInsertionTarget) ? ["shows_insertion_target"] : []
+        let optionalMembers: Set<String> = permits(HostOperationsContract.showsInsertionTarget) ? ["shows_insertion_target"] : []
         let members = try Self.object(view, "The view", allowed: Set(["title", "subtitle", "settings", "form", "detail", "actions"])
-                                        .union(candidateMembers))
+                                        .union(optionalMembers))
         switch members["shows_insertion_target"] {
         case nil: showsInsertionTarget = false
         case .bool(let shows): showsInsertionTarget = shows
@@ -429,13 +428,13 @@ public struct PluginViewAction: Equatable {
 /// no View Event. Each needs the Capability its matching Host Service needs;
 /// opening Plugin Settings needs none.
 public enum PluginViewStandardAction: Equatable {
-    /// `copy_text`, under `write_clipboard`.
+    /// `clipboard.write`, under `write_clipboard`.
     case copyText(String)
-    /// `open_url`, under `open_url` and its link rules.
+    /// `open.url`, under `open_url` and its link rules.
     case openURL(String)
-    /// `insert_text`, into the App the view came from, under `insert_text`.
+    /// `selection.replace`, under the insertion Capability and target checks.
     case insertText(String)
-    /// `open_plugin_settings`: the Plugin's own Plugin Settings sheet.
+    /// `host.showPluginSettings`: the Plugin's own Plugin Settings sheet.
     case openPluginSettings
 
     /// The Host Service whose Capability and System Permission the action
@@ -449,7 +448,7 @@ public enum PluginViewStandardAction: Equatable {
         }
     }
 
-    /// Longest text `insert_text` accepts, as its Host Service does.
+    /// Longest text `selection.replace` accepts, as its Host Service does.
     public static let maximumInsertedBytes = HTTPSRequestBudgets.maximumResponseBodyBytes
 
     init(perform: String, members: [String: JSONValue], title: String) throws {
@@ -461,20 +460,20 @@ public enum PluginViewStandardAction: Equatable {
             }
         }
         switch perform {
-        case "copy_text":
+        case "clipboard.write":
             try only("text")
             self = .copyText(try PluginViewDescription.text(members["text"], "The action \(title)'s text", allowsBlank: true))
-        case "open_url":
+        case "open.url":
             try only("url")
             self = .openURL(try PluginViewDescription.text(members["url"], "The action \(title)'s url"))
-        case "insert_text":
+        case "selection.replace":
             try only("text")
             let text = try PluginViewDescription.text(members["text"], "The action \(title)'s text", allowsBlank: true)
             guard text.utf8.count <= Self.maximumInsertedBytes else {
                 throw PluginViewDescription.violation("The action \(title) inserts more than 128 KiB")
             }
             self = .insertText(text)
-        case "open_plugin_settings":
+        case "host.showPluginSettings":
             try only(nil)
             self = .openPluginSettings
         default:

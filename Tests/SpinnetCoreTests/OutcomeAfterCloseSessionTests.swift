@@ -2,12 +2,11 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// Candidate Contract `host_operations` r2 in View Sessions: an operation
+/// Requested Host Operations in View Sessions: an operation
 /// that asked to `notify` and whose view closed while it ran, by its own
 /// `closes_view`, by the user or by the Host, still reaches the Action that
 /// requested it, once, in a viewless invocation whose answer can show a
-/// toast and nothing else. Revision 1 keeps showing such an outcome without
-/// telling the Plugin.
+/// toast and nothing else.
 final class OutcomeAfterCloseSessionTests: XCTestCase {
     private var clock: ManualClock!
     private var renderer: RecordingRenderer!
@@ -19,8 +18,8 @@ final class OutcomeAfterCloseSessionTests: XCTestCase {
     private static let pluginID = PluginID("com.example.operations")
     private static let shown = InsertionTargetCapture.shown(app: nil, focus: nil)
 
-    /// What a Level 2 Plugin may use beyond Level 1.
-    private static let permits: (PluginInterfaceMember) -> Bool = { PluginInterfaceContracts.levelTwoMembers.contains($0) }
+    /// Current members available to this test's View Session.
+    private static let permits: (PluginInterfaceMember) -> Bool = { PluginInterfaceContracts.currentMembers.contains($0) }
 
     private func makeSessions() {
         clock = ManualClock()

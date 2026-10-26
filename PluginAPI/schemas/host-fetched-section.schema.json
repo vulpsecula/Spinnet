@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spinnet Host-Fetched Sections",
-  "description": "The fetch member of a Detail section, and the section_delivered View Event it may produce, as of Plugin API Level 1. A Detail section {id, title?, text?, fetch} whose fetch is present is a Host-Fetched Section: the Host sends its request, with the Plugin's Credential Uses applied, and either shows the answer it extracts (mode show; the Plugin never sees the response) or hands the response to the script as a section_delivered View Event and shows the text the script answers with (mode deliver). The request is checked again as it is sent: its URL must be https to a host consented for the Plugin, and its headers and Credential Uses follow the https_request rules. A view fetches at most 8 sections; each request has a 15-second budget, redirects included. A section keeps what it fetched while its id and fetch stay the same.",
+  "description": "The fetch member of a Detail section, and the section_delivered View Event it may produce, as of current Plugin interface. A Detail section {id, title?, text?, fetch} whose fetch is present is a Host-Fetched Section: the Host sends its request, with the Plugin's Credential Uses applied, and either shows the answer it extracts (mode show; the Plugin never sees the response) or hands the response to the script as a section_delivered View Event and shows the text the script answers with (mode deliver). The request is checked again as it is sent: its URL must be https to a host consented for the Plugin, and its headers and Credential Uses follow the https_request rules. A view fetches at most 8 sections; each request has a 15-second budget, redirects included. A section keeps what it fetched while its id and fetch stay the same.",
   "$defs": {
     "request": {
       "description": "The https_request input the Host sends. Credential Uses name stored credentials by reference; the Host places or signs them as the request leaves and never shows them to the Plugin. A request the Host would refuse to send fails only its own section.",
@@ -16,13 +16,21 @@
     "fetch": {
       "description": "What the Host sends for a section, and what it does with the response.",
       "type": "object",
-      "required": ["request", "mode"],
+      "required": [
+        "request",
+        "mode"
+      ],
       "additionalProperties": false,
       "properties": {
-        "request": { "$ref": "#/$defs/request" },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
         "mode": {
           "description": "show: the Host extracts the answer at pointer and shows it as plain text. deliver: the Host sends the response to the script as a section_delivered View Event and shows the section's text from the view the script answers with.",
-          "enum": ["show", "deliver"]
+          "enum": [
+            "show",
+            "deliver"
+          ]
         },
         "pointer": {
           "description": "show only: where the answer, a string, sits in a 2xx JSON response.",
@@ -35,8 +43,15 @@
         "status_messages": {
           "description": "show only: the message to show for a failed status, which wins over error_pointer.",
           "type": "object",
-          "propertyNames": { "type": "string", "pattern": "^[1-5][0-9][0-9]$" },
-          "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 512 }
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[1-5][0-9][0-9]$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
         },
         "cache": {
           "description": "Whether the same request may be answered from the Host's last answer to it, kept in memory for 10 minutes among at most 50 answers and forgotten whenever a grant changes. Only a 2xx answer is kept.",
@@ -45,13 +60,33 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "mode": { "const": "show" } } },
-          "then": { "required": ["pointer"] }
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "show"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "pointer"
+            ]
+          }
         },
         {
-          "if": { "properties": { "mode": { "const": "deliver" } } },
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "deliver"
+              }
+            }
+          },
           "then": {
-            "properties": { "pointer": false, "error_pointer": false, "status_messages": false }
+            "properties": {
+              "pointer": false,
+              "error_pointer": false,
+              "status_messages": false
+            }
           }
         }
       ]
@@ -63,12 +98,23 @@
     "section_delivered": {
       "description": "The View Event a deliver section's response arrives as. It waits its turn behind the session's other events. The script answers it as any other event; the section then shows its text from the view the script answers with, and is not fetched again while its fetch is unchanged. A request that fails before a response arrives is shown as the section's failure and delivers nothing.",
       "type": "object",
-      "required": ["type", "section", "response"],
+      "required": [
+        "type",
+        "section",
+        "response"
+      ],
       "additionalProperties": false,
       "properties": {
-        "type": { "const": "section_delivered" },
-        "section": { "description": "The section's id.", "type": "string" },
-        "response": { "$ref": "#/$defs/response" }
+        "type": {
+          "const": "section_delivered"
+        },
+        "section": {
+          "description": "The section's id.",
+          "type": "string"
+        },
+        "response": {
+          "$ref": "#/$defs/response"
+        }
       }
     }
   }

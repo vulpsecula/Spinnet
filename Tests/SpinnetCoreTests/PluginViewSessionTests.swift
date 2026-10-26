@@ -640,7 +640,7 @@ final class PluginViewSessionHelperTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try """
         {
-          "protocol_version": "1.0", "id": "com.example.counter", "name": "Counter", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.counter", "name": "Counter", "version": "1.0.0",
           "capabilities": [],
           "commands": [
             {"id": "example.run", "title": "Count", "execution": "javascript", "is_configurable": false, "script": "run.js"}

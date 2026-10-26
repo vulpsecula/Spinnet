@@ -45,12 +45,12 @@ final class PluginViewDescriptionTests: XCTestCase {
             ])]),
             "actions": .array([
                 .object(["id": .string("refresh"), "title": .string("Refresh"), "shortcut": .string("cmd+r")]),
-                .object(["title": .string("Copy"), "perform": .string("copy_text"), "text": .string("hello"),
+                .object(["title": .string("Copy"), "perform": .string("clipboard.write"), "text": .string("hello"),
                          "shortcut": .string("cmd+shift+c")]),
-                .object(["title": .string("Open"), "perform": .string("open_url"), "url": .string("https://example.com")]),
-                .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("hello"),
+                .object(["title": .string("Open"), "perform": .string("open.url"), "url": .string("https://example.com")]),
+                .object(["title": .string("Insert"), "perform": .string("selection.replace"), "text": .string("hello"),
                          "closes_view": .bool(true)]),
-                .object(["title": .string("Settings"), "perform": .string("open_plugin_settings")])
+                .object(["title": .string("Settings"), "perform": .string("host.showPluginSettings")])
             ])
         ]))
 
@@ -235,13 +235,13 @@ final class PluginViewDescriptionTests: XCTestCase {
             ("action without title", actions([.object(["id": .string("a")])])),
             ("action with neither id nor perform", actions([.object(["title": .string("A")])])),
             ("action with both id and perform", actions([.object(["id": .string("a"), "title": .string("A"),
-                                                                  "perform": .string("open_plugin_settings")])])),
+                                                                  "perform": .string("host.showPluginSettings")])])),
             ("unknown standard action", actions([.object(["title": .string("A"), "perform": .string("run_shell")])])),
-            ("copy without text", actions([.object(["title": .string("A"), "perform": .string("copy_text")])])),
-            ("open_url without url", actions([.object(["title": .string("A"), "perform": .string("open_url")])])),
-            ("open_url with text", actions([.object(["title": .string("A"), "perform": .string("open_url"),
+            ("copy without text", actions([.object(["title": .string("A"), "perform": .string("clipboard.write")])])),
+            ("open_url without url", actions([.object(["title": .string("A"), "perform": .string("open.url")])])),
+            ("open_url with text", actions([.object(["title": .string("A"), "perform": .string("open.url"),
                                                      "text": .string("x")])])),
-            ("insert over 128 KiB", actions([.object(["title": .string("A"), "perform": .string("insert_text"),
+            ("insert over 128 KiB", actions([.object(["title": .string("A"), "perform": .string("selection.replace"),
                                                       "text": .string(String(repeating: "x", count: 128 * 1024 + 1))])])),
             ("closes_view on an event action", actions([.object(["id": .string("a"), "title": .string("A"),
                                                                  "closes_view": .bool(true)])])),

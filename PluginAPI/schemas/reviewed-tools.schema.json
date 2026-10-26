@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://spinnet.app/plugin-api/reviewed-tools.schema.json",
-  "title": "Plugin API Level 2 reviewed Homebrew reads",
+  "title": "current Plugin interface reviewed Homebrew reads",
   "description": "Existing local data only; the Host projects bounded results and prohibits network for the process group.",
   "$defs": {
     "tool": {
@@ -747,6 +747,13 @@
               ]
             }
           }
+        },
+        "output": {
+          "type": "string",
+          "description": "Sanitized literal transcript, at most 64 KiB; bounded tail may discard earlier text."
+        },
+        "output_truncated": {
+          "type": "boolean"
         }
       }
     },

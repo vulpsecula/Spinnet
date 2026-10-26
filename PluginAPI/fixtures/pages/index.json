@@ -1,124 +1,107 @@
 {
-  "description": "Each fixture names the definition of ../../schemas/pages.schema.json it is checked against and whether it is valid. The Host reads every answer fixture as it reads an answer of a Plugin API Level 2 Plugin: it accepts the valid ones and refuses the invalid ones as protocol violations, its page rules included. level1 says whether Level 1's own published schemas accept (true) or refuse (false) the same value.",
+  "description": "Current page/form-detail/event fixtures. valid is semantic Host acceptance, including referential, identity and budget rules. Optional schema_valid records shape-only acceptance where JSON Schema cannot express a Host constraint.",
   "fixtures": [
     {
       "file": "answers/emoji-open.json",
       "definition": "answer",
       "valid": true,
-      "note": "Emoji opens on its first 200 emoji of 1,906 in sections: the grid gives its total and section counts, the slice from position 0, and Recent first",
-      "level1": false
+      "note": "Emoji opens on its first 200 emoji of 1,906 in sections: the grid gives its total and section counts, the slice from position 0, and Recent first"
     },
     {
       "file": "answers/emoji-search-cat.json",
       "definition": "answer",
       "valid": true,
-      "note": "Answer to typing 'cat': the results are reset so the new search starts on its first result; the query field is not reset and keeps what the user typed",
-      "level1": false
+      "note": "Answer to typing 'cat': the results are reset so the new search starts on its first result; the query field is not reset and keeps what the user typed"
     },
     {
       "file": "answers/emoji-smile-first-batch.json",
       "definition": "answer",
       "valid": true,
-      "note": "An answer to typing: the first results of a longer search, given as a slice of the total",
-      "level1": false
+      "note": "An answer to typing: the first results of a longer search, given as a slice of the total"
     },
     {
       "file": "answers/emoji-smile-load-range.json",
       "definition": "answer",
       "valid": true,
-      "note": "The answer to load_range: the slice from start, which the Host merges into its window",
-      "level1": false
+      "note": "The answer to load_range: the slice from start, which the Host merges into its window"
     },
     {
       "file": "answers/emoji-insert-request.json",
       "definition": "answer",
       "valid": true,
-      "note": "Answer to item_action: an insertion request (host_operations) without re-describing the page; the page and state stay",
-      "level1": false
+      "note": "Answer to item_action: an insertion request (host_operations) without re-describing the page; the page and state stay"
     },
     {
       "file": "answers/emoji-recent-section.json",
       "definition": "answer",
       "valid": true,
-      "note": "Browsing with Recent: the window's sections count their items, Recent's sixteen first",
-      "level1": false
+      "note": "Browsing with Recent: the window's sections count their items, Recent's sixteen first"
     },
     {
       "file": "answers/emoji-favourites-toggle.json",
       "definition": "answer",
       "valid": true,
-      "note": "Favourites as a toggle item action: one declaration for the collection, a short mark on each favourite, and Copy asking to hear its outcome",
-      "level1": false
+      "note": "Favourites as a toggle item action: one declaration for the collection, a short mark on each favourite, and Copy asking to hear its outcome"
     },
     {
       "file": "answers/emoji-last-range.json",
       "definition": "answer",
       "valid": true,
-      "note": "A slice at the end of the total, as the Host asks for after End",
-      "level1": false
+      "note": "A slice at the end of the total, as the Host asks for after End"
     },
     {
       "file": "answers/windowed-sections.json",
       "definition": "answer",
       "valid": true,
-      "note": "Sections of a collection with a total are headers that count their items",
-      "level1": false
+      "note": "Sections of a collection with a total are headers that count their items"
     },
     {
       "file": "answers/emoji-insert-notify.json",
       "definition": "answer",
       "valid": true,
-      "note": "Return inserts, closes the view on success, and asks to hear the outcome, which Level 2 delivers after the view closed",
-      "level1": false
+      "note": "Return inserts, closes the view on success, and asks to hear the outcome, which the Host delivers after the view closed"
     },
     {
       "file": "answers/page-action-notify.json",
       "definition": "answer",
       "valid": true,
-      "note": "A page action the Host performs may ask to hear its outcome",
-      "level1": false
+      "note": "A page action the Host performs may ask to hear its outcome"
     },
     {
       "file": "answers/brew-list.json",
       "definition": "answer",
       "valid": true,
-      "note": "A Brew-shaped list with per-item actions, which stay valid, and a total the Host fills by load_range",
-      "level1": false
+      "note": "A Brew-shaped list with per-item actions, which stay valid, and a total the Host fills by load_range"
     },
     {
       "file": "answers/brew-detail.json",
       "definition": "answer",
       "valid": true,
-      "note": "Brew-shaped detail page with its own page ID: text blocks and a button row, no collection, so the page scrolls as a whole",
-      "level1": false
+      "note": "Brew-shaped detail page with its own page ID: text blocks and a button row, no collection, so the page scrolls as a whole"
     },
     {
-      "file": "answers/level1-view.json",
+      "file": "answers/form-detail-view.json",
       "definition": "answer",
       "valid": true,
-      "note": "A Level 2 Plugin may still answer a Level 1 view, with Level 1's view rules",
-      "level1": true
+      "note": "A Plugin may answer a form/detail view using that shape's rules"
     },
     {
       "file": "answers/close.json",
       "definition": "answer",
       "valid": true,
-      "note": "Closing with a toast is unchanged",
-      "level1": true
+      "note": "Closing with a toast is unchanged"
     },
     {
       "file": "answers/null.json",
       "definition": "answer",
       "valid": true,
-      "note": "null still means nothing changes",
-      "level1": true
+      "note": "null still means nothing changes"
     },
     {
       "file": "answers/reset-page.json",
       "definition": "answer",
       "valid": true,
-      "note": "reset 'page' starts every component and the page's memory again",
-      "level1": false
+      "note": "reset 'page' starts every component and the page's memory again"
     },
     {
       "file": "answers/page-and-view.json",
@@ -142,37 +125,43 @@
       "file": "answers/two-collections.json",
       "definition": "answer",
       "valid": false,
-      "note": "At most one collection per page"
+      "note": "At most one collection per page",
+      "schema_valid": true
     },
     {
       "file": "answers/duplicate-component-id.json",
       "definition": "answer",
       "valid": false,
-      "note": "Component IDs are unique in the page, row children included"
+      "note": "Component IDs are unique in the page, row children included",
+      "schema_valid": true
     },
     {
       "file": "answers/duplicate-item-id.json",
       "definition": "answer",
       "valid": false,
-      "note": "Item IDs are unique across sections; Recent needs its own IDs"
+      "note": "Item IDs are unique across sections; Recent needs its own IDs",
+      "schema_valid": true
     },
     {
       "file": "answers/two-default-actions.json",
       "definition": "answer",
       "valid": false,
-      "note": "At most one default item action"
+      "note": "At most one default item action",
+      "schema_valid": true
     },
     {
       "file": "answers/field-searches-missing-collection.json",
       "definition": "answer",
       "valid": false,
-      "note": "A text_field's collection names the page's collection"
+      "note": "A text_field's collection names the page's collection",
+      "schema_valid": true
     },
     {
       "file": "answers/item-offers-undeclared-action.json",
       "definition": "answer",
       "valid": false,
-      "note": "An item offers only item actions the collection declares"
+      "note": "An item offers only item actions the collection declares",
+      "schema_valid": true
     },
     {
       "file": "answers/items-and-sections.json",
@@ -196,19 +185,22 @@
       "file": "answers/reset-unknown-id.json",
       "definition": "answer",
       "valid": false,
-      "note": "reset names components of the page"
+      "note": "reset names components of the page",
+      "schema_valid": true
     },
     {
       "file": "answers/focus-unknown-id.json",
       "definition": "answer",
       "valid": false,
-      "note": "focus names a component of the page"
+      "note": "focus names a component of the page",
+      "schema_valid": true
     },
     {
       "file": "answers/selected-unknown-item.json",
       "definition": "answer",
       "valid": false,
-      "note": "selected names an item of the collection"
+      "note": "selected names an item of the collection",
+      "schema_valid": true
     },
     {
       "file": "answers/grid-13-columns.json",
@@ -268,105 +260,91 @@
       "file": "answers/unknown-kind.json",
       "definition": "answer",
       "valid": false,
-      "note": "multiline_text is not a page component at Level 2"
+      "note": "multiline_text is not a page component at the Host"
     },
     {
       "file": "events/field-changed.json",
       "definition": "event",
       "valid": true,
-      "note": "Typing in a page field names the page",
-      "level1": false
+      "note": "Typing in a page field names the page"
     },
     {
       "file": "events/item-action.json",
       "definition": "event",
       "valid": true,
-      "note": "Return or double-click: the default item action with the item as shown and the page's values",
-      "level1": false
+      "note": "Return or double-click: the default item action with the item as shown and the page's values"
     },
     {
       "file": "events/item-action-in-section.json",
       "definition": "event",
       "valid": true,
-      "note": "An item chosen in a section carries the section",
-      "level1": false
+      "note": "An item chosen in a section carries the section"
     },
     {
       "file": "events/item-action-brew.json",
       "definition": "event",
       "valid": true,
-      "note": "Brew's default action; the item's text is its ID-less name",
-      "level1": false
+      "note": "Brew's default action; the item's text is its ID-less name"
     },
     {
       "file": "events/action-chosen-page.json",
       "definition": "event",
       "valid": true,
-      "note": "A page button carries the page's values and selection",
-      "level1": false
+      "note": "A page button carries the page's values and selection"
     },
     {
       "file": "events/action-chosen-with-selection.json",
       "definition": "event",
       "valid": true,
-      "note": "A button on a page with a collection carries its selection",
-      "level1": false
+      "note": "A button on a page with a collection carries its selection"
     },
     {
       "file": "events/submitted-page.json",
       "definition": "event",
       "valid": true,
-      "note": "Return in a text_field without a collection",
-      "level1": false
+      "note": "Return in a text_field without a collection"
     },
     {
       "file": "events/load-range.json",
       "definition": "event",
       "valid": true,
-      "note": "The Host needs positions 400 to 543, which the user scrolled to: not a gesture",
-      "level1": false
+      "note": "The Host needs positions 400 to 543, which the user scrolled to: not a gesture"
     },
     {
       "file": "events/called.json",
       "definition": "event",
       "valid": true,
-      "note": "An explicit call of one of the Plugin's Actions while its View Session is open: the Action's effective input is the input global and the session's last good state the state global",
-      "level1": false
+      "note": "An explicit call of one of the Plugin's Actions while its View Session is open: the Action's effective input is the input global and the session's last good state the state global"
     },
     {
       "file": "events/item-action-with-marks.json",
       "definition": "event",
       "valid": true,
-      "note": "A toggle item action's snapshot carries the item's marks as shown, so the Plugin knows which way the user toggled",
-      "level1": false
+      "note": "A toggle item action's snapshot carries the item's marks as shown, so the Plugin knows which way the user toggled"
     },
     {
       "file": "events/finished-copy-item.json",
       "definition": "event",
       "valid": true,
-      "note": "\u2318C performed a Copy item action that asked to notify: the outcome names the item",
-      "level1": false
+      "note": "⌘C performed a Copy item action that asked to notify: the outcome names the item"
     },
     {
       "file": "events/finished-insert-item-after-close.json",
       "definition": "event",
       "valid": true,
-      "note": "A performed insert closed the view; its outcome reaches a viewless invocation with the item",
-      "level1": false
+      "note": "A performed insert closed the view; its outcome reaches a viewless invocation with the item"
     },
     {
-      "file": "events/level1-field-changed.json",
+      "file": "events/form-field-changed.json",
       "definition": "event",
       "valid": true,
-      "note": "A Level 1 view's event is unchanged",
-      "level1": true
+      "note": "A the Host view's event is unchanged"
     },
     {
-      "file": "events/level1-setting-changed.json",
+      "file": "events/form-setting-changed.json",
       "definition": "event",
       "valid": true,
-      "note": "Persisted Settings notifications are unchanged",
-      "level1": true
+      "note": "Persisted Settings notifications are unchanged"
     },
     {
       "file": "events/item-action-without-item.json",
@@ -414,7 +392,7 @@
       "file": "events/selection-changed.json",
       "definition": "event",
       "valid": false,
-      "note": "No selection-change event at Level 2"
+      "note": "No selection-change event at the Host"
     },
     {
       "file": "events/called-with-input.json",
@@ -426,7 +404,7 @@
       "file": "answers/has-more-gone.json",
       "definition": "answer",
       "valid": false,
-      "note": "Level 2 has no has_more or load_more: give the total and the Host asks for ranges"
+      "note": "the Host has no has_more or load_more: give the total and the Host asks for ranges"
     },
     {
       "file": "answers/start-without-total.json",
@@ -438,7 +416,8 @@
       "file": "answers/items-past-total.json",
       "definition": "answer",
       "valid": false,
-      "note": "start plus the items given is at most total"
+      "note": "start plus the items given is at most total",
+      "schema_valid": true
     },
     {
       "file": "answers/total-over-2000.json",
@@ -450,7 +429,8 @@
       "file": "answers/section-counts-not-total.json",
       "definition": "answer",
       "valid": false,
-      "note": "The sections of a collection with a total count all of its items"
+      "note": "The sections of a collection with a total count all of its items",
+      "schema_valid": true
     },
     {
       "file": "answers/windowed-section-with-items.json",
@@ -468,7 +448,8 @@
       "file": "answers/mark-without-toggle.json",
       "definition": "answer",
       "valid": false,
-      "note": "An item's marks are those its collection's toggle item actions name"
+      "note": "An item's marks are those its collection's toggle item actions name",
+      "schema_valid": true
     },
     {
       "file": "answers/toggle-with-perform.json",
@@ -486,13 +467,14 @@
       "file": "answers/two-toggles-same-mark.json",
       "definition": "answer",
       "valid": false,
-      "note": "Two item actions of one collection toggle different marks"
+      "note": "Two item actions of one collection toggle different marks",
+      "schema_valid": true
     },
     {
       "file": "events/load-more-gone.json",
       "definition": "event",
       "valid": false,
-      "note": "Level 2 asks for ranges, never for more"
+      "note": "the Host asks for ranges, never for more"
     },
     {
       "file": "events/load-range-past-window.json",
@@ -510,161 +492,143 @@
       "file": "answers/spotify-track.json",
       "definition": "answer",
       "valid": true,
-      "note": "A Spotify-shaped track: HTTPS artwork beside a column of styled text and the position the Plugin knows (#81)",
-      "level1": false
+      "note": "A Spotify-shaped track: HTTPS artwork beside a column of styled text and the position the Plugin knows (#81)"
     },
     {
       "file": "answers/monitor-metrics.json",
       "definition": "answer",
       "valid": true,
-      "note": "System Monitor-shaped cards: styled columns in rows, each with a system icon, a value in monospaced digits and a measured bar (#81)",
-      "level1": false
+      "note": "System Monitor-shaped cards: styled columns in rows, each with a system icon, a value in monospaced digits and a measured bar (#81)"
     },
     {
       "file": "answers/brew-task-running.json",
       "definition": "answer",
       "valid": true,
-      "note": "A Brew task's stages, indeterminate, with the cancel the Host draws while it runs (#81)",
-      "level1": false
+      "note": "A Brew task's stages, indeterminate, with the cancel the Host draws while it runs (#81)"
     },
     {
       "file": "answers/brew-task-cancelling.json",
       "definition": "answer",
       "valid": true,
-      "note": "A cancellation attempt under way: no second cancel, nothing rolled back (#81)",
-      "level1": false
+      "note": "A cancellation attempt under way: no second cancel, nothing rolled back (#81)"
     },
     {
       "file": "answers/brew-list-icons.json",
       "definition": "answer",
       "valid": true,
-      "note": "List rows with system symbols as their icons (#81)",
-      "level1": false
+      "note": "List rows with system symbols as their icons (#81)"
     },
     {
       "file": "answers/image-without-size.json",
       "definition": "answer",
       "valid": false,
-      "note": "An image gives its width and height, so the page does not move as it loads",
-      "level1": false
+      "note": "An image gives its width and height, so the page does not move as it loads"
     },
     {
       "file": "answers/image-file-url.json",
       "definition": "answer",
       "valid": false,
-      "note": "An Image Source reaches no local file: only an https address or a package resource",
-      "level1": false
+      "note": "An Image Source reaches no local file: only an https address or a package resource"
     },
     {
       "file": "answers/image-http-url.json",
       "definition": "answer",
       "valid": false,
-      "note": "An image's url is https",
-      "level1": false
+      "note": "An image's url is https"
     },
     {
       "file": "answers/image-resource-escapes.json",
       "definition": "answer",
       "valid": false,
-      "note": "A resource path stays inside the package",
-      "level1": false
+      "note": "A resource path stays inside the package"
     },
     {
       "file": "answers/image-source-symbol.json",
       "definition": "answer",
       "valid": false,
-      "note": "An image loads a resource or url; a system symbol is an icon",
-      "level1": false
+      "note": "An image loads a resource or url; a system symbol is an icon"
     },
     {
       "file": "answers/style-member-not-for-kind.json",
       "definition": "answer",
       "valid": false,
-      "note": "A row's style holds its own background only; nothing inherits a font size",
-      "level1": false
+      "note": "A row's style holds its own background only; nothing inherits a font size"
     },
     {
       "file": "answers/style-bad-color.json",
       "definition": "answer",
       "valid": false,
-      "note": "A colour is #RRGGBB, #RRGGBBAA, a named colour, or light and dark",
-      "level1": false
+      "note": "A colour is #RRGGBB, #RRGGBBAA, a named colour, or light and dark"
     },
     {
       "file": "answers/style-font-too-large.json",
       "definition": "answer",
       "valid": false,
-      "note": "Font sizes are 9 to 40 points",
-      "level1": false
+      "note": "Font sizes are 9 to 40 points"
     },
     {
       "file": "answers/column-in-column.json",
       "definition": "answer",
       "valid": false,
-      "note": "A column holds no column directly",
-      "level1": false
+      "note": "A column holds no column directly"
     },
     {
       "file": "answers/progress-unknown-stage.json",
       "definition": "answer",
       "valid": false,
       "note": "A progress's stage is one of its stages",
-      "level1": false
+      "schema_valid": true
     },
     {
       "file": "answers/progress-cancel-duplicates-button.json",
       "definition": "answer",
       "valid": false,
       "note": "A cancel's ID is an event action ID unique among the page's buttons",
-      "level1": false
+      "schema_valid": true
     },
     {
       "file": "answers/item-symbol-and-icon.json",
       "definition": "answer",
       "valid": false,
       "note": "An item shows a symbol or an icon, not both",
-      "level1": false
+      "schema_valid": true
     },
     {
       "file": "answers/containers-too-deep.json",
       "definition": "answer",
       "valid": false,
       "note": "Rows and columns nest at most 3 deep",
-      "level1": false
+      "schema_valid": true
     },
     {
       "file": "answers/too-many-images.json",
       "definition": "answer",
       "valid": false,
       "note": "A page has at most 8 images",
-      "level1": false
+      "schema_valid": true
     },
     {
       "file": "answers/emoji-resizable.json",
       "definition": "answer",
       "valid": true,
-      "note": "Emoji lets the user resize its panel, pinned or not, and lets the Host choose the grid's columns from the width: cells of at least 44 points",
-      "level1": false
+      "note": "Emoji lets the user resize its panel, pinned or not, and lets the Host choose the grid's columns from the width: cells of at least 44 points"
     },
     {
       "file": "answers/resizable-too-narrow.json",
       "definition": "answer",
       "valid": false,
-      "note": "A resizable page cannot ask for less than the panel's default width of 440 points",
-      "level1": false
+      "note": "A resizable page cannot ask for less than the panel's default width of 440 points"
     },
     {
       "file": "answers/min-cell-size-fixed-columns.json",
       "definition": "answer",
       "valid": false,
-      "note": "min_cell_size is only for a grid whose columns are \"auto\"",
-      "level1": false
+      "note": "min_cell_size is only for a grid whose columns are \"auto\""
     },
     {
       "file": "answers/activity-list.json",
       "definition": "answer",
       "valid": true,
-      "level1": false,
       "note": "Host-generated own activity control, no Plugin rows or actions"
     }
   ]

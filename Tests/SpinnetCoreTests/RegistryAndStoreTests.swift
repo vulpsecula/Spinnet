@@ -43,7 +43,7 @@ final class RegistryAndStoreTests: XCTestCase {
             command: CommandDeclaration(
                 id: CommandID("fixture.open_url"),
                 title: "Open URL",
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             ),
             input: .string("https://example.com")
         )
@@ -141,7 +141,7 @@ final class RegistryAndStoreTests: XCTestCase {
                 id: CommandID("fixture.open"),
                 title: "Open URL",
                 isConfigurable: true,
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             )]
         )
         try registry.register(PluginPackage(
@@ -163,7 +163,7 @@ final class RegistryAndStoreTests: XCTestCase {
                 id: CommandID("fixture.open"),
                 title: "Open URL",
                 isConfigurable: false,
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             )]
         )
         try registry.replace(PluginPackage(
@@ -182,7 +182,7 @@ final class RegistryAndStoreTests: XCTestCase {
             command: CommandDeclaration(
                 id: CommandID("missing.command"),
                 title: "Missing",
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             ),
             input: .string("https://example.com")
         )
@@ -239,7 +239,7 @@ final class RegistryAndStoreTests: XCTestCase {
             commands: [CommandDeclaration(
                 id: CommandID("resource.open-file"),
                 title: "Open File",
-                hostCommand: .openFile
+                hostServiceID: "open.path"
             )]
         )
         try registry.register(PluginPackage(
@@ -277,7 +277,7 @@ final class RegistryAndStoreTests: XCTestCase {
         let command = CommandDeclaration(
             id: CommandID("resource.open-application"),
             title: "Open Application",
-            hostCommand: .openApplication
+            hostServiceID: "open.application"
         )
         let action = try ActionConfiguration(
             id: ActionID("missing-application"),
@@ -319,7 +319,7 @@ final class RegistryAndStoreTests: XCTestCase {
             commands: [CommandDeclaration(
                 id: commandID,
                 title: title,
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             )]
         )
     }

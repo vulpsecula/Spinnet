@@ -36,13 +36,13 @@ enum HostCallMode: String, Codable {
     /// A standard insert in a pinned view: the Host inserts into the origin
     /// while the panel is still on screen.
     case viewStaysOpen = "view stays open (pinned)"
-    /// The synchronous `insert_text` Host Service from a View Event, while
+    /// The synchronous `selection.replace` Host Service from a View Event, while
     /// the panel is key: the Host inserts into the App in front.
-    case script = "insert_text from a View Event"
-    /// Candidate Contract `host_operations`: the target is captured while
+    case script = "selection.replace from a View Event"
+    /// Targeted insertion: the target is captured while
     /// the panel is key, as at the gesture, and compared when the Host
     /// inserts, with the panel still on screen.
-    case candidate = "host_operations, target captured at the gesture"
+    case targeted = "targeted insertion, target captured at the gesture"
 }
 #endif
 
@@ -63,7 +63,7 @@ final class HostInsertion {
 #if HOST_CURRENT
     private let inserter = HostTextInserter()
     var mode: HostCallMode = .viewCloses
-    /// The current Host's candidate path, made on the main thread.
+    /// The current Host's targeted insertion path, made on the main thread.
     private lazy var targeted: (tracker: InsertionTargetTracker, inserter: TargetedTextInserter) = DispatchQueue.main.sync {
         let tracker = InsertionTargetTracker()
         return (tracker, TargetedTextInserter(tracker: tracker, inserter: HostTextInserter()))
@@ -88,7 +88,7 @@ final class HostInsertion {
         notes.append("panel key \(shown.isKey ? "yes" : "no"), probe active \(shown.probeIsActive ? "yes" : "no"), target in front while panel key \(Apps.frontmost()?.processIdentifier == processIdentifier ? "yes" : "no")")
         if mode == .viewCloses { panel.close() }
         var captured = InsertionTargetCapture.notShown
-        if mode == .candidate {
+        if mode == .targeted {
             let (tracker, _) = targeted
             captured = DispatchQueue.main.sync {
                 tracker.refresh()
@@ -103,7 +103,7 @@ final class HostInsertion {
         let started = Date()
         var hostError: PluginHostServiceError?
         do {
-            if mode == .candidate {
+            if mode == .targeted {
                 try targeted.inserter.insertAndWait(text.text, shown: captured)
             } else {
                 try inserter.insertAndWait(text.text, into: mode == .script ? .frontmost : .application(processIdentifier))

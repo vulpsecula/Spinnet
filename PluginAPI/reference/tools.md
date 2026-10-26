@@ -1,4 +1,4 @@
-# Reviewed Homebrew reads (Plugin API Level 2)
+# Reviewed Homebrew reads (current interface)
 
 `spinnet.tools.read(input)` reads existing local Homebrew data. Mutation uses the separate reviewed `tools.startTask` profile. Both calls and once-only visible-page sources are offered; sources follow the [visible-page lifecycle](sources.md).
 
@@ -29,7 +29,7 @@ The result is `{tool, operation, packages, not_found?, truncated?}`. Package rec
 
 `tool_missing`, `tool_timed_out`, `tool_failed` and `output_too_large` are catchable JavaScript errors with `error.code` and a bounded Host message. A Plugin may render a guidance page. Permission denial is governed by the ordinary Capability rules. Unknown packages/search misses return bounded empty results; cache failures and unrelated errors never become a false `not_found`.
 
-Shapes: [schema](../schemas/reviewed-tools.schema.json), [types](../spinnet-level-2.d.ts). The test kit accepts recorded `tools.read` values or `PluginHostServiceError.tool(...)` failures through `RecordedHostServices(operations:)`, with real input/scope checks.
+Shapes: [schema](../schemas/reviewed-tools.schema.json), [types](../sdk/spinnet.d.ts). The test kit accepts recorded `tools.read` values or `PluginHostServiceError.tool(...)` failures through `RecordedHostServices(operations:)`, with real input/scope checks.
 
 Regression coverage checks process-group cancellation after a leader exits,
 bounded projections, canonical missing-name results and scope checks before

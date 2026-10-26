@@ -6,7 +6,7 @@ import SpinnetPluginTestKit
 /// The Namespaces Probe run the way its author runs it: through the public
 /// test kit and the real helper, against the Host this repository builds.
 /// Its script calls Host Services by catalogue ID through the namespaced SDK,
-/// its scriptless Command runs one directly, and the Level 1 names and
+/// its scriptless Command runs one directly, and internal adapter names and
 /// reserved IDs a declaring Plugin may not use are refused with the ID the
 /// Host expects.
 final class NamespacesProbeRuntimeTests: XCTestCase {
@@ -54,16 +54,15 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(run.inputs(to: "selection.readText"), [.object(["best_effort": .bool(true)])])
         XCTAssertEqual(run.inputs(to: "clipboard.write"), [.string("HELLO")])
         XCTAssertEqual(run.requests.map(\.service), [.readSelectedText, .writeClipboard],
-                       "Each ID is performed by the Host Service Level 1 performs it with")
+                       "Catalogue IDs retain their internal Host Service adapters")
     }
 
     /// Decision N5: a Plugin declaring the candidate calls by ID only; the
     /// refusal ends the run as a Host Service failure naming the ID.
-    func testALevelOneNameIsRefusedWithTheIDToCallInstead() throws {
+    func testRawServiceNamesAreRefusedWithCurrentIDs() throws {
         let run = try run("probe.shout", of: probe(running: #"requestHostService("write_clipboard", "x")"#))
 
-        assertFailure(run, .hostServiceFailed("Host Service is unavailable: write_clipboard is a Plugin API Level 1 "
-            + "name; a Plugin API Level 2 Plugin calls clipboard.write"))
+        assertFailure(run, .hostServiceFailed("Host Service is unavailable: write_clipboard is an internal adapter name; call clipboard.write"))
         XCTAssertEqual(run.requests, [], "The refusal never reached the Host's services")
     }
 
@@ -73,7 +72,7 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
     func testReservedAndCommandOnlyIDsAreRefusedToAScript() throws {
         for (script, message) in [
             (#"spinnet.environment && requestHostService("system.runShortcut", "Focus")"#,
-             "system.runShortcut is reserved: no Plugin API Level lets a script call it yet"),
+             "system.runShortcut is reserved: scripts cannot call it"),
             (#"requestHostService("selection.paste")"#, "selection.paste cannot be called from a script; a Command can run it"),
             (#"requestHostService("host.toast", "Hi")"#, "host.toast cannot be called from a script; a Command can run it"),
             (#"requestHostService("clipboard.copyAll")"#, "clipboard.copyAll is not a Host Service of the Plugin API catalogue")
@@ -141,8 +140,7 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
         let run = try run("probe.copy_greeting", of: NamespacesProbeFixture.write(NamespacesProbeFixture.naming("url.open")),
                           answering: RecordedHostServices(operations: ["open.url": .value(.null)]))
 
-        assertFailure(run, .invalidAction("Command probe.copy_greeting of Namespaces Probe names url.open, a Plugin API "
-            + "Level 1 Host Command; a Plugin API Level 2 Plugin names it open.url."))
+        assertFailure(run, .invalidAction("Command probe.copy_greeting of Namespaces Probe names internal adapter url.open; use open.url."))
         XCTAssertEqual(run.performed, [])
     }
 
@@ -152,7 +150,7 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
     /// operation only an answer or a page action reaches. Under Level 2 a
     /// synchronous `selection.replace` needs a target the Host showed, as
     /// `host_operations` ruled, so the probe calls every other ID.
-    func testTheLevelTwoSDKCallsEachIDItHolds() throws {
+    func testCurrentSDKCallsEveryOfferedID() throws {
         let ids = HostServiceCatalogue.operations.filter { $0.isOffered(at: .call) }.map(\.id)
         let toolResult: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("installed"), "packages": .array([])])
         let run = try run("probe.shout", of: probe(running: """
@@ -184,7 +182,7 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(values[1], .array(["activities", "apps", "clipboard", "clipboardHistory", "environment", "host", "http", "open",
                                           "screen", "selection", "storage", "system", "text", "tools", "ui", "window"].map(JSONValue.string)))
         XCTAssertEqual(values[2], .array([.string("action"), .string("operation")]))
-        XCTAssertEqual(values[3], .string("function"), "Level 1's view builders stay for Level 1 views")
+        XCTAssertEqual(values[3], .string("function"), "Form/detail View builders remain available")
         XCTAssertEqual(values[4], .string("function"))
         XCTAssertEqual(values[5], .bool(true))
         XCTAssertEqual(values[6], toolResult)
@@ -193,30 +191,7 @@ final class NamespacesProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(run.requests.filter { $0.service == .reviewedToolRead }.count, 1)
     }
 
-    // MARK: Level 1 is unchanged
 
-    /// A Plugin that declares no candidate keeps Level 1's SDK and names,
-    /// and a catalogue ID stays as unknown to its helper as before.
-    func testALevelOnePluginKeepsLevelOnesSDKAndNames() throws {
-        let source = try NamespacesProbeFixture.write(scripts: ["shout.js": """
-            [typeof spinnet.clipboard.history, typeof spinnet.clipboardHistory, spinnet.clipboard.write("x")]
-            """]) { manifest in
-            NamespacesProbeFixture.levelOne(&manifest)
-            NamespacesProbeFixture.hostCommand { $0["host_command"] = .string("clipboard.copy"); $0["input"] = nil }(&manifest)
-        }
-        let level1 = try run("probe.shout", of: source, answering: RecordedHostServices([.writeClipboard: .value(.null)]))
-        XCTAssertEqual(try level1.result.get(), .array([.string("function"), .string("undefined"), .null]))
-        XCTAssertEqual(level1.requests, [PluginTestRequest(service: .writeClipboard, input: .string("x"))])
-        XCTAssertEqual(level1.performed, [], "A Level 1 Plugin performs no catalogue ID")
-
-        let unknown = try run("probe.shout", of: NamespacesProbeFixture.write(scripts: [
-            "shout.js": #"requestHostService("clipboard.write", "x")"#
-        ]) { manifest in
-            NamespacesProbeFixture.levelOne(&manifest)
-            NamespacesProbeFixture.hostCommand { $0["host_command"] = .string("clipboard.copy"); $0["input"] = nil }(&manifest)
-        })
-        assertFailure(unknown, .protocolViolation("Unsupported Host Service"))
-    }
 }
 
 /// Records a typed tools.read result through its public scope checks; other

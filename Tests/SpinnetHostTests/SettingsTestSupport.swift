@@ -50,7 +50,7 @@ extension XCTestCase {
             commands: [CommandDeclaration(
                 id: CommandID("fixture.open"),
                 title: "Open URL",
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             ), CommandDeclaration(
                 id: CommandID("fixture.transform_text"),
                 title: "Transform Text",

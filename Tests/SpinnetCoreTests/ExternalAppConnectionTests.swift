@@ -4,9 +4,9 @@ import SpinnetCore
 import SpinnetPluginTestKit
 
 final class ExternalAppConnectionTests: XCTestCase {
-    private func data(candidate: Bool = true, connections: String = "[{\"bundle_id\":\"com.spotify.client\",\"command_ids\":[\"control\"]}]", families: String = "\"playback_read\",\"playback_control\"", scopeCommands: String = "\"control\"") -> Data {
+    private func data(connections: String = "[{\"bundle_id\":\"com.spotify.client\",\"command_ids\":[\"control\"]}]", families: String = "\"playback_read\",\"playback_control\"", scopeCommands: String = "\"control\"") -> Data {
         Data("""
-        {"api_level":\(candidate ? 3 : 2),"protocol_version":"1.0","id":"test.connection","name":"Connection","version":"1.0",
+        {"engines":{"spinnet":"^1.0.0"},"protocol_version":"1.0","id":"test.connection","name":"Connection","version":"1.0",
         "external_app_connections":\(connections),
         "capabilities":["control_external_app"],"optional_capabilities":["control_external_app"],
         "capability_scopes":[{"capability":"control_external_app","command_ids":[\(scopeCommands)],"data_types":[],"includes_existing_host_data":false,"https_hosts":[],"external_apps":[{"bundle_id":"com.spotify.client","operation_families":[\(families)]}]}],
@@ -14,8 +14,10 @@ final class ExternalAppConnectionTests: XCTestCase {
         """.utf8)
     }
 
-    func testUndeclaredConnectionCannotBeSilentlyIgnored() throws {
-        XCTAssertThrowsError(try PluginManifestLoader.decode(data(candidate: false)))
+    func testDeclaredConnectionUsesTheCurrentManifest() throws {
+        let manifest = try PluginManifestLoader.decode(data())
+        XCTAssertEqual(manifest.externalAppConnections.map(\.bundleID), ["com.spotify.client"])
+        XCTAssertEqual(manifest.hostCompatibility, .current)
     }
     func testOptionalCapabilityBecomesRequiredOnlyForDependentCommandsAndRechecksOwner() throws {
         let manifest = try PluginManifestLoader.decode(data())
@@ -101,7 +103,7 @@ final class ExternalAppConnectionTests: XCTestCase {
         XCTAssertEqual(registry.externalAppConnectionStatus(for: check), .ownerInvalid)
     }
 
-    func testDependentCommandsCannotPromptEvenWithoutSpotifyControlsCandidate() throws {
+    func testDependentCommandsCannotPromptWithoutConnectionAuthority() throws {
         let manifest = try PluginManifestLoader.decode(data())
         let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/connection-test"), manifest: manifest)
         let grants = PluginCapabilityGrantStore()
@@ -127,21 +129,23 @@ final class ExternalAppConnectionTests: XCTestCase {
         XCTAssertEqual(sends, 1)
     }
 
-    func testStableConnectionSchemaRequiresLevelThreeAndRefusesRetiredDeclarations() throws {
+    func testCurrentConnectionSchemaAndLoaderRefuseRetiredDeclarations() throws {
         let root = TestRepository.root
-        let schema = try JSONSchemaSubsetValidator(schemaAt: root.appendingPathComponent("PluginAPI/schemas/manifest-level-3.schema.json"))
+        let schema = try JSONSchemaSubsetValidator(schemaAt: root.appendingPathComponent("PluginAPI/schemas/manifest.schema.json"))
         var manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: data()) as? [String: Any])
         func value() throws -> JSONValue { try JSONDecoder().decode(JSONValue.self, from: JSONSerialization.data(withJSONObject: manifest)) }
         XCTAssertEqual(schema.errors(for: try value()), [])
         manifest["candidate_contracts"] = [["name": "external_app_connections", "revision": 1]]
         XCTAssertFalse(schema.errors(for: try value()).isEmpty)
-        XCTAssertThrowsError(try PluginInterfaceContracts.host.check(PluginManifestLoader.decode(JSONEncoder().encode(value())), origin: .installed))
+        XCTAssertThrowsError(try PluginManifestLoader.decode(JSONEncoder().encode(value()))) {
+            XCTAssertEqual($0.localizedDescription, ConfigurationError.invalidManifest(PluginManifest.compatibilityMigrationMessage).localizedDescription)
+        }
         manifest["candidate_contracts"] = nil
         manifest["api_level"] = 2
         XCTAssertFalse(schema.errors(for: try value()).isEmpty)
     }
 
-    func testExactCandidateIsEnforcedAtInstallRegistrationAndScriptRuntime() throws {
+    func testMissingConnectionMemberIsEnforcedAtInstallRegistrationAndScriptRuntime() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = directory.appendingPathComponent("Connection.spinnetplugin")
@@ -156,15 +160,15 @@ final class ExternalAppConnectionTests: XCTestCase {
         XCTAssertNoThrow(try installation.review(source))
         try installation.install(from: source)
         XCTAssertNotNil(registry.package(for: PluginID("test.connection")))
-        let withoutCandidate = PluginInterfaceContracts(levels: [1: PluginInterfaceContracts.levelOneMembers, 2: PluginInterfaceContracts.levelTwoMembers])
-        let refusedRegistry = PluginRegistry(contracts: withoutCandidate)
+        let withoutConnection = PluginInterfaceContracts(members: PluginInterfaceContracts.currentMembers.subtracting([ExternalAppConnections.member]))
+        let refusedRegistry = PluginRegistry(contracts: withoutConnection)
         let plugin = try PluginUnderTest(packageAt: source)
         XCTAssertThrowsError(try refusedRegistry.register(plugin.package))
         let refusedInstallation = PluginInstallationStore(directory: directory.appendingPathComponent("Refused"), registry: refusedRegistry,
             grants: grants, persistGrants: {})
         XCTAssertThrowsError(try refusedInstallation.review(source))
         XCTAssertThrowsError(try refusedInstallation.install(from: source))
-        let helper = try PluginTestHelper(contracts: withoutCandidate)
+        let helper = try PluginTestHelper(contracts: withoutConnection)
         defer { helper.shutdown() }
         let run = helper.run(PluginTestInvocation("control"), of: plugin, answering: RecordedHostServices())
         XCTAssertThrowsError(try run.result.get())

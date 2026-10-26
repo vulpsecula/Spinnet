@@ -5,12 +5,12 @@ final class ManifestAndConfigurationTests: XCTestCase {
     func testManifestLoadsHostURLCommandAndCreatesMenuBinding() throws {
         let data = Data(#"""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.fixture",
           "name": "Fixture",
           "version": "1.0.0",
           "commands": [
-            {"id": "fixture.open", "title": "Open", "execution": "host", "host_command": "url.open"}
+            {"id": "fixture.open", "title": "Open", "execution": "host", "host_command": "open.url"}
           ]
         }
         """#.utf8)
@@ -19,7 +19,7 @@ final class ManifestAndConfigurationTests: XCTestCase {
         XCTAssertEqual(manifest.id, PluginID("com.example.fixture"))
         XCTAssertEqual(manifest.commands.count, 1)
         XCTAssertEqual(manifest.commands[0].execution, .host)
-        XCTAssertEqual(manifest.commands[0].hostCommand, .openURL)
+        XCTAssertEqual(manifest.commands[0].hostServiceID, "open.url")
 
         let action = try ActionConfiguration(
             id: ActionID("action-1"),
@@ -40,17 +40,17 @@ final class ManifestAndConfigurationTests: XCTestCase {
         let unsupported = Data(#"""
         {
           "protocol_version": "9.0", "id": "fixture", "name": "Fixture", "version": "1",
-          "commands": [{"id": "open", "title": "Open", "execution": "host", "host_command": "url.open"}]
+          "commands": [{"id": "open", "title": "Open", "execution": "host", "host_command": "open.url"}]
         }
         """#.utf8)
         XCTAssertThrowsError(try PluginManifestLoader.decode(unsupported))
 
         let duplicate = Data(#"""
         {
-          "protocol_version": "1.0", "id": "fixture", "name": "Fixture", "version": "1",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "fixture", "name": "Fixture", "version": "1",
           "commands": [
-            {"id": "same", "title": "One", "execution": "host", "host_command": "url.open"},
-            {"id": "same", "title": "Two", "execution": "host", "host_command": "url.open"}
+            {"id": "same", "title": "One", "execution": "host", "host_command": "open.url"},
+            {"id": "same", "title": "Two", "execution": "host", "host_command": "open.url"}
           ]
         }
         """#.utf8)
@@ -60,30 +60,29 @@ final class ManifestAndConfigurationTests: XCTestCase {
     func testHostCommandCatalogueExposesInputContractsAndAuthority() throws {
         let manifest = try PluginManifestLoader.decode(Data(#"""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.fixture",
           "name": "Fixture",
           "version": "1.0.0",
           "capabilities": ["write_clipboard"],
           "commands": [
-            {"id": "fixture.open_app", "title": "Open Application", "execution": "host", "host_command": "application.open"},
-            {"id": "fixture.open_file", "title": "Open File", "execution": "host", "host_command": "file.open"},
-            {"id": "fixture.open_folder", "title": "Open Folder", "execution": "host", "host_command": "folder.open"},
-            {"id": "fixture.keyboard", "title": "Keyboard Shortcut", "execution": "host", "host_command": "keyboard_shortcut.invoke"},
-            {"id": "fixture.service", "title": "Service", "execution": "host", "host_command": "service.invoke"},
-            {"id": "fixture.shortcut", "title": "Shortcut", "execution": "host", "host_command": "shortcut.invoke"},
-            {"id": "fixture.copy", "title": "Copy", "execution": "host", "host_command": "clipboard.copy"},
-            {"id": "fixture.paste", "title": "Paste", "execution": "host", "host_command": "clipboard.paste"},
-            {"id": "fixture.cut", "title": "Cut", "execution": "host", "host_command": "clipboard.cut"},
-            {"id": "fixture.feedback", "title": "Feedback", "execution": "host", "host_command": "feedback.present"}
+            {"id": "fixture.open_app", "title": "Open Application", "execution": "host", "host_command": "open.application"},
+            {"id": "fixture.open_file", "title": "Open File", "execution": "host", "host_command": "open.path"},
+            {"id": "fixture.open_folder", "title": "Open Folder", "execution": "host", "host_command": "open.path"},
+            {"id": "fixture.keyboard", "title": "Keyboard Shortcut", "execution": "host", "host_command": "keyboard.press"},
+            {"id": "fixture.service", "title": "Service", "execution": "host", "host_command": "system.runService"},
+            {"id": "fixture.shortcut", "title": "Shortcut", "execution": "host", "host_command": "system.runShortcut"},
+            {"id": "fixture.copy", "title": "Copy", "execution": "host", "host_command": "clipboard.write"},
+            {"id": "fixture.paste", "title": "Paste", "execution": "host", "host_command": "selection.paste"},
+            {"id": "fixture.cut", "title": "Cut", "execution": "host", "host_command": "selection.cut"},
+            {"id": "fixture.feedback", "title": "Feedback", "execution": "host", "host_command": "host.toast"}
           ]
         }
         """#.utf8))
 
-        XCTAssertEqual(manifest.commands.map(\.hostCommand), [
-            .openApplication, .openFile, .openFolder, .invokeKeyboardShortcut,
-            .invokeService, .invokeShortcut, .copyText, .pasteText, .cutText,
-            .presentFeedback
+        XCTAssertEqual(manifest.commands.map(\.hostServiceID), [
+            "open.application", "open.path", "open.path", "keyboard.press", "system.runService",
+            "system.runShortcut", "clipboard.write", "selection.paste", "selection.cut", "host.toast"
         ])
         XCTAssertEqual(HostCommand.copyText.requiredCapability, .writeClipboard)
         XCTAssertEqual(HostCommand.invokeKeyboardShortcut.requiredSystemPermission, .accessibility)
@@ -138,17 +137,17 @@ final class ManifestAndConfigurationTests: XCTestCase {
     func testManifestRejectsAProtectedHostCommandWithoutItsCapabilityDeclaration() {
         let data = Data(#"""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.fixture",
           "name": "Fixture",
           "version": "1.0.0",
           "commands": [
-            {"id": "fixture.copy", "title": "Copy", "execution": "host", "host_command": "clipboard.copy"}
+            {"id": "fixture.copy", "title": "Copy", "execution": "host", "host_command": "clipboard.write"}
           ]
         }
         """#.utf8)
 
-        XCTAssertThrowsError(try PluginManifestLoader.decode(data))
+        XCTAssertThrowsError(try PluginInterfaceContracts.host.check(PluginManifestLoader.decode(data), origin: .installed))
     }
 
     func testReadyPresetRejectsUnknownKeyboardKeyAndModifier() {
@@ -185,7 +184,7 @@ final class ManifestAndConfigurationTests: XCTestCase {
     func testManifestLoadsCommonJavaScriptCommandsWithScriptReferences() throws {
         let data = Data(#"""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.fixture",
           "name": "Fixture",
           "version": "1.0.0",
@@ -258,7 +257,7 @@ final class ManifestAndConfigurationTests: XCTestCase {
     func testManifestRejectsJavaScriptCommandWithoutAScriptReference() {
         let data = Data(#"""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.fixture",
           "name": "Fixture",
           "version": "1.0.0",
@@ -297,7 +296,7 @@ final class ManifestAndConfigurationTests: XCTestCase {
     func testManifestRejectsScriptReferencesThatEscapeThePluginPackage() {
         let data = Data(#"""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.fixture",
           "name": "Fixture",
           "version": "1.0.0",

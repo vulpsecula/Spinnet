@@ -1,6 +1,6 @@
-# Pages and collections (Plugin API Level 2)
+# Pages and collections (current interface)
 
-A Level 2 Plugin may describe its Plugin View as **pages**: trees of
+A Plugin may describe its Plugin View as **pages**: trees of
 identified View Components that the Host draws natively, with a searchable,
 selectable List or Grid. The Host keeps what the user is doing in a page
 (typed text, caret, input-method composition, focus, selection, scroll)
@@ -11,17 +11,14 @@ of the Plugin runs inside its open View Session. Everything in
 ```json
 {
   "protocol_version": "1.0",
-  "api_level": 2
+  "engines": {"spinnet": "^1.0.0"}
 }
 ```
 
 [`pages.schema.json`](../schemas/pages.schema.json) publishes the shapes,
 [`fixtures/pages/`](../fixtures/pages/index.json) valid and invalid answers
-and events, [`spinnet-level-2.d.ts`](../spinnet-level-2.d.ts) the types, and
-[`spinnet-level-2.js`](../spinnet-level-2.js) the SDK. Level 2 was proved as
-Candidate Contract `collections` r3, now retired
-([retirement record](../candidates/collections/r3/candidate.json)).
-Identified components let refreshes preserve typing, caret, IME composition,
+and events, [`spinnet.d.ts`](../sdk/spinnet.d.ts) the types, and
+[`spinnet.js`](../sdk/spinnet.js) the SDK. Identified components let refreshes preserve typing, caret, IME composition,
 selection and scroll without a Plugin-owned patch protocol. The Host owns
 keyboard navigation and bounded Collection Windows; the Plugin owns data and
 search. No Host-drawn collection action bar is added: actions remain on the
@@ -30,8 +27,7 @@ items and their context menu, with a Host-owned insertion target hint.
 ## Answering with a page
 
 A script answers `{page, state}`, optionally with `toast` and, from a
-gesture, `operation` ([Requested Host Operations](host-operations.md)). It may still answer a Level 1
-`{view, state}`, which keeps Level 1's view rules, but never both.
+gesture, `operation` ([Requested Host Operations](host-operations.md)). It may answer a form/detail `{view, state}` using that shape's rules, but never both.
 `{operation}` or `{toast}` alone, or `null`, leave the page and state as
 they are.
 
@@ -86,7 +82,7 @@ it is taller than the panel.
 
 A **page action** performs a Host Service by its catalogue ID, `{perform,
 input, id?, title?, closes_view?, notify?}`, on the user's click and without a View
-Event, under the Capability that operation needs, as Level 1's standard
+Event, under the Capability that operation needs, as current standard
 actions do. It may perform `host.showPluginSettings`, `selection.replace`,
 `clipboard.write`, `clipboardHistory.show`, `open.url`, `open.path`,
 `open.application`, `apps.perform` or `apps.openDeepLink`, with the input a
@@ -99,7 +95,7 @@ operation slot after anything it requested before.
 
 No component, button or item action takes a `shortcut`. A page the Host
 would not draw ends the View Session as a protocol violation, as in
-Level 1: unknown members or kinds, duplicate IDs, two collections, two
+The Host rejects unknown members or kinds, duplicate IDs, two collections, two
 default item actions, an item offering an action the collection lacks, a
 `collection`, `focus`, `reset` or `selected` naming nothing, or a
 description over 256 KiB.
@@ -120,7 +116,7 @@ description over 256 KiB.
 - **Another page ID**: the Host remembers the page on screen and shows the
   new one with its remembered state if it is among the last 4 pages shown
   besides the one on screen, or else new. This page memory lasts as long as
-  the View Session and is not a stack: there is no Host Back. A Level 1
+  the View Session and is not a stack: there is no Host Back. A
   `view` answer counts as a page change.
 - **`reset`**: `["id", ...]` starts those components again from their
   description; `"page"` starts the whole page and its memory again. A reset
@@ -273,7 +269,7 @@ action on the selection it produced; if that answer fails, nothing is
 performed. Arrow selection crosses section boundaries with the column
 clamped. In a field searching a grid the caret moves with Option- and
 Command-arrows or the pointer, since Left and Right move around the grid (a
-change to Level 2 while it is open, 2026-10-08). VoiceOver reads each item by its title, its item actions as custom
+change to current while it is open, 2026-10-08). VoiceOver reads each item by its title, its item actions as custom
 actions, and the insertion target line as text.
 
 ## Events
@@ -296,20 +292,19 @@ not reset since; otherwise it is dropped without a run.
 selected item ID (or null), as they were when the user acted. `item` is the
 item as shown then, with its resolved text where it differs from its ID,
 delivered even if the item has since left the collection. `called` names
-no page and is never dropped for a page change; see below. Level 1 events
-from a Level 1 view, `setting_changed`, `settings_swapped` and
+no page and is never dropped for a page change; see below. Events
+from a form/detail view, `setting_changed`, `settings_swapped` and
 `section_delivered` are unchanged. A gesture's answer may request an
 operation; an answer to `field_changed`, `load_range` or
 `operation_finished` may not.
 
 ## Calling the Plugin again
 
-While a Level 2 Plugin's View Session is open, an explicit call of any of
+While a Plugin's View Session is open, an explicit call of any of
 its scripted Actions (a Menu Item's Primary or Alternate Action, of the same
 Command or another, with any overrides) goes into that session
-(`repeated_calls_into_session`). Under Level 1 a call starts the Action
-again with no event and replaces the view, dropping what waited; at Level 2
-it does not.
+(`repeated_calls_into_session`). The queued call receives a `called` event
+and the session's last good state.
 
 ```js
 if (event?.type === "called") {
@@ -352,10 +347,10 @@ if (event?.type === "called") {
   page-bound. A call's answer with the same page ID keeps the page's
   immediate state, as any answer does; to start afresh on every call, reset
   the page.
-- **A Level 1 view.** A Level 2 Plugin may still answer a call with a
-  Level 1 `view`, which counts as a page change: the field changes,
+- **A form/detail view.** A Plugin may answer a call with a
+  form/detail `view`, which counts as a page change: the field changes,
   submissions, action choices and section deliveries waiting from the old
-  view are dropped, as when Level 1 presents again. A Host-Fetched Section
+  view are dropped, as when a new form/detail view is presented. A Host-Fetched Section
   the new view shows with the same ID and `fetch` is kept when the call's
   Command is the one that showed it, overrides aside, and a response waiting
   for it is delivered again rather than fetched again; a call of another
@@ -391,7 +386,7 @@ collection.
 
 ## The SDK
 
-[`spinnet-level-2.js`](../spinnet-level-2.js) adds `.action(input, { id, title,
+[`spinnet.js`](../sdk/spinnet.js) adds `.action(input, { id, title,
 closesView, notify })` to the nine operations a page action may perform,
 `spinnet.ui.components` with `row`, `textField`, `choiceField`, `text`,
 `actions`, `button`, `list` and `grid` (with `total` and `start`),
@@ -406,8 +401,8 @@ the answer.
 
 ## The helper protocol and the test kit
 
-The invocation carries the Plugin's `"api_level": 2`, which is how the
-helper adds the page builders with the rest of Level 2's SDK.
+The helper installs these builders with the current SDK for every compatible
+Plugin. Host-owned insertion-target identity never reaches the helper.
 
 In the Plugin test kit, `run.answer()` reads a page as the Host does, its
 page rules included, and `PluginTestPage` drives a View Session by recorded
@@ -429,15 +424,12 @@ source `.loading` when the handler's Command could fetch it once
 `contact_https` is granted and `.failed` with the reason the Host would
 show when it could not.
 `call(_:input:)` calls an Action of the Plugin into the open session, by
-default the handler's own: as `called` for a Level 2 Plugin, with
-`handler` following the rules above, and as a restart for a Level 1
-Plugin.
+default the handler's own, as `called`, with the handler following the rules above.
 
 ## Styles, images and progress
 
-Appended to Level 2 by #81 while it is open, so a Plugin pinned to an
-earlier commit of Level 2 lacks them: Component Styles, `column`, `icon`,
-`image`, `progress` and an item's `icon`. They compose displays such as a
+Component Styles, `column`, `icon`, `image`, `progress` and an item's `icon`
+compose displays such as a
 track (artwork beside its title, artist and position), metric cards
 (icon, large value, bar) or a package task (stages and a cancel);
 [`fixtures/pages/`](../fixtures/pages/index.json) holds the three.
@@ -584,8 +576,7 @@ script produces, Canvas, video and custom continuous animation.
 
 ## Resizable pages
 
-Appended to Level 2 by #80 while it is open, so a Plugin pinned to an
-earlier commit of Level 2 lacks them. Whether the user may resize a page's
+Whether the user may resize a page's
 panel is the page's choice, not Pin's: Pin only keeps the panel above other
 Apps and remembers where it was.
 
@@ -604,7 +595,7 @@ ui.page({ id: "search", title: "Emoji", resizable: { minHeight: 240 }, content: 
   without one). Once the user has resized it, the page fills the panel: its
   collection, or the whole page when it has none, takes the width and height
   left and scrolls; answers no longer change the panel's size.
-- A page without it, and every Level 1 view, keeps the Host's default
+- A page without it, and every form/detail view, keeps the Host's default
   layout whether pinned or not: 440 points wide, as tall as its content. A
   panel the user resized for an earlier page returns to that when such a
   page replaces it.
@@ -615,8 +606,8 @@ ui.page({ id: "search", title: "Emoji", resizable: { minHeight: 240 }, content: 
   by rows, a screenful and `load_range` follow the columns there are, and
   the Plugin still gives the items and batches. A grid with a number of
   columns keeps it at any width, its cells filling the width from the left.
-- Nothing tells the Plugin the panel's size. A page that must change what it
-  shows by size is a later direction, not part of Level 2.
+- Nothing tells the Plugin the panel's size. Use [passive viewport fit](adaptive-layout.md) to vary bounded passive
+  card density by available size; no resize script runs.
 - The Host remembers a pinned panel's size only for a page that declares
   `resizable`; any other page opens at its content's size where the pinned
   panel last was.
@@ -628,31 +619,24 @@ smallest cell, and a screen never holds more than a collection's window of
 columns. Resizing re-lays out the held cells without reloading their data;
 current latency requires measurement on the current build.
 
-A generic responsive card layout and passive viewport fit are stable from
-[Level 3](level-3.md#adaptive-cards-and-passive-viewport-fit). They are separate
-from a Collection Grid and add no resize event. Level 2 does not offer them;
-the former `adaptive_layout` r1/r2 declarations are retired.
+[Adaptive cards and passive viewport fit](adaptive-layout.md) are separate
+from a Collection Grid and add no resize event.
 
-## Not in Level 2
+## Unavailable page features
 
-Multiline, URL and toggle fields, a total over 2,000 items, Host-side sorting
-of a window, setting controls and Host-Fetched Sections in pages, multiple
-selection, selection-change events, focus requests, Host-side filtering,
-dirty drafts, page stacks and local dialogs. A Plugin that needs a Level 1
-element a page lacks answers a Level 1 `view` for that step.
-
-Dirty drafts are an accepted direction, not part of Level 2: if a later
-Level lets a page refuse to be left while its draft is unsaved, a
-call or event it refuses will have its answer discarded together with any
-operation that answer requested, while Host Services its script already used
-stay done; nothing is rolled back.
+Pages do not offer multiline, URL or toggle fields, totals over 2,000 items,
+Host-side sorting/filtering, settings controls or Host-Fetched Sections, multiple
+selection, selection-change events, focus requests, dirty-draft vetoes, page
+stacks or local dialogs. A Plugin may use a form/detail `view` for a step
+requiring its fields, settings controls or fetched sections. A rejected answer
+does not roll back Host Services its script already used.
 
 ## Budgets
 
 A page counts against the 256 KiB view description, `state` against
 64 KiB, each event and each call against the four-second deadline from when
 its script starts, and typing against the
-150 ms (warm) and 300 ms (cold) p95 targets, as in Level 1. A Host holds
+150 ms (warm) and 300 ms (cold) p95 targets, as in current. A Host holds
 at most 40 components per page, 2,000 items per collection (given in one
 answer, or as its `total`), 600 items in a collection's window, and 4 pages
 in page memory. A `load_range` asks for at most 600 positions. Since #81 a
@@ -665,11 +649,11 @@ tall, and an adaptive grid has 2 to 24 columns of at least 32 to 128 points.
 
 ## Host-run sources (#82)
 
-A Level 2 page may append `sources` and a text component may append `bind`.
+A current page may append `sources` and a text component may append `bind`.
 See [sources](sources.md) for visibility, authority, retention, formatting,
 change-gated `source_delivered` events and bounds. Sources do not alter a page's
 Immediate State and offer no background schedule. HTTPS is once-only in this addition.
 
 For adaptive cards and viewport profiles, use the
-[Level 3 page schema](../schemas/pages-level-3.schema.json) and
+[Current page schema](../schemas/pages.schema.json) and
 [stable adaptive schema](../schemas/adaptive-layout.schema.json).

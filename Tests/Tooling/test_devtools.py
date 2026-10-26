@@ -202,6 +202,7 @@ esac
                          (host / 'HostAccessibility.swift').read_bytes())
         self.assertFalse(stale.exists())
         self.assertFalse((self.root / 'dist').exists())
+        self.assertFalse((self.root / 'tmp').exists())
 
 
 if __name__ == '__main__':

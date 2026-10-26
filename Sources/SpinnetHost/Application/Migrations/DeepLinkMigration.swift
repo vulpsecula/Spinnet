@@ -80,7 +80,8 @@ enum DeepLinkMigration {
         let actions = try configuration.actions.map { action -> ActionConfiguration in
             guard action.execution == .javascript,
                   let command = registry.command(for: action.pluginID, commandID: action.commandID),
-                  command.hostCommand == .openDeepLink, command.title == action.title else { return action }
+                  command.hostServiceID == HostServiceCatalogue.deepLinkOperation,
+                  command.title == action.title else { return action }
             changed = true
             return try ActionConfiguration(id: action.id, pluginID: action.pluginID, command: command, input: action.input)
         }

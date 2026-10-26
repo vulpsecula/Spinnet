@@ -11,7 +11,7 @@ final class PluginMigrationsTests: XCTestCase {
     private func manifest(migrations: String, capabilities: String = "") throws -> PluginManifest {
         try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "api_level": 1, "id": "com.example.notes", "name": "Notes", "version": "2.0.0",
+          "protocol_version": "1.0", "engines":{"spinnet":"^1.0.0"}, "id": "com.example.notes", "name": "Notes", "version": "2.0.0",
           "capabilities": [\(capabilities)],
           "settings_fields": [{"key": "server_endpoint", "kind": "https_endpoint", "title": "Endpoint"},
                               {"key": "tone", "kind": "choice", "title": "Tone", "choices": ["plain", "warm"]}],

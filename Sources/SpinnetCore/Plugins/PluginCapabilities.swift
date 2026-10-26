@@ -17,16 +17,16 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
     /// Typing text into the focused App in place of its selection. Separate
     /// from `write_clipboard`: inserting changes a document, copying does not.
     case insertIntoFocusedApp = "insert_into_focused_app"
-    /// Plugin API Level 2 (#83): identifying the App in front, by its name,
+    /// the current interface (#83): identifying the App in front, by its name,
     /// bundle identifier and an App Target. Separate from quitting it.
     case readFrontmostApp = "read_frontmost_app"
-    /// Plugin API Level 2 (#83): asking the Host to close the front window
+    /// the current interface (#83): asking the Host to close the front window
     /// of, quit or force quit the App in front, or one an App Target names,
     /// Close and Quit exactly as the App's own ⌘W and ⌘Q do; Force Quit, and
     /// a close or quit of an App not in front, after a Host Confirmation. It
     /// tells the Plugin nothing about the App.
     case quitFrontmostApp = "quit_frontmost_app"
-    /// Host-owned prevention of idle system and display sleep (Level 2).
+    /// Host-owned prevention of idle system and display sleep (the current interface).
     case keepAwake = "keep_awake"
     case readReviewedTools = "read_reviewed_tools"
     case runReviewedToolTasks = "run_reviewed_tool_tasks"
@@ -37,9 +37,6 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
          .positionFocusedWindow, .openURL, .openLocalPath, .captureScreen, .contactHTTPS,
          .controlExternalApp, .insertIntoFocusedApp, .readFrontmostApp, .quitFrontmostApp, .keepAwake, .readReviewedTools, .runReviewedToolTasks, .readSystemStatus].contains(self)
     }
-
-    /// The lowest Plugin API Level whose Plugins may declare it.
-    public var apiLevel: Int { (CurrentAppAddition.capabilities.contains(self) || self == .keepAwake || self == .readReviewedTools || self == .runReviewedToolTasks || self == .readSystemStatus) ? 2 : 1 }
 
     public var title: String {
         switch self {
@@ -578,7 +575,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// The names of the Plugin's keys, without their values.
     case listStorageKeys = "list_storage_keys"
     case clearStorage = "clear_storage"
-    /// Plugin API Level 2's `apps.frontmost` (#83), which has no Level 1
+    /// The `apps.frontmost` (#83), which has no separate internal adapter
     /// name: the App in front and its App Target.
     case identifyFrontmostApp = "apps.frontmost"
     case systemMetrics = "system.metrics"
@@ -588,11 +585,8 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     case listActivities = "activities.list"
     case stopActivity = "activities.stop"
 
-    /// The services of Plugin API Level 1, under their Level 1 names.
-    public static let levelOne = allCases.filter(\.isLevelOne)
-
-    /// Whether Plugin API Level 1 offers it under its raw value.
-    public var isLevelOne: Bool { ![.identifyFrontmostApp, .keepAwakeEffect, .listActivities, .stopActivity, .reviewedToolRead, .systemMetrics, .showReviewedServices].contains(self) }
+    /// Raw execution names that are not public catalogue IDs.
+    public var usesInternalName: Bool { !rawValue.contains(".") }
 
     /// The Plugin Storage services, answered by `PluginStorage`.
     public var isPluginStorage: Bool {
@@ -675,7 +669,7 @@ public enum PluginHostServiceError: Error, Equatable, CustomStringConvertible, L
     /// A Plugin Storage write over a limit. It stored nothing, and unlike
     /// every other failure the script may catch it and carry on.
     case storageLimitExceeded(String)
-    /// An insertion under Candidate Contract `host_operations` refused or
+    /// An insertion under `host_operations` refused or
     /// failed because of its target.
     case insertion(InsertionFailure)
     case tool(ReviewedToolFailure)
@@ -797,7 +791,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let httpsTransport: HTTPSTransport?
     private let credentialStore: PluginCredentialStore?
     private let focusedTextInserter: (String) throws -> Void
-    /// Inserts for a Plugin API Level 2 Plugin, into the App in
+    /// Inserts for a compatible Plugin, into the App in
     /// front only if it is the one the Host showed when the user acted.
     private let targetedTextInserter: (String, InsertionTargetCapture) throws -> Void
     private let languageDetector: (String) -> String?
@@ -809,7 +803,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let deepLinkOpener: (DeepLink) throws -> Void
     private let pluginStorage: PluginStorage?
     /// Opens an application by path or bundle identifier, for a call of
-    /// `open.application` under Candidate Contract `namespaces`.
+    /// `open.application` under `namespaces`.
     private let applicationOpener: (String) throws -> Void
     /// Starts a capture that copies or saves as the user's screenshot
     /// preferences say, for a call of `screen.capture` naming only a source
@@ -948,8 +942,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                       for: package, action: action)
     }
 
-    /// The same check for an operation of the catalogue that no Level 1
-    /// Host Service performs, such as `apps.quit`: the Capabilities and
+    /// The same check for an operation of the catalogue that no direct
+    /// Host Service adapter performs, such as `apps.quit`: the Capabilities and
     /// System Permission the catalogue gives it.
     public func authorize(_ operation: HostServiceDefinition, for package: PluginPackage,
                           action: ActionConfiguration) throws {
@@ -1080,7 +1074,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .listActivities:
             guard request.input == .null else { throw PluginHostServiceError.invalidInput("activities.list takes no input") }
             guard let activities else { throw PluginHostServiceError.unavailable("Host activities") }
-            return .array(HomebrewCommandOutput.activities(activities.list(for: package.manifest.id).map(\.json), manifest: package.manifest))
+            return .array(HomebrewCommandOutput.activities(activities.list(for: package.manifest.id).map(\.json)))
         case .stopActivity:
             let id = try KeepAwakeRequest.stopID(input: request.input)
             guard let activities else { throw PluginHostServiceError.unavailable("Host activities") }
@@ -1238,12 +1232,9 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             let event = try appleEventRequest(from: request.input, package: package)
             if event.bundleID == SpotifyPlayback.bundleID {
-                guard package.manifest.apiLevel >= 2 else { throw PluginHostServiceError.unavailable("Spotify requires Plugin API Level 2") }
                 return try performReviewedApp(event, package: package, action: action,
                     allowsPrompt: package.manifest.externalAppConnections.isEmpty
-                        && !SpotifyControls.operationNames.contains(event.handler)
-                        && (!PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: package.manifest)
-                            || (event.handler == "playback" && request.allowsAutomationPrompt)))
+                        && event.handler == "playback" && request.allowsAutomationPrompt)
             }
             try appleEventSender(event)
             return .null
@@ -1379,21 +1370,15 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
 
     public func activitySourceAdapter(using registry: PluginRegistry) -> HostSourceAdapter {
         HostSourceAdapter(minimumInterval: 1, deadline: 1,
-            deliveryInterval: { action in
-                guard let manifest = registry.package(for: action.pluginID)?.manifest,
-                      registry.contracts.permitting(manifest)(LiveActivityDelivery.member) else {
-                    return HostRunSourceAddition.deliveryInterval
-                }
-                return LiveActivityDelivery.minimumInterval
-            },
+            deliveryInterval: { _ in LiveActivityDelivery.minimumInterval },
             ownerIdentity: { registry.ownerAdmission(for: $0.pluginID).map(AnyHashable.init) },
             authorize: { action, source in
                 guard source.input == .null, registry.isEnabled(for: action.pluginID),
                       registry.package(for: action.pluginID) != nil else { throw PluginHostServiceError.unavailable("The activity owner is no longer active") }
             }, sample: { [self] action, _, cancellation in
                 guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The activity read was cancelled") }
-                guard let manifest = registry.package(for: action.pluginID)?.manifest else { throw PluginHostServiceError.unavailable("The activity owner is no longer active") }
-                return .array(HomebrewCommandOutput.activities(activities?.list(for: action.pluginID).map(\.json) ?? [], manifest: manifest))
+                guard registry.package(for: action.pluginID) != nil else { throw PluginHostServiceError.unavailable("The activity owner is no longer active") }
+                return .array(HomebrewCommandOutput.activities(activities?.list(for: action.pluginID).map(\.json) ?? []))
             })
     }
 
@@ -1514,7 +1499,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             do { try PluginInterfaceContracts.host.check(manifest, origin: package.origin) }
             catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
             guard PluginInterfaceContracts.host.permits(TerminalHomebrew.member, declaredBy: manifest) else {
-                throw PluginHostServiceError.unavailable("Terminal Homebrew requires Plugin API Level 5")
+                throw PluginHostServiceError.unavailable("Terminal Homebrew is not provided by this Host")
             }
         }
         if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation) {
@@ -1523,14 +1508,14 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         }
         if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation),
            !PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: manifest) {
-            throw PluginHostServiceError.unavailable("Spotify \(operation) requires Plugin API Level 3")
+            throw PluginHostServiceError.unavailable("Spotify \(operation) is not provided by this Host")
         }
         if let family = interface.operations.first(where: { $0.name == operation })?.family
             ?? (bundleID == SpotifyPlayback.bundleID ? SpotifyControls.family(for: operation) : nil),
            !target.operationFamilies.contains(family) {
             throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
         }
-        return try interface.request(operation: operation, arguments: arguments, apiLevel: manifest.apiLevel, candidateContracts: manifest.candidateContracts)
+        return try interface.request(operation: operation, arguments: arguments)
     }
 
     private func deepLink(from input: JSONValue, scope: PluginCapabilityScope?) throws -> DeepLink {

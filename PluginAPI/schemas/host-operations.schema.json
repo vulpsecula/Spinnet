@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Spinnet Requested Host Operations (Plugin API Level 2)",
-  "description": "Plugin API Level 2, promoted from Candidate Contract host_operations revision 2, with operation_finished delivered after the view closed (view_closed). A Level 2 Plugin may answer a gesture with one Requested Host Operation, which the Host commits with the rest of the answer and performs after the script's invocation ends. An operation names a Host Service by its catalogue ID (../catalogue.json) in perform and gives that operation's input in input. Besides these shapes the Host checks what a shape cannot say: only an answer to a gesture (the Action's start, submitted, action_chosen) may carry an operation, inserted text is at most 128 KiB of UTF-8 with no control character but tabs and line breaks, a link is http or https with a host, and the requesting Command declares the operation's Capability and the user granted it. An answer that breaks a shape, a pre-check or the gesture rule is a protocol violation and ends the View Session; a refused Capability or System Permission refuses the whole answer and keeps the last good view and state.",
+  "title": "Spinnet Requested Host Operations",
+  "description": "Current requested operations, including operation_finished after the view closes (view_closed). A current Plugin may answer a gesture with one Requested Host Operation, which the Host commits with the rest of the answer and performs after the script's invocation ends. An operation names a Host Service by its catalogue ID (../catalogue.json) in perform and gives that operation's input in input. Besides these shapes the Host checks what a shape cannot say: only an answer to a gesture (the Action's start, submitted, action_chosen) may carry an operation, inserted text is at most 128 KiB of UTF-8 with no control character but tabs and line breaks, a link is http or https with a host, and the requesting Command declares the operation's Capability and the user granted it. An answer that breaks a shape, a pre-check or the gesture rule is a protocol violation and ends the View Session; a refused Capability or System Permission refuses the whole answer and keeps the last good view and state.",
   "$defs": {
     "text": {
       "$ref": "plugin-view.schema.json#/$defs/text"
@@ -24,10 +24,10 @@
           "$ref": "namespaces.schema.json#/$defs/request_id"
         },
         "input": {
-          "description": "The operation's input, as namespaces.schema.json defines it under <perform>.input."
+          "description": "The operation's input, including the separately scoped current catalog refresh input."
         },
         "id": {
-          "$ref": "#/$defs/operation_id"
+          "$ref": "host-operations.schema.json#/$defs/operation_id"
         },
         "closes_view": {
           "type": "boolean"
@@ -38,7 +38,7 @@
       },
       "allOf": [
         {
-          "$ref": "namespaces.schema.json#/$defs/perform_input"
+          "$ref": "#/$defs/perform_input"
         },
         {
           "if": {
@@ -49,7 +49,7 @@
             }
           },
           "then": {
-            "$ref": "#/$defs/selection_replace_operation"
+            "$ref": "host-operations.schema.json#/$defs/selection_replace_operation"
           }
         }
       ]
@@ -63,7 +63,7 @@
       ]
     },
     "view_additions": {
-      "description": "Members a Level 2 view may carry besides those of Level 1's view (plugin-view.schema.json). shows_insertion_target asks the Host to draw a target line naming the App insertion would go to now, which the Host keeps current and never reveals to the Plugin. A view without it may still insert through Level 1's standard insert_text action, whose button carries the target itself; a requested or synchronous selection.replace from a gesture made in a view that showed no target is refused with target_not_shown.",
+      "description": "Additional members of a form/detail view (plugin-view.schema.json). shows_insertion_target asks the Host to draw a target line naming the App insertion would go to now, which the Host keeps current and never reveals to the Plugin. A view without it may still insert through the standard selection.replace action, whose button carries the target itself; a requested or synchronous selection.replace from a gesture made in a view that showed no target is refused with target_not_shown.",
       "type": "object",
       "properties": {
         "shows_insertion_target": {
@@ -72,7 +72,7 @@
       }
     },
     "answer": {
-      "description": "A Level 2 script's answer to a Level 1 view: Level 1's answer plus an optional operation. An operation may come with a view, a toast, both or neither, but not with close: an operation that should close the view says closes_view.",
+      "description": "A form/detail answer with an optional Requested Host Operation. An operation may come with a view, a toast, both or neither, but not with close: an operation that should close the view says closes_view.",
       "type": [
         "object",
         "null"
@@ -80,7 +80,7 @@
       "additionalProperties": false,
       "properties": {
         "view": {
-          "description": "A Level 1 view, optionally with view_additions.",
+          "description": "A current view, optionally with view_additions.",
           "type": "object"
         },
         "state": {
@@ -90,7 +90,7 @@
           "const": true
         },
         "toast": {
-          "$ref": "#/$defs/text"
+          "$ref": "host-operations.schema.json#/$defs/text"
         },
         "operation": {
           "$ref": "#/$defs/operation"
@@ -128,7 +128,7 @@
       ]
     },
     "outcome": {
-      "description": "The one terminal result of a request. succeeded: the effect completed as the operation defines; for selection.replace, every keystroke was posted to the App in front, not read back. refused: a check at execution failed and nothing was done. declined: the user declined a Host Confirmation. expired: a Host Confirmation went unanswered past its expiry. cancelled: the request's owner ended before it ran, its view closing among them, even while its Host Confirmation was shown. failed: the effect itself failed after the Host began it. apps.quit and apps.close are the operations of Level 2 that ask for a Host Confirmation, so only they report declined and expired.",
+      "description": "The one terminal result of a request. succeeded: the effect completed as the operation defines; for selection.replace, every keystroke was posted to the App in front, not read back. refused: a check at execution failed and nothing was done. declined: the user declined a Host Confirmation. expired: a Host Confirmation went unanswered past its expiry. cancelled: the request's owner ended before it ran, its view closing among them, even while its Host Confirmation was shown. failed: the effect itself failed after the Host began it. apps.quit and apps.close are the operations of current that ask for a Host Confirmation, so only they report declined and expired.",
       "enum": [
         "succeeded",
         "refused",
@@ -139,7 +139,7 @@
       ]
     },
     "reason": {
-      "description": "Why a request was refused or failed: the category the same operation fails with wherever it is named (../reference/namespaces.md), command_unavailable when the Plugin or the requesting Command is missing, disabled or changed, or for selection.replace, apps.quit and apps.close a reason about its target: apps.quit and apps.close are refused with no_target when Spinnet or no App is in front or the App quit, with target_protected when the App does not offer that exit (its own menu has no enabled \u2318Q or \u2318W item) or the Host performs none on it (Spinnet, or an App that is not a regular App), and with system_permission_denied for a Close or Quit while Spinnet lacks Accessibility. No reason names the App, its bundle ID, process or window.",
+      "description": "Why a request was refused or failed: the category the same operation fails with wherever it is named (../reference/namespaces.md), command_unavailable when the Plugin or the requesting Command is missing, disabled or changed, or for selection.replace, apps.quit and apps.close a reason about its target: apps.quit and apps.close are refused with no_target when Spinnet or no App is in front or the App quit, with target_protected when the App does not offer that exit (its own menu has no enabled ⌘Q or ⌘W item) or the Host performs none on it (Spinnet, or an App that is not a regular App), and with system_permission_denied for a Close or Quit while Spinnet lacks Accessibility. No reason names the App, its bundle ID, process or window.",
       "enum": [
         "tool_missing",
         "tool_failed",
@@ -278,7 +278,7 @@
       ]
     },
     "event": {
-      "description": "A Level 2 script's event global in a Level 1 view: a Level 1 View Event or operation_finished. Gestures, which alone may be answered with an operation, are the Action's start (event null), submitted and action_chosen.",
+      "description": "The event global in a form/detail view: a View Event or operation_finished. Gestures, which alone may be answered with an operation, are the Action's start (event null), submitted and action_chosen.",
       "oneOf": [
         {
           "$ref": "view-session.schema.json#/$defs/event"
@@ -289,10 +289,42 @@
       ]
     },
     "failure_category_additions": {
-      "description": "Action failure categories Level 2 adds. insertion_target_changed: a synchronous selection.replace call inside a View Session found another App in front than the one the Host showed when the user acted, or focus moved to another element of it; nothing was inserted, the invocation fails as a refused Host Service does, and the target line updates.",
+      "description": "Action failure categories current adds. insertion_target_changed: a synchronous selection.replace call inside a View Session found another App in front than the one the Host showed when the user acted, or focus moved to another element of it; nothing was inserted, the invocation fails as a refused Host Service does, and the target line updates.",
       "enum": [
         "insertion_target_changed"
       ]
+    },
+    "perform_input": {
+      "if": {
+        "required": [
+          "perform"
+        ],
+        "properties": {
+          "perform": {
+            "const": "tools.startTask"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "input"
+        ],
+        "properties": {
+          "input": {
+            "anyOf": [
+              {
+                "$ref": "namespaces.schema.json#/$defs/tools.startTask.input"
+              },
+              {
+                "$ref": "catalog-refresh.schema.json"
+              }
+            ]
+          }
+        }
+      },
+      "else": {
+        "$ref": "namespaces.schema.json#/$defs/perform_input"
+      }
     }
   }
 }

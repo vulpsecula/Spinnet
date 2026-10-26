@@ -7,8 +7,7 @@ import SpinnetPluginTestKit
 /// test kit and the real helper, against the Host this repository builds.
 /// Its picker names where text goes, requests insertion and copying from
 /// its gestures and hears the outcome; its stamp inserts without a view,
-/// which the Host refuses; and declaring Level 1 alone leaves every Level 1
-/// path as it was.
+/// which the Host refuses.
 final class OperationsProbeRuntimeTests: XCTestCase {
     private var helpers: [PluginTestHelper] = []
 
@@ -177,7 +176,7 @@ final class OperationsProbeRuntimeTests: XCTestCase {
         XCTAssertThrowsError(try noLine.result.get()) { XCTAssertEqual($0 as? PluginRuntimeError, refused) }
     }
 
-    /// A target that changed fails the invocation with the candidate's own
+    /// A target that changed fails the invocation with the operation's own
     /// category, which the script cannot catch.
     func testATargetChangeFailsTheInvocationWithItsOwnCategory() throws {
         let helper = try helper()
@@ -216,37 +215,10 @@ final class OperationsProbeRuntimeTests: XCTestCase {
         ])]))
     }
 
-    // MARK: Level 1
-
-    /// Scenario 11: declaring Level 1 alone, the same script's `operation`
-    /// is an unknown member, and a synchronous insertion is Level 1's,
-    /// whatever was shown.
-    func testALevelOnePluginKeepsLevelOne() throws {
-        let levelOne = try PluginUnderTest(packageAt: OperationsProbeFixture.write(scripts: ["pick.js": """
-            (() => {
-              if (event && event.type === "action_chosen") {
-                spinnet.selection.replace("→");
-                return null;
-              }
-              return { operation: { perform: "selection.replace", input: "x" } };
-            })()
-            """], OperationsProbeFixture.levelOne))
-        let helper = try helper()
-        let start = helper.run(PluginTestInvocation("probe.pick"), of: levelOne, answering: RecordedHostServices())
-        XCTAssertThrowsError(try start.answer()) {
-            XCTAssertEqual($0 as? PluginRuntimeError, .protocolViolation("The script's answer has unknown member operation"))
-        }
-        let typed = helper.run(PluginTestInvocation("probe.pick", event: .actionChosen("type-now")), of: levelOne,
-                               answering: RecordedHostServices([.insertText: .value(.null)]))
-        XCTAssertEqual(try typed.result.get(), .null)
-        XCTAssertEqual(typed.inputs(to: .insertText), [.string("→")], "Level 1's insert_text, with no shown target")
-    }
-
     // MARK: The SDK
 
-    /// `host_operations` adds a builder to each operation it lets an answer
-    /// request, keeps the calls, and adds `host`, `ui.request` and the
-    /// `operation` option of `ui.show`.
+    /// The SDK exposes builders for requested operations beside callable
+    /// services, including `host`, `ui.request` and `ui.show`'s operation.
     func testTheSDKBuildsRequestsAndKeepsCalls() throws {
         let source = try OperationsProbeFixture.write(scripts: ["pick.js": """
             (() => {
@@ -283,19 +255,4 @@ final class OperationsProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(built["frozen"], .bool(true))
     }
 
-    /// A Level 1 Plugin has no request builders; a Level 2 Plugin has them.
-    func testTheBuildersNeedLevelTwo() throws {
-        let script = ["pick.js": """
-            [typeof spinnet.host, typeof spinnet.selection.replace.operation, typeof spinnet.ui.request]
-            """]
-        let source = try OperationsProbeFixture.write(scripts: script, OperationsProbeFixture.levelOne)
-        let run = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: source),
-                                   answering: RecordedHostServices())
-        XCTAssertEqual(try run.result.get(), .array(["undefined", "undefined", "undefined"].map(JSONValue.string)))
-
-        let levelTwo = try helper().run(PluginTestInvocation("probe.pick"),
-                                        of: PluginUnderTest(packageAt: OperationsProbeFixture.write(scripts: script)),
-                                        answering: RecordedHostServices())
-        XCTAssertEqual(try levelTwo.result.get(), .array(["object", "function", "function"].map(JSONValue.string)))
-    }
 }

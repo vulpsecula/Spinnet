@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Level 7 fixed Homebrew catalog refresh input",
+  "title": "current fixed Homebrew catalog refresh input",
   "type": "object",
   "required": [
     "tool",

@@ -1,6 +1,5 @@
 {
   "protocol_version": "1.0",
-  "api_level": 3,
   "id": "com.example.adaptive-cards",
   "name": "Adaptive Cards",
   "version": "1.0.0",
@@ -18,5 +17,8 @@
       "is_configurable": false,
       "script": "cards.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

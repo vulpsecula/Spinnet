@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Reviewed Homebrew management reads (Plugin API Level 2)",
+  "title": "Reviewed Homebrew management reads (current Plugin interface)",
   "$defs": {
     "input": {
       "oneOf": [

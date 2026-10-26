@@ -16,7 +16,7 @@ final class ExternalAppConnectionsTests: XCTestCase {
 
     private func fixture(native: ExternalAppConnectionAdapter.Native) throws -> Fixture {
         let manifest = try PluginManifestLoader.decode(Data("""
-        {"api_level":3,"protocol_version":"1.0","id":"test.connection","name":"Connection","version":"1.0",
+        {"engines":{"spinnet":"^1.0.0"},"protocol_version":"1.0","id":"test.connection","name":"Connection","version":"1.0",
 
         "external_app_connections":[{"bundle_id":"com.spotify.client","command_ids":["control"]}],
         "capabilities":["control_external_app"],"optional_capabilities":["control_external_app"],

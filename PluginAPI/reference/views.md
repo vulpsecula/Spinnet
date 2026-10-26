@@ -6,12 +6,12 @@ Plugin's own markup or native UI (ADR 0002, ADR 0010).
 publishes a view, [`schemas/view-session.schema.json`](../schemas/view-session.schema.json)
 the events and answers around it, and `spinnet.ui` builds both.
 
-This page is Plugin API Level 1's view. Level 2 adds [pages](pages.md),
+This page is Plugin API current view. current adds [pages](pages.md),
 with Lists and Grids and input the Host keeps across answers, and
-[Requested Host Operations](host-operations.md); a Level 2 Plugin may still
-answer with the Level 1 view described here, which keeps Level 1's view
+[Requested Host Operations](host-operations.md); a Plugin may still
+answer with the current view described here, which keeps current view
 rules and names, its standard actions included (C9), and an Explicit Call
-of a Level 2 Plugin runs in its open View Session rather than starting the
+of a Plugin runs in its open View Session rather than starting the
 Action again ([calling the Plugin again](pages.md#calling-the-plugin-again)).
 
 ## View Sessions
@@ -105,20 +105,18 @@ way to repair it, such as opening the Plugin's Plugin Settings to grant access,
 and the view stays open. With `closes_view`, the view closes once the action
 succeeds, unless the user pinned it.
 
-`insert_text` types its text into the App the view came from as
-[`insert_text`](host-services.md#insert_text) does into the App in front,
-after bringing that App back to the keyboard. With `closes_view` an unpinned
-view therefore closes before the text is typed, and a failure after that is
-shown by the Host rather than in the view; without it, an unpinned view
-closes when the App takes the keyboard. A pinned view stays where it is
-either way, without the keyboard, and shows a later failure itself.
+`selection.replace` follows the [insertion target rule](host-operations.md#insertion):
+the App and focused element at execution must still match what the Host showed
+when the user acted. A mismatch writes nothing and reports the failure. With
+`closes_view`, an unpinned view closes on successful execution; Pin preserves
+the view. The Plugin never receives the Host's target identity.
 
 | `perform` | Member | Needs |
 | --- | --- | --- |
-| `copy_text` | `text` | `write_clipboard` |
-| `open_url` | `url`, http or https only | `open_url` |
-| `insert_text` | `text`, at most 128 KiB, inserted into the App the view came from in place of its selection | `insert_into_focused_app` and Accessibility |
-| `open_plugin_settings` | none | nothing |
+| `clipboard.write` | `text` | `write_clipboard` |
+| `open.url` | `url`, http or https only | `open_url` |
+| `selection.replace` | `text`, at most 128 KiB, replaces the selection in the Host-shown target | `insert_into_focused_app` and Accessibility |
+| `host.showPluginSettings` | none | nothing |
 
 ## Windows
 
@@ -129,7 +127,7 @@ the App the user was in stays in front. An unpinned view closes when it loses
 focus; Escape or its close button closes any view.
 
 Pin means the user keeps the view beside their App. `closes_view` closes the
-view unless the user pinned it: on a standard action here, and at Level 2
+view unless the user pinned it: on a standard action here, and in the current interface
 on whatever else a Plugin marks with it, such as a
 [Requested Host Operation](host-operations.md) or a
 [page or item action](pages.md).
@@ -172,7 +170,7 @@ const deepl = {
 };
 ```
 
-`fetch.request` is an [`https_request`](host-services.md#https_request) input
+`fetch.request` is an [`http.request`](host-services.md#httprequest) input
 and is held to the same rules as it is sent: https to a host consented for the
 Plugin, the same headers, body and Credential Uses, redirects only within the
 consented hosts, and a 128 KiB response. The section is sent with the authority
@@ -185,7 +183,7 @@ answers included.
   response it shows the `status_messages` entry for the status, else the
   string at `error_pointer`, else the status. The script never sees the
   response, and the section's own `text` is ignored.
-- **`mode: "deliver"`**: the Host sends the `https_request` result to the
+- **`mode: "deliver"`**: the Host sends the `http.request` result to the
   script as a `section_delivered` View Event, `{type, section, response}`,
   which waits its turn behind the session's other events. The section shows
   the `text` it has in the view the script answers with, in the Markdown
@@ -196,7 +194,7 @@ answers included.
 
 Every section of a view is sent at once, so a slow service never holds back
 another, and each request has its own 15-second budget, redirects included;
-a script's own `https_request` keeps its 3-second budget. A view fetches at
+a script's own `http.request` keeps its 3-second budget. A view fetches at
 most 8 sections. A section keeps what it fetched while its `id` and `fetch`
 stay the same, so answering `section_delivered`, or any other event, sends
 nothing again; a changed `fetch` is sent afresh, and a section the view no

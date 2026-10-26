@@ -1,12 +1,9 @@
 import Foundation
 
-/// Level 3 additions to Spotify's Reviewed App Interface. Stable Level 2
-/// retains its original operations and result shapes.
+/// Typed Spotify playback controls and volume operations.
 public enum SpotifyControls {
-    public static let declaration = CandidateContractRevision(name: "spotify_controls", revision: 1)
     public static let member = PluginInterfaceMember.behaviour("spotify_controls")
-    public static let contract = CandidateContract(name: declaration.name, revision: declaration.revision,
-        baseLevel: 2, members: [member], tag: "plugin-api-candidate/spotify_controls/r1")
+    public static let members = [member]
     public static let operationNames: Set<String> = ["play_pause", "volume", "set_volume", "adjust_volume", "next_checked"]
 
     public static func family(for operation: String) -> String? {

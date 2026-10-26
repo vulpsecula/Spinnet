@@ -2,9 +2,8 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// Resizable pages and adaptive Grid columns (#80), appended to Plugin API
-/// Level 2: a page declares whether its panel may be resized, and a Grid may
-/// let the Host choose its columns from the width it has.
+/// A page declares whether its panel may be resized, and a Grid may let the
+/// Host choose its columns from the available width.
 final class PageSizingTests: XCTestCase {
     private func page(_ members: [String: JSONValue] = [:], grid: [String: JSONValue]? = nil) -> JSONValue {
         var collection: [String: JSONValue] = ["kind": .string("grid"), "id": .string("results"),
@@ -33,17 +32,17 @@ final class PageSizingTests: XCTestCase {
 
     // MARK: The contract
 
-    func testTheAdditionIsLevelTwosAndNotLevelOnes() {
+    func testPageSizingRequiresCurrentMembership() {
         for member in PageSizing.members {
             XCTAssertTrue(CollectionsFixtures.permits(member), "\(member)")
-            XCTAssertFalse(CollectionsFixtures.levelOne(member), "\(member)")
+            XCTAssertFalse(CollectionsFixtures.denied(member), "\(member)")
         }
-        XCTAssertTrue(Set(PageSizing.members).isSubset(of: PluginInterfaceContracts.levelTwoMembers))
+        XCTAssertTrue(Set(PageSizing.members).isSubset(of: PluginInterfaceContracts.currentMembers))
     }
 
     /// A Plugin the addition is not offered to has neither member.
     func testWithoutTheAdditionTheMembersAreUnknown() {
-        let earlier = Set(PluginInterfaceContracts.levelTwoMembers).subtracting(PageSizing.members)
+        let earlier = Set(PluginInterfaceContracts.currentMembers).subtracting(PageSizing.members)
         let permits: (PluginInterfaceMember) -> Bool = { earlier.contains($0) }
         XCTAssertEqual(refusal(page(["resizable": .bool(true)]), permits: permits), "The page has unknown member resizable")
         XCTAssertEqual(refusal(page(grid: ["columns": .string("auto")]), permits: permits),

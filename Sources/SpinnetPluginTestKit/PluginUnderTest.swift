@@ -59,8 +59,8 @@ public struct PluginTestInvocation {
     /// The state the script returned with its last view, its `state` global.
     public var state: JSONValue
     /// The view the user made the event in, as the script last answered it,
-    /// or the page under Candidate Contract `collections`.
-    /// For a Level 2 Plugin, a gesture in a view that
+    /// or the page under `collections`.
+    /// For a compatible Plugin, a gesture in a view that
     /// sets `shows_insertion_target`, or in a page whose collection offers a
     /// `selection.replace` item action, is one the Host showed a target for, so
     /// an insertion the invocation makes or requests may go ahead; without

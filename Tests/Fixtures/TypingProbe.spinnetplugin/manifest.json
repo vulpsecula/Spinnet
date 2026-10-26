@@ -1,6 +1,5 @@
 {
   "protocol_version": "1.0",
-  "api_level": 1,
   "id": "com.example.typing-probe",
   "name": "Typing Probe",
   "version": "1.0.0",
@@ -20,5 +19,8 @@
       "is_configurable": false,
       "script": "probe.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

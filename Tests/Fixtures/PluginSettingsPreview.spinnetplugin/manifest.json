@@ -1,6 +1,5 @@
 {
   "protocol_version": "1.0",
-  "api_level": 1,
   "id": "com.example.settings-preview",
   "name": "Settings Preview",
   "version": "2.1.0",
@@ -332,5 +331,8 @@
       "is_configurable": false,
       "script": "translate.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

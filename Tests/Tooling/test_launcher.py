@@ -63,6 +63,9 @@ class LauncherTests(unittest.TestCase):
         self.script = self.root / "script/build_and_run.sh"
         self.script.parent.mkdir()
         shutil.copy2(ROOT / "script/build_and_run.sh", self.script)
+        self.version_source = self.root / "Sources/SpinnetCore/Plugins/HostCompatibility.swift"
+        self.version_source.parent.mkdir(parents=True)
+        shutil.copy2(ROOT / "Sources/SpinnetCore/Plugins/HostCompatibility.swift", self.version_source)
         self.log = self.root / "commands.jsonl"
         self.stubs = self.root / "commands"
         self.stubs.mkdir()
@@ -124,6 +127,18 @@ class LauncherTests(unittest.TestCase):
                 result, commands = self.launch(*args, LAUNCHER_TEST_STOP_AT_BUILD="1")
                 self.assertEqual(result.returncode, 2, result.stderr)
                 self.assertIn("usage:", result.stderr)
+                self.assertEqual(commands, [])
+                self.assertEqual(self.sentinel.read_text(), "existing app")
+
+    def test_invalid_release_version_is_rejected_before_touching_the_app(self):
+        for source in ['public static let currentString = "01.0.0"\n',
+                       'public static let currentString = "1.0.0-beta"\n',
+                       'missing version\n']:
+            with self.subTest(source=source):
+                self.version_source.write_text(source)
+                result, commands = self.launch("--package")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("cannot read the Host release version", result.stderr)
                 self.assertEqual(commands, [])
                 self.assertEqual(self.sentinel.read_text(), "existing app")
 

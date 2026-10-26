@@ -1,27 +1,9 @@
 import Foundation
 
-/// Pages and collections (ADR 0019), part of Plugin API Level 2: a Level 2
-/// Plugin may answer with a page, a tree of identified View Components with
-/// at most one List or Grid, whose immediate state the Host keeps across
-/// answers until the Plugin resets it. A collection may give its `total` and
-/// a slice of its items, and the Host asks for the rest with `load_range`;
-/// an item action may toggle a mark; a performed page or item action may ask
-/// to `notify`; and calling the Plugin again while its View Session is open
-/// runs the called Action in the session as `called`.
-///
-/// They were proved as Candidate Contract `collections`, whose revisions 1
-/// to 3 are retired into Level 2 (#79); `promoted` is revision 3's record,
-/// whose members Level 2 holds.
+/// Identified pages and collections whose immediate state the Host retains
+/// across answers. Their public actions use catalogue IDs.
 public enum CollectionsContract {
-    public static let name = "collections"
-    /// The revision promoted into Level 2.
-    public static let revision = 3
-
-    public static var declaration: CandidateContractRevision {
-        CandidateContractRevision(name: name, revision: revision)
-    }
-
-    /// An answer may carry `page` in place of a Level 1 `view`.
+    /// An answer may carry `page` in place of a form/detail `view`.
     public static let answerPage = PluginInterfaceMember.behaviour("answer_page")
 
     /// An explicit call of one of the Plugin's Actions while its View
@@ -41,7 +23,7 @@ public enum CollectionsContract {
     /// The range request.
     public static let loadRange = PluginInterfaceMember.viewEvent("load_range")
 
-    /// The rules a Level 2 Plugin's pages get.
+    /// The rules a compatible Plugin's pages get.
     public static let behaviours = [
         "answer_page", "page_identity", "page_memory", "component_identity", "immediate_state_kept",
         "explicit_reset", "composition_priority", "page_event_provenance", "gesture_snapshots",
@@ -49,37 +31,24 @@ public enum CollectionsContract {
         "repeated_calls_into_session", "collection_window", "toggle_item_actions", "performed_action_outcomes"
     ]
 
-    /// The component kinds revision 3 published. Kinds appended to Level 2
-    /// later belong to their own addition, such as `PagePresentation`.
+    /// Core page component kinds; presentation types have their own metadata.
     public static let componentKinds = ["row", "text_field", "choice_field", "text", "actions", "list", "grid"]
     /// The View Events pages add.
     public static let events = ["item_action", "load_range", "called"]
 
-    /// The catalogue IDs a page action may perform, in the catalogue's order:
-    /// revision 3's and those appended to Level 2 since.
+    /// Catalogue IDs offered to page actions, in catalogue order.
     public static var viewActionIDs: [String] {
         HostServiceCatalogue.operations.filter { $0.isOffered(at: .viewAction) }.map(\.id)
-    }
-
-    /// The page action IDs revision 3 offered.
-    static var promotedViewActionIDs: [String] {
-        HostServiceCatalogue.operations.filter { $0.offering(at: .viewAction).origin == name }.map(\.id)
     }
 
     /// The catalogue IDs an item action may perform on the item's text.
     public static let itemActionIDs = ["selection.replace", "clipboard.write"]
 
-    /// Revision 3 as its `candidate.json` published it, whose members Level
-    /// 2 holds.
-    public static let promoted = CandidateContract(
-        name: name, revision: revision, baseLevel: 1,
-        requires: [HostOperationsContract.declaration, HostServiceCatalogue.declaration],
-        members: behaviours.map(PluginInterfaceMember.behaviour)
-            + promotedViewActionIDs.map(PluginInterfaceMember.standardAction)
-            + componentKinds.map(PluginInterfaceMember.viewComponent)
-            + events.map(PluginInterfaceMember.viewEvent),
-        tag: "plugin-api-candidate/\(name)/r\(revision)"
-    )
+    public static let members: [PluginInterfaceMember] =
+        behaviours.map(PluginInterfaceMember.behaviour)
+        + viewActionIDs.map(PluginInterfaceMember.standardAction)
+        + componentKinds.map(PluginInterfaceMember.viewComponent)
+        + events.map(PluginInterfaceMember.viewEvent)
 
     // MARK: Limits
 
@@ -336,13 +305,13 @@ public enum PluginPageComponent: Equatable {
         case actions
         case list
         case grid
-        // Appended to Level 2 by `PagePresentation` (#81).
+        // Appended to the current interface by `PagePresentation` (#81).
         case column
         case icon
         case image
         case progress
         case activityList = "activity_list"
-        // Adaptive card container, promoted into stable Level 3.
+        // Adaptive card container.
         case adaptive
     }
 
@@ -605,7 +574,7 @@ public struct PluginPageAction: Equatable {
             throw PluginPage.violation("A page action has unknown member notify")
         }
         // A page action takes what a request takes, by the IDs this
-        // candidate offers as page actions.
+        // catalogue offers as page actions.
         let operation: RequestedHostOperation
         do {
             operation = try RequestedHostOperation(parsing: .object(members), permits: { member in
@@ -968,7 +937,7 @@ public struct PluginPageItem: Equatable, Identifiable {
 }
 
 /// An action offered on items: one delivering `item_action`, one toggling a
-/// mark (revision 3), which delivers `item_action` too and shows checked
+/// mark, which delivers `item_action` too and shows checked
 /// for an item carrying its mark, or one the Host performs on the item's
 /// text by catalogue ID.
 public struct PluginPageItemAction: Equatable {

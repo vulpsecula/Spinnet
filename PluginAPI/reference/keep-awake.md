@@ -1,8 +1,8 @@
-# Keep Awake and Host activities (Plugin API Level 2)
+# Keep Awake and Host activities (current interface)
 
 The Host owns effects after a gesture starts them; the Plugin helper ends
 normally and closing or hiding its Plugin View does not stop them. New IDs
-and the `keep_awake` Capability are additive Level 2 members (#84).
+and the `keep_awake` Capability are additive current members (#84).
 
 | ID | Offered as | Input | Result | Capability |
 | --- | --- | --- | --- | --- |
@@ -44,7 +44,7 @@ Item, which also discloses the scope and limitations.
   an App Target merely because its 16-target bound evicts it does not end an
   already bound effect; it holds the resolved identity independently.
 - `keep_awake` is an explicit grant, separate from reading App identity;
-  App-alive checks `read_frontmost_app` again at start. A Level 1 Plugin may
+  App-alive checks `read_frontmost_app` again at start. A Plugin may
   not declare it. It needs no `capability_scopes` entry or System Permission.
 - Explicit Stop, expiry, bound App exit, any Plugin disable, update,
   replacement/removal, `keep_awake` revocation, and Host exit release both
@@ -105,7 +105,7 @@ Published [fixtures](../fixtures/keep-awake/index.json) match the
 
 ## Live activity control
 
-A Level 2 page may contain one top-level `activity_list` component:
+A current page may contain one top-level `activity_list` component:
 
 ```js
 const c = spinnet.ui.components;

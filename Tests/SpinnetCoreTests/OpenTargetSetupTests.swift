@@ -7,7 +7,7 @@ final class OpenTargetSetupTests: XCTestCase {
 
     func testOpenFileAndURLRequireInputBeforePlacementAndKeepStoredTargets() throws {
         for name in ["OpenFile", "OpenURL"] {
-            let package = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/\(name).spinnetplugin"))
+            let package = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/HostPlugins/\(name).spinnetplugin"))
             XCTAssertEqual(package.manifest.preset.readiness, .setupRequired, name)
             XCTAssertTrue(package.manifest.preset.defaultInputs.isEmpty, name)
             XCTAssertTrue(package.manifest.externalAppConnections.isEmpty)

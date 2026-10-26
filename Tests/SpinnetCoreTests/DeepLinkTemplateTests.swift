@@ -20,9 +20,9 @@ final class DeepLinkTemplateTests: XCTestCase {
     private static let commands = #"""
     [
       {"id": "notes.new", "title": "New Note", "execution": "host", "is_configurable": false,
-       "host_command": "deep_link.open", "deep_link_template": "new"},
+       "host_command": "apps.openDeepLink", "deep_link_template": "new"},
       {"id": "notes.open", "title": "Open Folder", "execution": "host", "is_configurable": true,
-       "host_command": "deep_link.open", "deep_link_template": "open",
+       "host_command": "apps.openDeepLink", "deep_link_template": "open",
        "configuration_fields": [{"key": "folder", "kind": "choice", "title": "Folder", "choices": ["inbox", "archive"]}]},
       {"id": "notes.search", "title": "Search Notes", "execution": "javascript", "is_configurable": false,
        "script": "search.js"}
@@ -36,7 +36,7 @@ final class DeepLinkTemplateTests: XCTestCase {
         try PluginManifestLoader.decode(Data("""
         {
           "protocol_version": "1.0",
-          "api_level": 1,
+          "engines":{"spinnet":"^1.0.0"},
           "id": "com.example.notes-links",
           "name": "Notes Links",
           "version": "1.0.0",
@@ -79,7 +79,7 @@ final class DeepLinkTemplateTests: XCTestCase {
         XCTAssertEqual(app.deepLinkTemplates[2].parameters,
                        [.init(key: "folder", kind: .choice, choices: ["inbox", "archive"])])
         let open = try XCTUnwrap(manifest.commands.first { $0.id == CommandID("notes.open") })
-        XCTAssertEqual(open.hostCommand, .openDeepLink)
+        XCTAssertEqual(open.hostServiceID, HostServiceCatalogue.deepLinkOperation)
         XCTAssertEqual(open.deepLinkTemplate, "open")
         XCTAssertEqual(HostCommand.openDeepLink.requiredCapability, .controlExternalApp)
         XCTAssertNil(HostCommand.openDeepLink.requiredSystemPermission)
@@ -158,37 +158,37 @@ final class DeepLinkTemplateTests: XCTestCase {
         }
         XCTAssertNoThrow(try manifest(#"""
         {"id": "notes.one", "title": "One", "execution": "host", "is_configurable": false,
-         "host_command": "deep_link.open", "deep_link_template": "new"}
+         "host_command": "apps.openDeepLink", "deep_link_template": "new"}
         """#))
         assertRefused(try manifest(#"""
         {"id": "notes.one", "title": "One", "execution": "host", "is_configurable": false,
-         "host_command": "deep_link.open"}
+         "host_command": "apps.openDeepLink"}
         """#), "deep_link.open needs its template")
         assertRefused(try manifest(#"""
         {"id": "notes.one", "title": "One", "execution": "host", "is_configurable": false,
-         "host_command": "deep_link.open", "deep_link_template": "elsewhere"}
+         "host_command": "apps.openDeepLink", "deep_link_template": "elsewhere"}
         """#), "the template is declared")
         assertRefused(try manifest(#"""
         {"id": "notes.one", "title": "One", "execution": "host", "is_configurable": false,
-         "host_command": "url.open", "deep_link_template": "new"}
+         "host_command": "open.url", "deep_link_template": "new"}
         """#), "only deep_link.open names a template")
         assertRefused(try Self.manifest(commands: #"""
         [{"id": "notes.one", "title": "One", "execution": "host", "is_configurable": false,
-          "host_command": "deep_link.open", "deep_link_template": "new"},
+          "host_command": "apps.openDeepLink", "deep_link_template": "new"},
          {"id": "notes.two", "title": "Two", "execution": "javascript", "is_configurable": false, "script": "two.js"}]
         """#, commandIDs: #"["notes.two"]"#, defaultInputs: "{}", primary: "notes.one"), "the scope covers the Command")
         assertRefused(try manifest(#"""
         {"id": "notes.one", "title": "One", "execution": "host", "is_configurable": false,
-         "host_command": "deep_link.open", "deep_link_template": "open"}
+         "host_command": "apps.openDeepLink", "deep_link_template": "open"}
         """#), "a parameter is filled from a configuration field")
         assertRefused(try manifest(#"""
         {"id": "notes.one", "title": "One", "execution": "host", "is_configurable": true,
-         "host_command": "deep_link.open", "deep_link_template": "open",
+         "host_command": "apps.openDeepLink", "deep_link_template": "open",
          "configuration_fields": [{"key": "folder", "kind": "choice", "choices": ["inbox", "trash"]}]}
         """#, inputs: #"{"notes.one": {"folder": "inbox"}}"#), "a field offers only the parameter's choices")
         XCTAssertNoThrow(try manifest(#"""
         {"id": "notes.one", "title": "One", "execution": "host", "is_configurable": true,
-         "host_command": "deep_link.open", "deep_link_template": "search",
+         "host_command": "apps.openDeepLink", "deep_link_template": "search",
          "configuration_fields": [{"key": "query", "kind": "text"}]}
         """#, inputs: #"{"notes.one": {"query": "plans"}}"#))
     }

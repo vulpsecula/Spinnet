@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["jsonschema==4.26.0", "referencing==0.37.0"]
 # ///
-"""Check the shared stable-Level matrix with the standard Draft 2020-12 validator."""
+"""Check the shared current-interface matrix with the standard Draft 2020-12 validator."""
 import argparse
 import json
 from pathlib import Path
@@ -19,13 +19,15 @@ INDEX_SCHEMA = {
         "properties": {
             "name": {"type": "string", "minLength": 1}, "value": {},
             "sdk_script": {"type": "string", "minLength": 1},
-            "sdk_level": {"type": "integer", "minimum": 1, "maximum": 7},
+            "host_versions": {"type": "array", "minItems": 1, "items": {
+                "type": "object", "required": ["version", "compatible"],
+                "properties": {"version": {"type": "string", "minLength": 1},
+                               "compatible": {"type": "boolean"}}, "additionalProperties": False}},
             "checks": {"type": "array", "minItems": 1, "items": {
-                "type": "object", "required": ["schema", "level", "valid"],
+                "type": "object", "required": ["schema", "valid"],
                 "properties": {
                     "schema": {"type": "string", "minLength": 1},
                     "definition": {"type": "string", "minLength": 1},
-                    "level": {"type": "integer", "minimum": 1, "maximum": 7},
                     "valid": {"type": "boolean"},
                 }, "additionalProperties": False,
             }},
@@ -61,7 +63,7 @@ def read_json(path):
 def check(api):
     api = api.resolve()
     schema_root = (api / "schemas").resolve()
-    index = read_json(api / "fixtures/stable-levels/index.json")
+    index = read_json(api / "fixtures/conformance/index.json")
     Draft202012Validator(INDEX_SCHEMA).validate(index)
     paths = sorted(schema_root.rglob("*.json"))
     if not paths:
@@ -96,7 +98,7 @@ def check(api):
             # Only canonical repository-relative schema paths are accepted.
             if schema_name not in schemas or Path(schema_name).as_posix() != schema_name:
                 raise ValueError(f"{name}: unknown or unsafe schema path: {schema_name}")
-            key = (entry["level"], schema_name, entry.get("definition"))
+            key = (schema_name, entry.get("definition"))
             if key in entries:
                 raise ValueError(f"{name}: duplicate check: {key}")
             entries.add(key)
@@ -111,7 +113,7 @@ def check(api):
             except Exception as error:
                 # A missing reference or unsupported regex is a broken check,
                 # even when the fixture's expected answer is invalid.
-                raise ValueError(f"{name}, Level {entry['level']}, {schema_name}: {error}") from error
+                raise ValueError(f"{name}, {schema_name}: {error}") from error
             count += 1
             if (not errors) != entry["valid"]:
                 failures.append({"case": name, **entry, "actual": not errors,

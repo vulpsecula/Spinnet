@@ -200,10 +200,6 @@ public enum PluginRuntimeProtocol {
         try validateIdentifier(invocation.pluginID.rawValue, named: "Plugin ID")
         try validateIdentifier(invocation.actionID.rawValue, named: "Action ID")
         try validateIdentifier(invocation.commandID.rawValue, named: "Command ID")
-        guard invocation.apiLevel >= 1 else {
-            throw PluginRuntimeError.protocolViolation("Invocation names Plugin API Level \(invocation.apiLevel)")
-        }
-
         let path = invocation.scriptPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty,
               !path.hasPrefix("/"),
@@ -311,16 +307,13 @@ public enum PluginRuntimeProtocol {
 /// as `spinnet.environment`. The Host decides it, not the helper, so a script
 /// sees the Host it runs under.
 public struct PluginRuntimeEnvironment: Codable, Equatable, Hashable {
-    /// The highest Plugin API Level the Host supports.
-    public let apiLevel: Int
     /// The Host's version, from its bundle.
     public let hostVersion: String
     /// The BCP 47 code of the user's first preferred language, such as
     /// `en-US` or `zh-Hans-CN`.
     public let preferredLanguage: String
 
-    public init(apiLevel: Int = PluginAPILevel.highestSupported, hostVersion: String, preferredLanguage: String) {
-        self.apiLevel = apiLevel
+    public init(hostVersion: String, preferredLanguage: String) {
         self.hostVersion = hostVersion
         self.preferredLanguage = preferredLanguage
     }
@@ -331,19 +324,28 @@ public struct PluginRuntimeEnvironment: Codable, Equatable, Hashable {
         current(bundle: .main, preferredLanguages: Locale.preferredLanguages)
     }
 
-    /// An unbundled build, such as `swift run`, has no version of its own
-    /// and reports `0.0.0`; a user without preferred languages gets `en`.
+    /// An unbundled build reports the current release baseline; a user
+    /// without preferred languages gets `en`.
     public static func current(bundle: Bundle, preferredLanguages: [String]) -> PluginRuntimeEnvironment {
         PluginRuntimeEnvironment(
-            hostVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
+            hostVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? HostVersion.currentString,
             preferredLanguage: preferredLanguages.first ?? "en"
         )
     }
 
     private enum CodingKeys: String, CodingKey {
-        case apiLevel = "api_level"
         case hostVersion = "host_version"
         case preferredLanguage = "preferred_language"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode([String: JSONValue].self)
+        guard Set(raw.keys).isSubset(of: ["host_version", "preferred_language"]) else {
+            throw PluginRuntimeError.protocolViolation("Environment accepts only host_version and preferred_language")
+        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        hostVersion = try container.decode(String.self, forKey: .hostVersion)
+        preferredLanguage = try container.decode(String.self, forKey: .preferredLanguage)
     }
 }
 
@@ -362,15 +364,6 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
     public let event: JSONValue
     /// The state the script returned with its last view, or null.
     public let state: JSONValue
-    /// The Candidate Contract revisions the Plugin declares, which decide
-    /// the SDK the helper injects and the names it sends the Host. Sent only
-    /// when there are any, so a Level 1 Plugin's invocation is unchanged.
-    public let candidateContracts: [CandidateContractRevision]
-    /// The Plugin API Level the Plugin's manifest declares, which decides
-    /// the SDK the helper injects and the names it sends the Host from
-    /// Level 2 on. Sent as `api_level` only above Level 1, so a Level 1
-    /// Plugin's invocation is unchanged; `environment.apiLevel` is the Host's.
-    public let apiLevel: Int
 
     public init(
         protocolVersion: String = PluginRuntimeProtocol.version,
@@ -383,9 +376,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         input: JSONValue,
         environment: PluginRuntimeEnvironment = .current,
         event: JSONValue = .null,
-        state: JSONValue = .null,
-        candidateContracts: [CandidateContractRevision] = [],
-        apiLevel: Int = 1
+        state: JSONValue = .null
     ) {
         self.protocolVersion = protocolVersion
         self.invocationID = invocationID
@@ -398,16 +389,12 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         self.environment = environment
         self.event = event
         self.state = state
-        self.candidateContracts = candidateContracts
-        self.apiLevel = apiLevel
     }
 
-    private enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey, CaseIterable {
         case type
         case protocolVersion = "protocol_version"
         case invocationID = "invocation_id"
-        case candidateContracts = "candidate_contracts"
-        case apiLevel = "api_level"
         case pluginID = "plugin_id"
         case actionID = "action_id"
         case commandID = "command_id"
@@ -434,11 +421,13 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
         try container.encode(environment, forKey: .environment)
         try container.encode(event, forKey: .event)
         try container.encode(state, forKey: .state)
-        if !candidateContracts.isEmpty { try container.encode(candidateContracts, forKey: .candidateContracts) }
-        if apiLevel > 1 { try container.encode(apiLevel, forKey: .apiLevel) }
     }
 
     public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode([String: JSONValue].self)
+        guard Set(raw.keys).isSubset(of: Set(CodingKeys.allCases.map(\.rawValue))) else {
+            throw PluginRuntimeError.protocolViolation("Invocation contains unsupported interface declarations or members")
+        }
         let container = try decoder.container(keyedBy: CodingKeys.self)
         guard try container.decode(PluginRuntimeProtocol.MessageType.self, forKey: .type)
                 == .invocation else {
@@ -455,10 +444,7 @@ public struct PluginRuntimeInvocation: Codable, Equatable, Hashable {
             input: try container.decode(JSONValue.self, forKey: .input),
             environment: try container.decode(PluginRuntimeEnvironment.self, forKey: .environment),
             event: try container.decode(JSONValue.self, forKey: .event),
-            state: try container.decode(JSONValue.self, forKey: .state),
-            candidateContracts: try container.decodeIfPresent([CandidateContractRevision].self,
-                                                              forKey: .candidateContracts) ?? [],
-            apiLevel: try container.decodeIfPresent(Int.self, forKey: .apiLevel) ?? 1
+            state: try container.decode(JSONValue.self, forKey: .state)
         )
         try PluginRuntimeProtocol.validate(invocation)
         self = invocation
@@ -477,15 +463,12 @@ public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
     public let service: PluginHostService
     /// Its input, as `service` takes it.
     public let input: JSONValue
-    /// The catalogue ID the Plugin named, under Candidate Contract
-    /// `namespaces`, when the Host resolved it to `service`; nil for a Level 1
-    /// name. The Host sets it and never reads it from a message.
+    /// The public catalogue ID resolved to the internal service adapter.
+    /// The Host sets this provenance; it never reads it from a message.
     public let operation: String?
-    /// For an `insert_text` of a Plugin declaring `host_operations`, made in
-    /// a View Session invocation answering a gesture: what the Host showed
-    /// as where text would go when the user acted, which the insertion is
-    /// compared with. Host data, never part of a message; nil for any other
-    /// request, which inserts as Level 1 does.
+    /// For insertion answering a View Session gesture, the target the Host
+    /// showed when the user acted. Execution checks it against current focus.
+    /// Host provenance only; never decoded from a helper message.
     public var insertionTarget: InsertionTargetCapture?
     /// Trusted Host provenance only. A Requested Host Operation may permit
     /// a reviewed read to ask for Automation consent outside a helper deadline.
@@ -559,8 +542,7 @@ public struct PluginRuntimeHostServiceRequest: Codable, Equatable, Hashable {
 }
 
 /// A Host Service request as the helper sends it, before the Host resolves
-/// the name the script gave: a Level 1 Host Service name, or under Candidate
-/// Contract `namespaces` a catalogue ID. It is the same message as
+/// the catalogue ID the script gave. It is the same message as
 /// `PluginRuntimeHostServiceRequest`, with `service` read as any name, so the
 /// Host can refuse a name with a reason rather than as a broken message.
 public struct PluginRuntimeHostServiceCall: Codable, Equatable, Hashable {
@@ -642,7 +624,7 @@ public enum PluginRuntimeFailureCategory: String, Codable, Equatable, Hashable {
     /// A Plugin Storage write over a limit, which stored nothing.
     case storageLimitExceeded = "storage_limit_exceeded"
     /// A synchronous `selection.replace` in a View Session of a Plugin
-    /// declaring `host_operations` found another App in front than the one
+    /// using insertion targeting found another App in front than the one
     /// the Host showed (ADR 0018).
     case insertionTargetChanged = "insertion_target_changed"
 
@@ -1403,9 +1385,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             input: action.input,
             environment: environment(),
             event: delivery.event?.json ?? .null,
-            state: delivery.state,
-            candidateContracts: package.manifest.candidateContracts,
-            apiLevel: package.manifest.apiLevel
+            state: delivery.state
         )
         let connection = PluginRuntimeConnection(pluginID: package.manifest.id)
         let requestData: Data
@@ -1590,9 +1570,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 try control.check()
                 let request = try PluginRuntimeProtocol.decodeHostServiceCall(frame)
                 _ = try connection.acceptHostServiceCall(request)
-                // A name the Plugin may not use is refused as a Host Service
-                // failure; only a Level 1 Plugin's unknown name breaks the
-                // protocol, as it always has.
+                // Unknown, internal or unavailable IDs are refused with the
+                // Host Service failure naming the operation.
                 let resolved = try contracts.resolve(request, declaredBy: package.manifest)
                 let response: PluginRuntimeHostServiceResponse
                 do {

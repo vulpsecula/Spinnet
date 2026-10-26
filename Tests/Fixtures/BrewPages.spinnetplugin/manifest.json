@@ -1,15 +1,33 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
   "id": "com.example.brew-pages",
   "name": "Brew Pages",
   "version": "2.0.0",
-  "capabilities": ["write_clipboard", "open_url"],
-  "settings_fields": [
-    {"key": "scope", "kind": "choice", "title": "Show", "choices": ["installed", "outdated", "all"],
-     "choice_titles": ["Installed", "Outdated", "All"], "overridable": true}
+  "capabilities": [
+    "write_clipboard",
+    "open_url"
   ],
-  "default_settings": {"scope": "installed"},
+  "settings_fields": [
+    {
+      "key": "scope",
+      "kind": "choice",
+      "title": "Show",
+      "choices": [
+        "installed",
+        "outdated",
+        "all"
+      ],
+      "choice_titles": [
+        "Installed",
+        "Outdated",
+        "All"
+      ],
+      "overridable": true
+    }
+  ],
+  "default_settings": {
+    "scope": "installed"
+  },
   "preset": {
     "readiness": "ready_to_use",
     "is_configurable": false,
@@ -25,5 +43,8 @@
       "is_configurable": false,
       "script": "brew.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

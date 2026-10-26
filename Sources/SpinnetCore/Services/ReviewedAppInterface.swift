@@ -10,8 +10,6 @@ import Foundation
 /// Which Command uses which operation is the Plugin's business, never this
 /// description's.
 public struct ReviewedAppInterface: Equatable {
-    /// The first stable Plugin API Level that provides this interface.
-    public let minimumAPILevel: Int
     public let bundleID: String
     /// The application's name, for repair guidance and consent.
     public let name: String
@@ -22,9 +20,8 @@ public struct ReviewedAppInterface: Equatable {
     /// A Host-reviewed, non-mutating operation with no arguments. Never chosen by a Plugin.
     public let connectionCheckOperation: String?
 
-    public init(minimumAPILevel: Int, bundleID: String, name: String, handler: String,
+    public init(bundleID: String, name: String, handler: String,
                 format: RequestFormat, operations: [Operation], connectionCheckOperation: String? = nil) {
-        self.minimumAPILevel = minimumAPILevel
         self.bundleID = bundleID
         self.name = name
         self.handler = handler
@@ -70,10 +67,6 @@ public struct ReviewedAppInterface: Equatable {
     /// Every interface this Host has reviewed.
     public static let reviewed: [ReviewedAppInterface] = [bob, spotify, terminal]
 
-    public static func reviewed(atAPILevel level: Int) -> [ReviewedAppInterface] {
-        reviewed.filter { $0.minimumAPILevel <= level }
-    }
-
     public static func interface(for bundleID: String) -> ReviewedAppInterface? {
         reviewed.first { $0.bundleID == bundleID }
     }
@@ -83,7 +76,7 @@ public struct ReviewedAppInterface: Equatable {
     /// window where an operation asks it to, and shows the result itself;
     /// only `translateText` carries text, up to the External App budget.
     static let bob = ReviewedAppInterface(
-        minimumAPILevel: 1,
+
         bundleID: "com.hezongyidev.Bob",
         name: "Bob",
         handler: "request",
@@ -97,25 +90,22 @@ public struct ReviewedAppInterface: Equatable {
         ]
     )
 
-    static let spotify = ReviewedAppInterface(minimumAPILevel: 2, bundleID: SpotifyPlayback.bundleID, name: "Spotify", handler: "", format: .spotify, operations: [Operation(name: "playback", family: "playback_read", path: "")] + ["play", "pause", "previous", "next"].map { Operation(name: $0, family: "playback_control", path: "") }, connectionCheckOperation: "playback")
+    static let spotify = ReviewedAppInterface(bundleID: SpotifyPlayback.bundleID, name: "Spotify", handler: "", format: .spotify, operations: [Operation(name: "playback", family: "playback_read", path: "")] + ["play", "pause", "previous", "next"].map { Operation(name: $0, family: "playback_control", path: "") }, connectionCheckOperation: "playback")
 
-    static let terminal = ReviewedAppInterface(minimumAPILevel: 5, bundleID: TerminalHomebrew.bundleID,
+    static let terminal = ReviewedAppInterface(bundleID: TerminalHomebrew.bundleID,
         name: "Terminal", handler: "do script", format: .terminalHomebrew,
         operations: [.init(name: "homebrew", family: TerminalHomebrew.family, path: "")])
 
     /// The request for `operation` with `arguments`, after checking both
     /// against this interface. The caller has already checked the scope.
-    public func request(operation name: String, arguments: [String: JSONValue], apiLevel: Int = 1, candidateContracts: [CandidateContractRevision] = []) throws -> AppleEventRequest {
+    public func request(operation name: String, arguments: [String: JSONValue]) throws -> AppleEventRequest {
         if format == .terminalHomebrew {
-            guard name == "homebrew", apiLevel >= 5 || candidateContracts.contains(TerminalHomebrew.declaration) else {
-                throw PluginHostServiceError.unavailable("Terminal Homebrew requires Plugin API Level 5")
+            guard name == "homebrew" else {
+                throw PluginHostServiceError.externalAppOperationUnsupported("Terminal does not support \(name)")
             }
             return try TerminalHomebrew.request(arguments: arguments, executable: HomebrewReadProfile.discover())
         }
         if format == .spotify, SpotifyControls.operationNames.contains(name) {
-            guard apiLevel >= 3 || candidateContracts.contains(SpotifyControls.declaration) else {
-                throw PluginHostServiceError.unavailable("Spotify \(name) requires Plugin API Level 3")
-            }
             return AppleEventRequest(bundleID: bundleID, applicationName: self.name, handler: name, argument: "",
                 integerArgument: try SpotifyControls.integerArgument(operation: name, arguments: arguments))
         }
@@ -140,7 +130,7 @@ public struct ReviewedAppInterface: Equatable {
 
         let argument: JSONValue
         switch format {
-        case .terminalHomebrew: throw PluginHostServiceError.unavailable("Terminal Homebrew requires Plugin API Level 5")
+        case .terminalHomebrew: throw PluginHostServiceError.externalAppOperationUnsupported("Terminal does not support \(name)")
         case .spotify:
             return AppleEventRequest(bundleID: bundleID, applicationName: self.name, handler: name, argument: "")
         case .jsonPathAndBody:

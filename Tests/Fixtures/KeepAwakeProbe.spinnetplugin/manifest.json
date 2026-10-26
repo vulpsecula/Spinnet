@@ -1,6 +1,5 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
   "id": "com.example.keep-awake-probe",
   "name": "Coffee Probe",
   "version": "1.0.0",
@@ -76,5 +75,8 @@
       "https_hosts": [],
       "external_apps": []
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

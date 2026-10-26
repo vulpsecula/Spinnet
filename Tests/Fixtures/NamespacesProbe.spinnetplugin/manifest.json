@@ -1,15 +1,19 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
   "id": "com.example.namespaces-probe",
   "name": "Namespaces Probe",
   "version": "1.0.0",
-  "capabilities": ["read_selected_text", "write_clipboard"],
+  "capabilities": [
+    "read_selected_text",
+    "write_clipboard"
+  ],
   "preset": {
     "readiness": "ready_to_use",
     "is_configurable": false,
     "default_primary_command_id": "probe.shout",
-    "default_alternate_command_ids": ["probe.copy_greeting"]
+    "default_alternate_command_ids": [
+      "probe.copy_greeting"
+    ]
   },
   "commands": [
     {
@@ -27,7 +31,12 @@
       "execution": "host",
       "is_configurable": false,
       "host_command": "clipboard.write",
-      "input": {"text": "Hello from a Host Command"}
+      "input": {
+        "text": "Hello from a Host Command"
+      }
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

@@ -37,7 +37,7 @@ struct MeasurementOptions {
     /// types it into the `query` field instead, for a Plugin whose only
     /// events are field changes, debounce included.
     var eventQuery: String?
-    /// The text field typing goes into: a Level 1 form field's key or a
+    /// The text field typing goes into: a form field's key or a
     /// page's text field ID.
     var pageField = "query"
     /// Times a page's windowed collection is scrolled from its first screen

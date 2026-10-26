@@ -1,1 +1,47 @@
-{"protocol_version":"1.0","api_level":2,"id":"probe.brew","name":"Reviewed Tools Probe","version":"1.0","capabilities":["read_reviewed_tools"],"capability_scopes":[{"capability":"read_reviewed_tools","command_ids":["probe.read"],"data_types":[],"includes_existing_host_data":false,"https_hosts":[],"external_apps":[],"reviewed_tools":[{"tool":"homebrew","operations":["installed","outdated","search","info"],"kinds":["formula","cask"]}]}],"commands":[{"id":"probe.read","title":"Packages","execution":"javascript","script":"read.js"}]}
+{
+  "protocol_version": "1.0",
+  "id": "probe.brew",
+  "name": "Reviewed Tools Probe",
+  "version": "1.0",
+  "capabilities": [
+    "read_reviewed_tools"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "read_reviewed_tools",
+      "command_ids": [
+        "probe.read"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": [],
+      "reviewed_tools": [
+        {
+          "tool": "homebrew",
+          "operations": [
+            "installed",
+            "outdated",
+            "search",
+            "info"
+          ],
+          "kinds": [
+            "formula",
+            "cask"
+          ]
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "probe.read",
+      "title": "Packages",
+      "execution": "javascript",
+      "script": "read.js"
+    }
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
+}

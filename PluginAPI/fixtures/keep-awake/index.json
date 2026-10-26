@@ -1,5 +1,5 @@
 {
-  "description": "Level 2 #84 shapes. Authority, owner lifetime and real assertions are checked separately at public package/OS boundaries; App identity revocation ends only App-alive effects.",
+  "description": "current #84 shapes. Authority, owner lifetime and real assertions are checked separately at public package/OS boundaries; App identity revocation ends only App-alive effects.",
   "fixtures": [
     {
       "file": "manual.json",

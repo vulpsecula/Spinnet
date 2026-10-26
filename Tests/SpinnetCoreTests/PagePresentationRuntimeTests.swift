@@ -3,11 +3,10 @@ import XCTest
 @testable import SpinnetCore
 import SpinnetPluginTestKit
 
-/// `Tests/Fixtures/MediaPages.spinnetplugin`, an external Plugin declaring
-/// Plugin API Level 2, composes a Spotify-shaped track and System
-/// Monitor-shaped metric cards from Component Styles, columns, icons,
-/// images and progress (#81). It runs as its author runs it: through the
-/// public test kit's `PluginTestPage` and the real helper.
+/// `Tests/Fixtures/MediaPages.spinnetplugin` composes a Spotify-shaped track
+/// and System Monitor-shaped metric cards from Component Styles, columns,
+/// icons, images and progress. It runs through the public test kit's
+/// `PluginTestPage` and the real helper.
 final class PagePresentationRuntimeTests: XCTestCase {
     static let media = NamespacesProbeFixture.fixtures.appendingPathComponent("MediaPages.spinnetplugin", isDirectory: true)
 

@@ -5,7 +5,7 @@ final class ReviewedToolConsentTests: XCTestCase {
     private func manifest(operations: [String]) throws -> PluginManifest {
         let choices = operations.map { "\"\($0)\"" }.joined(separator: ",")
         return try PluginManifestLoader.decode(Data("""
-        {"protocol_version":"1.0","api_level":2,"id":"example.reviewed-consent","name":"Reviewed Consent","version":"1.0",
+        {"protocol_version":"1.0","engines":{"spinnet":"^1.0.0"},"id":"example.reviewed-consent","name":"Reviewed Consent","version":"1.0",
         "capabilities":["read_reviewed_tools"],
         "capability_scopes":[{"capability":"read_reviewed_tools","command_ids":["show"],"data_types":[],"includes_existing_host_data":false,"https_hosts":[],"external_apps":[],"reviewed_tools":[{"tool":"homebrew","operations":[\(choices)],"kinds":["formula"]}]}],
         "commands":[{"id":"show","title":"Show","execution":"javascript","script":"show.js"}]}

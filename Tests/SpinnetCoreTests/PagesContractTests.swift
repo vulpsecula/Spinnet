@@ -4,7 +4,7 @@ import XCTest
 @testable import SpinnetCore
 
 /// `Tests/Fixtures/EmojiPages.spinnetplugin` and `BrewPages.spinnetplugin`
-/// are external Plugins declaring Plugin API Level 2: an Emoji-shaped grid
+/// are external Plugins using the current interface: an Emoji-shaped grid
 /// and a Brew-shaped list with a detail page.
 enum CollectionsFixtures {
     static let emoji = NamespacesProbeFixture.fixtures.appendingPathComponent("EmojiPages.spinnetplugin", isDirectory: true)
@@ -16,24 +16,21 @@ enum CollectionsFixtures {
         try PluginManifestLoader.load(packageAt: package).manifest
     }
 
-    /// What a Level 2 Plugin may use.
+    /// The current interface membership.
     static var permits: (PluginInterfaceMember) -> Bool {
         PluginInterfaceContracts.host.permitting(try! manifest())
     }
 
-    /// What a Level 1 Plugin may use.
-    static var levelOne: (PluginInterfaceMember) -> Bool {
-        PluginInterfaceContracts.host.permitting(try! PluginManifestLoader.load(
-            packageAt: OperationsProbeFixture.write(OperationsProbeFixture.levelOne)
-        ).manifest)
-    }
+    /// A Host interface with no optional presentation members.
+    static let denied: (PluginInterfaceMember) -> Bool = { _ in false }
+
 }
 
-/// Pages and collections as Plugin API Level 2 publishes them, in
-/// `schemas/pages.schema.json`, `fixtures/pages/`, `spinnet-level-2.d.ts`
+/// Current pages and Collections published, in
+/// `schemas/pages.schema.json`, `fixtures/pages/`, `sdk/spinnet.d.ts`
 /// and `reference/pages.md`, and as the Host reads them: the answers and
 /// events the fixtures hold, the page rules beyond the schema, windows,
-/// toggles and outcomes, and Level 1 left as it was.
+/// toggles and outcomes, and the separate form/detail payload shape.
 final class PagesContractTests: XCTestCase {
     static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
@@ -45,7 +42,6 @@ final class PagesContractTests: XCTestCase {
         let definition: String
         let valid: Bool
         let note: String
-        let level1: Bool?
     }
 
     private func fixtures() throws -> [Fixture] {
@@ -73,8 +69,8 @@ final class PagesContractTests: XCTestCase {
     }
 
     /// The Host accepts exactly the valid answers and refuses every invalid
-    /// one as a protocol violation, reading each as it reads a Level 2
-    /// Plugin's answer: its page, page rules included, or its Level 1 view.
+    /// one as a protocol violation, including page semantic rules and form/detail
+    /// View payloads.
     func testTheHostReadsThePublishedAnswersAsTheFixturesSay() throws {
         for fixture in try fixtures() where fixture.definition == "answer" {
             do {
@@ -121,18 +117,15 @@ final class PagesContractTests: XCTestCase {
                                            "text": .string("🐈"), "marks": .array([.string("favourite")])]))
     }
 
-    /// Level 1 is unchanged: its published schemas refuse what pages add,
-    /// and to a Level 1 Plugin `page` is unknown.
-    func testLevelOneRefusesWhatPagesAdd() throws {
-        let session = Self.pluginAPI.appendingPathComponent("schemas/view-session.schema.json")
-        for fixture in try fixtures() {
-            guard let level1 = fixture.level1 else { continue }
-            let errors = try JSONSchemaSubsetValidator(definition: fixture.definition, inSchemaAt: session)
-                .errors(for: try value(fixture.file))
-            XCTAssertEqual(errors.isEmpty, level1, "\(fixture.file): Level 1 \(level1 ? "accepts" : "refuses") it")
-        }
+    /// Form/detail and page answers use their own schemas; a Host interface
+    /// lacking page membership refuses a page payload.
+    func testFormsAndPagesUseTheirOwnPayloadShapes() throws {
+        let forms = Self.pluginAPI.appendingPathComponent("schemas/view-session.schema.json")
+        let pagePayload = try value("answers/emoji-open.json")
+        let formShape = try JSONSchemaSubsetValidator(definition: "answer", inSchemaAt: forms)
+        XCTAssertFalse(formShape.errors(for: pagePayload).isEmpty, "A page answer belongs to the page schema")
         let page = try value("answers/emoji-search-cat.json")
-        for permits in [CollectionsFixtures.levelOne, { _ in false }] {
+        for permits in [CollectionsFixtures.denied, { _ in false }] {
             XCTAssertThrowsError(try PluginScriptAnswer(parsing: page, permits: permits)) {
                 XCTAssertEqual($0 as? PluginRuntimeError, .protocolViolation("The script's answer has unknown member page"))
             }
@@ -259,7 +252,7 @@ final class PagesContractTests: XCTestCase {
 
         let refused: [(JSONValue, String)] = [
             (.object(["perform": .string("copy_text"), "input": .string("x")]),
-             "A page action names copy_text, a Plugin API Level 1 name; a request names clipboard.write"),
+             "A page action names copy_text, an internal adapter name; a request names clipboard.write"),
             (.object(["perform": .string("storage.get"), "input": .string("k")]),
              "A page action names storage.get, which is not a page action"),
             (.object(["perform": .string("open.url"), "input": .string("file:///etc")]),
@@ -278,7 +271,7 @@ final class PagesContractTests: XCTestCase {
     func testTheActionIDsAndTitlesAreTheCatalogues() throws {
         let viewActions = HostServiceCatalogue.operations.filter { $0.isOffered(at: .viewAction) }.map(\.id)
         XCTAssertEqual(CollectionsContract.viewActionIDs, viewActions)
-        XCTAssertEqual(PluginInterfaceContracts.levelTwoMembers.filter { $0.kind == .standardAction }.map(\.name).sorted(),
+        XCTAssertEqual(PluginInterfaceContracts.currentMembers.filter { $0.kind == .standardAction }.map(\.name).sorted(),
                        viewActions.sorted())
         guard case .object(let schema) = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf:
                 Self.pluginAPI.appendingPathComponent("schemas/namespaces.schema.json"))),
@@ -302,24 +295,24 @@ final class PagesContractTests: XCTestCase {
     /// The types, reference and SDK name every page action ID, component,
     /// event and windowed member.
     func testTheTypesReferenceAndSDKNameEveryMember() throws {
-        let types = try String(contentsOf: Self.pluginAPI.appendingPathComponent("spinnet-level-2.d.ts"), encoding: .utf8)
+        let types = try String(contentsOf: Self.pluginAPI.appendingPathComponent("sdk/spinnet.d.ts"), encoding: .utf8)
         let reference = try String(contentsOf: Self.pluginAPI.appendingPathComponent("reference/pages.md"), encoding: .utf8)
-        let sdk = try String(contentsOf: Self.pluginAPI.appendingPathComponent("spinnet-level-2.js"), encoding: .utf8)
+        let sdk = try String(contentsOf: Self.pluginAPI.appendingPathComponent("sdk/spinnet.js"), encoding: .utf8)
         for id in CollectionsContract.viewActionIDs {
-            XCTAssertTrue(types.contains("\"\(id)\""), "spinnet-level-2.d.ts does not list \(id)")
+            XCTAssertTrue(types.contains("\"\(id)\""), "spinnet.d.ts does not list \(id)")
         }
         for kind in CollectionsContract.componentKinds {
-            XCTAssertTrue(types.contains("kind: \"\(kind)\""), "spinnet-level-2.d.ts has no \(kind)")
+            XCTAssertTrue(types.contains("kind: \"\(kind)\""), "spinnet.d.ts has no \(kind)")
             XCTAssertTrue(reference.contains("`\(kind)`"), "pages.md does not name \(kind)")
         }
         for event in CollectionsContract.events {
-            XCTAssertTrue(types.contains("type: \"\(event)\""), "spinnet-level-2.d.ts has no \(event)")
+            XCTAssertTrue(types.contains("type: \"\(event)\""), "spinnet.d.ts has no \(event)")
             XCTAssertTrue(reference.contains("`\(event)`"), "pages.md does not name \(event)")
         }
         XCTAssertFalse(types.contains("load_more\";"), "No load_more event")
         for word in ["total", "start", "marks", "toggle", "notify", "count"] {
-            XCTAssertTrue(sdk.contains("\(word): o.\(word)"), "spinnet-level-2.js does not build \(word)")
-            XCTAssertTrue(types.contains("\(word)?:") || types.contains("\(word):"), "spinnet-level-2.d.ts has no \(word)")
+            XCTAssertTrue(sdk.contains("\(word): o.\(word)"), "spinnet.js does not build \(word)")
+            XCTAssertTrue(types.contains("\(word)?:") || types.contains("\(word):"), "spinnet.d.ts has no \(word)")
             XCTAssertTrue(reference.contains("`\(word)"), "pages.md does not name \(word)")
         }
         XCTAssertFalse(sdk.contains("has_more"), "The builders have no hasMore")

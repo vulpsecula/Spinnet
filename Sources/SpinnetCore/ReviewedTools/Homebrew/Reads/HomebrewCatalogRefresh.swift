@@ -3,10 +3,8 @@ import Foundation
 /// A separately granted, fixed catalog update. Package mutations keep their
 /// existing gesture and per-Task confirmation requirements at every API Level.
 public enum HomebrewCatalogRefresh {
-    public static let declaration = CandidateContractRevision(name: "homebrew_catalog_refresh", revision: 1)
     public static let member = PluginInterfaceMember.behaviour("homebrew_catalog_refresh")
-    public static let contract = CandidateContract(name: declaration.name, revision: 1, baseLevel: 6,
-        members: [member], tag: "plugin-api-candidate/homebrew_catalog_refresh/r1")
+    public static let members = [member]
     public static let operation = "refreshCatalog"
 
     public static func isRefresh(_ request: RequestedHostOperation?) -> Bool {
@@ -14,7 +12,7 @@ public enum HomebrewCatalogRefresh {
     }
     public static func check(_ input: JSONValue, permits: (PluginInterfaceMember) -> Bool) throws {
         guard input.value(atPointer: "/operation") == .string(operation) else { return }
-        guard permits(member) else { throw PluginHostServiceError.unavailable("Automatic catalog refresh requires Plugin API Level 7") }
+        guard permits(member) else { throw PluginHostServiceError.unavailable("Automatic catalog refresh is not provided by this Host") }
     }
     public static func check(_ input: JSONValue, manifest: PluginManifest) throws {
         try PluginInterfaceContracts.host.check(manifest, origin: .installed)

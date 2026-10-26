@@ -1,15 +1,26 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
   "id": "com.example.emoji-pages",
   "name": "Emoji Pages",
   "version": "2.0.0",
-  "capabilities": ["insert_into_focused_app", "write_clipboard"],
-  "capability_scopes": [{
-    "capability": "insert_into_focused_app",
-    "command_ids": ["emoji.search"],
-    "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
-  }],
+  "capabilities": [
+    "insert_into_focused_app",
+    "write_clipboard"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "insert_into_focused_app",
+      "command_ids": [
+        "emoji.search"
+      ],
+      "data_types": [
+        "text"
+      ],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  ],
   "preset": {
     "readiness": "ready_to_use",
     "is_configurable": false,
@@ -25,5 +36,8 @@
       "is_configurable": false,
       "script": "emoji.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

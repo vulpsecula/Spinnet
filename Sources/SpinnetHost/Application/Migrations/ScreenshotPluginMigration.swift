@@ -17,15 +17,15 @@ enum ScreenshotPluginMigration {
     private static let replacements: [CommandID: CommandDeclaration] = [
         CommandID("screenshot.capture_area"): CommandDeclaration(
             id: CommandID("builtin.capture_area"), title: "Capture Area", isConfigurable: false,
-            hostCommand: .captureArea
+            hostServiceID: "screen.capture", fixedInput: .object(["source": .string("area")])
         ),
         CommandID("screenshot.capture_full_screen"): CommandDeclaration(
             id: CommandID("builtin.capture_full_screen"), title: "Capture Full Screen", isConfigurable: false,
-            hostCommand: .captureFullScreen
+            hostServiceID: "screen.capture", fixedInput: .object(["source": .string("fullscreen")])
         ),
         CommandID("screenshot.capture_window"): CommandDeclaration(
             id: CommandID("builtin.capture_window"), title: "Capture Window", isConfigurable: false,
-            hostCommand: .captureWindow
+            hostServiceID: "screen.capture", fixedInput: .object(["source": .string("window")])
         )
     ]
 

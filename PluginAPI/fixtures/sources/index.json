@@ -1,5 +1,5 @@
 {
-  "description": "Recorded Level 2 source answers and deliveries; missing-source is a Host referential check beyond schema.",
+  "description": "Recorded current source answers and deliveries; missing-source is a Host referential check beyond schema.",
   "fixtures": [
     {
       "file": "bound-https.json",
@@ -34,7 +34,8 @@
     {
       "file": "missing-source.json",
       "definition": "answer",
-      "valid": false
+      "valid": false,
+      "schema_valid": true
     },
     {
       "file": "bound-tools.json",

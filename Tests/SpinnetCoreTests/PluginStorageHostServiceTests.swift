@@ -24,7 +24,7 @@ final class PluginStorageHostServiceTests: XCTestCase {
     private func makePackage(_ id: String) throws -> PluginPackage {
         let manifest = try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "\(id)", "name": "Keeper", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "\(id)", "name": "Keeper", "version": "1.0.0",
           "commands": [{"id": "keep", "title": "Keep", "execution": "javascript", "is_configurable": false, "script": "keep.js"}]
         }
         """.utf8))

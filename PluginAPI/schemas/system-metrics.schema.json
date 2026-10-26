@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Basic system metrics (Level 2 #86)",
+  "title": "Basic system metrics (current #86)",
   "$defs": {
     "input": {
       "type": "object",

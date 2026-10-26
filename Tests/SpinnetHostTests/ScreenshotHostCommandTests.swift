@@ -22,7 +22,9 @@ final class ScreenshotHostCommandTests: XCTestCase {
         XCTAssertEqual(preset.pluginID, PluginID("com.spinnet.builtin.screenshot"))
         XCTAssertEqual(preset.commands.map(\.id.rawValue),
                        ["builtin.capture_area", "builtin.capture_full_screen", "builtin.capture_window"])
-        XCTAssertEqual(preset.commands.map(\.hostCommand), [.captureArea, .captureFullScreen, .captureWindow])
+        XCTAssertEqual(preset.commands.map(\.hostServiceID), Array(repeating: "screen.capture", count: 3))
+        XCTAssertEqual(preset.commands.map { $0.fixedInput?.value(atPointer: "/source") },
+                       [.string("area"), .string("fullscreen"), .string("window")])
         XCTAssertEqual(preset.commands.map(\.title), ["Capture Area", "Capture Full Screen", "Capture Window"])
         XCTAssertTrue(preset.commands.allSatisfy { !$0.isConfigurable && $0.explanation != nil })
 
@@ -82,7 +84,7 @@ final class ScreenshotHostCommandTests: XCTestCase {
         }))
         guard case .failed(let failure) = runner.invoke(try action(package.manifest.commands[1], in: package),
                                                          using: registry).terminal else { return XCTFail() }
-        XCTAssertEqual(failure.category, .commandUnavailable)
+        XCTAssertEqual(failure.category, .hostServiceFailed)
         XCTAssertTrue(failure.message.contains("already in progress"), failure.message)
     }
 
@@ -136,7 +138,8 @@ final class ScreenshotHostCommandTests: XCTestCase {
         XCTAssertEqual(migrated.actions.map(\.id), configuration.actions.map(\.id))
         let captures = Array(migrated.actions.prefix(3))
         XCTAssertTrue(captures.allSatisfy { $0.pluginID == PluginID("com.spinnet.builtin.screenshot") && $0.execution == .host && $0.input == .null })
-        XCTAssertEqual(captures.map(\.hostCommand), [.captureArea, .captureFullScreen, .captureWindow])
+        XCTAssertEqual(captures.map(\.hostServiceID), Array(repeating: "screen.capture", count: 3))
+        XCTAssertTrue(captures.allSatisfy { $0.hostCommand == nil })
         XCTAssertEqual(migrated.actions[3], url)
 
         let registry = PluginRegistry()

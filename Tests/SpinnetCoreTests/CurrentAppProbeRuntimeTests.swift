@@ -352,12 +352,12 @@ final class CurrentAppProbeRuntimeTests: XCTestCase {
         XCTAssertEqual(performed.first?.1, RequestedHostOperation(perform: "apps.quit", id: "quit-front", notify: true))
     }
 
-    // MARK: Level 1
+    // MARK: Retired declaration refusal
 
-    func testALevelOneManifestMayNotDeclareTheCapabilities() throws {
+    func testRetiredDeclarationIsRefusedBeforeCapabilitiesAreUsed() throws {
         let copy = try writeProbe { $0["api_level"] = .number(1) }
         XCTAssertThrowsError(try PluginManifestLoader.load(packageAt: copy)) { error in
-            XCTAssertTrue("\(error)".contains("Plugin API Level 2"), "\(error)")
+            XCTAssertTrue("\(error)".contains("api_level"), "\(error)")
         }
     }
 

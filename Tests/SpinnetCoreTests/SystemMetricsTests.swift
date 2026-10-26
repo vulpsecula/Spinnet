@@ -37,7 +37,7 @@ extension SystemMetricsTests {
 extension SystemMetricsTests {
     func testVisibleSourceRetiresItsBaselineOnHideAndCloseButKeepsItAcrossSamples() throws {
         let value = try JSONDecoder().decode(JSONValue.self, from: Data(#"{"id":"monitor","title":"System Monitor","sources":[{"id":"metrics","perform":"system.metrics","input":{"metrics":["cpu"]},"every":1}],"content":[{"kind":"text","id":"cpu","text":"Waiting","bind":{"source":"metrics","pointer":"/cpu/busy","format":"percent"}}]}"#.utf8))
-        let page = try PluginPage(parsing: value, permits: { PluginInterfaceContracts.levelTwoMembers.contains($0) })
+        let page = try PluginPage(parsing: value, permits: { PluginInterfaceContracts.currentMembers.contains($0) })
         let action = try ActionConfiguration(id: ActionID("monitor"), pluginID: PluginID("com.example.monitor"), command: CommandDeclaration(id: CommandID("monitor.show"), title: "Monitor", execution: .javascript, script: "monitor.js"), input: .null)
         var retired = 0, samples = 0, clock = 0.0, timers: [(Double, () -> Void)] = []
         let adapter = HostSourceAdapter(minimumInterval: 1, deadline: 1, authorize: { _, _ in }, retire: { _, _ in retired += 1 }, sample: { _, _, _ in samples += 1; return .object(["cpu": .object(["busy": .number(0.37)])]) })

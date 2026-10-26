@@ -1,6 +1,6 @@
-# Requested Host Operations (Plugin API Level 2)
+# Requested Host Operations (current interface)
 
-A Level 2 Plugin may ask the Host to perform an operation *after* its
+A Plugin may ask the Host to perform an operation *after* its
 script has answered a user's gesture. It names the operation by its
 [catalogue ID](namespaces.md). The Host commits the request with the rest of
 the answer, checks authority again, resolves the target, performs it, and
@@ -8,10 +8,8 @@ shows the outcome. None of this happens inside the script's four-second
 invocation, and no helper is kept alive for it.
 [`host-operations.schema.json`](../schemas/host-operations.schema.json)
 publishes the shapes, [`fixtures/host-operations/`](../fixtures/host-operations/index.json)
-valid and invalid answers and events, [`spinnet-level-2.js`](../spinnet-level-2.js)
-the SDK and [`spinnet-level-2.d.ts`](../spinnet-level-2.d.ts) its types.
-Level 2 was proved as Candidate Contract `host_operations` r2, now retired
-([retirement record](../candidates/host_operations/r2/candidate.json)).
+valid and invalid answers and events, [`spinnet.js`](../sdk/spinnet.js)
+the SDK and [`spinnet.d.ts`](../sdk/spinnet.d.ts) its types.
 Requests belong to the accepted answer because confirmation can outlast a
 bounded script invocation. Committing first prevents a rejected or stale
 answer from causing an effect, while Host-owned target resolution and renewed
@@ -194,7 +192,7 @@ when it finishes, with the state the previous answer committed: two quick
 Returns insert twice, in order. Field changes, setting changes and section
 deliveries go on as usual, so typing never waits for an insertion. Once an
 operation has run for 0.5 seconds, the view shows the operation's own busy
-state. No Level 2 operation can be cancelled once it has started.
+state. No current operation can be cancelled once it has started.
 
 ## Ending
 
@@ -212,7 +210,7 @@ Some operations ask the user first, in a confirmation the Host draws with
 its own words and the target it resolved; when one is required, a Plugin
 can neither skip nor word it, and a Plugin's own "Are you sure?" is an
 ordinary view that authorizes nothing. `apps.quit` and `apps.close` are
-the Level 2 operations that need one: for every Force Quit, and for a close
+the current operations that need one: for every Force Quit, and for a close
 or quit of an App that was not in front when the Host accepted the request;
 closing or gracefully quitting the App that was in front then asks nothing
 ([the App in front](apps.md#host-confirmation)).
@@ -242,12 +240,12 @@ pasting it would.
 
 ### Where text goes
 
-In a View Session of a Level 2 Plugin, every way of inserting follows the
+In a View Session of a Plugin, every way of inserting follows the
 same rule:
 
 | Path | Compared with |
 | --- | --- |
-| Level 1's standard `insert_text` action in the view | The App its button named when it was pressed |
+| A standard `selection.replace` action in the view | The App its button named when it was pressed |
 | A requested `selection.replace` | The App the view named when the user made the gesture |
 | A synchronous `selection.replace` call | The App the view named when the user made the gesture that started this invocation |
 
@@ -287,14 +285,6 @@ makes, is refused with `target_not_shown` and nothing is written; the Host
 shows the refusal near the pointer. To insert, a Plugin shows a view that
 names the target first.
 
-### Level 1 Plugins
-
-A Level 1 Plugin keeps Level 1 exactly: its
-standard `insert_text` inserts into the App the view came from, and its
-`insert_text` Host Service into the App in front. It cannot use `operation`,
-`operation_finished` or `shows_insertion_target`, which are unknown members
-at Level 1.
-
 ## Failure category
 
 `insertion_target_changed`: a synchronous `selection.replace` call inside a
@@ -305,9 +295,8 @@ keeps its last good state and the target line updates.
 
 ## The helper protocol and the test kit
 
-The invocation carries the Plugin's `"api_level": 2`, which is how the
-helper adds these builders with the rest of Level 2's SDK. What the Host
-showed as the target never reaches the helper.
+The helper installs these builders with the current SDK for every compatible
+Plugin. Host-owned insertion-target identity never reaches the helper.
 
 In the Plugin test kit, `run.answer()` reads an answer as the Host does, its
 `operation` included, refusing one that answers an event that is no gesture.

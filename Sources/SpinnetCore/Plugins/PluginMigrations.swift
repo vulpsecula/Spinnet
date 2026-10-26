@@ -107,14 +107,14 @@ public extension PluginManifest {
     /// when there is nothing to move. Actions keep their IDs, so every Slot,
     /// alias and Alternate Action stays as the user arranged it.
     func migrate(_ configuration: HostConfiguration) throws -> HostConfiguration? {
-        guard !migrations.isEmpty else { return nil }
         var changed = false
         let actions = try configuration.actions.map { action -> ActionConfiguration in
             guard action.pluginID == id else { return action }
             let commandID = migrations.renamedCommands[action.commandID] ?? action.commandID
             let input = migrations.droppedInputs.contains(commandID) ? .null : action.input
-            guard commandID != action.commandID || input != action.input,
-                  let command = commands.first(where: { $0.id == commandID }) else { return action }
+            guard let command = commands.first(where: { $0.id == commandID }) else { return action }
+            guard commandID != action.commandID || input != action.input
+                    || command.preservesHistoricalExecution(of: action) else { return action }
             changed = true
             return try ActionConfiguration(id: action.id, pluginID: id, command: command, input: input)
         }
@@ -132,5 +132,90 @@ public extension PluginManifest {
             if settings[current] == nil { settings[current] = value }
         }
         return settings
+    }
+}
+
+
+private extension CommandDeclaration {
+    /// The first current interface replaced saved internal adapter names with
+    /// catalogue IDs. Rebind only when the ID, title, executable kind and
+    /// target are unchanged and both routes produce exactly the same input.
+    /// Unknown or changed definitions remain unavailable for explicit repair.
+    func preservesHistoricalExecution(of action: ActionConfiguration) -> Bool {
+        guard execution == .host, action.execution == .host,
+              id == action.commandID, title == action.title,
+              script == action.script, deepLinkTemplate == action.deepLinkTemplate,
+              hostCommand == nil, let adapter = action.hostCommand,
+              let serviceID = hostServiceID,
+              HostServiceCatalogue.ids(replacing: adapter).contains(serviceID),
+              let operation = HostServiceCatalogue.operation(serviceID),
+              operation.isOffered(at: .command), adapter.isValidInput(action.input) else { return false }
+
+        // A Deep Link keeps its declared template and parameter object. Fixed
+        // input was absent from saved adapter Commands, so cannot be invented.
+        if adapter == .openDeepLink {
+            return serviceID == HostServiceCatalogue.deepLinkOperation
+                && (fixedInput == nil || fixedInput == .object([:]))
+        }
+        let input = operation.commandInput(for: self, actionInput: action.input)
+        let preservedDirectory: Bool?
+        if adapter == .openFile || adapter == .openFolder {
+            // A generic open.path can open either kind. Do not broaden an
+            // unavailable historical file Action into a directory Action (or
+            // vice versa) merely by forcing the old adapter into commandStep.
+            let kind = configurationField?.kind
+                ?? configurationFields.first(where: { $0.key == "path" })?.kind
+            if kind == .file || kind == .folder {
+                guard (kind == .folder) == (adapter == .openFolder) else { return false }
+                // Current resource validation preserves this explicit kind,
+                // including refusal while the target is missing or wrong-kind.
+                preservedDirectory = kind == .folder
+            } else {
+                guard case .string(let path) = input else { return false }
+                let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                      isDirectory.boolValue == (adapter == .openFolder) else { return false }
+                preservedDirectory = isDirectory.boolValue
+            }
+        } else {
+            preservedDirectory = nil
+        }
+        guard let step = try? operation.commandStep(input: input, isDirectory: { _ in preservedDirectory ?? false }) else {
+            return false
+        }
+        func text(_ keys: [String]) -> JSONValue? {
+            if case .string = action.input { return action.input }
+            if case .object(let values) = action.input {
+                for key in keys { if case .string? = values[key] { return values[key] } }
+            }
+            return nil
+        }
+        let expected: HostServiceCommandStep
+        switch adapter {
+        case .copyText:
+            if action.input == .null { expected = .hostCommand(.copyText, .null) }
+            else if let text = text(["text"]) { expected = .hostCommand(.copyText, text) }
+            else { return false }
+        case .openURL:
+            guard let text = text(["url"]) else { return false }
+            expected = .hostCommand(adapter, text)
+        case .openFile, .openFolder:
+            guard let text = text(["path"]) else { return false }
+            expected = .hostCommand(adapter, text)
+        case .openApplication:
+            guard let text = text(["path", "bundle_id", "bundle_identifier", "bundleIdentifier"]) else { return false }
+            expected = .hostCommand(adapter, text)
+        case .presentFeedback:
+            guard case .string(let message)? = text(["message", "text"]) else { return false }
+            expected = .toast(message)
+        case .captureArea, .captureFullScreen, .captureWindow, .cutText, .pasteText:
+            guard action.input == .null else { return false }
+            expected = .hostCommand(adapter, .null)
+        case .invokeKeyboardShortcut, .invokeService, .invokeShortcut:
+            expected = .hostCommand(adapter, action.input)
+        case .openDeepLink: return false // handled above
+        }
+        return step == expected
     }
 }

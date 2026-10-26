@@ -342,7 +342,7 @@ final class ClipboardHistoryTests: XCTestCase {
 
     func testBundledHistoryCannotBeOverwrittenAndWinsOverAnOlderInstalledCopyAtStartup() throws {
         let root = TestRepository.root
-        let source = root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/ClipboardHistory.spinnetplugin")
+        let source = root.appendingPathComponent("Tests/Fixtures/HostPlugins/ClipboardHistory.spinnetplugin")
         let loaded = try PluginManifestLoader.load(packageAt: source)
         let bundled = PluginPackage(rootURL: source, manifest: loaded.manifest, origin: .bundled)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

@@ -9,7 +9,7 @@ final class ConfigurationFieldsTests: XCTestCase {
     private func manifest(fields: String, extra: String = "", configurable: Bool = true) throws -> PluginManifest {
         try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.remote", "name": "Remote", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.remote", "name": "Remote", "version": "1.0.0",
           "capabilities": ["contact_https"],
           "capability_scopes": [{
             "capability": "contact_https", "command_ids": ["remote.run"], "data_types": [],
@@ -162,7 +162,7 @@ final class ConfigurationFieldsTests: XCTestCase {
         func manifest(usedWhen: String) -> Data {
             Data("""
             {
-              "protocol_version": "1.0", "id": "com.example.conditional", "name": "Conditional", "version": "1.0.0",
+              "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.conditional", "name": "Conditional", "version": "1.0.0",
               "commands": [{"id": "run", "title": "Run", "execution": "javascript", "script": "run.js",
                 "configuration_fields": [
                   {"key": "mode", "kind": "choice", "choices": ["Copy", "Save"]},
@@ -190,7 +190,7 @@ final class ConfigurationFieldsTests: XCTestCase {
     func testConfigurationFieldsInputIsAnObjectOfDeclaredValues() throws {
         let command = try XCTUnwrap(PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.fields", "name": "Fields", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.fields", "name": "Fields", "version": "1.0.0",
           "commands": [{"id": "run", "title": "Run", "execution": "javascript", "is_configurable": true, "script": "run.js",
                         "configuration_fields": [{"key": "format", "kind": "choice", "choices": ["PNG", "JPEG"]},
                                                  {"key": "folder", "kind": "folder"}]}]

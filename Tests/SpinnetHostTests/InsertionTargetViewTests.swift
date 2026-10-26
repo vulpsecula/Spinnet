@@ -7,7 +7,7 @@ import XCTest
 /// text goes and captures it with each gesture (ADR 0018, P1): the Host
 /// names the App on each insert action and in a target line the view asks
 /// for, keeps it current, and hands the session what was shown when the
-/// user acted. A Level 1 Plugin's view is unchanged.
+/// user acted. A view without target membership keeps its origin.
 final class InsertionTargetViewTests: XCTestCase {
     private var desktop: FakeDesktop!
     private var apps: FakeApps!
@@ -27,7 +27,7 @@ final class InsertionTargetViewTests: XCTestCase {
 
     private static func picker(showsTarget: Bool = true) -> JSONValue {
         guard case .object(var view) = PluginViewHarness.form(title: "Symbols", actions: [
-            .object(["title": .string("Insert ★"), "perform": .string("insert_text"), "text": .string("★")]),
+            .object(["title": .string("Insert ★"), "perform": .string("selection.replace"), "text": .string("★")]),
             .object(["id": .string("copy"), "title": .string("Copy ♥")])
         ]) else { return .null }
         if showsTarget { view["shows_insertion_target"] = .bool(true) }
@@ -87,7 +87,7 @@ final class InsertionTargetViewTests: XCTestCase {
         XCTAssertEqual(harness.events.last?.delivery.insertionTarget, .notShown)
     }
 
-    /// The standard insert action of a candidate view inserts into the App
+    /// The standard insert action of a target-aware view inserts into the App
     /// its button named, not the App the view came from.
     func testTheStandardInsertActionInsertsIntoTheAppItNamed() throws {
         let harness = try harness()
@@ -115,8 +115,8 @@ final class InsertionTargetViewTests: XCTestCase {
         XCTAssertEqual(model.error?.category, .insertionTargetChanged)
     }
 
-    /// Level 1 keeps its origin and draws nothing new.
-    func testALevelOneViewIsUnchanged() throws {
+    /// A view without target membership keeps its origin and draws no target.
+    func testAViewWithoutTargetMembershipKeepsItsOrigin() throws {
         let harness = try harness(declaring: false)
         try harness.present(Self.picker(showsTarget: false))
         let model = try XCTUnwrap(harness.windows.model(for: harness.pluginID))

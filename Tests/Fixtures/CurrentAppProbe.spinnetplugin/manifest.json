@@ -1,24 +1,44 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
   "id": "com.example.current-app-probe",
   "name": "Current App Probe",
   "version": "1.3.0",
-  "capabilities": ["read_frontmost_app", "quit_frontmost_app"],
-  "capability_scopes": [{
-    "capability": "quit_frontmost_app",
-    "command_ids": ["probe.current", "probe.quit_front"],
-    "data_types": [], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
-  }, {
-    "capability": "read_frontmost_app",
-    "command_ids": ["probe.current", "probe.peek"],
-    "data_types": [], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
-  }],
+  "capabilities": [
+    "read_frontmost_app",
+    "quit_frontmost_app"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "quit_frontmost_app",
+      "command_ids": [
+        "probe.current",
+        "probe.quit_front"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    },
+    {
+      "capability": "read_frontmost_app",
+      "command_ids": [
+        "probe.current",
+        "probe.peek"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  ],
   "preset": {
     "readiness": "ready_to_use",
     "is_configurable": false,
     "default_primary_command_id": "probe.current",
-    "default_alternate_command_ids": ["probe.quit_front", "probe.peek"]
+    "default_alternate_command_ids": [
+      "probe.quit_front",
+      "probe.peek"
+    ]
   },
   "commands": [
     {
@@ -45,5 +65,8 @@
       "is_configurable": false,
       "script": "peek.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

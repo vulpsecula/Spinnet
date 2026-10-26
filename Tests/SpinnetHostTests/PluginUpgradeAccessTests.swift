@@ -11,7 +11,7 @@ final class PluginUpgradeAccessTests: XCTestCase {
         let url = directory.appendingPathComponent("v\(version).spinnetplugin")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         var manifest: [String: Any] = [
-            "protocol_version": "1.0", "api_level": 2,
+            "protocol_version": "1.0", "engines": ["spinnet":"^1.0.0"],
             "id": "com.example.upgrade", "name": "Upgrade", "version": version,
             "capabilities": capabilities,
             "commands": [["id": "upgrade.run", "title": "Run", "execution": "javascript", "script": "run.js"]]

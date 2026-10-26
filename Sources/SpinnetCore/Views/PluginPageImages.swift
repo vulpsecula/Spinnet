@@ -4,7 +4,7 @@ import ImageIO
 import UniformTypeIdentifiers
 
 /// The bounds of the pictures the Host loads for `image` components
-/// (Plugin API Level 2, #81). They are part of the Documented Plugin
+/// (the current interface, #81). They are part of the Documented Plugin
 /// Interface, like `HostFetchedSectionBudgets`, and were chosen from the
 /// decoding measurements in `PluginAPI/reference/pages.md`, "Images".
 public enum PageImageBudgets {

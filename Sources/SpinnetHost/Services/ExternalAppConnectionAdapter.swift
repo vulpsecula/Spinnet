@@ -31,8 +31,7 @@ struct ExternalAppConnectionAdapter {
         // Consent can suspend the worker while registration or access changes.
         guard authorized() else { return .ownerInvalid }
         do {
-            let request = try check.interface.request(operation: check.operation.name, arguments: [:],
-                candidateContracts: check.package.manifest.candidateContracts)
+            let request = try check.interface.request(operation: check.operation.name, arguments: [:])
             try native.read(request)
             guard authorized() else { return .ownerInvalid }
             return inspect(check, prompt: false, previouslyAuthorized: true)

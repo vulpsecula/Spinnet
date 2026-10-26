@@ -4,7 +4,7 @@ import XCTest
 @testable import SpinnetCore
 @testable import SpinnetHost
 
-/// The Host's side of Candidate Contract `host_operations` r1 (ADR 0018):
+/// The Host's execution of Requested Host Operations:
 /// the insertion target it shows and keeps current, the insertion that goes
 /// only to the App it showed, and the performer that checks authority at
 /// commit and again at execution. A fake desktop stands in for macOS, so no
@@ -156,7 +156,7 @@ final class HostOperationsTests: XCTestCase {
                                               message: "TextEdit did not come to the front. Nothing was inserted.")))
     }
 
-    /// A synchronous call fails the invocation with the candidate's own
+    /// A synchronous call fails the invocation with the operation's own
     /// category, in words that name no App, since they reach the helper.
     func testTheSynchronousPathThrowsWithoutNamingTheApp() throws {
         desktop.frontmost = 99

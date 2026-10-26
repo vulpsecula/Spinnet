@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// View Sessions showing pages (Candidate Contract `collections` r1), driven
+/// View Sessions showing pages, driven
 /// through the sessions' seams: page answers commit as views do, page events
 /// are dispatched only while the page and component they came from are
 /// unchanged (scenario 06), Return waits for the typing it follows (C1),
@@ -200,9 +200,9 @@ final class PageSessionTests: XCTestCase {
         XCTAssertNil(session.errorEvent)
     }
 
-    /// A Level 1 view answer replaces a page, and back: the session tells
+    /// A form/detail view answer replaces a page, and back: the session tells
     /// the renderer which it shows.
-    func testALevelOneViewAndAPageMayFollowEachOther() throws {
+    func testAFormViewAndAPageMayFollowEachOther() throws {
         let session = try start(Self.searchPage())
         session.send(itemAction("A"))
         let view = JSONValue.object(["title": .string("Level 1"), "actions": .array([.object(["id": .string("a"), "title": .string("A")])])])

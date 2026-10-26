@@ -4,7 +4,7 @@ import SwiftUI
 import XCTest
 @testable import SpinnetHost
 
-/// Pages of a Level 2 Plugin, drawn by
+/// Pages of a Plugin, drawn by
 /// the Host's renderer: immediate state across answers, keyboard roles,
 /// pointer gestures, the Host's chrome, and the windows the renderer opens.
 final class PluginPageModelTests: XCTestCase {
@@ -156,6 +156,9 @@ final class PluginPageModelTests: XCTestCase {
         harness.clock.advance(by: 0.2)
         try harness.answer(list)
         XCTAssertFalse(model.searchFieldKey(.right, in: "query"), "A List's search field keeps Left and Right for the caret")
+        let selection = model.selectedItem
+        XCTAssertFalse(model.searchFieldKey(.left, in: "query"), "A List's Left arrow belongs to the text caret too")
+        XCTAssertEqual(model.selectedItem, selection)
         XCTAssertTrue(model.searchFieldKey(.down, in: "query"))
     }
 
@@ -264,9 +267,9 @@ final class PluginPageModelTests: XCTestCase {
 
     // MARK: Windows
 
-    /// A session may go from a page to a Level 1 view and back: each gets its
+    /// A session may go from a page to a form/detail view and back: each gets its
     /// own window, and the pin is kept.
-    func testPagesAndLevelOneViewsSwapWindowsKeepingThePin() throws {
+    func testPagesAndFormViewsSwapWindowsKeepingThePin() throws {
         try harness.open(PageHarness.search())
         model.isPinned = true
         let placed = PluginPanelGeometry(frame: NSRect(x: 30, y: 40, width: 640, height: 480), isUserSized: true)
@@ -278,12 +281,12 @@ final class PluginPageModelTests: XCTestCase {
         let level1 = try XCTUnwrap(harness.windows.model(for: PageHarness.pluginID))
         XCTAssertTrue(level1.isPinned)
         XCTAssertEqual(harness.pageWindows.first?.closes, 1)
-        XCTAssertEqual(harness.levelOneWindows.first?.restored, [placed], "The pinned panel keeps its place and size")
+        XCTAssertEqual(harness.formWindows.first?.restored, [placed], "The pinned panel keeps its place and size")
         level1.choose(try XCTUnwrap(level1.description.actions.first))
         try harness.answer(PageHarness.search())
         XCTAssertTrue(model.isPinned)
         XCTAssertEqual(harness.pageWindows.count, 2)
-        XCTAssertEqual(harness.levelOneWindows.first?.closes, 1)
+        XCTAssertEqual(harness.formWindows.first?.closes, 1)
     }
 
     /// Pin means the user keeps the panel beside their App: an item
@@ -473,7 +476,7 @@ final class PageHarness {
     /// The events `answerRanges` answered, by index.
     private var answeredEvents: Set<Int> = []
     private(set) var pageWindows: [FakePluginViewWindow] = []
-    private(set) var levelOneWindows: [FakePluginViewWindow] = []
+    private(set) var formWindows: [FakePluginViewWindow] = []
     private(set) var windows: PluginViewWindows!
     private(set) var sessions: PluginViewSessions!
 
@@ -498,7 +501,7 @@ final class PageHarness {
             environment: environment,
             makeWindow: { [unowned self] _ in
                 let window = FakePluginViewWindow()
-                levelOneWindows.append(window)
+                formWindows.append(window)
                 return window
             },
             makePageWindow: { [unowned self] model in
@@ -509,7 +512,7 @@ final class PageHarness {
             },
             pointer: { NSPoint(x: 200, y: 200) }, frontmostApplication: { nil }, report: { _ in }
         )
-        let permits: (PluginInterfaceMember) -> Bool = declaredMembers ?? { PluginInterfaceContracts.levelTwoMembers.contains($0) }
+        let permits: (PluginInterfaceMember) -> Bool = declaredMembers ?? { PluginInterfaceContracts.currentMembers.contains($0) }
         sessions = PluginViewSessions(
             renderer: windows,
             runEvent: { [unowned self] action, delivery, _, started, finish in

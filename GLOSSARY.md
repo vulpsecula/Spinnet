@@ -45,7 +45,7 @@ A Command that directly names a Host Service and uses the Action’s configurati
 _Avoid_: Built-in Plugin, Built-in Preset, native Action
 
 **Host Service**:
-A controlled, Plugin-independent operation the Host performs under the caller’s authority. Catalogue-based interfaces identify it by one `namespace.verb` ID across supported entry points; Level 1 retains its historical names.
+A controlled, Plugin-independent operation the Host performs under the caller’s authority. The current interface identifies it by one `namespace.verb` ID across supported entry points.
 _Avoid_: Capability, system API, Plugin-specific service
 
 **Action**:
@@ -279,20 +279,16 @@ _Avoid_: Job, background process, effect (an effect, such as keep-awake, has its
 ### Plugin interface
 
 **Documented Plugin Interface**:
-The public manifest schemas, message protocols, Command interfaces, Host Services, and Plugin APIs expressly supported for third-party Plugin interoperability, versioned by Plugin API Level.
+The public manifest schemas, message protocols, Command interfaces, Host Services, and Plugin APIs expressly supported for third-party Plugin interoperability, evolving with Host releases. Compatible Plugins use one current interface.
 _Avoid_: Host internals, private API, ABI
 
-**Plugin API Level**:
-The stable version of the Documented Plugin Interface a Plugin declares it requires. It selects the Plugin’s supported vocabulary and behaviour; the Host’s highest supported Level is separate information.
-_Avoid_: SDK version, protocol version
+**Host Compatibility**:
+A Plugin's declared range of Host releases it can run on. The Host checks its own release against this range before registration; Capability grants remain separate.
+_Avoid_: Plugin API Level, SDK version, protocol version
 
 **Plugin API Namespace**:
 The domain area forming the first segment of a catalogue Host Service ID, such as `clipboard` in `clipboard.write`. It organizes operations and grants no authority itself.
 _Avoid_: SDK area, module, Capability
-
-**Candidate Contract**:
-An explicitly provisional revision of the Documented Plugin Interface used to evaluate additions before they become part of a stable Plugin API Level. Promotion retires it: a Plugin still declaring it is a Refused Plugin told which Level to declare instead.
-_Avoid_: Stable release, Plugin version
 
 ### PopClip compatibility and licensing
 

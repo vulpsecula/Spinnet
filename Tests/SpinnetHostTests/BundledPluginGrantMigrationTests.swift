@@ -17,8 +17,8 @@ final class BundledPluginGrantMigrationTests: XCTestCase {
         try FileManager.default.removeItem(at: directory)
     }
 
-    func testUserInstalledCandidateGrantSurvivesMigrationToNewBundledVersion() throws {
-        let previous = try package(version: "1.2.0", candidate: true)
+    func testHistoricalUserInstalledGrantSurvivesMigrationToNewBundledVersion() throws {
+        let previous = try predecessor(version: "1.2.0")
         try seedInstalled(previous)
         try saveDecision(.granted, for: previous.manifest)
 
@@ -42,7 +42,7 @@ final class BundledPluginGrantMigrationTests: XCTestCase {
     }
 
     func testDeniedAccessSurvivesOnboardingAndTheNextBundledUpdate() throws {
-        let previous = try package(version: "1.2.0", candidate: true)
+        let previous = try predecessor(version: "1.2.0")
         try seedInstalled(previous)
         try saveDecision(.denied, for: previous.manifest)
         let (_, onboarded) = try launch(shipped)
@@ -55,7 +55,7 @@ final class BundledPluginGrantMigrationTests: XCTestCase {
     }
 
     func testAnExistingReplacementDecisionTakesPriorityOverThePredecessor() throws {
-        let previous = try package(version: "1.2.0", candidate: true)
+        let previous = try predecessor(version: "1.2.0")
         try seedInstalled(previous)
         try saveDecision(.granted, for: previous.manifest)
         try saveDecision(.denied, for: shipped.manifest)
@@ -108,7 +108,7 @@ final class BundledPluginGrantMigrationTests: XCTestCase {
     }
 
     func testLegacyOnboardingDoesNotReviveAccessWhenThePredecessorIsAmbiguous() throws {
-        let installed = try package(version: "1.2.0", candidate: true)
+        let installed = try predecessor(version: "1.2.0")
         try seedInstalled(installed)
         try saveDecision(.granted, for: installed.manifest)
         // An older Host may have shipped 1.3.0 without recording its manifest,
@@ -125,15 +125,11 @@ final class BundledPluginGrantMigrationTests: XCTestCase {
     private var pluginsDirectory: URL { directory.appendingPathComponent("Plugins") }
     private var grantsURL: URL { directory.appendingPathComponent("grants.json") }
 
-    private func package(version: String, candidate: Bool = false, extraCommand: Bool = false) throws -> PluginPackage {
+    private func package(version: String, extraCommand: Bool = false) throws -> PluginPackage {
         let root = directory.appendingPathComponent("package-\(version).spinnetplugin")
         try FileManager.default.copyItem(at: shipped.rootURL, to: root)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(shipped.manifest)) as? [String: Any])
         object["version"] = version
-        if candidate {
-            object["api_level"] = 2
-            object["candidate_contracts"] = [["name": "adaptive_layout", "revision": 2]]
-        }
         if extraCommand {
             var commands = try XCTUnwrap(object["commands"] as? [[String: Any]])
             var extra = try XCTUnwrap(commands.first)
@@ -149,7 +145,24 @@ final class BundledPluginGrantMigrationTests: XCTestCase {
         return PluginPackage(rootURL: root, manifest: loaded.manifest, origin: .bundled)
     }
 
-    private func seedInstalled(_ package: PluginPackage) throws {
+    /// A valid current declaration supplies only the version/identity/scope
+    /// comparison metadata; its on-disk predecessor bytes use the retired
+    /// declaration and must be refused by the executable package loader.
+    private func predecessor(version: String) throws -> (rootURL: URL, manifest: PluginManifest) {
+        let current = try package(version: version)
+        var fields = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(current.manifest)) as? [String: Any])
+        fields["engines"] = nil
+        fields["api_level"] = 2
+        fields["candidate_contracts"] = [["name": "adaptive_layout", "revision": 2]]
+        try JSONSerialization.data(withJSONObject: fields).write(to: current.rootURL.appendingPathComponent("manifest.json"))
+        XCTAssertThrowsError(try PluginManifestLoader.load(packageAt: current.rootURL)) {
+            XCTAssertEqual($0.localizedDescription,
+                ConfigurationError.invalidManifest(PluginManifest.compatibilityMigrationMessage).localizedDescription)
+        }
+        return (current.rootURL, current.manifest)
+    }
+
+    private func seedInstalled(_ package: (rootURL: URL, manifest: PluginManifest)) throws {
         try FileManager.default.createDirectory(at: pluginsDirectory, withIntermediateDirectories: true)
         let name = "previous.spinnetplugin"
         try FileManager.default.copyItem(at: package.rootURL, to: pluginsDirectory.appendingPathComponent(name))

@@ -1080,7 +1080,7 @@ final class RichClipboardHistoryTests: XCTestCase {
         let old = try h.package(types: ["text", "url"])
         h.grant(old)
         let root = TestRepository.root
-        let bundled = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/ClipboardHistory.spinnetplugin")).manifest
+        let bundled = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/HostPlugins/ClipboardHistory.spinnetplugin")).manifest
         let types = try XCTUnwrap(bundled.scope(for: .readClipboardHistory)?.dataTypes)
         XCTAssertEqual(Set(types), ["text", "url", "image", "rich_text", "file_reference", "binary"])
         let updated = try h.package(types: types, version: "2")

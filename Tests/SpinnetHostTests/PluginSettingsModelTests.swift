@@ -23,7 +23,7 @@ final class PluginSettingsModelTests: XCTestCase {
     private func manifest() throws -> PluginManifest {
         try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.remote", "name": "Remote", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.remote", "name": "Remote", "version": "1.0.0",
           "capabilities": ["contact_https"],
           "capability_scopes": [{"capability": "contact_https", "command_ids": ["remote.run"], "data_types": ["text"],
                                  "includes_existing_host_data": false, "https_hosts": ["api.example.com"], "external_apps": []}],
@@ -129,7 +129,7 @@ final class PluginSettingsModelTests: XCTestCase {
 
     private func translatorModel() throws -> (PluginSettingsModel, PluginSettingsStore) {
         let root = TestRepository.root
-        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/Translator.spinnetplugin")).manifest
+        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/HostPlugins/Translator.spinnetplugin")).manifest
         let store = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
         let grants = PluginCapabilityGrantStore()
         let model = PluginSettingsModel(
@@ -216,7 +216,7 @@ final class PluginSettingsModelTests: XCTestCase {
 
     private func smartJumpModel(stored: [String: JSONValue]? = nil) throws -> (PluginSettingsModel, PluginSettingsStore) {
         let root = TestRepository.root
-        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/SmartJump.spinnetplugin")).manifest
+        let manifest = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/HostPlugins/SmartJump.spinnetplugin")).manifest
         let store = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
         if let stored { try store.setValues(stored, for: manifest.id) }
         let grants = PluginCapabilityGrantStore()

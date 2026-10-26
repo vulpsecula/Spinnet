@@ -25,21 +25,16 @@ next to the test bundle, where the kit looks for it.
 
 If the helper is somewhere else, set `SPINNET_PLUGIN_HELPER_URL` to its path.
 
-## Stable Level 4 activity delivery
+## Current interface
 
-Level 4 retains the Level 3 SDK vocabulary and opts into one-second
-`activities.list` source delivery. The [Level 4 reference](../../PluginAPI/reference/level-4.md)
-states its visibility, cadence and resource bounds. Recorded events exercise
-Plugin rendering; Host source tests separately verify the scheduler cadence.
+Declare `"engines": {"spinnet": "^1.0.0"}` and use the single
+[current interface](../../PluginAPI/README.md). The kit applies the Host's
+version compatibility checks, Capability grants and scopes. Retired
+`api_level` and `candidate_contracts` declarations are refused.
 
-## Stable Level 3 additions
-
-Declare `api_level: 3` without `candidate_contracts` to use the proved adaptive
-card and viewport-fit components, Spotify controls, External App connections and
-Homebrew autoremove operations. The [Level 3 reference](../../PluginAPI/reference/level-3.md)
-lists their stable schemas and SDK types. Bundled Plugins use the same contracts
-and normal Capability grants as user-added Plugins. Earlier candidate revisions
-are retired and refused with the Level 3 migration message.
+Visible `activities.list` sources deliver changed local data with a one-second
+floor. Recorded events exercise Plugin rendering; Host source tests separately
+verify visibility, cadence and unchanged-result suppression.
 
 Pin the public package/test kit and matching helper to the same source revision
 for reproducible tests. `PluginTestPage` checks component identities and retains
@@ -103,12 +98,12 @@ test can check that a script keeps nothing between runs.
 
 Scripts run with the same `spinnet` SDK object as in the Host. Its
 `spinnet.environment` reports `PluginTestHelper.defaultEnvironment`, English
-and an unbundled Host version `0.0.0`, whatever the machine running the tests
+and the current Host release version, whatever the machine running the tests
 prefers. To test another language, start the helper with one:
 
 ```swift
 let helper = try PluginTestHelper(environment: PluginRuntimeEnvironment(
-    hostVersion: "0.0.0", preferredLanguage: "zh-Hans-CN"
+    hostVersion: HostVersion.currentString, preferredLanguage: "zh-Hans-CN"
 ))
 ```
 
@@ -176,34 +171,23 @@ there is none. A `deliver` section is `.loading` with a `delivery`, the
 `section_delivered` event to run the script with next. `fetches.requests`
 lists what reached the network, as it left.
 
-## Plugin API Levels and Candidate Contracts
+## Host compatibility
 
-A run is held to what the Host offers: Plugin API Levels 1–6. The candidates
-promoted into Levels 2 and 3 are retired (see `PluginAPI/candidates/README.md`). A Plugin that Host would
-refuse, such as one needing a higher Level or declaring a retired
-candidate, fails with the refusal as an `invalidAction`, and a Host Service
-request outside the Levels and candidates the Plugin declares fails with
-`hostServiceFailed`. A `PluginTestPage` over a helper follows the helper's
-contracts.
+The default contracts model the running release. A package outside its
+`engines.spinnet` range fails with the Host's refusal as `invalidAction`.
+A test can inject `PluginInterfaceContracts(hostVersion:)` to check another
+release or `PluginInterfaceContracts(members:)` to model an unavailable
+operation. A `PluginTestPage` uses the helper's contracts;
+`RecordedHostFetchedSections(contracts:)` accepts the same value.
 
-To run against a Host that offers a Candidate Contract, pass its contracts,
-built from the candidate's published `candidate.json`:
-
-```swift
-let candidate = try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: metadataURL))
-let helper = try PluginTestHelper(contracts: PluginInterfaceContracts(
-    levels: PluginInterfaceContracts.host.levels, candidates: [candidate]
-))
-```
-
-`spinnet.environment.apiLevel` then reports the highest stable Level of those
-contracts. `RecordedHostFetchedSections(contracts:)` takes the same value.
+`spinnet.environment` contains only `hostVersion` and `preferredLanguage`.
+Invocation identifiers remain available through the separate `pluginID`,
+`commandID`, `actionID` and `invocationID` globals.
 
 ## Catalogue IDs
 
-A Plugin API Level 2 Plugin (see `PluginAPI/reference/namespaces.md`) calls
-Host Services by catalogue ID, such as `clipboard.write`, and its scripts run
-with Level 2's `spinnet` object. Answer its operations by ID, and read what a
+A compatible Plugin calls Host Services by catalogue ID, such as
+`clipboard.write` (see `PluginAPI/reference/namespaces.md`). Answer its operations by ID, and read what a
 run performed the same way; each input is the one the Host performs, a bare
 string where the script gave the primary member alone:
 
@@ -215,22 +199,21 @@ let run = helper.run(PluginTestInvocation("example.shout"), of: plugin, answerin
 XCTAssertEqual(run.inputs(to: "clipboard.write"), [.string("HELLO")])
 ```
 
-A Level 1 name, a reserved ID or one not offered to a script fails the run
+An internal adapter name, a reserved ID or one not offered to a script fails the run
 with `hostServiceFailed` naming the ID to use, as the Host fails it. A
 Command that names an ID in `host_command` runs without a script, as the
 Host runs it: `run.performed` lists its operation, no helper starts, and its
 result is its value or the `ActionFailure` it ended with. A Command the Host
-would refuse, such as one naming a Level 1 Host Command, fails with the
+would refuse, such as one naming an internal Host Command adapter, fails with the
 refusal as an `invalidAction`.
 
 ## Requested Host Operations
 
-A Level 2 Plugin (see `PluginAPI/reference/host-operations.md`) may answer a
+A Plugin (see `PluginAPI/reference/host-operations.md`) may answer a
 gesture with an operation the Host performs after the answer commits.
 `run.answer()` reads it as the Host does: `answer.operation` is the request,
-and an operation in an answer to an event that is no gesture, or from a
-Level 1 Plugin, is the protocol violation the Host would end the View
-Session with.
+and an operation answering an event that is no gesture is the protocol
+violation the Host would end the View Session with.
 
 Give an event the view the user made it in, as the script last answered it.
 A gesture in a view that sets `shows_insertion_target` is one the Host
@@ -261,7 +244,7 @@ for a Capability the Command does not declare or the test lists in
 ## The App in front
 
 `RecordedApps` stands for the desktop for `apps.frontmost`, `apps.quit` and
-`apps.close` (Plugin API Level 2, `PluginAPI/reference/apps.md`): which App
+`apps.close` (`PluginAPI/reference/apps.md`): which App
 is in front, which run, what each App's own menu offers, whether Spinnet has
 Accessibility, and the exits performed. Close and Quit are the App's own ⌘W
 and ⌘Q, so a recorded App offers them only as its menu says: `App(menu:)`
@@ -303,8 +286,7 @@ its own repository should use recorded answers.
 
 ## Pages and collections
 
-A Level 2 Plugin (see `PluginAPI/reference/pages.md`) may answer with a
-page.
+A Plugin may answer with a page (see `PluginAPI/reference/pages.md`).
 `run.answer()` reads it as the Host does, page rules included: `answer.page`
 is the page the Host would draw, and a page it would not draw throws the
 protocol violation that would end the View Session.
@@ -336,10 +318,9 @@ composition, whose reset the Host drops.
 `call(_:input:)` stands for calling the Plugin again while the session is
 open, as a Menu Item does: by default the Action that handles the session,
 or another Command of the Plugin with its input, Plugin Settings and the
-Menu Item's overrides already merged. For a Level 2 Plugin it runs as
-`called` from the last good state; only an answer with a page or view makes
-that Action the `handler`, and a failed call throws and keeps the page, the
-state and the handler. For a Level 1 Plugin the Action starts again:
+Menu Item's overrides already merged. It runs as `called` from the last
+good state; only an answer with a page or view makes that Action the
+`handler`. A failed call throws and keeps the page, state and handler:
 
 ```swift
 try brew.call(input: .object(["scope": .string("outdated")]))   // the "Outdated" Menu Item
@@ -408,7 +389,7 @@ may hold a toast and nothing else.
 
 For reviewed Homebrew reads, record values under `operations: ["tools.read": .value(result)]` or typed failures such as `.failure(.tool(.missing))`. Recorded reads run the public input and tool/operation/kind scope checks before looking up the answer. A real-helper external fixture is `Tests/Fixtures/ReviewedToolsProbe.spinnetplugin`; it uses only the published SDK and can be copied to a separate public test-kit project.
 
-## Recorded Host-run sources (Level 2, #82)
+## Recorded Host-run sources
 
 `RecordedHostSources` runs a page's sources through the real broker and source
 engine with recorded HTTPS answers, reviewed tool answers and a deterministic clock. Record a Homebrew source with `operations: ["tools.read": .value(result)]` or a typed failure such as `.failure(.tool(.missing))`; the broker checks its current grant and tool/operation/kind scope before looking up any answer. Its page starts

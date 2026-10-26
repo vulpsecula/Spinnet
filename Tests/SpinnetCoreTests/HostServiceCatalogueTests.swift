@@ -3,12 +3,7 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// The Host is held to the Plugin API catalogue (ADR 0020), Level 2's
-/// `PluginAPI/catalogue.json`: its own table of operations has every
-/// published ID with the same Capabilities, System Permission, failure
-/// categories and entry points, the Level 1 names each replaces, and the
-/// input members the schema gives it; and Level 2 offers exactly the
-/// catalogue's calls and Commands.
+/// Public catalogue, schemas and Host definitions must describe the same interface.
 final class HostServiceCatalogueTests: XCTestCase {
     private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
@@ -43,13 +38,13 @@ final class HostServiceCatalogueTests: XCTestCase {
         try catalogueOperations().compactMap { operation in
             guard case .object(let entryPoints)? = operation["entry_points"],
                   case .object(let entry)? = entryPoints[entryPoint],
-                  ["level1", "level2"].contains(string(entry["status"])) else { return nil }
+                  string(entry["status"]) == "offered" else { return nil }
             return string(operation["id"])
         }
     }
 
     func testTheHostsOperationsAreThePublishedCatalogue() throws {
-        XCTAssertEqual(try json("catalogue.json")["level"], .number(2))
+        XCTAssertEqual(try json("catalogue.json")["host_version"], .string(HostVersion.currentString))
         let published = try catalogueOperations()
         XCTAssertEqual(HostServiceCatalogue.operations.map(\.id), published.compactMap { string($0["id"]) })
 
@@ -69,10 +64,7 @@ final class HostServiceCatalogueTests: XCTestCase {
                 }
                 let offering = definition.offering(at: entryPoint)
                 switch string(entry["status"]) {
-                case "level1":
-                    guard case .offered(_, level1: true) = offering else { XCTFail("\(id) at \(name)"); continue }
-                case "level2":
-                    guard case .offered(_, level1: false) = offering else { XCTFail("\(id) at \(name)"); continue }
+                case "offered": XCTAssertEqual(offering, .offered, "\(id) at \(name)")
                 case "reserved": XCTAssertEqual(offering, .reserved, "\(id) at \(name)")
                 default: XCTAssertEqual(offering, .notOffered, "\(id) at \(name)")
                 }
@@ -83,12 +75,14 @@ final class HostServiceCatalogueTests: XCTestCase {
             if case .object(let command)? = entryPoints["command"], command["capabilities"] == nil {
                 XCTAssertNil(definition.commandCapabilityOverride, id)
             }
-            let levelOne = (try? JSONDecoder().decode([[String: String]].self,
-                                                      from: JSONEncoder().encode(operation["level1"] ?? .array([])))) ?? []
-            XCTAssertEqual(definition.levelOneHostServices.map(\.rawValue),
-                           levelOne.filter { $0["kind"] == "host_service" }.compactMap { $0["name"] }, id)
-            XCTAssertEqual(definition.levelOneHostCommands.map(\.rawValue),
-                           levelOne.filter { $0["kind"] == "host_command" }.compactMap { $0["name"] }, id)
+            // Raw adapter names are implementation details; each mapped
+            // adapter must still resolve back to this public operation.
+            for adapter in definition.serviceAdapters {
+                XCTAssertTrue(HostServiceCatalogue.ids(replacing: adapter).contains(id), id)
+            }
+            for adapter in definition.commandAdapters {
+                XCTAssertTrue(HostServiceCatalogue.ids(replacing: adapter).contains(id), id)
+            }
         }
     }
 
@@ -97,10 +91,9 @@ final class HostServiceCatalogueTests: XCTestCase {
         XCTAssertEqual(validator.errors(for: .object(try json("catalogue.json"))), [])
     }
 
-    /// Every Level 1 Host Service and Host Command has an ID, so a refusal
-    /// can always name the one to use instead.
-    func testEveryLevelOneNameHasAnID() {
-        for service in PluginHostService.levelOne {
+    /// Every internal execution adapter has a public ID for refusal guidance.
+    func testEveryInternalAdapterHasAPublicID() {
+        for service in PluginHostService.allCases where service.usesInternalName {
             XCTAssertEqual(HostServiceCatalogue.ids(replacing: service).count, 1, service.rawValue)
         }
         for command in HostCommand.allCases {
@@ -149,10 +142,9 @@ final class HostServiceCatalogueTests: XCTestCase {
         return members
     }
 
-    /// Level 2 lets a Plugin call exactly the catalogue's call IDs and run
-    /// exactly its Command IDs, which the schema lists.
-    func testLevelTwoOffersTheCataloguesCallsAndCommands() throws {
-        let members = PluginInterfaceContracts.levelTwoMembers
+    /// The current interface offers exactly the catalogue calls and Commands.
+    func testCurrentInterfaceOffersTheCataloguesCallsAndCommands() throws {
+        let members = PluginInterfaceContracts.currentMembers
         XCTAssertEqual(Set(members.filter { $0.kind == .hostService }.map(\.name)), Set(try ids(offeredAt: "call")))
         XCTAssertEqual(Set(members.filter { $0.kind == .hostCommand }.map(\.name)), Set(try ids(offeredAt: "command")))
         XCTAssertTrue(members.contains(HostServiceCatalogue.catalogueIDsOnly))

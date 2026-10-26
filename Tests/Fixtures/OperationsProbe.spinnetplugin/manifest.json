@@ -1,20 +1,34 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
   "id": "com.example.operations-probe",
   "name": "Operations Probe",
   "version": "1.0.0",
-  "capabilities": ["insert_into_focused_app", "write_clipboard"],
-  "capability_scopes": [{
-    "capability": "insert_into_focused_app",
-    "command_ids": ["probe.pick", "probe.stamp"],
-    "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
-  }],
+  "capabilities": [
+    "insert_into_focused_app",
+    "write_clipboard"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "insert_into_focused_app",
+      "command_ids": [
+        "probe.pick",
+        "probe.stamp"
+      ],
+      "data_types": [
+        "text"
+      ],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  ],
   "preset": {
     "readiness": "ready_to_use",
     "is_configurable": false,
     "default_primary_command_id": "probe.pick",
-    "default_alternate_command_ids": ["probe.stamp"]
+    "default_alternate_command_ids": [
+      "probe.stamp"
+    ]
   },
   "commands": [
     {
@@ -33,5 +47,8 @@
       "is_configurable": false,
       "script": "stamp.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

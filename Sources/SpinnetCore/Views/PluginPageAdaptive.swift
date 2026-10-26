@@ -3,10 +3,7 @@ import Foundation
 /// Generic identified cards laid out by the Host. This does not create a
 /// Collection, items, selection, range requests or size events.
 public enum AdaptivePageLayout {
-    public static let declaration = CandidateContractRevision(name: "adaptive_layout", revision: 1)
     public static let members = [PluginInterfaceMember.viewComponent("adaptive")]
-    public static let contract = CandidateContract(name: "adaptive_layout", revision: 1, baseLevel: 2,
-        members: members, tag: "plugin-api-candidate/adaptive_layout/r1")
     public static let maximumChildren = 8
     public static let minimumCardWidths: ClosedRange<Double> = 160...600
     public static let spacings: ClosedRange<Double> = 0...24
@@ -25,12 +22,10 @@ public struct PluginPageAdaptive: Equatable {
     public let fit: PluginPageViewportFit?
 }
 
-/// Revision 2 adds two-dimensional fitting without changing revision 1.
+/// Two-dimensional fitting of adaptive content.
 public enum AdaptiveViewportLayout {
-    public static let declaration = CandidateContractRevision(name: "adaptive_layout", revision: 2)
     public static let viewportFit = PluginInterfaceMember.behaviour("adaptive_viewport_fit")
-    public static let contract = CandidateContract(name: "adaptive_layout", revision: 2, baseLevel: 2,
-        members: AdaptivePageLayout.members + [viewportFit], tag: "plugin-api-candidate/adaptive_layout/r2")
+    public static let members = AdaptivePageLayout.members + [viewportFit]
     public static let maximumProfiles = 3
     public static let minimumCardHeights: ClosedRange<Double> = 48...600
     public static let maximumOverrides = CollectionsContract.maximumComponents

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spinnet https_request Host Service",
-  "description": "The input and result of the https_request Host Service, with its Credential Uses, as of Plugin API Level 1. It needs contact_https. The schemas check shapes; the Host also checks, before anything is sent or any secret is read, that the URL is https to a host consented for the Plugin, without a user, password or a port other than 443; that no header is one the Host keeps (Authorization, Cookie, Host, framing, proxy-* and sec-*); that a body is at most 128 KiB of UTF-8; and that each Credential Use has its place in the request and a template or key holding its placeholder exactly once. The Host follows at most 3 redirects, only to consented hosts, within a 3-second budget, and places Credential Uses only on the original host.",
+  "description": "The input and result of the https_request Host Service, with its Credential Uses, as of current Plugin interface. It needs contact_https. The schemas check shapes; the Host also checks, before anything is sent or any secret is read, that the URL is https to a host consented for the Plugin, without a user, password or a port other than 443; that no header is one the Host keeps (Authorization, Cookie, Host, framing, proxy-* and sec-*); that a body is at most 128 KiB of UTF-8; and that each Credential Use has its place in the request and a template or key holding its placeholder exactly once. The Host follows at most 3 redirects, only to consented hosts, within a 3-second budget, and places Credential Uses only on the original host.",
   "$defs": {
     "header_name": {
       "description": "An HTTP token of 1 to 64 characters.",
@@ -30,34 +30,74 @@
     "signature": {
       "description": "Computes the value a Credential Use places instead of the credential itself. md5, sha1 and sha256 hash message, which holds {credential} exactly once. hmac_sha1 and hmac_sha256 sign message as written, keyed with key (by default the credential alone); an optional chain of texts is signed first, each keyed with the result of the one before, as in TC3-HMAC-SHA256. Everything else a signature needs, such as a salt, a timestamp or the normalised text, the Plugin supplies.",
       "type": "object",
-      "required": ["algorithm", "message", "encoding"],
+      "required": [
+        "algorithm",
+        "message",
+        "encoding"
+      ],
       "additionalProperties": false,
       "properties": {
-        "algorithm": { "enum": ["md5", "sha1", "sha256", "hmac_sha1", "hmac_sha256"] },
+        "algorithm": {
+          "enum": [
+            "md5",
+            "sha1",
+            "sha256",
+            "hmac_sha1",
+            "hmac_sha256"
+          ]
+        },
         "message": {
           "description": "At most 128 KiB of UTF-8.",
           "type": "string"
         },
-        "key": { "$ref": "#/$defs/template" },
+        "key": {
+          "$ref": "#/$defs/template"
+        },
         "chain": {
           "type": "array",
           "maxItems": 8,
-          "items": { "type": "string", "maxLength": 1024 }
+          "items": {
+            "type": "string",
+            "maxLength": 1024
+          }
         },
-        "encoding": { "enum": ["hex", "hex_upper", "base64"] }
+        "encoding": {
+          "enum": [
+            "hex",
+            "hex_upper",
+            "base64"
+          ]
+        }
       },
       "allOf": [
         {
           "description": "Only an HMAC has a key or a chain.",
-          "if": { "properties": { "algorithm": { "enum": ["md5", "sha1", "sha256"] } } },
-          "then": { "properties": { "key": false, "chain": false } }
+          "if": {
+            "properties": {
+              "algorithm": {
+                "enum": [
+                  "md5",
+                  "sha1",
+                  "sha256"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "key": false,
+              "chain": false
+            }
+          }
         }
       ]
     },
     "credential_use": {
       "description": "How the Host places a stored credential into the request, or signs the request with it, as it is sent. It names the credential by reference and exactly one placement. Neither the secret nor anything derived from it is returned to the Plugin, and a redirect to another host drops every placed or signed value.",
       "type": "object",
-      "required": ["reference"],
+      "required": [
+        "reference"
+      ],
       "additionalProperties": false,
       "properties": {
         "reference": {
@@ -93,23 +133,53 @@
           "description": "Wraps the value; by default the value alone. Query, path and form values are percent-encoded to RFC 3986 unreserved characters.",
           "$ref": "#/$defs/template"
         },
-        "signature": { "$ref": "#/$defs/signature" }
+        "signature": {
+          "$ref": "#/$defs/signature"
+        }
       },
       "oneOf": [
-        { "required": ["header"] },
-        { "required": ["query"] },
-        { "required": ["path_segment"] },
-        { "required": ["json_body"] },
-        { "required": ["form_body"] }
+        {
+          "required": [
+            "header"
+          ]
+        },
+        {
+          "required": [
+            "query"
+          ]
+        },
+        {
+          "required": [
+            "path_segment"
+          ]
+        },
+        {
+          "required": [
+            "json_body"
+          ]
+        },
+        {
+          "required": [
+            "form_body"
+          ]
+        }
       ]
     },
     "https_request.input": {
       "description": "One HTTPS request, sent in an ephemeral session with no cookies, cache or stored credentials.",
       "type": "object",
-      "required": ["method", "url"],
+      "required": [
+        "method",
+        "url"
+      ],
       "additionalProperties": false,
       "properties": {
-        "method": { "enum": ["GET", "POST"] },
+        "method": {
+          "enum": [
+            "GET",
+            "POST"
+          ]
+        },
         "url": {
           "description": "An absolute https URL to a host consented for the Plugin: declared in its contact_https scope or added by the user through an https_endpoint field.",
           "type": "string",
@@ -117,43 +187,88 @@
         },
         "headers": {
           "description": "At most 32 headers. Credentials are never set here; they are Credential Uses.",
-          "type": ["object", "null"],
+          "type": [
+            "object",
+            "null"
+          ],
           "maxProperties": 32,
-          "propertyNames": { "$ref": "#/$defs/header_name" },
-          "additionalProperties": { "$ref": "#/$defs/header_value" }
+          "propertyNames": {
+            "$ref": "#/$defs/header_name"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/header_value"
+          }
         },
         "body": {
           "description": "The body of a POST request, at most 128 KiB of UTF-8.",
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "credential_uses": {
           "description": "At most 4 Credential Uses, each placed on top of the ones before it, so two cannot claim the same header, parameter or field.",
-          "type": ["array", "null"],
+          "type": [
+            "array",
+            "null"
+          ],
           "maxItems": 4,
-          "items": { "$ref": "#/$defs/credential_use" }
+          "items": {
+            "$ref": "#/$defs/credential_use"
+          }
         }
       },
       "allOf": [
         {
           "description": "A GET request has no body.",
-          "if": { "properties": { "method": { "const": "GET" } } },
-          "then": { "properties": { "body": { "type": "null" } } }
+          "if": {
+            "properties": {
+              "method": {
+                "const": "GET"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "body": {
+                "type": "null"
+              }
+            }
+          }
         }
       ]
     },
     "https_request.result": {
       "description": "The response: its status, only the content-type, content-language and retry-after headers, and the body as UTF-8 text of at most 128 KiB. A response that is larger, or not UTF-8, fails the request.",
       "type": "object",
-      "required": ["status", "headers", "body"],
+      "required": [
+        "status",
+        "headers",
+        "body"
+      ],
       "additionalProperties": false,
       "properties": {
-        "status": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
         "headers": {
           "type": "object",
-          "propertyNames": { "enum": ["content-type", "content-language", "retry-after"] },
-          "additionalProperties": { "type": "string" }
+          "propertyNames": {
+            "enum": [
+              "content-type",
+              "content-language",
+              "retry-after"
+            ]
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
         },
-        "body": { "type": "string" }
+        "body": {
+          "type": "string"
+        }
       }
     }
   }

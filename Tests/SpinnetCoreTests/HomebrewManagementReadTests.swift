@@ -272,8 +272,12 @@ extension HomebrewManagementReadTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.copyItem(at: root.appendingPathComponent("Tests/Fixtures/ReviewedToolsProbe.spinnetplugin"), to: directory)
         let manifestURL = directory.appendingPathComponent("manifest.json")
-        let original = try String(contentsOf: manifestURL).replacingOccurrences(of: "\"installed\",\"outdated\",\"search\",\"info\"", with: "\"version\"")
-        try original.write(to: manifestURL, atomically: true, encoding: .utf8)
+        var manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any])
+        var scopes = try XCTUnwrap(manifest["capability_scopes"] as? [[String: Any]])
+        var tools = try XCTUnwrap(scopes[0]["reviewed_tools"] as? [[String: Any]])
+        tools[0]["operations"] = ["version"]
+        scopes[0]["reviewed_tools"] = tools; manifest["capability_scopes"] = scopes
+        try JSONSerialization.data(withJSONObject: manifest).write(to: manifestURL)
         try """
         spinnet.ui.showPage(spinnet.ui.page({id:"management",title:"Homebrew",sources:[spinnet.tools.read.source("brew",{tool:"homebrew",operation:"version"})],content:[spinnet.ui.components.text({id:"version",text:"Waiting",bind:spinnet.ui.components.bind("brew","/version")})]}))
         """.write(to: directory.appendingPathComponent("read.js"), atomically: true, encoding: .utf8)

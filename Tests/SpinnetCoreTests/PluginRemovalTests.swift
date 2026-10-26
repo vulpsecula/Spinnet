@@ -223,7 +223,7 @@ final class PluginRemovalTests: XCTestCase {
     func testABundledPluginRunningHostCommandsCanBeRemoved() throws {
         let (_, registry, _, store) = try makeStore()
         let command = CommandDeclaration(
-            id: CommandID("builtin.open_url"), title: "Open URL", hostCommand: .openURL
+            id: CommandID("builtin.open_url"), title: "Open URL", hostServiceID: "open.url"
         )
         let manifest = try PluginManifest(
             id: PluginID("com.spinnet.builtin.open-url"), name: "Open URL", version: "1.0.0",

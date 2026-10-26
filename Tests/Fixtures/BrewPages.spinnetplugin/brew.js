@@ -1,4 +1,4 @@
-// A Brew-shaped Plugin written against Candidate Contract collections r3: a
+// A Brew-shaped Plugin using Collections: a
 // searchable list of 800 generated formulae and casks with descriptions,
 // versions and per-item actions (Upgrade only when outdated, Install only
 // when not installed), which give the list's total and 150 at a time while

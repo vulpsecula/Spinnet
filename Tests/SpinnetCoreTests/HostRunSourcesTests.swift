@@ -7,7 +7,7 @@ final class HostRunSourcesTests: XCTestCase {
         let value = try JSONDecoder().decode(JSONValue.self, from: Data(#"{"id":"weather","title":"Weather","sources":[{"id":"remote","perform":"http.request","input":{"method":"GET","url":"https://example.com/weather"}}],"content":[{"kind":"text","id":"temperature","text":"Waiting","bind":{"source":"remote","pointer":"/json/temperature","format":"decimal"}}]}"#.utf8))
         return try PluginPage(parsing: value, permits: CollectionsFixtures.permits)
     }
-    func testLevelTwoPageAcceptsABoundHTTPSResult() throws {
+    func testPageAcceptsABoundHTTPSResult() throws {
         _ = try sourcePage()
     }
     func testHiddenPageCancelsTheSampleAndDiscardsItsLateResult() throws {

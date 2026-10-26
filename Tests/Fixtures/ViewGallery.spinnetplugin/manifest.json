@@ -1,24 +1,91 @@
 {
   "protocol_version": "1.0",
-  "api_level": 1,
   "id": "com.example.view-gallery",
   "name": "View Gallery",
   "version": "1.0.0",
-  "capabilities": ["write_clipboard", "open_url", "insert_into_focused_app", "contact_https"],
-  "capability_scopes": [{
-    "capability": "insert_into_focused_app",
-    "command_ids": ["gallery.form", "gallery.detail"],
-    "data_types": ["text"], "includes_existing_host_data": false, "https_hosts": [], "external_apps": []
-  }, {
-    "capability": "contact_https",
-    "command_ids": ["gallery.form", "gallery.detail"],
-    "data_types": [], "includes_existing_host_data": false, "https_hosts": ["api.github.com"], "external_apps": []
-  }],
+  "capabilities": [
+    "write_clipboard",
+    "open_url",
+    "insert_into_focused_app",
+    "contact_https"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "insert_into_focused_app",
+      "command_ids": [
+        "gallery.form",
+        "gallery.detail"
+      ],
+      "data_types": [
+        "text"
+      ],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    },
+    {
+      "capability": "contact_https",
+      "command_ids": [
+        "gallery.form",
+        "gallery.detail"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [
+        "api.github.com"
+      ],
+      "external_apps": []
+    }
+  ],
   "settings_fields": [
-    {"key": "tone", "kind": "choice", "title": "Tone", "choices": ["plain", "warm"], "choice_titles": ["Plain", "Warm"]},
-    {"key": "shout", "kind": "toggle", "title": "Shout"},
-    {"key": "from", "kind": "choice", "title": "From", "choices": ["en", "de", "fr"], "choice_titles": ["English", "German", "French"]},
-    {"key": "into", "kind": "choice", "title": "Into", "choices": ["en", "de", "fr"], "choice_titles": ["English", "German", "French"]}
+    {
+      "key": "tone",
+      "kind": "choice",
+      "title": "Tone",
+      "choices": [
+        "plain",
+        "warm"
+      ],
+      "choice_titles": [
+        "Plain",
+        "Warm"
+      ]
+    },
+    {
+      "key": "shout",
+      "kind": "toggle",
+      "title": "Shout"
+    },
+    {
+      "key": "from",
+      "kind": "choice",
+      "title": "From",
+      "choices": [
+        "en",
+        "de",
+        "fr"
+      ],
+      "choice_titles": [
+        "English",
+        "German",
+        "French"
+      ]
+    },
+    {
+      "key": "into",
+      "kind": "choice",
+      "title": "Into",
+      "choices": [
+        "en",
+        "de",
+        "fr"
+      ],
+      "choice_titles": [
+        "English",
+        "German",
+        "French"
+      ]
+    }
   ],
   "default_settings": {
     "tone": "plain",
@@ -30,7 +97,10 @@
     "readiness": "ready_to_use",
     "is_configurable": false,
     "default_primary_command_id": "gallery.form",
-    "default_alternate_command_ids": ["gallery.detail", "gallery.toast"]
+    "default_alternate_command_ids": [
+      "gallery.detail",
+      "gallery.toast"
+    ]
   },
   "commands": [
     {
@@ -57,5 +127,8 @@
       "is_configurable": false,
       "script": "gallery.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

@@ -3,12 +3,12 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// Requested Host Operations as Plugin API Level 2 publishes them, in
+/// Requested Host Operations in the current interface, in
 /// `schemas/host-operations.schema.json`, `fixtures/host-operations/`,
-/// `spinnet-level-2.d.ts` and `reference/host-operations.md`, and as the Host
+/// `sdk/spinnet.d.ts` and `reference/host-operations.md`, and as the Host
 /// reads them: the answers and events the fixtures hold, the request IDs,
 /// the outcomes and reasons the Host reports, after the view closed too, and
-/// Level 1 left as it was.
+/// form/detail View payloads.
 final class HostOperationsContractTests: XCTestCase {
     private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
@@ -32,7 +32,7 @@ final class HostOperationsContractTests: XCTestCase {
         try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: Self.published.appendingPathComponent(file)))
     }
 
-    /// What the Operations Probe, a Level 2 Plugin, may use.
+    /// The current Operations Probe interface membership.
     static var permits: (PluginInterfaceMember) -> Bool {
         PluginInterfaceContracts.host.permitting(try! PluginManifestLoader.load(packageAt: OperationsProbeFixture.package).manifest)
     }
@@ -98,9 +98,9 @@ final class HostOperationsContractTests: XCTestCase {
             (.object(["perform": .string("apps.perform"), "input": .object(["bundle_id": .string("com.example")])]),
              "The script's operation gives apps.perform no operation"),
             (.object(["perform": .string("insert_text"), "input": .string("x")]),
-             "The script's operation names insert_text, a Plugin API Level 1 name; a request names selection.replace"),
+             "The script's operation names insert_text, an internal adapter name; a request names selection.replace"),
             (.object(["perform": .string("host.confirm")]),
-             "The script's operation names host.confirm, which is reserved: no Plugin API Level requests it yet"),
+             "The script's operation names host.confirm, which is reserved and cannot be requested"),
             (.object(["perform": .string("storage.get"), "input": .string("k")]),
              "The script's operation names storage.get, which cannot be requested in an answer"),
             (.object(["perform": .string("clipboard.write"), "input": .string("x"), "notify": .string("yes")]),
@@ -116,12 +116,12 @@ final class HostOperationsContractTests: XCTestCase {
         ])]), permits: Self.permits), "Tabs and line breaks are keys the Host types")
     }
 
-    /// Level 1 is unchanged: to a Level 1 Plugin, `operation` and
-    /// `shows_insertion_target` are unknown members.
-    func testALevelOnePluginCannotUseRequestedOperations() {
-        let levelOne = CollectionsFixtures.levelOne
+    /// A Host interface missing operation and target-display membership
+    /// refuses both members before an answer commits.
+    func testMissingMembershipRefusesRequestedOperations() {
+        let denied = CollectionsFixtures.denied
         let answer = JSONValue.object(["operation": .object(["perform": .string("selection.replace"), "input": .string("x")])])
-        for parse in [{ try PluginScriptAnswer(parsing: answer) }, { try PluginScriptAnswer(parsing: answer, permits: levelOne) }] {
+        for parse in [{ try PluginScriptAnswer(parsing: answer, permits: denied) }] {
             XCTAssertThrowsError(try parse()) {
                 XCTAssertEqual($0 as? PluginRuntimeError,
                                .protocolViolation("The script's answer has unknown member operation"))
@@ -129,18 +129,18 @@ final class HostOperationsContractTests: XCTestCase {
         }
         let view = JSONValue.object(["title": .string("T"), "shows_insertion_target": .bool(true),
                                      "actions": .array([.object(["id": .string("a"), "title": .string("A")])])])
-        XCTAssertThrowsError(try PluginViewDescription(parsing: view, settingsFields: [], permits: levelOne)) {
+        XCTAssertThrowsError(try PluginViewDescription(parsing: view, settingsFields: [], permits: denied)) {
             XCTAssertEqual($0 as? PluginRuntimeError, .protocolViolation("The view has unknown member shows_insertion_target"))
         }
         XCTAssertTrue(try PluginViewDescription(parsing: view, settingsFields: [], permits: Self.permits).showsInsertionTarget)
     }
 
     /// The IDs an answer may request are the catalogue's request IDs, which
-    /// the schema lists and Level 2 offers as request members.
-    func testTheRequestIDsAreTheCataloguesAndLevelTwosMembers() throws {
+    /// the current schema and Host membership both list.
+    func testRequestIDsMatchCatalogueAndCurrentMembership() throws {
         let catalogue = HostServiceCatalogue.operations.filter { $0.isOffered(at: .request) }.map(\.id)
         XCTAssertEqual(HostOperationsContract.requestIDs, catalogue)
-        XCTAssertEqual(Set(PluginInterfaceContracts.levelTwoMembers.filter { $0.kind == .request }.map(\.name)), Set(catalogue))
+        XCTAssertEqual(Set(PluginInterfaceContracts.currentMembers.filter { $0.kind == .request }.map(\.name)), Set(catalogue))
         guard case .object(let schema) = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf:
                 Self.pluginAPI.appendingPathComponent("schemas/namespaces.schema.json"))),
               case .object(let definitions)? = schema["$defs"], case .object(let requests)? = definitions["request_id"],
@@ -178,7 +178,7 @@ final class HostOperationsContractTests: XCTestCase {
     /// them and the reasons, and the reference names each one.
     func testTheTypesReferenceAndSDKNameEveryRequestID() throws {
         let ids = HostOperationsContract.requestIDs
-        let types = try String(contentsOf: Self.pluginAPI.appendingPathComponent("spinnet-level-2.d.ts"), encoding: .utf8)
+        let types = try String(contentsOf: Self.pluginAPI.appendingPathComponent("sdk/spinnet.d.ts"), encoding: .utf8)
         func matches(_ pattern: String, in text: String) throws -> [String] {
             let expression = try NSRegularExpression(pattern: pattern)
             return expression.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap {

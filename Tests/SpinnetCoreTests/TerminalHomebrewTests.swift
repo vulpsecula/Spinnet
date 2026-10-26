@@ -12,20 +12,14 @@ final class TerminalHomebrewTests: XCTestCase {
         XCTAssertTrue(request.activatesApplication)
         XCTAssertEqual(request.handler, "do script")
     }
-    func testCandidatePromotionAndOlderLevelRefusal() throws {
-        let oldLevels = PluginInterfaceContracts.host.levels.filter { $0.key <= 4 }
-        let candidate = PluginInterfaceContracts(levels: oldLevels, candidates: [TerminalHomebrew.contract])
-        XCTAssertEqual(try candidate.promoting(TerminalHomebrew.declaration.name, toLevel: 5).levels,
-                       PluginInterfaceContracts.host.levels.filter { $0.key <= 5 })
+    func testCurrentInterfaceAdmitsTypedTerminalHandoffForBothOrigins() throws {
         let command = CommandDeclaration(id: .init("run"), title: "Run", execution: .javascript, script: "run.js")
         let scope = PluginCapabilityScope(capability: .controlExternalApp, commandIDs: [command.id], externalApps: [.init(bundleID: TerminalHomebrew.bundleID, operationFamilies: [TerminalHomebrew.family])])
-        let manifest = try PluginManifest(apiLevel: 4, id: .init("old"), name: "Old", version: "1", capabilities: [.controlExternalApp], capabilityScopes: [scope], commands: [command])
-        XCTAssertThrowsError(try PluginInterfaceContracts.host.check(manifest, origin: .installed))
+        let manifest = try PluginManifest(id: .init("terminal"), name: "Terminal", version: "1", capabilities: [.controlExternalApp], capabilityScopes: [scope], commands: [command])
+        for origin in [PluginOrigin.installed, .bundled] { try PluginInterfaceContracts.host.check(manifest, origin: origin) }
         let interface = try XCTUnwrap(ReviewedAppInterface.interface(for: TerminalHomebrew.bundleID))
-        let input: [String: JSONValue] = ["command": .string("version")]
-        XCTAssertEqual(try interface.request(operation: "homebrew", arguments: input, apiLevel: 4, candidateContracts: [TerminalHomebrew.declaration]),
-                       try interface.request(operation: "homebrew", arguments: input, apiLevel: 5))
-        XCTAssertThrowsError(try interface.request(operation: "homebrew", arguments: input, apiLevel: 4))
+        XCTAssertEqual(try interface.request(operation: "homebrew", arguments: ["command": .string("version")]).handler, "do script")
+        XCTAssertThrowsError(try interface.request(operation: "homebrew", arguments: ["command": .string("shell")]))
     }
     func testUnknownOperationsOptionsExecutablePathsAndPackageInjectionAreRefused() {
         let rejected: [[String: JSONValue]] = [
@@ -54,7 +48,7 @@ extension TerminalHomebrewTests {
         let command = CommandDeclaration(id: .init("run"), title: "Run", execution: .javascript, script: "run.js")
         let scope = PluginCapabilityScope(capability: .controlExternalApp, commandIDs: [command.id], externalApps: [
             .init(bundleID: TerminalHomebrew.bundleID, operationFamilies: [TerminalHomebrew.family])])
-        let manifest = try PluginManifest(apiLevel: 5, id: .init("com.example.terminal-test"),
+        let manifest = try PluginManifest(id: .init("com.example.terminal-test"),
             name: "Terminal probe", version: "1", capabilities: [.controlExternalApp], capabilityScopes: [scope], commands: [command])
         let package = PluginPackage(rootURL: FileManager.default.temporaryDirectory, manifest: manifest, origin: .installed)
         let action = try ActionConfiguration(id: .init("run"), pluginID: manifest.id, command: command, input: .null)

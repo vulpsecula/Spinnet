@@ -15,7 +15,7 @@ final class PluginSettingsTests: XCTestCase {
                           capabilities: String = "", scopes: String = "") throws -> PluginManifest {
         try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.remote", "name": "Remote", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.remote", "name": "Remote", "version": "1.0.0",
           "capabilities": [\(capabilities)],
           "capability_scopes": [\(scopes)],
           "settings_fields": \(settings),
@@ -401,7 +401,7 @@ final class PluginSettingsTests: XCTestCase {
     func testASettingsEndpointOnAnUndeclaredHostNeedsConsent() throws {
         let manifest = try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.remote", "name": "Remote", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.remote", "name": "Remote", "version": "1.0.0",
           "capabilities": ["contact_https"],
           "capability_scopes": [{"capability": "contact_https", "command_ids": ["remote.run"], "data_types": ["text"],
                                  "includes_existing_host_data": false, "https_hosts": ["api.example.com"], "external_apps": []}],

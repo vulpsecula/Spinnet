@@ -54,7 +54,7 @@ final class NamespacesCommandInstallationTests: XCTestCase {
 
     /// The probe's Commands are the shape the candidate's schema publishes,
     /// and the stable manifest schema refuses the catalogue ID.
-    func testTheProbesCommandsFollowTheCandidateSchema() throws {
+    func testTheProbesCommandsFollowCurrentSchemas() throws {
         let schema = HostServiceCatalogueTests.schemas.appendingPathComponent("namespaces.schema.json")
         let command = try JSONSchemaSubsetValidator(definition: "command", inSchemaAt: schema)
         guard case .object(let manifest) = try JSONDecoder().decode(
@@ -63,9 +63,9 @@ final class NamespacesCommandInstallationTests: XCTestCase {
         for declared in commands {
             XCTAssertEqual(command.errors(for: declared), [])
         }
-        let stable = try JSONSchemaSubsetValidator(definition: "command", inSchemaAt: HostServiceCatalogueTests.schemas
-            .appendingPathComponent("manifest.schema.json"))
-        XCTAssertFalse(stable.errors(for: commands[1]).isEmpty, "Level 1 refuses a catalogue ID")
+        let stable = try JSONSchemaSubsetValidator(schemaAt: HostServiceCatalogueTests.schemas.appendingPathComponent("manifest.schema.json"))
+        let entire = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: NamespacesProbeFixture.package.appendingPathComponent("manifest.json")))
+        XCTAssertEqual(stable.errors(for: entire), [])
         XCTAssertFalse(command.errors(for: .object(["id": .string("x"), "title": .string("X"), "execution": .string("host"),
                                                     "host_command": .string("url.open")])).isEmpty,
                        "The candidate refuses a Level 1 name")
@@ -73,13 +73,11 @@ final class NamespacesCommandInstallationTests: XCTestCase {
 
     /// Decision N5: a Plugin declaring the candidate names operations by ID
     /// only, and the refusal names the ID to use.
-    func testALevelOneHostCommandNameIsRefusedWithTheIDToUseInstead() throws {
+    func testInternalAdapterNamesAreRefusedWithCurrentIDs() throws {
         try assertRefused(NamespacesProbeFixture.naming("url.open"), with:
-            "Command probe.copy_greeting of Namespaces Probe names url.open, a Plugin API Level 1 Host Command; "
-                + "a Plugin API Level 2 Plugin names it open.url.")
+            "Command probe.copy_greeting of Namespaces Probe names internal adapter url.open; use open.url.")
         try assertRefused(NamespacesProbeFixture.naming("clipboard.copy"), with:
-            "Command probe.copy_greeting of Namespaces Probe names clipboard.copy, a Plugin API Level 1 Host Command; "
-                + "a Plugin API Level 2 Plugin names it selection.copy or clipboard.write.")
+            "Command probe.copy_greeting of Namespaces Probe names internal adapter clipboard.copy; use selection.copy or clipboard.write.")
     }
 
     /// Decision N8 and the catalogue's reservations: an ID kept for a later
@@ -87,8 +85,7 @@ final class NamespacesCommandInstallationTests: XCTestCase {
     func testAnIDReservedAsACommandIsRefused() throws {
         for id in ["selection.replace", "apps.quit", "open.reveal"] {
             try assertRefused(NamespacesProbeFixture.naming(id), with:
-                "Command probe.copy_greeting of Namespaces Probe names \(id), which is reserved: no Plugin API Level "
-                    + "runs it as a Command yet.")
+                "Command probe.copy_greeting of Namespaces Probe names \(id), which is reserved and cannot run as a Command.")
         }
     }
 
@@ -103,7 +100,7 @@ final class NamespacesCommandInstallationTests: XCTestCase {
     /// The Commands equivalent to Level 1's keep running with the user's
     /// configured input, and need no Capability where Level 1's needed none
     /// (decisions N7 and N8).
-    func testTheScriptlessCommandsEquivalentToLevelOnesRemain() throws {
+    func testScriptlessCatalogueCommandsKeepTheirEntryPoints() throws {
         let host = store()
         try host.store.install(from: NamespacesProbeFixture.write { manifest in
             NamespacesProbeFixture.hostCommand { command in
@@ -134,11 +131,7 @@ final class NamespacesCommandInstallationTests: XCTestCase {
 
     /// A Level 1 Plugin keeps Level 1's Host Commands, and a catalogue ID is
     /// outside what it declares, as for any member of an undeclared candidate.
-    func testALevelOnePluginCannotNameACatalogueID() throws {
-        try assertRefused(NamespacesProbeFixture.levelOne, with:
-            "Command probe.copy_greeting of Namespaces Probe names clipboard.write, which is not part of Plugin API "
-                + "Level 1 or a Candidate Contract Namespaces Probe declares.")
-    }
+
 
     /// A Command fixes members of its operation's input and configures the
     /// rest, never one member both ways, and needs the Capability its

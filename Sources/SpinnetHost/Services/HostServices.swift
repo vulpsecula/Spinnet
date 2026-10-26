@@ -257,7 +257,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
 
     // MARK: Commands naming a catalogue ID
 
-    /// A Command naming a catalogue ID that Level 1 performs as `command`:
+    /// A Command naming a catalogue ID that the internal adapter performs as `command`:
     /// the same registration and authority checks, with the operation's
     /// Capabilities, and the same effect.
     func perform(_ command: HostCommand, input: JSONValue, for action: ActionConfiguration,

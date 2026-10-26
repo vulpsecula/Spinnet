@@ -1,20 +1,32 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
   "id": "com.example.media-pages",
   "name": "Media Pages",
   "version": "2.0.0",
-  "capabilities": ["contact_https"],
-  "capability_scopes": [{
-    "capability": "contact_https",
-    "command_ids": ["media.track"],
-    "data_types": [], "includes_existing_host_data": false, "https_hosts": ["i.scdn.co"], "external_apps": []
-  }],
+  "capabilities": [
+    "contact_https"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "contact_https",
+      "command_ids": [
+        "media.track"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [
+        "i.scdn.co"
+      ],
+      "external_apps": []
+    }
+  ],
   "preset": {
     "readiness": "ready_to_use",
     "is_configurable": false,
     "default_primary_command_id": "media.track",
-    "default_alternate_command_ids": ["media.metrics"]
+    "default_alternate_command_ids": [
+      "media.metrics"
+    ]
   },
   "commands": [
     {
@@ -33,5 +45,8 @@
       "is_configurable": false,
       "script": "media.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spinnet Plugin View",
-  "description": "The view a script answers with as `{view, state}`, as of Plugin API Level 1 (ADR 0010). The Host draws a title, the Plugin's own setting controls, a Form, a Detail and Actions, in that order, and never the Plugin's own markup. `spinnet.ui` builds each part. Besides the shapes below, the Host checks that field keys, section IDs, action IDs and shortcuts are each distinct, that a setting control names one of the Plugin's own `choice` or `toggle` settings, each once, that `swap_with` names the `choice` setting control right after a `choice` control, that a shortcut includes cmd or ctrl, names each modifier once and is not one the view keeps (cmd+w, cmd+q, cmd+c, cmd+v, cmd+x, cmd+a, cmd+z, cmd+shift+z, cmd+return), that inserted text is at most 128 KiB, and that the whole description is at most 256 KiB of JSON. A view that breaks any of these ends the View Session as a protocol violation.",
+  "description": "The view a script answers with as `{view, state}`, as of current Plugin interface (ADR 0010). The Host draws a title, the Plugin's own setting controls, a Form, a Detail and Actions, in that order, and never the Plugin's own markup. `spinnet.ui` builds each part. Besides the shapes below, the Host checks that field keys, section IDs, action IDs and shortcuts are each distinct, that a setting control names one of the Plugin's own `choice` or `toggle` settings, each once, that `swap_with` names the `choice` setting control right after a `choice` control, that a shortcut includes cmd or ctrl, names each modifier once and is not one the view keeps (cmd+w, cmd+q, cmd+c, cmd+v, cmd+x, cmd+a, cmd+z, cmd+shift+z, cmd+return), that inserted text is at most 128 KiB, and that the whole description is at most 256 KiB of JSON. A view that breaks any of these ends the View Session as a protocol violation.",
   "$ref": "#/$defs/view",
   "$defs": {
     "text": {
@@ -17,89 +17,177 @@
     },
     "view": {
       "type": "object",
-      "required": ["title"],
+      "required": [
+        "title"
+      ],
       "additionalProperties": false,
       "properties": {
-        "title": { "$ref": "#/$defs/text" },
-        "subtitle": { "type": "string" },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "subtitle": {
+          "type": "string"
+        },
         "settings": {
           "type": "array",
           "maxItems": 6,
-          "items": { "$ref": "#/$defs/setting_control" }
+          "items": {
+            "$ref": "#/$defs/setting_control"
+          }
         },
-        "form": { "$ref": "#/$defs/form" },
-        "detail": { "$ref": "#/$defs/detail" },
+        "form": {
+          "$ref": "#/$defs/form"
+        },
+        "detail": {
+          "$ref": "#/$defs/detail"
+        },
         "actions": {
           "type": "array",
           "minItems": 1,
           "maxItems": 12,
-          "items": { "$ref": "#/$defs/action" }
+          "items": {
+            "$ref": "#/$defs/action"
+          }
         }
       },
       "allOf": [
         {
           "description": "A view has at least one of form, detail and actions.",
-          "if": { "properties": { "form": false, "detail": false } },
-          "then": { "required": ["actions"] }
+          "if": {
+            "properties": {
+              "form": false,
+              "detail": false
+            }
+          },
+          "then": {
+            "required": [
+              "actions"
+            ]
+          }
         }
       ]
     },
     "setting_control": {
       "description": "A control for one of the Plugin's own choice or toggle settings. The Host shows what is stored, stores a change as Plugin Settings are, and then delivers setting_changed; the Action does not run again. A choice control's swap_with names the choice control that follows it: the Host draws a swap button between the two, which stores both values exchanged and then delivers one settings_swapped event whose keys name this control's key first.",
       "type": "object",
-      "required": ["key"],
+      "required": [
+        "key"
+      ],
       "additionalProperties": false,
       "properties": {
-        "key": { "$ref": "#/$defs/text" },
-        "swap_with": { "$ref": "#/$defs/text" }
+        "key": {
+          "$ref": "#/$defs/text"
+        },
+        "swap_with": {
+          "$ref": "#/$defs/text"
+        }
       }
     },
     "form": {
       "description": "Fields whose values arrive with field_changed and submitted.",
       "type": "object",
-      "required": ["fields"],
+      "required": [
+        "fields"
+      ],
       "additionalProperties": false,
       "properties": {
         "fields": {
           "type": "array",
           "minItems": 1,
           "maxItems": 20,
-          "items": { "$ref": "#/$defs/field" }
+          "items": {
+            "$ref": "#/$defs/field"
+          }
         },
-        "submit_title": { "$ref": "#/$defs/text" },
+        "submit_title": {
+          "$ref": "#/$defs/text"
+        },
         "submit_on_return": {
           "description": "Return submits from any field, a multiline one included, where Shift-Return starts a new line. The form then draws no submit button and takes no submit_title.",
           "type": "boolean"
         }
       },
-      "if": { "required": ["submit_on_return"], "properties": { "submit_on_return": { "const": true } } },
-      "then": { "propertyNames": { "enum": ["fields", "submit_on_return"] } }
+      "if": {
+        "required": [
+          "submit_on_return"
+        ],
+        "properties": {
+          "submit_on_return": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "propertyNames": {
+          "enum": [
+            "fields",
+            "submit_on_return"
+          ]
+        }
+      }
     },
     "field": {
       "description": "A field of one of the kinds Plugin Settings use whose value is text, a switch, or one choice. Without a value it starts empty, off, or on its first choice.",
       "type": "object",
-      "required": ["key", "kind", "title"],
+      "required": [
+        "key",
+        "kind",
+        "title"
+      ],
       "additionalProperties": false,
       "properties": {
-        "key": { "$ref": "#/$defs/identifier" },
-        "kind": { "enum": ["text", "multiline_text", "toggle", "choice", "url"] },
-        "title": { "$ref": "#/$defs/text" },
-        "placeholder": { "type": "string" },
-        "value": { "type": ["string", "boolean"] },
+        "key": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "multiline_text",
+            "toggle",
+            "choice",
+            "url"
+          ]
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "value": {
+          "type": [
+            "string",
+            "boolean"
+          ]
+        },
         "choices": {
           "type": "array",
           "minItems": 1,
           "maxItems": 100,
           "uniqueItems": true,
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "choice_titles": {
           "type": "array",
-          "items": { "$ref": "#/$defs/text" }
+          "items": {
+            "$ref": "#/$defs/text"
+          }
         },
         "accent": {
           "description": "A system colour the Host tints a text or url field's box with, its background, border and status line, in the shade for the current appearance: a live status for what is typed. The view still says in words what it stands for.",
-          "enum": ["blue", "indigo", "purple", "pink", "red", "orange", "green", "teal", "gray"]
+          "enum": [
+            "blue",
+            "indigo",
+            "purple",
+            "pink",
+            "red",
+            "orange",
+            "green",
+            "teal",
+            "gray"
+          ]
         },
         "status": {
           "description": "One line of plain text the Host draws in a text or url field's box, under what is typed, in the accent's colour, shortened in the middle when it does not fit: what the Plugin makes of the text.",
@@ -108,57 +196,150 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "kind": { "const": "toggle" } } },
-          "then": { "properties": { "value": { "type": "boolean" } } }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "toggle"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "boolean"
+              }
+            }
+          }
         },
         {
-          "if": { "properties": { "kind": { "enum": ["text", "multiline_text", "url", "choice"] } } },
-          "then": { "properties": { "value": { "type": "string" } } }
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "text",
+                  "multiline_text",
+                  "url",
+                  "choice"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "string"
+              }
+            }
+          }
         },
         {
           "description": "Only a choice has choices, and a choice's value is one of them; choice_titles give one title per choice.",
-          "if": { "properties": { "kind": { "const": "choice" } } },
-          "then": { "required": ["choices"] }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "choice"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "choices"
+            ]
+          }
         },
         {
-          "if": { "properties": { "kind": { "enum": ["text", "multiline_text", "url", "toggle"] } } },
-          "then": { "properties": { "choices": false, "choice_titles": false } }
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "text",
+                  "multiline_text",
+                  "url",
+                  "toggle"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "choices": false,
+              "choice_titles": false
+            }
+          }
         },
         {
           "description": "Only a text or url field has an accent or a status.",
-          "if": { "properties": { "kind": { "enum": ["multiline_text", "toggle", "choice"] } } },
-          "then": { "properties": { "accent": false, "status": false } }
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "multiline_text",
+                  "toggle",
+                  "choice"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "accent": false,
+              "status": false
+            }
+          }
         }
       ]
     },
     "detail": {
       "type": "object",
-      "required": ["sections"],
+      "required": [
+        "sections"
+      ],
       "additionalProperties": false,
       "properties": {
         "sections": {
           "type": "array",
           "minItems": 1,
           "maxItems": 20,
-          "items": { "$ref": "#/$defs/section" }
+          "items": {
+            "$ref": "#/$defs/section"
+          }
         }
       }
     },
     "section": {
       "description": "A Detail section. Without fetch it shows text in the Markdown subset: **bold** or __bold__, *italic* or _italic_, `inline code`, ``` fenced code blocks ```, and [links](https://example.com) to http or https pages, which open under the open_url rules. Anything else shows as plain text. With fetch it is a Host-Fetched Section: the Host sends its request and shows the answer.",
       "type": "object",
-      "required": ["id"],
+      "required": [
+        "id"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "title": { "$ref": "#/$defs/text" },
-        "text": { "type": "string" },
-        "fetch": { "type": "object", "description": "A Host-Fetched Section's request, specified by host-fetched-section.schema.json. A malformed fetch fails only its own section." }
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "text": {
+          "type": "string"
+        },
+        "fetch": {
+          "type": "object",
+          "description": "A Host-Fetched Section's request, specified by host-fetched-section.schema.json. A malformed fetch fails only its own section."
+        }
       },
       "allOf": [
         {
-          "if": { "properties": { "fetch": false } },
-          "then": { "required": ["text"] }
+          "if": {
+            "properties": {
+              "fetch": false
+            }
+          },
+          "then": {
+            "required": [
+              "text"
+            ]
+          }
         }
       ]
     },
@@ -170,40 +351,128 @@
     "action": {
       "description": "A button, with an optional shortcut. With id it delivers action_chosen; with perform it is a standard action the Host performs itself, without a View Event, under the Capability its Host Service needs: copy_text (write_clipboard), open_url (open_url), insert_text (insert_into_focused_app, into the App the view came from) and open_plugin_settings (none). A refusal shows in the view with its repair route. closes_view closes the view once a standard action succeeds.",
       "type": "object",
-      "required": ["title"],
+      "required": [
+        "title"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "title": { "$ref": "#/$defs/text" },
-        "shortcut": { "$ref": "#/$defs/shortcut" },
-        "perform": { "enum": ["copy_text", "open_url", "insert_text", "open_plugin_settings"] },
-        "text": { "type": "string" },
-        "url": { "$ref": "#/$defs/text" },
-        "closes_view": { "type": "boolean" }
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "shortcut": {
+          "$ref": "#/$defs/shortcut"
+        },
+        "perform": {
+          "enum": [
+            "clipboard.write",
+            "open.url",
+            "selection.replace",
+            "host.showPluginSettings"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "url": {
+          "$ref": "#/$defs/text"
+        },
+        "closes_view": {
+          "type": "boolean"
+        }
       },
       "allOf": [
         {
-          "if": { "properties": { "perform": false } },
+          "if": {
+            "properties": {
+              "perform": false
+            }
+          },
           "then": {
-            "required": ["id"],
-            "properties": { "text": false, "url": false, "closes_view": false }
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "text": false,
+              "url": false,
+              "closes_view": false
+            }
           }
         },
         {
-          "if": { "required": ["perform"] },
-          "then": { "properties": { "id": false } }
+          "if": {
+            "required": [
+              "perform"
+            ]
+          },
+          "then": {
+            "properties": {
+              "id": false
+            }
+          }
         },
         {
-          "if": { "required": ["perform"], "properties": { "perform": { "enum": ["copy_text", "insert_text"] } } },
-          "then": { "required": ["text"], "properties": { "url": false } }
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "enum": [
+                  "clipboard.write",
+                  "selection.replace"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "url": false
+            }
+          }
         },
         {
-          "if": { "required": ["perform"], "properties": { "perform": { "const": "open_url" } } },
-          "then": { "required": ["url"], "properties": { "text": false } }
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "open.url"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "text": false
+            }
+          }
         },
         {
-          "if": { "required": ["perform"], "properties": { "perform": { "const": "open_plugin_settings" } } },
-          "then": { "properties": { "text": false, "url": false } }
+          "if": {
+            "required": [
+              "perform"
+            ],
+            "properties": {
+              "perform": {
+                "const": "host.showPluginSettings"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "text": false,
+              "url": false
+            }
+          }
         }
       ]
     }

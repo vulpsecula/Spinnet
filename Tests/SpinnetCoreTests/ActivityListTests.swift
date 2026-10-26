@@ -51,13 +51,13 @@ final class ActivityListTests: XCTestCase {
         let page: JSONValue = .object(["id": .string("activities"), "title": .string("Active Effects"), "content": .array([
             .object(["kind": .string("activity_list"), "id": .string("held"), "empty_text": .string("No active effects")])
         ])])
-        XCTAssertNoThrow(try PluginPage(parsing: page, permits: { PluginInterfaceContracts.levelTwoMembers.contains($0) }))
+        XCTAssertNoThrow(try PluginPage(parsing: page, permits: { PluginInterfaceContracts.currentMembers.contains($0) }))
     }
     func testActivityListCannotNameAnotherOwnerOrPluginSuppliedRows() throws {
         for extra in ["owner", "items", "actions"] {
             let page: JSONValue = .object(["id": .string("p"), "title": .string("Activities"), "content": .array([
                 .object(["kind": .string("activity_list"), "id": .string("held"), extra: .string("foreign")])])])
-            XCTAssertThrowsError(try PluginPage(parsing: page, permits: { PluginInterfaceContracts.levelTwoMembers.contains($0) }))
+            XCTAssertThrowsError(try PluginPage(parsing: page, permits: { PluginInterfaceContracts.currentMembers.contains($0) }))
         }
     }
 }

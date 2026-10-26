@@ -21,8 +21,8 @@ final class PluginTestKitTests: XCTestCase {
     func testARunAnswersFromRecordingsAndReturnsTheRequestsTheScriptMade() throws {
         let plugin = try writePlugin(capabilities: ["read_selected_text", "write_clipboard"], script: """
             (() => {
-              const text = requestHostService("read_selected_text");
-              requestHostService("write_clipboard", text.toUpperCase());
+              const text = requestHostService("selection.readText");
+              requestHostService("clipboard.write", text.toUpperCase());
               return { copied: text.length };
             })()
             """)
@@ -34,8 +34,8 @@ final class PluginTestKitTests: XCTestCase {
 
         XCTAssertEqual(try run.result.get(), .object(["copied": .number(5)]))
         XCTAssertEqual(run.requests, [
-            PluginTestRequest(service: .readSelectedText, input: .null),
-            PluginTestRequest(service: .writeClipboard, input: .string("HELLO"))
+            PluginTestRequest(service: .readSelectedText, input: .null, operation: "selection.readText"),
+            PluginTestRequest(service: .writeClipboard, input: .string("HELLO"), operation: "clipboard.write")
         ])
     }
 
@@ -44,7 +44,7 @@ final class PluginTestKitTests: XCTestCase {
     /// the Host would refuse it, however the test answered it.
     func testAServiceTheManifestDoesNotDeclareIsRefusedLikeTheHostRefusesIt() throws {
         let plugin = try writePlugin(capabilities: ["read_selected_text"], script: """
-            requestHostService("write_clipboard", "copied")
+            requestHostService("clipboard.write", "copied")
             """)
 
         let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices([
@@ -54,7 +54,7 @@ final class PluginTestKitTests: XCTestCase {
         XCTAssertThrowsError(try run.result.get()) {
             XCTAssertEqual(($0 as? PluginRuntimeError)?.failureCategory, .capabilityDenied)
         }
-        XCTAssertEqual(run.requests, [PluginTestRequest(service: .writeClipboard, input: .string("copied"))])
+        XCTAssertEqual(run.requests, [PluginTestRequest(service: .writeClipboard, input: .string("copied"), operation: "clipboard.write")])
     }
 
     /// A recorded failure reaches the script as the Host's would: it ends
@@ -62,7 +62,7 @@ final class PluginTestKitTests: XCTestCase {
     func testARecordedFailureEndsTheRunAsTheHostsWould() throws {
         let plugin = try writePlugin(capabilities: ["read_selected_text"], script: """
             (() => {
-              try { return requestHostService("read_selected_text"); } catch (error) { return "fallback"; }
+              try { return requestHostService("selection.readText"); } catch (error) { return "fallback"; }
             })()
             """)
 
@@ -81,8 +81,8 @@ final class PluginTestKitTests: XCTestCase {
         let plugin = try writePlugin(capabilities: ["read_selected_text", "write_clipboard", "position_focused_window"],
                                      script: """
             (() => {
-              const window = requestHostService("read_focused_window");
-              return [requestHostService("write_clipboard", "a"), requestHostService("write_clipboard", "b"), window.frame.width];
+              const window = requestHostService("window.read");
+              return [requestHostService("clipboard.write", "a"), requestHostService("clipboard.write", "b"), window.frame.width];
             })()
             """)
         let window = FocusedWindow(frame: WindowRect(x: 0, y: 0, width: 300, height: 200),
@@ -100,14 +100,14 @@ final class PluginTestKitTests: XCTestCase {
     /// service went unanswered.
     func testAnUnansweredServiceFailsTheRunNamingTheService() throws {
         let plugin = try writePlugin(capabilities: ["read_selected_text"], script: """
-            requestHostService("read_selected_text")
+            requestHostService("selection.readText")
             """)
 
         let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
 
         XCTAssertThrowsError(try run.result.get()) {
             XCTAssertEqual(($0 as? PluginRuntimeError)?.failureCategory, .hostServiceFailed)
-            XCTAssertTrue("\($0)".contains("read_selected_text"), "\($0)")
+            XCTAssertTrue("\($0)".contains("selection.readText"), "\($0)")
         }
         XCTAssertEqual(run.requests.map(\.service), [.readSelectedText])
     }
@@ -212,7 +212,7 @@ final class PluginTestKitTests: XCTestCase {
 
         let unanswered = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
         XCTAssertThrowsError(try unanswered.result.get()) {
-            XCTAssertTrue("\($0)".contains("get_storage_value"), "\($0)")
+            XCTAssertTrue("\($0)".contains("storage.get"), "\($0)")
         }
     }
 
@@ -269,7 +269,7 @@ final class PluginTestKitTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try #"""
         {
-          "protocol_version": "1.0", "id": "com.example.fetching", "name": "Fetching", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.fetching", "name": "Fetching", "version": "1.0.0",
           "capabilities": ["contact_https"],
           "capability_scopes": [{
             "capability": "contact_https", "command_ids": ["example.run"], "data_types": [],
@@ -315,7 +315,7 @@ final class PluginTestKitTests: XCTestCase {
         let list = capabilities.map { "\"\($0)\"" }.joined(separator: ", ")
         try """
         {
-          "protocol_version": "1.0", "id": "\(id)", "name": "Kit Example", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "\(id)", "name": "Kit Example", "version": "1.0.0",
           "capabilities": [\(list)],
           "commands": [
             {"id": "example.run", "title": "Run", "execution": "javascript", "is_configurable": false, "script": "run.js"}

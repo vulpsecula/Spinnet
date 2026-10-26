@@ -3,10 +3,8 @@ import Foundation
 /// Native command text for a once-only reviewed read and a bounded Task transcript.
 /// This grants neither shell input nor access to another Plugin's Task.
 public enum HomebrewCommandOutput {
-    public static let declaration = CandidateContractRevision(name: "homebrew_command_output", revision: 1)
     public static let member = PluginInterfaceMember.behaviour("homebrew_command_output")
-    public static let contract = CandidateContract(name: declaration.name, revision: 1, baseLevel: 5,
-        members: [member], tag: "plugin-api-candidate/homebrew_command_output/r1")
+    public static let members = [member]
     public static let maximumOutputBytes = 64 * 1024
     public static func tail(_ text: String, maximumBytes: Int = maximumOutputBytes) -> String {
         var bytes = Data(text.utf8).suffix(maximumBytes)
@@ -30,23 +28,16 @@ public enum HomebrewCommandOutput {
         guard input.value(atPointer: "/operation") == .string("commandOutput") else { return }
         try contracts.check(manifest, origin: .installed)
         guard contracts.permits(member, declaredBy: manifest) else {
-            throw PluginHostServiceError.unavailable("Homebrew command output requires its declared interface revision")
+            throw PluginHostServiceError.unavailable("Homebrew command output is not provided by this Host")
         }
-    }
-
-    public static func activity(_ value: JSONValue, manifest: PluginManifest) -> JSONValue {
-        guard !PluginInterfaceContracts.host.permits(member, declaredBy: manifest), case .object(var fields) = value else { return value }
-        fields.removeValue(forKey: "output"); fields.removeValue(forKey: "output_truncated")
-        return .object(fields)
     }
 
     /// Reserve half the Source budget for the existing metadata. HostActivities
     /// orders ongoing work first, so ended transcripts never displace its output.
-    public static func activities(_ values: [JSONValue], manifest: PluginManifest) -> [JSONValue] {
+    public static func activities(_ values: [JSONValue]) -> [JSONValue] {
         var remaining = 256 * 1024
         return values.map { value in
-            let projected = activity(value, manifest: manifest)
-            guard case .object(var fields) = projected, case .string(let original)? = fields["output"] else { return projected }
+            guard case .object(var fields) = value, case .string(let original)? = fields["output"] else { return value }
             var text = tail(original)
             var encoded = (try? JSONEncoder().encode(text).count) ?? Int.max
             while encoded > remaining, !text.isEmpty {

@@ -180,7 +180,9 @@ public struct ScreenshotSettings: Codable, Equatable {
     /// `unavailableReason` for a capture Host Command's Action; any other
     /// Action does not depend on these settings.
     public func unavailableReason(for action: ActionConfiguration) -> ActionUnavailableReason? {
-        action.hostCommand?.captureSource == nil ? nil : unavailableReason
+        let isCaptureCommand = action.execution == .host
+            && (action.hostServiceID == "screen.capture" || action.hostCommand?.captureSource != nil)
+        return isCaptureCommand ? unavailableReason : nil
     }
 
     /// The capture these settings describe. The folder is checked here as

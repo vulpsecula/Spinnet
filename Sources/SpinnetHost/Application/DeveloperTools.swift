@@ -11,7 +11,7 @@ struct DeveloperDiagnostics: Equatable {
         let name: String
         let version: String
         let origin: String
-        let apiLevel: Int
+        let hostCompatibility: String
         let isEnabled: Bool
     }
 
@@ -46,7 +46,7 @@ struct DeveloperDiagnostics: Equatable {
             "Plugins (\(plugins.count)):"
         ]
         lines += plugins.map {
-            "- \($0.id) \($0.version) [\($0.origin), Level \($0.apiLevel)\($0.isEnabled ? "" : ", disabled")] \($0.name)"
+            "- \($0.id) \($0.version) [\($0.origin), Host \($0.hostCompatibility)\($0.isEnabled ? "" : ", disabled")] \($0.name)"
         }
         if !refused.isEmpty {
             lines += ["", "Refused Plugins (\(refused.count)):"]
@@ -68,7 +68,7 @@ struct DeveloperDiagnostics: Equatable {
         registry.manifests().compactMap { manifest in
             guard let package = registry.package(for: manifest.id) else { return nil }
             return Plugin(id: manifest.id.rawValue, name: manifest.name, version: manifest.version,
-                          origin: package.origin.rawValue, apiLevel: manifest.apiLevel,
+                          origin: package.origin.rawValue, hostCompatibility: manifest.hostCompatibility.rawValue,
                           isEnabled: registry.isEnabled(for: manifest.id))
         }
     }

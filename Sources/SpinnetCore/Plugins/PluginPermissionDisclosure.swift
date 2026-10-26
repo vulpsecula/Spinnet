@@ -199,7 +199,7 @@ public struct PluginPermissionDisclosure {
         case .controls:
             var affected = commands.compactMap { command -> String? in
                 // A Command naming a catalogue ID that needs no Capability
-                // acts on what the user configures, as Level 1's do.
+                // acts on what the user configures, as the internal adapter's do.
                 if let id = command.hostServiceID, let operation = HostServiceCatalogue.operation(id),
                    operation.commandCapabilities.isEmpty, operation.namespace != "host" {
                     return "\(command.title): \(id) (target configured per Menu Item)"

@@ -22,25 +22,23 @@ final class HomebrewCommandOutputTests: XCTestCase {
     }
 
     func testFullOwnerHistoryCannotDisplaceTheCurrentTranscriptOrOverflowTheSource() throws {
-        let command = CommandDeclaration(id: .init("run"), title: "Run", execution: .javascript, script: "run.js")
-        let manifest = try PluginManifest(apiLevel: 6, id: .init("output"), name: "Output", version: "1", commands: [command])
         let output = String(repeating: "\\\"\n", count: 22000)
         let values: [JSONValue] = (0..<8).map { index in .object([
             "id": .string("task\(index)"), "status": .string(index == 0 ? "running" : "ended"),
             "log": .array([.string("legacy")]), "output": .string(output), "output_truncated": .bool(false)]) }
-        let projected = HomebrewCommandOutput.activities(values, manifest: manifest)
+        let projected = HomebrewCommandOutput.activities(values)
         XCTAssertLessThan(try JSONEncoder().encode(JSONValue.array(projected)).count, 512 * 1024)
         XCTAssertEqual(projected.first?.value(atPointer: "/output"), .string(String(decoding: Data(output.utf8).suffix(HomebrewCommandOutput.maximumOutputBytes), as: UTF8.self)))
         XCTAssertTrue(projected.dropFirst().contains { $0.value(atPointer: "/output_truncated") == .bool(true) })
         XCTAssertEqual(projected.count, 8)
     }
 
-    func testOutputTextIsExplicitlyLiteralAndEarlierContractsRefuseTheFormat() throws {
+    func testOutputTextIsExplicitlyLiteralAndRequiresCurrentMembership() throws {
         let json: JSONValue = .object(["id": .string("command"), "title": .string("Command"), "content": .array([
             .object(["kind": .string("text"), "id": .string("stdout"), "text": .string("**raw** [not a link](https://example.com)"), "format": .string("output")])])])
-        let candidate = PluginInterfaceContracts(levels: PluginInterfaceContracts.host.levels.filter { $0.key <= 5 }, candidates: [HomebrewCommandOutput.contract])
-        let manifest = try PluginManifest(apiLevel: 5, candidateContracts: [HomebrewCommandOutput.declaration], id: .init("format"), name: "Format", version: "1", commands: [.init(id: .init("show"), title: "Show", execution: .javascript, script: "show.js")])
-        let page = try PluginPage(parsing: json, permits: candidate.permitting(manifest))
+        let contracts = PluginInterfaceContracts.host
+        let manifest = try PluginManifest(id: .init("format"), name: "Format", version: "1", commands: [.init(id: .init("show"), title: "Show", execution: .javascript, script: "show.js")])
+        let page = try PluginPage(parsing: json, permits: contracts.permitting(manifest))
         guard case .text(let text)? = page.component("stdout") else { return XCTFail("Output text is required") }
         XCTAssertTrue(text.isOutput); XCTAssertTrue(text.text.contains("**raw**"))
         XCTAssertThrowsError(try PluginPage(parsing: json, permits: { $0 != HomebrewCommandOutput.member }))
@@ -83,14 +81,11 @@ final class HomebrewCommandOutputTests: XCTestCase {
         XCTAssertEqual(log.lines.count, 20); XCTAssertTrue(log.lines.allSatisfy { $0.count <= 200 })
     }
 
-    func testPromotedInterfaceUsesRealBrokerGrantsAndOlderLevelsCannotBorrowTheOutput() throws {
+    func testCurrentOutputUsesRealBrokerGrantsForEveryAdmittedPlugin() throws {
         let command = CommandDeclaration(id: .init("run"), title: "Run", execution: .javascript, script: "run.js")
         let scope = PluginCapabilityScope(capability: .readReviewedTools, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["commandOutput"], kinds: ["formula", "cask"])])
-        func manifest(candidate: Bool) throws -> PluginManifest {
-            try PluginManifest(apiLevel: candidate ? 6 : 5, id: .init("probe"), name: "Probe", version: "1", capabilities: [.readReviewedTools], capabilityScopes: [scope], commands: [command])
-        }
-        let old = try manifest(candidate: false), current = try manifest(candidate: true)
-        XCTAssertThrowsError(try PluginInterfaceContracts.host.check(old, origin: .installed))
+        let current = try PluginManifest(id: .init("probe"), name: "Probe", version: "1", capabilities: [.readReviewedTools], capabilityScopes: [scope], commands: [command])
+        try PluginInterfaceContracts.host.check(current, origin: .installed)
         let package = PluginPackage(rootURL: FileManager.default.temporaryDirectory, manifest: current)
         let action = try ActionConfiguration(id: .init("run"), pluginID: current.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore(); var launches = 0
@@ -105,9 +100,7 @@ final class HomebrewCommandOutputTests: XCTestCase {
         grants.setDecision(.denied, for: current.id, pluginVersion: current.version, capability: .readReviewedTools, scope: scope)
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action)); XCTAssertEqual(launches, 1)
         let activity: JSONValue = .object(["log": .array([.string("legacy")]), "output": .string("full output"), "output_truncated": .bool(false)])
-        XCTAssertNil(HomebrewCommandOutput.activity(activity, manifest: old).value(atPointer: "/output"))
-        XCTAssertEqual(HomebrewCommandOutput.activity(activity, manifest: current), activity)
-        let candidateHost = PluginInterfaceContracts(levels: PluginInterfaceContracts.host.levels.filter { $0.key <= 5 }, candidates: [HomebrewCommandOutput.contract])
-        XCTAssertEqual(try candidateHost.promoting(HomebrewCommandOutput.declaration.name, toLevel: 6).levels, PluginInterfaceContracts.host.levels.filter { $0.key <= 6 })
+        XCTAssertEqual(HomebrewCommandOutput.activities([activity]), [activity])
+        XCTAssertTrue(PluginInterfaceContracts.currentMembers.contains(HomebrewCommandOutput.member))
     }
 }

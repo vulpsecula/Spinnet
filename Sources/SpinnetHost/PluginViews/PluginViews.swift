@@ -19,8 +19,7 @@ struct PluginViewEnvironment {
     let schedule: (TimeInterval, @escaping () -> Void) -> Void
     /// Tells the user of a failure that comes after the view has closed.
     let report: (String) -> Void
-    /// The App insertion would go to now, which the views of Plugins
-    /// declaring `host_operations` show; nil where no Host tracks it.
+    /// The insertion destination shown in Plugin Views; nil without a tracker.
     var insertionTargets: InsertionTargetTracker? = nil
     /// Loads the pictures of pages' `image` components (#81); without one
     /// every picture shows as unavailable.
@@ -401,7 +400,7 @@ protocol PluginViewWindow: AnyObject {
     /// The view's title, which the window carries for VoiceOver.
     var title: String { get set }
     /// The page's declaration that the user may resize the window (#80);
-    /// nil, as for every Level 1 view, keeps the Host's default layout.
+    /// nil, as for every form/detail view, keeps the Host's default layout.
     var resizing: PluginPageResizing? { get set }
     /// Whether the window floats above other Apps' windows. Only a pinned
     /// view does: macOS's window-capture highlight tints only normal-level
@@ -427,9 +426,9 @@ protocol PluginViewWindow: AnyObject {
 /// pointer and takes keyboard focus without bringing Spinnet forward.
 final class PluginViewWindows: PluginViewRenderer {
     private struct Entry {
-        /// The Level 1 view shown, or nil while a page is.
+        /// The form/detail view shown, or nil while a page is.
         let model: PluginViewModel?
-        /// The page shown (Candidate Contract `collections`), or nil.
+        /// The page shown, or nil.
         let page: PluginPageModel?
         let window: PluginViewWindow
         var presentationCount: Int
@@ -479,13 +478,13 @@ final class PluginViewWindows: PluginViewRenderer {
 
     func model(for pluginID: PluginID) -> PluginViewModel? { entries[pluginID]?.model }
 
-    /// The page shown for the Plugin, under Candidate Contract `collections`.
+    /// The page shown for the Plugin, under `collections`.
     func pageModel(for pluginID: PluginID) -> PluginPageModel? { entries[pluginID]?.page }
 
     func present(_ presentation: PluginViewPresentation, of session: PluginViewSession) {
         if let page = presentation.page { return present(page, presentation, of: session) }
         environment.sources?.end(pluginID: session.pluginID)
-        // A page gave way to a Level 1 view: the page's window goes, and the
+        // A page gave way to a form/detail view: the page's window goes, and the
         // view gets a window of its own, keeping the pin and, pinned, its
         // place.
         var replaced: (isPinned: Bool, geometry: PluginPanelGeometry)?
@@ -567,7 +566,7 @@ final class PluginViewWindows: PluginViewRenderer {
                 entries[session.pluginID] = entry
                 return
             }
-            // A Level 1 view gave way to a page.
+            // A form/detail view gave way to a page.
             replaced = (entry.isPinned, entry.window.geometry)
             closeWindow(of: session)
         }

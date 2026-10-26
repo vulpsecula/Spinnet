@@ -3,9 +3,8 @@ import XCTest
 @testable import SpinnetCore
 import SpinnetPluginTestKit
 
-/// A Level 2 Plugin calls through the real
-/// helper and the Host's own broker, which performs each ID with the
-/// implementation Level 1 already has and checks the same authority.
+/// A Plugin calls catalogue IDs through the real helper and the Host's
+/// broker, which checks authority before dispatching to its implementation.
 final class NamespacesHostServiceTests: XCTestCase {
     private var helper: PluginTestHelper!
     private let grants = PluginCapabilityGrantStore()
@@ -43,7 +42,7 @@ final class NamespacesHostServiceTests: XCTestCase {
         )
     }
 
-    func testACallIsPerformedByTheLevelOneImplementation() throws {
+    func testACallIsPerformedByTheHostImplementation() throws {
         var copied: [String] = []
 
         let run = try run(#"spinnet.clipboard.write({ text: spinnet.selection.readText() }); null"#,
@@ -72,7 +71,7 @@ final class NamespacesHostServiceTests: XCTestCase {
     }
 
     /// Decision N9: a capture naming only its source follows the user's
-    /// screenshot preferences; one stating both options is Level 1's.
+    /// screenshot preferences; one stating both options keeps them explicit.
     func testACaptureNamingOnlyItsSourceFollowsThePreferences() throws {
         var preferred: [ScreenCaptureSource] = []
         var explicit: [ScreenCaptureRequest] = []

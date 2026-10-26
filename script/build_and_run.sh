@@ -38,15 +38,19 @@ esac
 APP_NAME="SpinnetHost"
 BUNDLE_ID="com.vulpsecula.SpinnetHost.preview"
 MIN_SYSTEM_VERSION="13.0"
-# The Host version Plugins read as spinnet.environment.hostVersion.
-APP_VERSION="0.1.0"
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ "$MODE" == --background-lifecycle-check ]]; then
     if [[ $# -eq 3 ]]; then
         exec bash "$ROOT_DIR/script/check_background_lifecycle.sh" "$BACKGROUND_MODE" "$3"
     fi
     exec bash "$ROOT_DIR/script/check_background_lifecycle.sh" "$BACKGROUND_MODE"
+fi
+# Package the same release version that unbundled Host and helper code use.
+VERSION_SOURCE="$ROOT_DIR/Sources/SpinnetCore/Plugins/HostCompatibility.swift"
+APP_VERSION="$(sed -nE 's/^[[:space:]]*public static let currentString = "([0-9]+\.[0-9]+\.[0-9]+)"[[:space:]]*$/\1/p' "$VERSION_SOURCE")"
+if [[ ! "$APP_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+    echo "error: cannot read the Host release version from $VERSION_SOURCE" >&2
+    exit 1
 fi
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"

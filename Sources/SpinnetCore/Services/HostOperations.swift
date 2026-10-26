@@ -1,22 +1,8 @@
 import Foundation
 
-/// Requested Host Operations (ADR 0018), part of Plugin API Level 2: a
-/// script may answer a user's gesture with one Requested Host Operation,
-/// which the Host commits with the rest of the answer and performs after the
-/// invocation has ended.
-///
-/// They were proved as Candidate Contract `host_operations`, whose revisions
-/// 1 and 2 are retired into Level 2 (#79); `promoted` is revision 2's
-/// record, whose members Level 2 holds.
+/// Operations requested by a user's gesture, committed with the answer and
+/// performed by the Host after that invocation ends.
 public enum HostOperationsContract {
-    public static let name = "host_operations"
-    /// The revision promoted into Level 2.
-    public static let revision = 2
-
-    public static var declaration: CandidateContractRevision {
-        CandidateContractRevision(name: name, revision: revision)
-    }
-
     /// An answer to a gesture may carry `operation`.
     public static let answerOperation = PluginInterfaceMember.behaviour("answer_operation")
     /// The View Event reporting an operation's outcome to a Plugin that asked.
@@ -30,15 +16,9 @@ public enum HostOperationsContract {
     /// `insertion_target_changed`.
     public static let insertionTargetChangedFailure = PluginInterfaceMember.behaviour("insertion_target_changed_failure")
 
-    /// The catalogue IDs an answer may request, in the catalogue's order:
-    /// revision 2's and those appended to Level 2 since.
+    /// Catalogue IDs an answer may request, in catalogue order.
     public static var requestIDs: [String] {
         HostServiceCatalogue.operations.filter { $0.isOffered(at: .request) }.map(\.id)
-    }
-
-    /// The request IDs revision 2 offered.
-    static var promotedRequestIDs: [String] {
-        HostServiceCatalogue.operations.filter { $0.offering(at: .request).origin == name }.map(\.id)
     }
 
     /// An operation that asked to `notify` and whose view closed before its
@@ -47,15 +27,10 @@ public enum HostOperationsContract {
     /// Action that requested it.
     public static let outcomeAfterClose = PluginInterfaceMember.behaviour("outcome_after_close")
 
-    /// Revision 2 as its `candidate.json` published it, whose members Level
-    /// 2 holds.
-    public static let promoted = CandidateContract(
-        name: name, revision: revision, baseLevel: 1, requires: [HostServiceCatalogue.declaration],
-        members: [answerOperation] + promotedRequestIDs.map(PluginInterfaceMember.request)
-            + [operationFinished, showsInsertionTarget, executionTimeInsertionTarget, insertionTargetChangedFailure,
-               outcomeAfterClose],
-        tag: "plugin-api-candidate/\(name)/r\(revision)"
-    )
+    public static let members: [PluginInterfaceMember] =
+        [answerOperation] + requestIDs.map(PluginInterfaceMember.request)
+        + [operationFinished, showsInsertionTarget, executionTimeInsertionTarget,
+           insertionTargetChangedFailure, outcomeAfterClose]
 
     /// How long an outcome delivered after its view closed may wait for its
     /// script to start before the Host drops it.
@@ -63,7 +38,7 @@ public enum HostOperationsContract {
 
     /// Longest Plugin-chosen operation `id`, in characters.
     public static let maximumIDLength = 64
-    /// Longest text `selection.replace` inserts, as Level 1's `insert_text`.
+    /// Maximum UTF-8 text size inserted by selection.replace.
     public static let maximumInsertedBytes = HTTPSRequestBudgets.maximumResponseBodyBytes
 }
 
@@ -85,8 +60,8 @@ public struct RequestedHostOperation: Equatable, Hashable {
     public let closesView: Bool
     /// Deliver `operation_finished` when the outcome is ready.
     public let notify: Bool
-    /// For an item action the Host performs (Candidate Contract
-    /// `collections` r3), the item as shown when the user acted, which its
+    /// For a Host-performed item action, the item shown when the user acted;
+    /// its
     /// `operation_finished` carries. Never part of the request's JSON.
     public let item: PluginPageItemSnapshot?
 
@@ -160,7 +135,7 @@ public struct RequestedHostOperation: Equatable, Hashable {
         return Self.primaryText(input, member: "text")
     }
 
-    /// The Level 1 Host Service that performs the request and its input as
+    /// The internal Host Service that performs the request and its input as
     /// that service takes it, as for a call of the same ID; nil for
     /// `host.showPluginSettings`, `apps.quit` and `apps.close`, which the
     /// Host performs itself.
@@ -175,8 +150,8 @@ public struct RequestedHostOperation: Equatable, Hashable {
     // MARK: Reading
 
     private static func requestable(_ name: String, permits: (PluginInterfaceMember) -> Bool) throws -> HostServiceDefinition {
-        if let ids = levelOneReplacements(of: name) {
-            throw violation("names \(name), a Plugin API Level 1 name; a request names \(ids.joined(separator: " or "))")
+        if let ids = internalNameReplacements(of: name) {
+            throw violation("names \(name), an internal adapter name; a request names \(ids.joined(separator: " or "))")
         }
         guard let definition = HostServiceCatalogue.operation(name) else {
             throw violation("names \(name), which is not a Host Service of the Plugin API catalogue")
@@ -187,16 +162,16 @@ public struct RequestedHostOperation: Equatable, Hashable {
         case .offered:
             throw violation("names \(name), which nothing the Plugin declares lets an answer request")
         case .reserved:
-            throw violation("names \(name), which is reserved: no Plugin API Level requests it yet")
+            throw violation("names \(name), which is reserved and cannot be requested")
         case .notOffered:
             throw violation("names \(name), which cannot be requested in an answer")
         }
     }
 
-    /// The catalogue IDs replacing a Level 1 name an answer might use: a Host
+    /// The catalogue IDs replacing an internal adapter name an answer might use: a Host
     /// Service, a Host Command or a standard action.
-    private static func levelOneReplacements(of name: String) -> [String]? {
-        if let service = PluginHostService(rawValue: name), service.isLevelOne {
+    private static func internalNameReplacements(of name: String) -> [String]? {
+        if let service = PluginHostService(rawValue: name), service.usesInternalName {
             return HostServiceCatalogue.ids(replacing: service)
         }
         if let command = HostCommand(rawValue: name) { return HostServiceCatalogue.ids(replacing: command) }
@@ -390,7 +365,7 @@ public enum HostOperationOutcome: Hashable {
     }
 }
 
-/// A refused or failed candidate insertion, with the reason it reports and
+/// A refused or failed insertion, with the reason it reports and
 /// the message the Host shows. The message may name Apps when only the
 /// Host shows it, never when it reaches a Plugin's helper.
 public struct InsertionFailure: Error, Hashable {
@@ -460,18 +435,12 @@ public enum InsertionTargetCapture: Hashable {
 }
 
 public extension PluginInterfaceContracts {
-    /// What `manifest` may use, as a predicate over interface members.
-    func permitting(_ manifest: PluginManifest) -> (PluginInterfaceMember) -> Bool {
-        { self.permits($0, declaredBy: manifest) }
-    }
-
     /// A script's synchronous insertion as the Host performs it (ADR 0018).
-    /// A Plugin declaring `host_operations` inserts only in an invocation
-    /// answering a gesture made while the Host showed where text would go:
+    /// Insertion requires an invocation answering a gesture made while the
+    /// Host showed where text would go:
     /// the request then carries what was shown, for the Host to compare
     /// with the App in front, and otherwise it is refused, as an insertion
-    /// from an Action without a view is. Any other request, and every
-    /// request of another Plugin, is unchanged.
+    /// from an Action without a view is. Other operations are unchanged.
     func targetingInsertion(_ request: PluginRuntimeHostServiceRequest, declaredBy manifest: PluginManifest,
                             answering delivery: ViewEventDelivery) throws -> PluginRuntimeHostServiceRequest {
         guard request.service == .insertText,

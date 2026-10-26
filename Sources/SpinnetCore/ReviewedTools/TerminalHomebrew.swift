@@ -5,10 +5,8 @@ import Foundation
 public enum TerminalHomebrew {
     public static let bundleID = "com.apple.Terminal"
     public static let family = "homebrew_commands"
-    public static let declaration = CandidateContractRevision(name: "terminal_homebrew", revision: 1)
     public static let member = PluginInterfaceMember.behaviour("terminal_homebrew")
-    public static let contract = CandidateContract(name: declaration.name, revision: 1, baseLevel: 4,
-        members: [member], tag: "plugin-api-candidate/terminal_homebrew/r1")
+    public static let members = [member]
     public static let commands: Set<String> = ["list", "outdated", "search", "info", "update", "upgrade", "install", "uninstall", "adopt", "services", "tap", "untap", "doctor", "cleanup", "autoremove", "config", "version"]
 
     public static func arguments(_ input: [String: JSONValue]) throws -> [String] {

@@ -43,7 +43,7 @@ final class CurrentAppSessionTests: XCTestCase {
         })
         sessions = PluginViewSessions(
             renderer: renderer, runEvent: runner.run, schedule: clock.schedule, showFeedback: { _ in },
-            permitting: { _ in { PluginInterfaceContracts.levelTwoMembers.contains($0) } },
+            permitting: { _ in { PluginInterfaceContracts.currentMembers.contains($0) } },
             operations: performer,
             reportOperation: { [unowned self] _, message in reported.append(message) }
         )
@@ -199,7 +199,7 @@ final class CurrentAppSessionTests: XCTestCase {
         performer = ExitOnlyPerformer(exits: exits, authorize: {})
         sessions = PluginViewSessions(
             renderer: renderer, runEvent: runner.run, schedule: clock.schedule, showFeedback: { _ in },
-            permitting: { _ in { PluginInterfaceContracts.levelTwoMembers.contains($0) } },
+            permitting: { _ in { PluginInterfaceContracts.currentMembers.contains($0) } },
             operations: performer, reportOperation: { [unowned self] _, message in reported.append(message) })
 
         let session = try start()

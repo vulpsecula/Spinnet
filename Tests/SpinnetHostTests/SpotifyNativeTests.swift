@@ -25,7 +25,7 @@ final class SpotifyNativeTests: XCTestCase {
 extension SpotifyNativeTests {
     func testInstalledSpotifyVolumeReadNeverPromptsOrChangesVolume() throws {
         let request = try XCTUnwrap(ReviewedAppInterface.interface(for: SpotifyPlayback.bundleID)).request(operation: "volume",
-            arguments: [:], candidateContracts: [SpotifyControls.declaration])
+            arguments: [:])
         do {
             let result = try SpotifyAppleEvents().perform(request, allowsPrompt: false)
             guard case .number(let volume)? = result.value(atPointer: "/volume") else { return XCTFail("Expected Spotify volume") }
@@ -46,7 +46,7 @@ extension SpotifyNativeTests {
     func testInstalledSpotifyStateAndNestedTrackIDReadWithNextSuppressed() throws {
         // Permission preflight and real GETs only. This is not a real Next test.
         let interface = try XCTUnwrap(ReviewedAppInterface.interface(for: SpotifyPlayback.bundleID))
-        let volume = try interface.request(operation: "volume", arguments: [:], candidateContracts: [SpotifyControls.declaration])
+        let volume = try interface.request(operation: "volume", arguments: [:])
         do { _ = try SpotifyAppleEvents().perform(volume, allowsPrompt: false) }
         catch PluginHostServiceError.appRead(let reason) { throw XCTSkip("Safe native preflight: \(reason.rawValue)") }
         catch PluginHostServiceError.automationPermissionDenied { throw XCTSkip("Safe native preflight: automation_permission_denied") }
@@ -60,7 +60,7 @@ extension SpotifyNativeTests {
             guard !application.isTerminated else { throw PluginHostServiceError.appRead(.notRunning) }
             return try event.sendEvent(options: [.waitForReply, .neverInteract, .init(rawValue: UInt(kAEDontReconnect))], timeout: timeout)
         })
-        let result = try adapter.perform(interface.request(operation: "next_checked", arguments: [:], candidateContracts: [SpotifyControls.declaration]))
+        let result = try adapter.perform(interface.request(operation: "next_checked", arguments: [:]))
         XCTAssertTrue(["stopped", "no_current_track", "unconfirmed", "changed"].map(JSONValue.string).contains(result.value(atPointer: "/outcome") ?? .null))
         XCTAssertLessThanOrEqual(suppressed, 1)
         print("SPOTIFY_NATIVE_READ_ONLY_NEXT_SUPPRESSED: \(result)")

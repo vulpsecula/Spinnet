@@ -17,28 +17,24 @@ them.
 | `pluginID`, `commandID`, `actionID`, `invocationID` | The current invocation; `invocationID` is fresh for every run |
 | `event` | The [View Event](views.md#view-sessions) this run answers, or `null` when the Action starts |
 | `state` | The state the script returned with its last view, or `null` |
-| `spinnet` | The SDK object, from [`spinnet.js`](../spinnet.js) |
+| `spinnet` | The SDK object, from [`spinnet.js`](../sdk/spinnet.js) |
 | `requestHostService(name, input)` | Sends a Capability-checked request to the Host and returns its JSON result |
 
-[`spinnet.d.ts`](../spinnet.d.ts) types them all.
+[`spinnet.d.ts`](../sdk/spinnet.d.ts) types them all.
 
 ## The spinnet SDK
 
-Every script runs with a `spinnet` global, organised by area. Each wrapper is
-a camelCase name for exactly one Host Service: it sends its argument as the
-service's input, unchanged (`null` when omitted), and returns the answer, so it
-fails exactly as `requestHostService` does. `spinnet.ui` is the exception: its
-builders only build views and answers, and request nothing. The
-[catalogue](../README.md#what-level-1-offers) lists every wrapper and the
-service it requests. A Level 2 Plugin's `spinnet` is laid out by catalogue ID
-instead, from [`spinnet-level-2.js`](../spinnet-level-2.js), and its
-`requestHostService` takes catalogue IDs only
-([Host Service IDs](namespaces.md#the-sdk)).
+Every script receives the current `spinnet` object, organized by catalogue
+namespace. Callable operations send their input to the Host and return its
+answer. Offered requests and View Actions have pure `.operation(...)` and
+`.action(...)` builders. `spinnet.ui` builds views, pages and answers. The
+[catalogue](../catalogue.json) lists permitted entry points; `requestHostService`
+accepts callable catalogue IDs only.
 
-`spinnet.environment` is decided by the Host: `apiLevel`, the highest Plugin
-API Level it supports, whatever Level the Plugin declares; `hostVersion`, its bundle version; `preferredLanguage`,
-the BCP 47 code of the user's first preferred language, such as `en-US`; and
-the invocation's `pluginID`, `commandID`, `actionID` and `invocationID`.
+`spinnet.environment` is decided by the Host: `hostVersion` is the running Host
+release; `preferredLanguage` is the BCP 47 code of the user's first preferred
+language, such as `en-US`. Invocation IDs are separate globals. No environment
+value grants authority.
 
 ## The answer
 
@@ -122,15 +118,14 @@ Host starts an invocation:
   "script_path": "transform.js",
   "script_source": "input",
   "input": "Selected text",
-  "environment": {"api_level": 2, "host_version": "0.1.0", "preferred_language": "en-US"},
+  "environment": {"host_version": "1.0.0", "preferred_language": "en-US"},
   "event": null,
   "state": null
 }
 ```
 
-For a Plugin declaring Level 2, the invocation also carries the manifest's
-level, `"api_level": 2`, beside `environment`, which is how the helper
-chooses Level 2's SDK; a Level 1 Plugin's invocation has no such member.
+The helper always installs the current SDK. Obsolete declaration members are
+protocol errors; no invocation selects a historical mode.
 
 While the script runs, the helper may request a Host Service. The request
 carries only the invocation and Action identifiers; the Host takes the Plugin's
@@ -144,12 +139,12 @@ manifest, grant and System Permission for every request:
   "invocation_id": "invocation-1",
   "action_id": "action-1",
   "request_id": "host-service-1",
-  "service": "read_selected_text",
+  "service": "selection.readText",
   "input": null
 }
 ```
 
-A Level 2 Plugin's helper names the catalogue ID in `service`, such as
+A Plugin's helper names the catalogue ID in `service`, such as
 `"selection.readText"`, and the Host refuses a name the Plugin may not use
 with `host_service_failed` and the reason.
 

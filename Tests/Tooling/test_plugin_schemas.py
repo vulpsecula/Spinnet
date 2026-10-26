@@ -16,16 +16,16 @@ class PluginSchemaCheckTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.api = Path(self.temp.name) / "PluginAPI"
         (self.api / "schemas").mkdir(parents=True)
-        (self.api / "fixtures/stable-levels").mkdir(parents=True)
+        (self.api / "fixtures/conformance").mkdir(parents=True)
         self.schema = {"$schema": "https://json-schema.org/draft/2020-12/schema",
                        "$defs": {"answer": {"type": "string"}}}
         self.index = {"cases": [{"name": "example", "value": "hello", "checks": [
-            {"schema": "answer.json", "definition": "answer", "level": 1, "valid": True}
+            {"schema": "answer.json", "definition": "answer", "valid": True}
         ]}]}
 
     def run_check(self):
         (self.api / "schemas/answer.json").write_text(json.dumps(self.schema))
-        (self.api / "fixtures/stable-levels/index.json").write_text(json.dumps(self.index))
+        (self.api / "fixtures/conformance/index.json").write_text(json.dumps(self.index))
         return subprocess.run(["uv", "run", "--locked", "--script", str(CHECKER),
                                "--api-dir", str(self.api)], cwd=self.temp.name,
                               text=True, capture_output=True)
@@ -35,7 +35,7 @@ class PluginSchemaCheckTests(unittest.TestCase):
                                 cwd=self.temp.name, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         report = json.loads(result.stdout)
-        index = json.loads((REPOSITORY / "PluginAPI/fixtures/stable-levels/index.json").read_text())
+        index = json.loads((REPOSITORY / "PluginAPI/fixtures/conformance/index.json").read_text())
         self.assertEqual(report["payloads"], len(index["cases"]))
         self.assertEqual(report["checks"], sum(len(case["checks"]) for case in index["cases"]))
         self.assertEqual(report["schemaMetaChecks"], len(list((REPOSITORY / "PluginAPI/schemas").rglob("*.json"))))
@@ -66,7 +66,7 @@ class PluginSchemaCheckTests(unittest.TestCase):
                 self.schema["$defs"]["answer"] = {"$ref": reference}
                 result = self.run_check()
                 self.assertEqual(result.returncode, 2)
-                self.assertIn("example, Level 1", result.stderr)
+                self.assertIn("example, answer.json", result.stderr)
 
     def test_unsafe_missing_or_alias_schema_paths_are_rejected(self):
         for path in ["../outside.json", "/tmp/answer.json", "./answer.json",
@@ -115,7 +115,7 @@ class PluginSchemaCheckTests(unittest.TestCase):
         self.run_check()
         for text in ['{"cases": [], "cases": []}', '{"cases": NaN}', '{']:
             with self.subTest(text=text):
-                (self.api / "fixtures/stable-levels/index.json").write_text(text)
+                (self.api / "fixtures/conformance/index.json").write_text(text)
                 result = subprocess.run(["uv", "run", "--locked", "--script", str(CHECKER),
                                          "--api-dir", str(self.api)], cwd=self.temp.name,
                                         text=True, capture_output=True)

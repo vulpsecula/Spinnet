@@ -2,14 +2,13 @@
 
 A Plugin is a local `.spinnetplugin` directory holding a `manifest.json` and
 the scripts its Commands run. The shape of the manifest is published as
-the [Levels 1–2 schema](../schemas/manifest.schema.json) and the later
-[Level-specific schemas](../README.md#plugin-api-level). This page states what
-the shape cannot, which the Host checks when it loads the package.
+the [manifest schema](../schemas/manifest.schema.json). This page states semantic
+rules the Host checks when it loads the package.
 
 ```json
 {
   "protocol_version": "1.0",
-  "api_level": 1,
+  "engines": {"spinnet": "^1.0.0"},
   "id": "com.example.plugin",
   "name": "Example Plugin",
   "version": "1.0.0",
@@ -29,7 +28,7 @@ the shape cannot, which the Host checks when it loads the package.
       "title": "Open URL",
       "execution": "host",
       "is_configurable": true,
-      "host_command": "url.open",
+      "host_command": "open.url",
       "configuration_field": {
         "kind": "url",
         "title": "URL",
@@ -47,27 +46,21 @@ the shape cannot, which the Host checks when it loads the package.
 }
 ```
 
-## Identity and level
+## Identity and Host compatibility
 
 `id`, `name`, `version`, Command IDs, and Command titles must be non-empty and
 no longer than 256 characters. Command IDs must be unique, and the protocol
 version must be `1.0`.
 
-`api_level` is the lowest Plugin API Level the Plugin needs, an integer of at
-least 1. The Host supports Levels 1–7 and refuses to install a Plugin that
-needs a higher level, telling the user to update Spinnet. A manifest without
-`api_level` is read as needing Level 1. `protocol_version` only frames the
-[helper messages](scripts.md#the-helper-protocol) and does not version the
-interface.
+`engines.spinnet` declares the Host versions the Plugin supports. Use exact
+`M.m.p` or caret `^M.m.p`; see [compatibility](compatibility.md) for the bounded
+grammar and legacy-declaration refusal. `protocol_version` only frames
+[helper messages](scripts.md#the-helper-protocol).
 
-At Level 2 a Command that runs no script names its Host Service by
-[catalogue ID](namespaces.md), such as `"host_command": "open.url"`, and may
-fix members of its input in `input` ([input](namespaces.md#input)); a Level 1
-Host Command name is refused with the ID to use instead. The schema holds a
-Level 2 manifest's Commands to `namespaces.schema.json`'s `command`, and a
-Level 1 manifest's to the Commands below. A manifest that still declares
-a retired Candidate Contract in `candidate_contracts` is refused with the
-Level to declare instead ([Candidate Contracts](../candidates/README.md)).
+A Command that runs no script names its Host Service by [catalogue ID](namespaces.md),
+such as `"host_command": "open.url"`, and may fix members of its input in `input`
+([input](namespaces.md#input)). Only entry points offered by the catalogue are
+admitted. Historical Host Command names are refused.
 
 ## Commands
 
@@ -91,32 +84,39 @@ the `command_unavailable` outcome, and nothing runs.
 
 ### Host Commands
 
-| Host Command | Action input | Host integration | Authority |
-| --- | --- | --- | --- |
-| `url.open` | URL string, or `{ "url": "…" }` | `NSWorkspace` | none |
-| `application.open` | application path or bundle identifier | `NSWorkspace` | none |
-| `file.open` | file path, or `{ "path": "…" }` | `NSWorkspace` | file must exist |
-| `folder.open` | folder path, or `{ "path": "…" }` | `NSWorkspace` | folder must exist |
-| `keyboard_shortcut.invoke` | `{ "key": "P", "modifiers": ["command"] }` or `key_code` | Quartz Event Services | Accessibility System Permission |
-| `service.invoke` | Service name, or `{ "name": "…", "input": "…" }` | macOS Services | service availability |
-| `shortcut.invoke` | Shortcut name, or `{ "name": "…", "input": "…" }` | Public `shortcuts` command-line interface | Shortcut availability |
-| `clipboard.copy` | `null` to copy current selected text, or text string / `{ "text": "…" }` | Host clipboard | `write_clipboard`; `read_selected_text` when input is `null` |
-| `clipboard.paste` | `null` | Quartz Event Services (`Command-V`) | Accessibility System Permission |
-| `clipboard.cut` | `null` | Quartz Event Services (`Command-X`) | Accessibility System Permission |
-| `feedback.present` | message string, or `{ "message": "…" }` | Host-rendered feedback | none |
-| `screen.capture_area`, `screen.capture_full_screen`, `screen.capture_window` | `null` | `/usr/sbin/screencapture`, then the Screenshot Plugin Settings | `capture_screen`; Screen Recording System Permission |
-| `deep_link.open` | the values of the template's parameters, from the Command's configuration | one of the Plugin's [Deep Link Templates](host-services.md#open_deep_link) | `control_external_app` |
+| Host Command ID | Action input | Authority |
+| --- | --- | --- |
+| `open.url` | URL string or `{ "url": "…" }` | User-configured destination; no Capability |
+| `open.application` | Application path or bundle identifier | User-configured destination; no Capability |
+| `open.path` | File/folder path or `{ "path": "…" }` | User-configured destination; path must exist |
+| `keyboard.press` | `{ "key": "P", "modifiers": ["command"] }` or `key_code` | Accessibility |
+| `system.runService` | Service name or `{ "name": "…", "input": "…" }` | User-configured Service, context must support it |
+| `system.runShortcut` | Shortcut name or `{ "name": "…", "input": "…" }` | User-configured Shortcut |
+| `selection.copy` | `null` | `write_clipboard`, `read_selected_text`, Accessibility |
+| `clipboard.write` | Text string or `{ "text": "…" }` | `write_clipboard` |
+| `selection.paste`, `selection.cut` | `null` | Accessibility |
+| `host.toast` | Text string or `{ "text": "…" }` | None |
+| `screen.capture` | Fixed `input: {"source": "area"}`, `fullscreen` or `window` | `capture_screen`, Screen Recording; user screenshot preferences |
+| `apps.openDeepLink` | Declared template's configured parameters | `control_external_app` |
+| `host.showPluginSettings` | `null` | Opens the calling Plugin's settings |
+| `clipboardHistory.show` | `null` | Scoped `read_clipboard_history`; Host-rendered history |
+| `apps.perform` | Fixed `bundle_id` and `operation`, with configured arguments | Scoped `control_external_app`; reviewed App operation |
+| `system.keepAwake` | Typed keep-awake Effect input | `keep_awake` |
+| `window.toggleFullScreen` | `null` | `position_focused_window`, Accessibility |
+| `window.restore` | `null` | `position_focused_window`, Accessibility |
+| `tools.showServices` | Reviewed Homebrew Services presentation input | Scoped `read_reviewed_tools` |
 
-For `service.invoke`, use the exact item title shown in the active
-application's Services menu. Services are context-sensitive actions supplied by
-installed apps or extensions, commonly used to transform, look up, or share
-selected text. A selected text object must be present when the service expects
-text input; nested service paths use `/` separators.
+The [catalogue](../catalogue.json) specifies every Command entry point and its
+input, output and authority rules. A Command may fix input members
+while its configuration supplies the rest; see [input assembly](namespaces.md#input).
 
-A `deep_link.open` Command names its template with `deep_link_template`; the
-template must be declared in the `control_external_app` scope that covers the
-Command, and each of its parameters is filled from the configuration field with
-the same key. Such a Command needs no script.
+For `system.runService`, use the exact item title shown in the active
+application's Services menu; nested paths use `/` separators. Services are
+context-sensitive and may require selected text.
+
+An `apps.openDeepLink` Command names `deep_link_template`, declared in its
+`control_external_app` scope. Configuration fields fill the template's named
+parameters. It needs no script.
 
 The Host checks an Action's input against its Host Command, and the Capability
 and System Permission it needs, before it performs it. An unavailable
@@ -158,9 +158,7 @@ requires a new decision, even if the version string is reused.
 is declared anyway for `read_selected_text` or `write_clipboard`, like the
 required one for `insert_into_focused_app`, may name Command IDs and the
 `text` data type only; for the other six it may name Command IDs only.
-`read_frontmost_app` and `quit_frontmost_app` are Plugin API Level 2's
-([the App in front](apps.md)): a manifest declaring `api_level` 1 that
-declares either is refused. `read_current_clipboard`, `read_clipboard_history` and
+`read_frontmost_app` and `quit_frontmost_app` cover [the App in front](apps.md). `read_current_clipboard`, `read_clipboard_history` and
 `monitor_clipboard` scopes must name data types. History declarations must name data types and disclose access to
 retained Host data. Contact and External App declarations must name hosts and
 operation families or Deep Link Templates, respectively. None of these
@@ -181,8 +179,7 @@ copying it, then asks the user to install it, listing the access nobody has
 decided on yet, grouped as Reads, Monitors, Contacts, Controls, Changes, and
 System Access. Installing copies the package into Host-owned storage and grants
 that access; cancelling installs nothing. A package asking for no new access
-installs at once, and a refused one, such as one needing an unsupported Plugin
-API Level, is reported. An update keeps the decisions for unchanged scopes and
+installs at once, and a refused one, such as one requiring an incompatible Host version, is reported. An update keeps the decisions for unchanged scopes and
 asks again for new or changed ones before replacing the installed copy;
 cancelling keeps that copy and its access decisions. The Access page immediately
 shows inherited granted and denied decisions for the updated version.
@@ -357,7 +354,6 @@ the schema rejects them: `script_path` and `javascript` for `script`,
 `configuration` for `configuration_field`, and the `common_javascript` and
 `script` executions.
 
-External App connection prerequisites are stable from
-[Level 3](level-3.md#spotify-controls-and-external-app-connections); use the
-[connection schema](../schemas/external-app-connections.schema.json).
-They are not part of Level 2, and their former candidate declaration is retired.
+External App connection prerequisites use the [connection schema](../schemas/external-app-connections.schema.json).
+They name reviewed Apps and dependent Command IDs. Connection setup belongs to
+Host-owned Plugin Settings and grants no operation by itself.

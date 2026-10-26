@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Spinnet Plugin API namespaces (Plugin API Level 2)",
-  "description": "Plugin API Level 2, promoted from Candidate Contract namespaces revision 1. The wire shapes of the Plugin API catalogue (../catalogue.json): each operation's input and result under its one ID, the IDs each entry point accepts, a call as the helper carries it, a page action that performs an operation and the input a performed operation takes (used by pages and Requested Host Operations), and a manifest Command that names an operation. A Level 2 Plugin names operations only by these IDs, except inside a Level 1 view (decision N5). Level 1's own shapes are unchanged and refuse every ID here; manifest.schema.json holds a Level 2 manifest's Commands to command below.",
+  "title": "Spinnet Host Service catalogue inputs and results",
+  "description": "Current catalogue IDs, entry points, inputs and results. Authority and ownership checks remain mandatory.",
   "$defs": {
     "text": {
       "description": "A string with at least one character that is not white space.",
@@ -42,7 +42,7 @@
       }
     },
     "operation_id": {
-      "description": "Every catalogue ID a Level 2 Plugin may name somewhere: exactly namespace.verb, two lowerCamelCase segments.",
+      "description": "Every catalogue ID a current Plugin may name somewhere: exactly namespace.verb, two lowerCamelCase segments.",
       "enum": [
         "host.toast",
         "host.closeView",
@@ -190,7 +190,7 @@
       "pattern": "^app_[0-9a-f]{32}$"
     },
     "app_exit": {
-      "description": "close presses the App's own enabled \u2318W menu item, closing its front window as \u2318W does; quit presses its own enabled \u2318Q menu item, as \u2318Q or the Dock's Quit does; force_quit ends it at once.",
+      "description": "close presses the App's own enabled ⌘W menu item, closing its front window as ⌘W does; quit presses its own enabled ⌘Q menu item, as ⌘Q or the Dock's Quit does; force_quit ends it at once.",
       "enum": [
         "close",
         "quit",
@@ -278,7 +278,7 @@
       "description": "No input."
     },
     "keyboard.press.input": {
-      "description": "A key by name or by virtual key code, with modifiers. Level 1's string form and its alias member names stay Level 1's.",
+      "description": "A key by name or by virtual key code, with modifiers. String notation and supported alias members retain their documented parsing rules.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -462,14 +462,7 @@
       ]
     },
     "apps.perform.input": {
-      "allOf": [
-        {
-          "$ref": "external-apps.schema.json#/$defs/perform_app_operation.input"
-        },
-        {
-          "$ref": "spotify.schema.json#/$defs/reviewed_interface"
-        }
-      ]
+      "$ref": "external-apps.schema.json#/$defs/perform_app_operation.input"
     },
     "apps.openDeepLink.input": {
       "$ref": "external-apps.schema.json#/$defs/open_deep_link.input"
@@ -479,7 +472,7 @@
       "type": "null"
     },
     "apps.quit.input": {
-      "description": "The App to end and how. Without target, the App in front when the Host accepts the request (the answer commits or the page action is chosen); with one, the App that App Target names. force asks for Force Quit; otherwise the Host presses the App's own \u2318Q menu item, which needs Accessibility, and refuses an App whose menu has none. null is the App in front, quit gracefully. The Host asks a Host Confirmation naming the App for Force Quit and for an App not in front when it accepted the request; a graceful quit of the App in front then asks none.",
+      "description": "The App to end and how. Without target, the App in front when the Host accepts the request (the answer commits or the page action is chosen); with one, the App that App Target names. force asks for Force Quit; otherwise the Host presses the App's own ⌘Q menu item, which needs Accessibility, and refuses an App whose menu has none. null is the App in front, quit gracefully. The Host asks a Host Confirmation naming the App for Force Quit and for an App not in front when it accepted the request; a graceful quit of the App in front then asks none.",
       "oneOf": [
         {
           "type": "null"
@@ -499,7 +492,7 @@
       ]
     },
     "apps.close.input": {
-      "description": "The App whose front window to close. Without target, the App in front when the Host accepts the request (the answer commits or the page action is chosen); with one, the App that App Target names. The Host presses the App's own \u2318W menu item, which needs Accessibility, and refuses an App whose menu has none enabled. The Host asks a Host Confirmation naming the App for an App not in front when it accepted the request; closing the App in front then asks none.",
+      "description": "The App whose front window to close. Without target, the App in front when the Host accepts the request (the answer commits or the page action is chosen); with one, the App that App Target names. The Host presses the App's own ⌘W menu item, which needs Accessibility, and refuses an App whose menu has none enabled. The Host asks a Host Confirmation naming the App for an App not in front when it accepted the request; closing the App in front then asks none.",
       "oneOf": [
         {
           "type": "null"
@@ -578,7 +571,7 @@
       "description": "No input."
     },
     "screen.capture.input": {
-      "description": "source alone, as a string or {source}, copies or saves as the user's screenshot preferences say (decision N9); otherwise copy_to_clipboard and save together, as Level 1's capture_screen, with at least one of them doing something and save.folder a folder the Action's configuration uses.",
+      "description": "source alone, as a string or {source}, copies or saves as the user's screenshot preferences say (decision N9); otherwise copy_to_clipboard and save together, as current's capture_screen, with at least one of them doing something and save.folder a folder the Action's configuration uses.",
       "oneOf": [
         {
           "enum": [
@@ -861,12 +854,22 @@
       "type": "null"
     },
     "apps.perform.result": {
-      "oneOf": [
+      "anyOf": [
         {
-          "type": "null"
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "spotify.schema.json#/$defs/playback"
+            }
+          ]
         },
         {
-          "$ref": "spotify.schema.json#/$defs/playback"
+          "$ref": "spotify-controls.schema.json#/$defs/volume"
+        },
+        {
+          "$ref": "spotify-controls.schema.json#/$defs/next_outcome"
         }
       ]
     },
@@ -874,7 +877,7 @@
       "type": "null"
     },
     "apps.frontmost.result": {
-      "description": "The App in front, or null while Spinnet or no App is in front, or an App whose launch date and process start time the Host cannot read, which it cannot tell from a later App with its process ID (Finder, which has no launch date, is identified by its process start time). exits lists what apps.close and apps.quit would do to it now: close and quit when its own menu has an enabled \u2318W or \u2318Q item and Spinnet has Accessibility, force_quit for any regular App; an empty list means the Host performs no exit on it.",
+      "description": "The App in front, or null while Spinnet or no App is in front, or an App whose launch date and process start time the Host cannot read, which it cannot tell from a later App with its process ID (Finder, which has no launch date, is identified by its process start time). exits lists what apps.close and apps.quit would do to it now: close and quit when its own menu has an enabled ⌘W or ⌘Q item and Spinnet has Accessibility, force_quit for any regular App; an empty list means the Host performs no exit on it.",
       "oneOf": [
         {
           "type": "null"
@@ -1319,7 +1322,7 @@
       ]
     },
     "view_action": {
-      "description": "A page action that performs a Host Service (collections): the Host performs it on the user's click without a View Event, under the Capability the operation needs at this entry point. title defaults to the catalogue's default_title. No shortcut: pages bind none. A Level 1 view keeps Level 1's standard actions instead (decision N5).",
+      "description": "A page action that performs a Host Service (collections): the Host performs it on the user's click without a View Event, under the Capability the operation needs at this entry point. title defaults to the catalogue's default_title. No shortcut: pages bind none. Form/detail views use their standard-action shape with the same catalogue IDs.",
       "type": "object",
       "required": [
         "perform"
@@ -1888,7 +1891,7 @@
       ]
     },
     "command": {
-      "description": "A Level 2 manifest Command: Level 1's Command, with host_command naming a catalogue ID and an optional fixed input. The Host also checks what a shape cannot say: input's members belong to the operation's input and no configuration field supplies one of them again; the Action's input, merged with input, satisfies the operation's input definition.",
+      "description": "A manifest Command names a catalogue ID in host_command and may declare fixed input. The Host also checks what a shape cannot say: input's members belong to the operation's input and no configuration field supplies one of them again; the Action's input, merged with input, satisfies the operation's input definition.",
       "type": "object",
       "required": [
         "id",
@@ -2188,13 +2191,43 @@
       }
     },
     "tools.read.input": {
-      "$ref": "reviewed-tools.schema.json#/$defs/tools.read.input"
+      "anyOf": [
+        {
+          "$ref": "reviewed-tools.schema.json#/$defs/tools.read.input"
+        },
+        {
+          "$ref": "homebrew-autoremove.schema.json#/$defs/previewInput"
+        },
+        {
+          "$ref": "command-output.schema.json#/$defs/input"
+        }
+      ]
     },
     "tools.read.result": {
-      "$ref": "reviewed-tools.schema.json#/$defs/tools.read.result"
+      "anyOf": [
+        {
+          "$ref": "reviewed-tools.schema.json#/$defs/tools.read.result"
+        },
+        {
+          "$ref": "homebrew-autoremove.schema.json#/$defs/previewResult"
+        },
+        {
+          "$ref": "command-output.schema.json#/$defs/result"
+        }
+      ]
     },
     "tools.startTask.input": {
-      "$ref": "reviewed-tools.schema.json#/$defs/tools.startTask.input"
+      "anyOf": [
+        {
+          "$ref": "reviewed-tools.schema.json#/$defs/tools.startTask.input"
+        },
+        {
+          "$ref": "homebrew-autoremove.schema.json#/$defs/taskInput"
+        },
+        {
+          "$ref": "catalog-refresh.schema.json"
+        }
+      ]
     },
     "tools.startTask.result": {
       "type": "null"

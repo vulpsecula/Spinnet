@@ -1,5 +1,5 @@
 {
-  "description": "Plugin API Level 2 reviewed read protocol fixtures (#87).",
+  "description": "Plugin API current reviewed read protocol fixtures (#87).",
   "fixtures": [
     {
       "file": "calls/installed.json",

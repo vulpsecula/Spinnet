@@ -1,28 +1,22 @@
 import SpinnetTestSupport
 import Foundation
+import JavaScriptCore
+import SpinnetPluginAPI
 import XCTest
 import SpinnetCore
 import SpinnetPluginTestKit
 
 /// The `spinnet` object the helper injects into every script (W9 #56): one
 /// namespace per area, each wrapper a camelCase name for exactly one Host
-/// Service, and `PluginAPI/spinnet.d.ts` describing the same object.
+/// Service, and `PluginAPI/sdk/spinnet.d.ts` describing the same object.
 final class SpinnetSDKTests: XCTestCase {
-    /// Services the SDK leaves unwrapped because a ticket under the plugin
-    /// architecture map, #47, removes them before Level 1 is published. A
-    /// script can still reach them through `requestHostService`. The list may
-    /// only shrink: when a ticket removes its service, its line stops
-    /// compiling; when a ticket keeps a service under a new shape, delete
-    /// its line here and wrap it in the SDK instead.
-    private static let unwrapped: [PluginHostService: String] = [:]
-
     private static let repository = TestRepository.root
 
     private var helper: PluginTestHelper!
 
     override func setUpWithError() throws {
         helper = try PluginTestHelper(environment: PluginRuntimeEnvironment(
-            apiLevel: 1, hostVersion: "9.8.7", preferredLanguage: "zh-Hans-CN"
+            hostVersion: "9.8.7", preferredLanguage: "zh-Hans-CN"
         ))
     }
 
@@ -38,27 +32,27 @@ final class SpinnetSDKTests: XCTestCase {
     func testEachWrapperRequestsExactlyOneHostServiceWithItsArgumentAsTheInput() throws {
         let wrappers = try wrappedServices()
 
-        XCTAssertEqual(wrappers["selection.readText"], .readSelectedText)
-        XCTAssertEqual(wrappers["selection.replace"], .insertText)
-        XCTAssertEqual(wrappers["clipboard.read"], .readCurrentClipboard)
-        XCTAssertEqual(wrappers["clipboard.write"], .writeClipboard)
-        XCTAssertEqual(wrappers["clipboard.history"], .readClipboardHistory)
-        XCTAssertEqual(wrappers["clipboard.historyContent"], .readClipboardHistoryContent)
-        XCTAssertEqual(wrappers["clipboard.showHistory"], .presentClipboardHistory)
-        XCTAssertEqual(wrappers["window.read"], .readFocusedWindow)
-        XCTAssertEqual(wrappers["window.setFrame"], .setFocusedWindowFrame)
-        XCTAssertEqual(wrappers["window.toggleFullScreen"], .toggleFocusedWindowFullScreen)
-        XCTAssertEqual(wrappers["window.restore"], .restoreFocusedWindowFrame)
-        XCTAssertEqual(wrappers["open.url"], .openURL)
-        XCTAssertEqual(wrappers["open.path"], .openLocalPath)
-        XCTAssertEqual(wrappers["http.request"], .httpsRequest)
-        XCTAssertEqual(wrappers["text.detectLanguage"], .detectLanguage)
-        XCTAssertEqual(wrappers["screen.capture"], .captureScreen)
-        XCTAssertEqual(wrappers["storage.get"], .getStorageValue)
-        XCTAssertEqual(wrappers["storage.set"], .setStorageValue)
-        XCTAssertEqual(wrappers["storage.remove"], .removeStorageValue)
-        XCTAssertEqual(wrappers["storage.keys"], .listStorageKeys)
-        XCTAssertEqual(wrappers["storage.clear"], .clearStorage)
+        XCTAssertEqual(wrappers["selection.readText"], "selection.readText")
+        XCTAssertEqual(wrappers["selection.replace"], "selection.replace")
+        XCTAssertEqual(wrappers["clipboard.read"], "clipboard.read")
+        XCTAssertEqual(wrappers["clipboard.write"], "clipboard.write")
+        XCTAssertEqual(wrappers["clipboardHistory.read"], "clipboardHistory.read")
+        XCTAssertEqual(wrappers["clipboardHistory.readContent"], "clipboardHistory.readContent")
+        XCTAssertEqual(wrappers["clipboardHistory.show"], "clipboardHistory.show")
+        XCTAssertEqual(wrappers["window.read"], "window.read")
+        XCTAssertEqual(wrappers["window.setFrame"], "window.setFrame")
+        XCTAssertEqual(wrappers["window.toggleFullScreen"], "window.toggleFullScreen")
+        XCTAssertEqual(wrappers["window.restore"], "window.restore")
+        XCTAssertEqual(wrappers["open.url"], "open.url")
+        XCTAssertEqual(wrappers["open.path"], "open.path")
+        XCTAssertEqual(wrappers["http.request"], "http.request")
+        XCTAssertEqual(wrappers["text.detectLanguage"], "text.detectLanguage")
+        XCTAssertEqual(wrappers["screen.capture"], "screen.capture")
+        XCTAssertEqual(wrappers["storage.get"], "storage.get")
+        XCTAssertEqual(wrappers["storage.set"], "storage.set")
+        XCTAssertEqual(wrappers["storage.remove"], "storage.remove")
+        XCTAssertEqual(wrappers["storage.keys"], "storage.keys")
+        XCTAssertEqual(wrappers["storage.clear"], "storage.clear")
     }
 
     /// A wrapper called without an argument sends `null`, as
@@ -81,7 +75,7 @@ final class SpinnetSDKTests: XCTestCase {
     func testAWrapperFailsTheSameWayAsTheRawCall() throws {
         let failure = RecordedHostServices([.readSelectedText: .failure(.unavailable("No readable selection"))])
         let wrapped = try writePlugin(capabilities: ["read_selected_text"], script: "spinnet.selection.readText()")
-        let raw = try writePlugin(capabilities: ["read_selected_text"], script: "requestHostService(\"read_selected_text\")")
+        let raw = try writePlugin(capabilities: ["read_selected_text"], script: "requestHostService(\"selection.readText\")")
 
         let wrappedError = try XCTUnwrap(failureOf(helper.run(PluginTestInvocation("example.run"), of: wrapped,
                                                              answering: failure)))
@@ -206,7 +200,7 @@ final class SpinnetSDKTests: XCTestCase {
     /// `requestHostService` stays as the raw call beside the SDK.
     func testTheRawCallRemains() throws {
         let plugin = try writePlugin(capabilities: ["read_selected_text"], script: """
-            typeof requestHostService === "function" ? requestHostService("read_selected_text") : "missing"
+            typeof requestHostService === "function" ? requestHostService("selection.readText") : "missing"
             """)
 
         let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices([
@@ -226,8 +220,8 @@ final class SpinnetSDKTests: XCTestCase {
         let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
 
         XCTAssertEqual(try run.result.get(), .array([
-            "action", "choiceField", "close", "copyText", "detail", "form", "insertText", "multilineTextField",
-            "openPluginSettings", "openURL", "section", "setting", "show", "textField", "toast", "toggleField",
+            "action", "choiceField", "close", "components", "copyText", "detail", "form", "insertText", "multilineTextField",
+            "openPluginSettings", "openURL", "page", "request", "section", "setting", "show", "showPage", "source", "textField", "toast", "toggleField",
             "urlField", "view"
         ].map(JSONValue.string)))
     }
@@ -467,121 +461,100 @@ final class SpinnetSDKTests: XCTestCase {
 
     // MARK: - Environment
 
-    /// The Host tells the script which Plugin API Level it supports, its own
-    /// version, the user's preferred language, and the invocation's IDs.
-    func testTheEnvironmentReportsTheHostAndTheInvocation() throws {
-        let plugin = try writePlugin(capabilities: [], script: "spinnet.environment")
-
-        let run = helper.run(PluginTestInvocation("example.run", actionID: "action-7"), of: plugin,
-                             answering: RecordedHostServices())
-
-        guard case .object(var environment) = try run.result.get() else {
-            return XCTFail("spinnet.environment is not an object")
-        }
-        // The Host makes a fresh invocation ID for every run.
-        guard case .string(let invocationID)? = environment.removeValue(forKey: "invocationID") else {
-            return XCTFail("spinnet.environment has no invocationID")
-        }
-        XCTAssertFalse(invocationID.isEmpty)
-        XCTAssertEqual(environment, [
-            "apiLevel": .number(1),
-            "hostVersion": .string("9.8.7"),
-            "preferredLanguage": .string("zh-Hans-CN"),
-            "pluginID": .string("com.example.sdk"),
-            "commandID": .string("example.run"),
-            "actionID": .string("action-7")
-        ])
+    /// Host identity and language belong to the SDK environment. Invocation
+    /// identity stays available through the script globals.
+    func testTheEnvironmentReportsOnlyTheHostAndLanguage() throws {
+        let plugin = try writePlugin(capabilities: [], script: "({environment:spinnet.environment,environmentKeys:Object.keys(spinnet.environment).sort(),pluginID,commandID,actionID,invocationID})")
+        let run = helper.run(PluginTestInvocation("example.run", actionID: "action-7"), of: plugin, answering: RecordedHostServices())
+        let value = try run.result.get()
+        XCTAssertEqual(value.value(atPointer: "/environment"), .object(["hostVersion": .string("9.8.7"), "preferredLanguage": .string("zh-Hans-CN")]))
+        XCTAssertEqual(value.value(atPointer: "/environmentKeys"), .array([.string("hostVersion"), .string("preferredLanguage")]),
+                       "Undefined properties must not retain retired environment members")
+        XCTAssertEqual(value.value(atPointer: "/pluginID"), .string("com.example.sdk"))
+        XCTAssertEqual(value.value(atPointer: "/commandID"), .string("example.run"))
+        XCTAssertEqual(value.value(atPointer: "/actionID"), .string("action-7"))
+        guard case .string(let id)? = value.value(atPointer: "/invocationID") else { return XCTFail("No invocation ID") }
+        XCTAssertFalse(id.isEmpty)
     }
 
-    /// The Host builds the environment from what it is: the highest Plugin
-    /// API Level it supports, its bundle's version, and the first of the
-    /// user's preferred languages.
+    /// The Host uses its bundle version and the first preferred language.
     func testTheHostsEnvironmentComesFromItsBundleAndTheUsersLanguages() throws {
         let bundle = try XCTUnwrap(Bundle(url: try writeBundle(version: "2.3.4")))
 
         let environment = PluginRuntimeEnvironment.current(bundle: bundle, preferredLanguages: ["de-CH", "en-US"])
 
         XCTAssertEqual(environment, PluginRuntimeEnvironment(
-            apiLevel: PluginAPILevel.highestSupported, hostVersion: "2.3.4", preferredLanguage: "de-CH"
+            hostVersion: "2.3.4", preferredLanguage: "de-CH"
         ))
     }
 
     // MARK: - Coverage
 
-    /// The SDK wraps every Host Service the Host registers, except those
-    /// being removed, and wraps nothing else.
-    func testTheSDKCoversEveryHostServiceTheHostRegisters() throws {
-        let wrapped = Set(try wrappedServices().values)
-        let expected = Set(PluginHostService.levelOne).subtracting(Self.unwrapped.keys)
-
-        for service in expected.subtracting(wrapped).sorted(by: { $0.rawValue < $1.rawValue }) {
-            XCTFail("The SDK does not wrap \(service.rawValue). Add a camelCase wrapper for it to the area it "
-                + "belongs to in PluginAPI/spinnet.js, and declare it with `@service \(service.rawValue)` in "
-                + "PluginAPI/spinnet.d.ts.")
-        }
-        for service in wrapped.intersection(Self.unwrapped.keys) {
-            XCTFail("\(service.rawValue) is wrapped but listed as unwrapped; delete it from `unwrapped`.")
-        }
+    /// The runtime, types and catalogue expose the same callable operations.
+    func testTheSDKCoversEveryCallableCatalogueOperation() throws {
+        let wrapped = try wrappedServices()
+        let expected = Set(HostServiceCatalogue.operations.filter { $0.isOffered(at: .call) }.map(\.id))
+        XCTAssertEqual(Set(wrapped.keys), expected)
+        XCTAssertEqual(Set(wrapped.values), expected)
     }
 
-    /// `spinnet.d.ts` declares the same wrappers as the SDK, each tagged with
-    /// the service it requests, and names every service the Host registers.
-    func testTheTypesDescribeTheSameWrappersAndEveryHostService() throws {
-        let types = try String(contentsOf: Self.repository.appendingPathComponent("PluginAPI/spinnet.d.ts"),
-                               encoding: .utf8)
+    func testTheTypesDescribeTheSameWrappersAndEveryCallableOperation() throws {
+        let types = try String(contentsOf: Self.repository.appendingPathComponent("PluginAPI/sdk/spinnet.d.ts"), encoding: .utf8)
         let declared = try DeclaredSDK(types)
-        let wrappers = try wrappedServices()
-
-        XCTAssertEqual(declared.wrappers, wrappers.mapValues(\.rawValue),
-                       "Every wrapper in spinnet.js needs a method in spinnet.d.ts tagged `@service <name>`")
+        XCTAssertEqual(declared.wrappers, try wrappedServices())
         XCTAssertEqual(declared.areas, try sdkAreas())
-        XCTAssertEqual(declared.serviceNames, Set(PluginHostService.levelOne.map(\.rawValue)),
-                       "HostServiceName in spinnet.d.ts lists every Host Service the Host registers")
+        XCTAssertEqual(declared.serviceNames, Set(HostServiceCatalogue.operations.filter { $0.isOffered(at: .call) }.map(\.id)))
     }
 
     // MARK: - Support
 
-    /// Every wrapper, keyed `area.name`, and the one service it requested.
-    private func wrappedServices() throws -> [String: PluginHostService] {
-        let plugin = try writePlugin(capabilities: [], script: """
-            (() => {
-              const called = [];
-              for (const area of Object.keys(spinnet)) {
-                // The environment holds values, and `ui` only builds views.
-                if (area === "environment" || area === "ui") continue;
-                for (const name of Object.keys(spinnet[area])) {
-                  spinnet[area][name]({ probe: area + "." + name });
-                  called.push(area + "." + name);
-                }
-              }
-              return called;
-            })()
-            """)
-        let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: AnswerEveryService())
-        guard case .array(let called) = try run.result.get() else {
-            XCTFail("The probe returned no list of wrappers")
-            return [:]
-        }
-        XCTAssertEqual(run.requests.count, called.count, "Each wrapper makes exactly one request")
-
-        var services: [String: PluginHostService] = [:]
-        for request in run.requests {
-            guard case .object(let input) = request.input, input.count == 1,
-                  case .string(let wrapper) = input["probe"] else {
-                XCTFail("\(request.service.rawValue) received \(request.input), not the wrapper's argument")
-                continue
+    /// Probe forwarding before Host validation; real-helper tests above
+    /// cover execution, grants and failures. Reviewed reads get valid input.
+    private func sdkProbe(_ expression: String) throws -> JSONValue {
+        let context = try XCTUnwrap(JSContext())
+        context.evaluateScript("var requests=[]; function requestHostService(id,input){requests.push({id,input});return null;} var environment={hostVersion:'1.0.0',preferredLanguage:'en'};")
+        for (index, source) in [SpinnetSDK.source, SpinnetSDK.currentSource, SpinnetSDK.adaptiveSource, SpinnetSDK.autoremoveSource, SpinnetSDK.commandOutputSource].enumerated() {
+            let factory = try XCTUnwrap(context.evaluateScript(source))
+            let request = try XCTUnwrap(context.objectForKeyedSubscript("requestHostService"))
+            let environment = try XCTUnwrap(context.objectForKeyedSubscript("environment"))
+            let args: [Any]
+            if index == 0 { args = [request, environment] }
+            else {
+                let sdk = try XCTUnwrap(context.objectForKeyedSubscript("spinnet"))
+                if index == 1 { args = [request, environment, sdk] }
+                else if index == 3 || index == 4 { args = [sdk, request] }
+                else { args = [sdk] }
             }
-            XCTAssertNil(services[wrapper], "\(wrapper) made more than one request")
-            services[wrapper] = request.service
+            context.setObject(try XCTUnwrap(factory.call(withArguments: args)), forKeyedSubscript: "spinnet" as NSString)
+            XCTAssertNil(context.exception, context.exception?.toString() ?? "")
         }
-        return services
+        let result = try XCTUnwrap(context.evaluateScript("JSON.stringify(" + expression + ")")?.toString())
+        XCTAssertNil(context.exception, context.exception?.toString() ?? "")
+        return try JSONDecoder().decode(JSONValue.self, from: Data(result.utf8))
+    }
+
+    private func wrappedServices() throws -> [String: String] {
+        let value = try sdkProbe("""
+            (()=>{const result={};for(const area of Object.keys(spinnet)){
+              if(area==='ui'||area==='environment')continue;
+              for(const name of Object.keys(spinnet[area])){
+                if(typeof spinnet[area][name]!=='function')continue;
+                const id=area+'.'+name;
+                const input=id==='tools.read'?{tool:'homebrew',operation:'installed'}:{probe:id};
+                const before=requests.length;spinnet[area][name](input);
+                if(requests.length!==before+1)throw Error(id+' did not forward exactly once');
+                const call=requests[before];if(JSON.stringify(call.input)!==JSON.stringify(input))throw Error(id+' changed its input');
+                result[id]=call.id;
+              }
+            }return result;})()
+            """)
+        guard case .object(let values) = value else { throw DeclaredSDK.DeclarationError("No wrapper result") }
+        return values.compactMapValues { if case .string(let text) = $0 { return text }; return nil }
     }
 
     private func sdkAreas() throws -> Set<String> {
-        let plugin = try writePlugin(capabilities: [], script: "Object.keys(spinnet)")
-        let run = helper.run(PluginTestInvocation("example.run"), of: plugin, answering: RecordedHostServices())
-        guard case .array(let areas) = try run.result.get() else { return [] }
-        return Set(areas.compactMap { if case .string(let area) = $0 { return area } else { return nil } })
+        guard case .array(let values) = try sdkProbe("Object.keys(spinnet)") else { return [] }
+        return Set(values.compactMap { if case .string(let text) = $0 { return text }; return nil })
     }
 
     private func failureOf(_ run: PluginTestRun) -> PluginRuntimeError? {
@@ -606,7 +579,7 @@ final class SpinnetSDKTests: XCTestCase {
         let optionalList = optional.map { "\"\($0)\"" }.joined(separator: ", ")
         try """
         {
-          "protocol_version": "1.0", "id": "com.example.sdk", "name": "SDK Example", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.sdk", "name": "SDK Example", "version": "1.0.0",
           "capabilities": [\(list)],
           "optional_capabilities": [\(optionalList)],
           "commands": [
@@ -633,18 +606,8 @@ final class SpinnetSDKTests: XCTestCase {
     }
 }
 
-/// Answers every request with `null` without looking at grants, so the
-/// probe can reach every service whatever its Capability.
-private struct AnswerEveryService: PluginHostServiceBroker {
-    func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
-                 action: ActionConfiguration) throws -> JSONValue {
-        .null
-    }
-}
-
 /// What `spinnet.d.ts` declares, read line by line: the areas of the
-/// `Spinnet` interface, each area interface's methods tagged `@service`, and
-/// the names in `HostServiceName`.
+/// `Spinnet` interface, each callable namespace member, and the public `CallID` union.
 private struct DeclaredSDK {
     /// `area.method` to the service its `@service` tag names.
     var wrappers: [String: String] = [:]
@@ -654,45 +617,28 @@ private struct DeclaredSDK {
     init(_ source: String) throws {
         var areaOfInterface: [String: String] = [:]
         var methods: [(interface: String, method: String, service: String)] = []
-        var interface: String?
-        var pendingService: String?
-        var readingServiceNames = false
-
+        var current: String?
+        var readingCalls = false
         for line in source.components(separatedBy: .newlines) {
-            if line.hasPrefix("export type HostServiceName") { readingServiceNames = true }
-            if readingServiceNames {
-                serviceNames.formUnion(Self.captures(#"^\s*\| "([a-z_]+)""#, in: line))
-                // The last member ends the union; comments may hold semicolons.
-                if !Self.captures(#"^\s*\| "[a-z_]+"(;)"#, in: line).isEmpty { readingServiceNames = false }
+            if line.hasPrefix("export type CallID =") { readingCalls = true; continue }
+            if readingCalls {
+                serviceNames.formUnion(Self.captures(#"^\s*\| "([A-Za-z.]+)""#, in: line))
+                if line.hasSuffix(";") { readingCalls = false }
                 continue
             }
-            if let name = Self.captures(#"^export interface (\w+)"#, in: line).first {
-                interface = name
-                continue
+            if let name = Self.captures(#"^export interface (\w+)"#, in: line).first { current = name; continue }
+            if line.hasPrefix("}") { current = nil; continue }
+            guard let interface = current else { continue }
+            if interface == "Spinnet", let property = Self.captures(#"^\s+readonly (\w+): (\w+);"#, in: line, groups: 2) {
+                areas.insert(property[0]); areaOfInterface[property[1]] = property[0]
             }
-            if line.hasPrefix("}") {
-                interface = nil
-                continue
-            }
-            guard let current = interface else { continue }
-            if current == "Spinnet",
-               let property = Self.captures(#"^\s+readonly (\w+): (\w+);"#, in: line, groups: 2) {
-                areas.insert(property[0])
-                areaOfInterface[property[1]] = property[0]
-            }
-            if let service = Self.captures(#"@service ([a-z_]+)"#, in: line).first {
-                pendingService = service
-            }
-            if let service = pendingService, let method = Self.captures(#"^\s+(\w+)\("#, in: line).first {
-                methods.append((current, method, service))
-                pendingService = nil
+            if let method = Self.captures(#"^\s+readonly (\w+): .*Callable<"([A-Za-z.]+)">"#, in: line, groups: 2) {
+                methods.append((interface, method[0], method[1]))
             }
         }
         for method in methods {
-            guard let area = areaOfInterface[method.interface] else {
-                throw DeclarationError("\(method.interface).\(method.method) belongs to no area of Spinnet")
-            }
-            wrappers["\(area).\(method.method)"] = method.service
+            guard let area = areaOfInterface[method.interface] else { throw DeclarationError("No namespace for " + method.interface) }
+            wrappers[area + "." + method.method] = method.service
         }
     }
 

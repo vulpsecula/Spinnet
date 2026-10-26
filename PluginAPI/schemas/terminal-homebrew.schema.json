@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Terminal Homebrew arguments, Plugin API Level 5",
+  "title": "Terminal Homebrew arguments, current Plugin interface",
   "oneOf": [
     {
       "type": "object",

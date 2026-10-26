@@ -16,9 +16,9 @@ final class DeveloperToolsTests: XCTestCase {
             dataDirectory: "/Users/dev/Library/Application Support/Spinnet",
             plugins: [
                 .init(id: "com.spinnet.homebrew", name: "Homebrew", version: "2.5.5",
-                      origin: "bundled", apiLevel: 2, isEnabled: true),
+                      origin: "bundled", hostCompatibility: "^1.0.0", isEnabled: true),
                 .init(id: "com.example.probe", name: "Probe", version: "0.3.0",
-                      origin: "installed", apiLevel: 2, isEnabled: false)
+                      origin: "installed", hostCompatibility: "^1.0.0", isEnabled: false)
             ],
             refused: [.init(id: "com.example.old", reason: "Needs Plugin API Level 9")]
         )
@@ -35,8 +35,8 @@ final class DeveloperToolsTests: XCTestCase {
         Data: /Users/dev/Library/Application Support/Spinnet
 
         Plugins (2):
-        - com.spinnet.homebrew 2.5.5 [bundled, Level 2] Homebrew
-        - com.example.probe 0.3.0 [installed, Level 2, disabled] Probe
+        - com.spinnet.homebrew 2.5.5 [bundled, Host ^1.0.0] Homebrew
+        - com.example.probe 0.3.0 [installed, Host ^1.0.0, disabled] Probe
 
         Refused Plugins (1):
         - com.example.old: Needs Plugin API Level 9

@@ -1,5 +1,5 @@
-// A Current App-shaped Plugin written against Plugin API Level 2's App in
-// front (#83): it names the App behind Spinnet's panel, keeps its App
+// A Current App-shaped Plugin: it names the App behind Spinnet's panel,
+// keeps its App
 // Target, and offers what the Host says it would do to that App: Close
 // Window and Quit, which are the App's own ⌘W and ⌘Q, and Force Quit. The
 // Host confirms Force Quit, and a Close or Quit once that App is no longer

@@ -1,16 +1,14 @@
 import Foundation
 
-/// Plugin API Level 2 addition (#81): how a page looks, beyond what it
+/// Page presentation: how a page looks, beyond what it
 /// holds. Structured Component Styles (colours, font size and weight,
 /// backgrounds) on the components that draw content; a `column` beside
-/// Level 2's `row`; `icon` components and item icons drawn from system
+/// the page's `row`; `icon` components and item icons drawn from system
 /// symbols; `image` components the Host loads from an Image Source (a
 /// resource in the Plugin's package, or an HTTPS address the Plugin may
 /// contact); and `progress`, a task's stages and status with no percentage
 /// the Plugin does not know, and a cancel View Action.
 ///
-/// These were appended to Level 2 while it is still open (PluginAPI
-/// README), so a Plugin pinned to an earlier commit of Level 2 lacks them.
 /// No Component Style is inherited, and none reaches the Host's fields,
 /// buttons, Collections or chrome.
 public enum PagePresentation {
@@ -25,7 +23,7 @@ public enum PagePresentation {
     public static let componentKinds = ["column", "icon", "image", "progress"]
     public static let behaviours = ["component_style", "item_icons", "host_loaded_images"]
 
-    /// What this addition appends to Level 2.
+    /// What this addition appends to the current interface.
     public static let members: [PluginInterfaceMember] =
         componentKinds.map(PluginInterfaceMember.viewComponent) + behaviours.map(PluginInterfaceMember.behaviour)
 

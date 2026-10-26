@@ -1,15 +1,18 @@
-# Reviewed Homebrew Tasks (Plugin API Level 2)
+# Reviewed Homebrew Tasks (current interface)
 
 `tools.startTask` is offered as a Requested Host Operation and a page
 action. A Plugin Page gesture chooses concrete reviewed work; an Action's
-start, a call and a source delivery cannot start a mutation. Level 7 adds the narrowly scoped [automatic catalog refresh](level-7.md) exception for entry and foreground navigation; package mutations keep this rule. Declare the
+start, a call and a source delivery cannot start a mutation. The narrowly scoped
+[automatic catalog refresh](catalog-refresh.md) has a separate admission rule
+for entry and foreground navigation; package mutations keep the gesture rule. Declare the
 separate `run_reviewed_tool_tasks` Capability with `reviewed_tools` scopes
 listing the tool (`homebrew`), allowed operations and package kinds.
 
 The Host validates typed input and current authority, reserves one
 Host-wide slot, reads the selected package metadata and current source trust,
 then confirms the native command and selected targets. Cancel is the default. No task queues,
-automatic update/cleanup, mutation retries or replay exist in Levels 2–6; Level 7 offers only the separately granted catalog refresh described above. After
+automatic package update/cleanup, mutation retries or replay exist. Catalog
+refresh requires its separate grant as described above. After
 confirmation the Host checks identity, scope, source trust and the selected
 metadata again; a changed selection is refused for review. Canonical package names resolved
 from aliases or renames are frozen in the confirmed Task, and existing canonical

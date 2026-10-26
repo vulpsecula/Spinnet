@@ -1,4 +1,4 @@
-# Reviewed Homebrew management reads (Plugin API Level 2)
+# Reviewed Homebrew management reads (current interface)
 
 The `tools.read` Homebrew profile now supports version, taps, services, doctor,
 previewInstall, previewUpgrade, previewUpgradeAll, previewLink, previewUnlink, adoptionCandidates, adoptionPreview,
@@ -10,7 +10,7 @@ Reads and previews execute documented Homebrew CLI commands inside the bounded
 read-only sandbox. Homebrew owns its configuration and package-loading rules;
 the Host injects no Ruby adapters and requires no internal source hashes.
 See [schema](../schemas/homebrew-management-reads.schema.json) and
-[types](../homebrew-management.d.ts).
+[types](../sdk/homebrew-management.d.ts).
 
 | Operation | Additional input | Result fields |
 | --- | --- | --- |

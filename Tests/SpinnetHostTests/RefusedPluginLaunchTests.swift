@@ -11,8 +11,7 @@ final class RefusedPluginLaunchTests: XCTestCase {
     private static let probe = TestRepository.tests
         .appendingPathComponent("Fixtures/CandidateProbe.spinnetplugin", isDirectory: true)
     private static let probeID = PluginID("com.example.candidate-probe")
-    private static let reason = "Candidate Probe needs revision 1 of the language_probe Candidate Contract, which "
-        + "this version of Spinnet does not provide."
+    private static let reason = ConfigurationError.invalidManifest(PluginManifest.compatibilityMigrationMessage).localizedDescription
 
     private var directory: URL!
     private let grants = PluginCapabilityGrantStore()
@@ -30,24 +29,33 @@ final class RefusedPluginLaunchTests: XCTestCase {
                                 grants: grants, persistGrants: {}, storage: storage)
     }
 
-    /// Installs the probe on a Host providing its candidate, then launches a
-    /// Host that does not, which refuses it.
+    /// Reproduce bytes an older Host installed. Current admission must
+    /// refuse them; no historical execution mode is needed to set up the test.
     private func launchRefusingTheProbe(storage: PluginStorage? = nil) throws -> PluginRegistry {
-        let candidate = try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: Self.probe
-            .deletingLastPathComponent().appendingPathComponent("Candidates/language_probe/r1/candidate.json")))
-        let providing = PluginInterfaceContracts(levels: PluginInterfaceContracts.host.levels, candidates: [candidate])
-        try installer(PluginRegistry(contracts: providing), storage: storage).install(from: Self.probe)
-        let registry = PluginRegistry(contracts: .host, grantStore: grants)
+        let installed = directory.appendingPathComponent("Plugins")
+        try FileManager.default.createDirectory(at: installed, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: Self.probe, to: installed.appendingPathComponent("probe.spinnetplugin"))
+        try JSONEncoder().encode([Self.probeID.rawValue: "probe.spinnetplugin"])
+            .write(to: installed.appendingPathComponent("installed.json"))
+        let registry = PluginRegistry(grantStore: grants)
         try installer(registry, storage: storage).restore()
         return registry
+    }
+
+    /// Decode only the executable Command for a saved Action. The historical
+    /// package itself is never passed off as a current runnable manifest.
+    private func savedCommand() throws -> CommandDeclaration {
+        let raw = try XCTUnwrap(JSONSerialization.jsonObject(with:
+            Data(contentsOf: Self.probe.appendingPathComponent("manifest.json"))) as? [String: Any])
+        let commands = try XCTUnwrap(raw["commands"] as? [[String: Any]])
+        return try JSONDecoder().decode(CommandDeclaration.self, from: JSONSerialization.data(withJSONObject: commands[0]))
     }
 
     /// The Library over `registry`, with the probe's Command in Slot 1 and an
     /// empty Slot 2, removing and installing through the real store.
     private func library(over registry: PluginRegistry, storage: PluginStorage? = nil) throws -> MenuEditorModel {
-        let manifest = try PluginManifestLoader.load(packageAt: Self.probe).manifest
-        let action = try ActionConfiguration(id: ActionID("probe-action"), pluginID: manifest.id,
-                                             command: manifest.commands[0], input: .null)
+        let action = try ActionConfiguration(id: ActionID("probe-action"), pluginID: Self.probeID,
+                                             command: savedCommand(), input: .null)
         let configuration = try HostConfiguration(actions: [action], menu: MenuConfiguration(slots: [
             MenuSlotConfiguration(item: try MenuItemConfiguration(primaryActionID: action.id)), .empty
         ]))
@@ -154,6 +162,8 @@ final class RefusedPluginLaunchTests: XCTestCase {
         var manifest = try XCTUnwrap(JSONSerialization.jsonObject(
             with: Data(contentsOf: fixed.appendingPathComponent("manifest.json"))) as? [String: Any])
         manifest["candidate_contracts"] = nil
+        manifest["api_level"] = nil
+        manifest["engines"] = ["spinnet": "^1.0.0"]
         manifest["version"] = "1.1.0"
         try JSONSerialization.data(withJSONObject: manifest).write(to: fixed.appendingPathComponent("manifest.json"))
 

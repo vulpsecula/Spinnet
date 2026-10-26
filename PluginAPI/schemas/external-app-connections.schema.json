@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Spinnet external-app-connections (Plugin API Level 3)",
+  "title": "Spinnet external-app-connections (current Plugin interface)",
   "type": "object",
   "required": [
     "external_app_connections"

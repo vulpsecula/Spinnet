@@ -300,7 +300,8 @@ final class RegressionBaselineTests: XCTestCase {
         try HostConfiguration(actions: stored.actions.map { action in
             guard action.pluginID == PluginID("com.spinnet.shottr") else { return action }
             let command = try XCTUnwrap(registry.command(for: action.pluginID, commandID: action.commandID))
-            XCTAssertEqual(command.hostCommand, .openDeepLink)
+            XCTAssertNil(command.hostCommand)
+            XCTAssertEqual(command.hostServiceID, HostServiceCatalogue.deepLinkOperation)
             return try ActionConfiguration(id: action.id, pluginID: action.pluginID, command: command, input: action.input)
         }, menu: stored.menu)
     }

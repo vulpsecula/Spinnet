@@ -1,7 +1,7 @@
-# Host Service IDs (Plugin API Level 2)
+# Host Service IDs (current interface)
 
-Plugin API Level 2 names every operation the Host performs for a Plugin, a
-Host Service, by one ID, `namespace.verb`, which a Level 2 Plugin uses
+The current interface names every operation the Host performs for a Plugin, a
+Host Service, by one ID, `namespace.verb`, which a Plugin uses
 wherever it names the operation: in a script's call, in a manifest Command,
 in a page action, in a Requested Host Operation and in `operation_finished`.
 The Host names it the same way in refusals and in what it discloses.
@@ -10,39 +10,29 @@ The Host names it the same way in refusals and in what it discloses.
 operations is held to it;
 [`namespaces.schema.json`](../schemas/namespaces.schema.json) publishes
 their inputs and results and the shapes that name them;
-[`spinnet-level-2.js`](../spinnet-level-2.js) is the SDK and
-[`spinnet-level-2.d.ts`](../spinnet-level-2.d.ts) its types. Level 2 was
-proved as Candidate Contract `namespaces` r1, now retired
-([retirement record](../candidates/namespaces/r1/candidate.json)), with
+[`spinnet.js`](../sdk/spinnet.js) is the SDK and
+[`spinnet.d.ts`](../sdk/spinnet.d.ts) its types. Use this with
 [Requested Host Operations](host-operations.md) and
 [pages](pages.md).
 
 ```json
 {
   "protocol_version": "1.0",
-  "api_level": 2
+  "engines": {"spinnet": "^1.0.0"}
 }
 ```
 
-Level 2 names operations by ID at every entry point: calls, Commands,
+Plugins name operations by ID at every entry point: calls, Commands,
 answers and sources here, page actions in [pages](pages.md) and requests
 in [Requested Host Operations](host-operations.md).
 
 ## IDs
 
-An ID is exactly `namespace.verb`, two lowerCamelCase segments. A namespace
-is one area of Spinnet's domain, usually the operations one Capability
-covers, and its verbs keep Plugin API Level 1's SDK style: `read` and
-`write` for Host data, `get` and `set` for Plugin Storage. An ID is spelled
-the same in JSON and in the SDK: `spinnet.selection.readText` calls
-`selection.readText`. A Level 2 Plugin names operations by ID only. A
-Plugin API Level 1 name (`write_clipboard`, `url.open`, `copy_text`, …) is
-refused with a message naming the ID to use instead: when
-the package is reviewed for a manifest Command, with `host_service_failed`
-for a call, and as a protocol violation in a page or a request. The one
-exception is a Level 1 `view` answer, which keeps Level 1's vocabulary
-whole, its standard actions included (C9). [Level 1 names](level-1-names.md)
-lists every Level 1 name and its ID.
+An ID is exactly `namespace.verb`, two lowerCamelCase segments. The namespace
+organizes a domain; it grants no authority. The ID is the same in JSON and the
+SDK: `spinnet.selection.readText` calls `selection.readText`. Historical spellings
+such as `write_clipboard`, `url.open` and `copy_text` are refused at public entry
+points, including form/detail standard actions. See [migration](compatibility.md).
 
 ## Where an operation is offered
 
@@ -101,15 +91,13 @@ A Command naming an ID runs no script and starts no helper.
 
 Each operation names the Capabilities and the System Permission it needs,
 the same at every entry point, with one exception: a Command's input is what
-the user configured, so where Plugin API Level 1 lets a Command open a link,
-a path or an application, press a shortcut, cut, paste, or run a Shortcut or
-a Service without a Capability, so does Level 2, and a configured
+the user configured. A Command may open a link, path or application, press a
+shortcut, cut, paste, or run a Shortcut or Service without a Capability. A configured
 link may have any scheme. When the Plugin chooses the input, in a call, a
 page action or a request, the operation's Capability always applies, and a
 link must be http or https with a host.
 
-An operation fails with the same category wherever it is named: Level 1's
-Host Service categories and `insertion_target_changed`
+An operation fails with the same Host Service categories wherever it is named, including and `insertion_target_changed`
 ([Requested Host Operations](host-operations.md#failure-category)).
 A call ends the invocation with it, a Command ends its Action with it, a page
 action shows it with the way to repair it, and a request reports it as its
@@ -119,8 +107,7 @@ only that the Plugin or Command is missing, disabled or changed.
 
 ## The SDK
 
-The `spinnet` object a Level 2 script runs with is laid out by namespace,
-in place of Level 1's. An operation offered as a call is a function at
+The `spinnet` object is laid out by namespace. An operation offered as a call is a function at
 `spinnet.<id>`, which requests exactly that ID with its argument as the
 input and returns the result:
 
@@ -136,23 +123,18 @@ and one a page action may perform `.action(input, options)`
 `spinnet.host.showPluginSettings`, which only a request or a page action
 reaches, is an object holding those two builders. A namespace none of whose
 operations a script can reach, `keyboard`, is absent, and so are
-Level 1's wrappers, such as `spinnet.clipboard.history`. `spinnet.ui` keeps
-Plugin API Level 1's builders, since a Level 2 Plugin may still answer with a
-Level 1 view whose standard actions keep Level 1's names; `ui.toast` and
-`ui.close` build the answer forms of `host.toast` and `host.closeView`;
-`ui.request`, `ui.page`, `ui.showPage` and `ui.components` are Level 2's
-([Requested Host Operations](host-operations.md#requesting-an-operation),
-[pages](pages.md#the-sdk)). `spinnet.environment` is unchanged, and its
-`apiLevel` is the highest stable Level the Host supports.
+historical wrappers, such as `spinnet.clipboard.history`. `spinnet.ui` offers form/detail and page builders. Both answer shapes use
+catalogue IDs. `ui.toast` and `ui.close` build the answer forms of `host.toast`
+and `host.closeView`; `ui.request`, `ui.page`, `ui.showPage` and `ui.components`
+compose pages and operations. `spinnet.environment.hostVersion` reports the
+running Host release; compatibility is declared in `engines.spinnet`.
 `requestHostService` takes IDs only.
 
 ## The helper protocol and the test kit
 
-For a Plugin declaring Level 2 or later, the Host's `invocation` message
-also carries the manifest's level, as `"api_level": 2`, which is how the
-helper chooses this SDK; a Level 1 Plugin's invocation is unchanged. A
-`host_service_request` names the ID in `service`, and the Host refuses a name
-the Plugin may not use with `host_service_failed` and the reason.
+The Host's invocation carries Host version and preferred language. The helper
+always installs the current SDK. A `host_service_request` names a catalogue ID
+in `service`; unknown, historical and unoffered IDs fail explicitly.
 
 In the Plugin test kit, `RecordedHostServices(operations:)` answers by ID,
 such as `["clipboard.write": .value(.null)]`, and `run.performed` and
@@ -255,7 +237,7 @@ closure, and releases on its own lifetime or owner invalidation. See
 `selection.cut`, `selection.paste`, `keyboard.press`, `system.runShortcut`
 and `system.runService` are offered only as Commands, whose input the user
 configures. A script, a page action or a request cannot choose keys, a
-Shortcut or a Service at Level 2.
+Shortcut or a Service in the current interface.
 
 ### `window`
 
@@ -331,23 +313,23 @@ Read calls have a three-second deadline; sources have a fifteen-second deadline 
 stop on hide or close. Neither refreshes a catalogue or installs a package.
 See [Reviewed Homebrew reads](tools.md) for each operation's input and bounds.
 Install and upgrade follow [Reviewed Tasks](reviewed-tasks.md); read authority
-does not grant mutations. [Level 7](level-7.md) adds the separately granted
+does not grant mutations. [Catalog refresh](catalog-refresh.md) provides the separately granted
 catalog-refresh entry exception. System authentication belongs to native sudo/PAM,
 as [Homebrew authorization](homebrew-system-authorization.md) describes.
 
 ## Reserved
 
 These IDs are kept for the tickets that define them. Naming one is refused
-until a later Level adds it.
+until a later Host release adds it.
 
 | ID | Owner | For |
 | --- | --- | --- |
 | `host.confirm` | #68's local dialogs | A Plugin-worded question whose answer is a request's outcome |
-| `host.launchCommand` | README, candidates for later levels | Running another Command of the Plugin in the same View Session |
-| `selection.readFinderItems` | README, candidates for later levels | The files selected in Finder |
-| `open.reveal` | README, candidates for later levels | Showing a file in Finder instead of opening it |
+| `host.launchCommand` | Reserved; requires a future Host release | Running another Command of the Plugin in the same View Session |
+| `selection.readFinderItems` | Reserved; requires a future Host release | The files selected in Finder |
+| `open.reveal` | Reserved; requires a future Host release | Showing a file in Finder instead of opening it |
 
-### `system.metrics` (Level 2, #86)
+### `system.metrics`
 
 A call or visible-page source reads 1–4 distinct names in `metrics`: `cpu`,
 `memory`, `disk`, `battery`. Requires `read_system_status`, no System Permission

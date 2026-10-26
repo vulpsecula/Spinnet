@@ -4,7 +4,7 @@ import XCTest
 @testable import SpinnetCore
 import SpinnetPluginTestKit
 
-/// The App in front as Plugin API Level 2 publishes it (#83): the
+/// The App in front as the current Plugin interface publishes it: the
 /// `fixtures/apps/` results and inputs against `namespaces.schema.json` and
 /// the Host's reading of `apps.quit`'s and `apps.close`'s input, App
 /// Targets' lifetime and bound, and which exits the Host offers: Close and
@@ -48,9 +48,9 @@ final class AppTargetsContractTests: XCTestCase {
     }
 
     func testTheReadmeLinksTheFixturesAndReference() throws {
-        let readme = try String(contentsOf: Self.pluginAPI.appendingPathComponent("README.md"), encoding: .utf8)
-        XCTAssertTrue(readme.contains("(fixtures/apps/index.json)"))
-        XCTAssertTrue(readme.contains("(reference/apps.md)"))
+        let reachable = try PublishedPluginDocumentation.reachableFiles()
+        XCTAssertTrue(reachable.contains("fixtures/apps/index.json"))
+        XCTAssertTrue(reachable.contains("reference/apps.md"))
         let reference = try String(contentsOf: Self.pluginAPI.appendingPathComponent("reference/apps.md"), encoding: .utf8)
         XCTAssertTrue(reference.contains("| App Targets per Plugin | \(AppTargets.maximumPerPlugin) |"))
         XCTAssertTrue(reference.contains("| Host Confirmation unanswered before `expired` | \(Int(HostConfirmation.expiry)) s |"))
@@ -161,9 +161,7 @@ final class AppTargetsContractTests: XCTestCase {
 
     // MARK: Capabilities
 
-    func testTheCapabilitiesAreLevelTwosAndDisclosedSeparately() {
-        XCTAssertEqual(PluginCapability.readFrontmostApp.apiLevel, 2)
-        XCTAssertEqual(PluginCapability.quitFrontmostApp.apiLevel, 2)
+    func testTheAppCapabilitiesAreDisclosedSeparately() {
         XCTAssertEqual(PluginCapability.readFrontmostApp.consentGroup, .reads)
         XCTAssertEqual(PluginCapability.quitFrontmostApp.consentGroup, .controls)
         XCTAssertEqual(HostServiceCatalogue.operation("apps.frontmost")?.capabilities, [.readFrontmostApp])
@@ -177,8 +175,8 @@ final class AppTargetsContractTests: XCTestCase {
         XCTAssertNil(HostServiceCatalogue.operation("apps.quit")?.systemPermission)
         XCTAssertTrue(HostServiceCatalogue.operation("apps.quit")!.failures.contains(.systemPermissionDenied))
         for id in CurrentAppAddition.exitIDs {
-            XCTAssertTrue(PluginInterfaceContracts.levelTwoMembers.contains(.request(id)), id)
-            XCTAssertTrue(PluginInterfaceContracts.levelTwoMembers.contains(.standardAction(id)), id)
+            XCTAssertTrue(PluginInterfaceContracts.currentMembers.contains(.request(id)), id)
+            XCTAssertTrue(PluginInterfaceContracts.currentMembers.contains(.standardAction(id)), id)
         }
     }
 }

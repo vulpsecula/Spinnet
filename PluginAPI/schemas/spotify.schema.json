@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Reviewed Spotify interface (Plugin API Level 2)",
+  "title": "Reviewed Spotify interface (current Plugin interface)",
   "$defs": {
     "input": {
       "type": "object",

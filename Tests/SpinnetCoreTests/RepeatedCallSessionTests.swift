@@ -2,8 +2,8 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// Explicit calls into an open View Session (Candidate Contract
-/// `collections` r2, #78), driven through the sessions' seams: a renderer
+/// Explicit Calls into an open View Session, driven through the sessions'
+/// seams: a renderer
 /// that records, runs the test answers by hand, a clock it advances, and a
 /// performer that records what it authorizes.
 ///
@@ -212,10 +212,10 @@ final class RepeatedCallSessionTests: XCTestCase {
         XCTAssertEqual(runner.runs[4].delivery.state, .number(3))
     }
 
-    /// In a Level 1 view, which has no page provenance, a call's view counts
-    /// as a page change: events made in the old view are dropped, as when
-    /// Level 1 presents again, while calls and Settings notifications stay.
-    func testACallsViewReplacesALevelOneViewsQueuedEvents() throws {
+    /// In a form/detail view, which has no page provenance, a call's view
+    /// counts as a page change: events made in the old view are dropped,
+    /// while calls and Settings notifications stay.
+    func testACallsViewReplacesAFormViewsQueuedEvents() throws {
         let session = try start(view: Self.form("first"))
         XCTAssertTrue(sessions.call(try Self.action(command: "emoji.recent")))
         session.send(.submitted(values: .object([:])))
@@ -296,11 +296,10 @@ final class RepeatedCallSessionTests: XCTestCase {
 
     // MARK: - Who gets calls
 
-    /// Level 1 Plugins keep Level 1's rule: calling again restarts the
-    /// Action, so the call is not taken. Host Commands keep their native
-    /// path whatever the Plugin declares.
-    func testOnlyALevelTwoPluginTakesRepeatedCalls() throws {
-        for permits in [CollectionsFixtures.levelOne, { _ in false }] {
+    /// A session without repeated-call membership declines the call. Host
+    /// Commands retain their native path and never enter a scripted session.
+    func testRepeatedCallsRequireMembershipAndAScriptedAction() throws {
+        for permits in [CollectionsFixtures.denied, { _ in false }] {
             makeSessions(permits: permits)
             let session = try start(view: Self.form("first"))
             XCTAssertFalse(sessions.call(try Self.action()))

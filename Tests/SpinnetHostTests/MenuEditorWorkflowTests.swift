@@ -362,7 +362,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
             commands: [CommandDeclaration(
                 id: CommandID("host.copy.selection"),
                 title: "Copy Selected Text",
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             )],
             preset: MenuItemPresetDeclaration(
                 readiness: .readyToUse,
@@ -379,12 +379,12 @@ final class MenuEditorWorkflowTests: XCTestCase {
                 CommandDeclaration(
                     id: CommandID("search.web"),
                     title: "Search the Web",
-                    hostCommand: .openURL
+                    hostServiceID: "open.url"
                 ),
                 CommandDeclaration(
                     id: CommandID("search.docs"),
                     title: "Search Documentation",
-                    hostCommand: .openURL
+                    hostServiceID: "open.url"
                 )
             ],
             preset: MenuItemPresetDeclaration(
@@ -544,12 +544,12 @@ final class MenuEditorWorkflowTests: XCTestCase {
                 CommandDeclaration(
                     id: CommandID("ready.primary"),
                     title: "Primary",
-                    hostCommand: .openURL
+                    hostServiceID: "open.url"
                 ),
                 CommandDeclaration(
                     id: CommandID("ready.alternate"),
                     title: "Alternate",
-                    hostCommand: .openURL
+                    hostServiceID: "open.url"
                 )
             ],
             preset: MenuItemPresetDeclaration(
@@ -612,7 +612,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
             commands: [CommandDeclaration(
                 id: CommandID("invalid.open"),
                 title: "Open",
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             )],
             preset: MenuItemPresetDeclaration(
                 readiness: .readyToUse,

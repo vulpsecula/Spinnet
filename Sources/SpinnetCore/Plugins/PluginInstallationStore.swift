@@ -111,8 +111,8 @@ public final class PluginInstallationStore {
     }
 
     /// Registers every installed Plugin. One this Host cannot register, such
-    /// as a broken package or one declaring a Candidate Contract revision the
-    /// Host does not provide, is recorded as a Refused Plugin with the reason
+    /// as a broken package, incompatible Host range or obsolete declaration,
+    /// is recorded as a Refused Plugin with the reason
     /// and left installed, and the others restore regardless. Unreadable
     /// indexes or failed persistence stop the restore.
     public func restore() throws {
@@ -135,6 +135,16 @@ public final class PluginInstallationStore {
                 manifest = package.manifest
                 try registry.register(package)
             } catch {
+                // The executable loader remains strict. Read a refused legacy
+                // declaration only as predecessor metadata for equal-scope
+                // decisions when the user later replaces it; never register it.
+                if manifest == nil, name == URL(fileURLWithPath: name).lastPathComponent,
+                   let data = try? Data(contentsOf: directory.appendingPathComponent(name).appendingPathComponent("manifest.json")),
+                   let value = try? JSONDecoder().decode(JSONValue.self, from: data),
+                   let previous = try? historicalManifestForAccessComparison(value).manifest,
+                   previous.id == pluginID {
+                    manifest = previous
+                }
                 registry.recordRefused(RefusedPlugin(id: pluginID, manifest: manifest,
                                                      reason: error.localizedDescription))
             }
@@ -145,21 +155,27 @@ public final class PluginInstallationStore {
         let current = Dictionary(uniqueKeysWithValues: registry.manifests().compactMap { manifest in
             registry.package(for: manifest.id)?.origin == .bundled ? (manifest.id.rawValue, manifest) : nil
         })
-        let recorded: [String: PluginManifest]
+        var recorded: [String: PluginManifest] = [:]
+        var migratedSnapshots = false
         if FileManager.default.fileExists(atPath: bundledManifestsURL.path) {
-            recorded = try JSONDecoder().decode([String: PluginManifest].self, from: Data(contentsOf: bundledManifestsURL))
-        } else {
-            recorded = [:]
+            let snapshots = try JSONDecoder().decode([String: JSONValue].self, from: Data(contentsOf: bundledManifestsURL))
+            for (id, value) in snapshots {
+                let snapshot = try historicalManifestForAccessComparison(value)
+                recorded[id] = snapshot.manifest
+                migratedSnapshots = migratedSnapshots || snapshot.migrated
+            }
         }
         var changed = false
         for (rawID, manifest) in current.sorted(by: { $0.key < $1.key }) {
             var previous = recorded[rawID]
             // On first onboarding the predecessor may still be installed.
-            // It can declare a retired candidate: its declaration is used
-            // only to compare scopes, never registered or executed here.
+            // Its historical declaration is read only to compare access scopes;
+            // this private adapter never registers or runs the package.
             if previous == nil, let name = installed[rawID],
                name == URL(fileURLWithPath: name).lastPathComponent {
-                previous = try? PluginManifestLoader.load(packageAt: directory.appendingPathComponent(name)).manifest
+                previous = try? historicalManifestForAccessComparison(JSONDecoder().decode(
+                    JSONValue.self, from: Data(contentsOf: directory.appendingPathComponent(name).appendingPathComponent("manifest.json"))
+                )).manifest
             }
             if let previous, previous.id == manifest.id {
                 let inherited = grants.restoreDecisions(for: manifest, replacing: previous,
@@ -174,10 +190,28 @@ public final class PluginInstallationStore {
         // the last declaration of anything it did not load; Plugin Removal
         // still clears all of that Plugin's decisions separately.
         let updated = recorded.merging(current) { _, replacement in replacement }
-        if updated != recorded {
+        if updated != recorded || migratedSnapshots {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try JSONEncoder().encode(updated).write(to: bundledManifestsURL, options: .atomic)
         }
+    }
+
+    /// The Host's own predecessor snapshots predate engines.spinnet. Their
+    /// version selector is irrelevant to equal-scope grant inheritance. Adapt
+    /// only this stored metadata; public package decoding still refuses every
+    /// old declaration, including one also containing engines.
+    private func historicalManifestForAccessComparison(_ value: JSONValue) throws -> (manifest: PluginManifest, migrated: Bool) {
+        guard case .object(var fields) = value else {
+            throw ConfigurationError.invalidManifest("Invalid recorded Plugin manifest")
+        }
+        let migrated = fields["engines"] == nil || fields["api_level"] != nil || fields["candidate_contracts"] != nil
+        fields.removeValue(forKey: "api_level")
+        fields.removeValue(forKey: "candidate_contracts")
+        if fields["engines"] == nil {
+            fields["engines"] = .object(["spinnet": .string(HostCompatibility.current.rawValue)])
+        }
+        let data = try JSONEncoder().encode(JSONValue.object(fields))
+        return (try JSONDecoder().decode(PluginManifest.self, from: data), migrated)
     }
 
     /// The manifest an install of `pluginID` replaces: the registered one, or

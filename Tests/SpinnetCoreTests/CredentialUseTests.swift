@@ -51,7 +51,7 @@ final class CredentialUseTests: XCTestCase {
         let hostList = Self.hosts.map { "\"\($0)\"" }.joined(separator: ", ")
         manifest = try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.signed", "name": "Signed Example", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.signed", "name": "Signed Example", "version": "1.0.0",
           "capabilities": ["contact_https"],
           "capability_scopes": [{
             "capability": "contact_https", "command_ids": ["fetch"], "data_types": [],

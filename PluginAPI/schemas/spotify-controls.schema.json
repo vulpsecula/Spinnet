@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Spinnet spotify-controls (Plugin API Level 3)",
+  "title": "Spinnet spotify-controls (current Plugin interface)",
   "$defs": {
     "input": {
       "oneOf": [

@@ -1,4 +1,4 @@
-// An Emoji-shaped Plugin written against Candidate Contract collections r3:
+// An Emoji-shaped Plugin using Collections:
 // 1,906 items in nine categories, the size and shape of the external Emoji
 // probe's data, with generated names in place of Unicode's. A search row
 // above a sectioned grid that gives its total and one slice of its items:

@@ -13,6 +13,9 @@ Use the five default canonical triage labels unchanged: `needs-triage`,
 
 ### Domain docs
 
+For usage, development commands or repository layout, read
+[HANDBOOK.md](HANDBOOK.md).
+
 Read `GLOSSARY.md`, use its domain terms and avoid its listed synonyms.
 When local `docs/adr/` files are available,
 read the relevant decisions for the area being changed. They are optional
@@ -24,8 +27,9 @@ Keep implementation claims tied to source and tests. Public budget quotations
 come from committed `PluginAPI/`, not local ADR text.
 
 The Plugin interface itself is documented only in `PluginAPI/`, which is
-committed: its README indexes supported Levels 1–7, and `PluginAPI/reference/`
-and the schemas specify each Level. Write interface changes there, never into
+committed: its README indexes one current interface, and `engines.spinnet`
+declares Host SemVer compatibility. `PluginAPI/reference/` and the schemas
+specify the supported contract. Write interface changes there, never into
 `docs/`, which keeps Host-internal design and ADRs.
 
 ### Development verification

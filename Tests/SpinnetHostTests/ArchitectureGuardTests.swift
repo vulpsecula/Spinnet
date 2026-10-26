@@ -53,9 +53,8 @@ final class ArchitectureGuardTests: XCTestCase {
         }
     }
 
-    /// Plugin API Level 1 is published with no Plugin behaviour left to move
-    /// out of the Host: every exception stays for a reason, and none waits
-    /// for a ticket to remove it.
+    /// Plugin behaviour lives outside the Host: every exception stays for a
+    /// documented reason, and none waits for a ticket to remove it.
     func testNoExceptionIsLeftToMigrate() {
         for exception in Self.exceptions {
             if case .removedBy(let ticket) = exception.reason {
@@ -164,7 +163,7 @@ final class ArchitectureGuardScannerTests: XCTestCase {
     func testManifestDeclaresItsPluginCommandAndExternalAppIDs() throws {
         let manifest = Data(#"""
         {
-          "api_level": 1,
+          "engines":{"spinnet":"^1.0.0"},
           "id": "com.example.bob",
           "future_field": {"anything": true},
           "capability_scopes": [

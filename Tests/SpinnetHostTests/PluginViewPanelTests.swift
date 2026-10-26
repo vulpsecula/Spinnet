@@ -59,8 +59,8 @@ final class PluginViewPanelTests: XCTestCase {
         try harness.present(Self.form(fields: fields))
         let window = PluginViewPanelWindow(model: try XCTUnwrap(harness.windows.model(for: harness.pluginID)))
         if let screens { window.screens = { screens } }
-        // The panel is resizable as a page declares it (#80); the Level 1
-        // form here stands in for any content.
+        // The panel is resizable as a page declares it; this form stands
+        // in for any content.
         window.resizing = resizing
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         window.show(near: pointer, restoring: pinned)

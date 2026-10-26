@@ -18,8 +18,8 @@ public struct PluginPageCaret: Equatable, Hashable {
 /// The items the Host holds of one collection, by position, and the layout
 /// they sit in: `total` positions in sections, `columns` across.
 ///
-/// A whole collection (revisions 1 and 2, or revision 3 without `total`) is
-/// held entire, every answer replacing it. A windowed one (revision 3) is
+/// A collection without `total` is held entire, each answer replacing it.
+/// A windowed collection is
 /// held only around what the user sees: each answer's slice is merged in,
 /// items further than `CollectionsContract.windowScreens` screens from the
 /// screen are dropped, at most `CollectionsContract.maximumWindowItems` are
@@ -388,9 +388,9 @@ public struct PluginPageMemory: Equatable {
         return applied
     }
 
-    /// A Level 1 view replaced the page, which counts as a page change: the
+    /// A view payload replaced the page, which counts as a page change: the
     /// page is remembered and none is shown.
-    public mutating func showLevelOneView() {
+    public mutating func showViewPayload() {
         if let current = page { remember(current, state) }
         page = nil
         state = PluginPageImmediateState()

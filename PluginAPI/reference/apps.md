@@ -1,12 +1,12 @@
-# The App in front (Plugin API Level 2)
+# The App in front (current interface)
 
-A Level 2 Plugin may identify the App the user is working in, the App in
+A Plugin may identify the App the user is working in, the App in
 front behind Spinnet's panel, and ask the Host to close its front window,
 quit it or force quit it. Identifying and ending are separate Host Services
 under separate Capabilities, so a Plugin allowed to read which App is in
 front cannot end it, and a Plugin allowed to end it learns nothing about it.
 None offers a list of the user's Apps, and none ends a process by its
-process ID. All were appended to Level 2 while it is open (#83).
+process ID. All were appended to current while it is open (#83).
 [`namespaces.schema.json`](../schemas/namespaces.schema.json) publishes the
 shapes (`apps.frontmost.*`, `apps.quit.*`, `apps.close.*`, `app_target`,
 `app_exit`), [`fixtures/apps/`](../fixtures/apps/index.json) results and
@@ -21,8 +21,7 @@ the requests and outcomes.
 
 Close and Quit are exactly what the user's ⌘W and ⌘Q do: the Host presses
 the App's own menu item, through Accessibility, so they need that System
-Permission; Force Quit does not. A manifest declaring `api_level` 1 may not
-declare either Capability, and neither needs a `capability_scopes` entry.
+Permission; Force Quit does not. Neither Capability needs a `capability_scopes` entry.
 
 ## `apps.frontmost`
 

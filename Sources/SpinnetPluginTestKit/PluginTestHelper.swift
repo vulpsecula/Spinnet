@@ -10,28 +10,18 @@ public final class PluginTestHelper {
     /// `PluginTestPage` over this helper is held to.
     public let contracts: PluginInterfaceContracts
 
-    /// What `spinnet.environment` reports unless a test says otherwise: the
-    /// highest Plugin API Level this kit's Host supports, an unbundled
-    /// Host's version, and English, whatever the machine running the tests
-    /// prefers.
-    public static let defaultEnvironment = PluginRuntimeEnvironment(hostVersion: "0.0.0", preferredLanguage: "en")
+    /// The current Host release baseline and English, independent of the
+    /// machine running the test.
+    public static let defaultEnvironment = PluginRuntimeEnvironment(hostVersion: HostVersion.currentString, preferredLanguage: "en")
 
-    /// Uses the helper at `helperURL`, or else the one `locate()` finds. Every
-    /// script it runs sees `environment` as the Host's, by default
-    /// `defaultEnvironment` reporting the highest stable Level of `contracts`.
-    ///
-    /// `contracts` is what the Host under test offers: by default this kit's
-    /// own Host, Plugin API Levels 1–7 and the Candidate Contract revisions
-    /// those Levels retired. A run of a Plugin that Host would refuse,
-    /// such as one declaring a retired candidate or a Level it lacks, fails
-    /// as the Host would fail it, and a Host Service request outside the
-    /// Levels and candidates the Plugin declares is refused.
+    /// Uses the real helper under the same current interface and Host-version
+    /// compatibility checks as the Host. A custom contract set can model a
+    /// Host that refuses a member without changing Plugin declarations.
     public init(helperURL: URL? = nil, environment: PluginRuntimeEnvironment? = nil,
                 contracts: PluginInterfaceContracts = .host) throws {
         guard let url = helperURL ?? Self.locate() else { throw PluginTestKitError.helperNotFound }
         let environment = environment ?? PluginRuntimeEnvironment(
-            apiLevel: contracts.highestStableLevel,
-            hostVersion: Self.defaultEnvironment.hostVersion,
+            hostVersion: contracts.hostVersion.description,
             preferredLanguage: Self.defaultEnvironment.preferredLanguage
         )
         supervisor = PluginRuntimeSupervisor(helperURL: url, environment: { environment }, contracts: contracts)
@@ -42,12 +32,9 @@ public final class PluginTestHelper {
     /// makes is answered by `hostServices` and recorded in the returned run,
     /// whether it was answered or refused.
     ///
-    /// A Command that names a catalogue ID in `host_command` (Plugin API
-    /// Level 2) runs no script: it runs as the Host runs it,
-    /// with its operation answered by `hostServices`, which for an operation
-    /// Level 1 performs as a Host Command must be a `CatalogueCommandExecutor`
-    /// such as `RecordedHostServices`. Its result is the Command's value, or
-    /// the `ActionFailure` it ended with.
+    /// A Command naming a catalogue ID in `host_command` runs without a
+    /// script. Native command adapters require a `CatalogueCommandExecutor`
+    /// such as `RecordedHostServices`; the result is its value or ActionFailure.
     public func run(_ invocation: PluginTestInvocation, of plugin: PluginUnderTest,
                     answering hostServices: PluginHostServiceBroker) -> PluginTestRun {
         let recorder = RecordingHostServiceBroker(answering: hostServices)
@@ -149,8 +136,7 @@ public struct PluginTestRun {
     public let result: Result<JSONValue, Error>
     /// Every Host Service request the script made, in order.
     public let requests: [PluginTestRequest]
-    /// Every operation the run named by catalogue ID (Candidate Contract
-    /// `namespaces`), in order: a script's calls, as the Host performs them.
+    /// Every public operation the run performed, in order.
     public let performed: [PluginTestOperation]
 
     /// The event the run answered and what the Plugin may use, so its answer
@@ -191,8 +177,7 @@ public struct PluginTestRequest: Equatable {
     /// The Host Service that performs it.
     public let service: PluginHostService
     public let input: JSONValue
-    /// The catalogue ID the script named, when it declares Candidate
-    /// Contract `namespaces`; nil for a Level 1 name.
+    /// The public catalogue ID, or nil for a Host-internal request.
     public let operation: String?
 
     public init(service: PluginHostService, input: JSONValue, operation: String? = nil) {

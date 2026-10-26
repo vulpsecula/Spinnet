@@ -27,16 +27,11 @@ public struct ExternalAppConnectionDeclaration: Codable, Equatable {
 }
 
 public enum ExternalAppConnections {
-    public static let declaration = CandidateContractRevision(name: "external_app_connections", revision: 1)
     public static let member = PluginInterfaceMember.behaviour("external_app_connections")
-    public static let contract = CandidateContract(name: declaration.name, revision: declaration.revision,
-        baseLevel: 2, members: [member], tag: "plugin-api-candidate/external_app_connections/r1")
+    public static let members = [member]
 
     static func validate(_ manifest: PluginManifest) throws {
         guard !manifest.externalAppConnections.isEmpty else { return }
-        guard manifest.apiLevel >= 3 || (manifest.apiLevel >= 2 && manifest.candidateContracts.contains(where: { $0.name == declaration.name })) else {
-            throw ConfigurationError.invalidManifest("external_app_connections requires Plugin API Level 3")
-        }
         let connections = manifest.externalAppConnections
         guard connections.count <= 8, Set(connections.map(\.bundleID)).count == connections.count else {
             throw ConfigurationError.invalidManifest("Declare at most eight unique External App connections")
@@ -46,7 +41,6 @@ public enum ExternalAppConnections {
                   Set(connection.commandIDs).count == connection.commandIDs.count,
                   connection.commandIDs.allSatisfy({ id in manifest.commands.contains { $0.id == id } }),
                   let interface = ReviewedAppInterface.interface(for: connection.bundleID),
-                  interface.minimumAPILevel <= manifest.apiLevel,
                   let checkName = interface.connectionCheckOperation,
                   let check = interface.operations.first(where: { $0.name == checkName }), check.parameters.isEmpty,
                   let scope = manifest.scope(for: .controlExternalApp),

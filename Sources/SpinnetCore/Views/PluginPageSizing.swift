@@ -1,16 +1,14 @@
 import Foundation
 
-/// Plugin API Level 2 addition (#80): how a page meets the size of its
+/// Page sizing: how a page meets the size of its
 /// panel. A page declares that its panel may be resized (`resizable`), and
 /// its Grid may let the Host choose the columns from the width it has
 /// (`columns: "auto"`). The Host applies these itself as the user resizes,
 /// without running the Plugin's script; nothing tells the Plugin the size.
-/// A page that does not declare `resizable`, and every Level 1 view, keeps
+/// A page that does not declare `resizable`, and every form/detail view, keeps
 /// the Host's default layout whether pinned or not (ADR 0016, amended
 /// 2026-10-08).
 ///
-/// Appended to Level 2 while it is still open (PluginAPI README), so a
-/// Plugin pinned to an earlier commit of Level 2 lacks it.
 public enum PageSizing {
     /// A page may carry `resizable`.
     public static let resizablePages = PluginInterfaceMember.behaviour("resizable_pages")
@@ -19,7 +17,7 @@ public enum PageSizing {
 
     public static let behaviours = ["resizable_pages", "adaptive_grid_columns"]
 
-    /// What this addition appends to Level 2.
+    /// What this addition appends to the current interface.
     public static let members: [PluginInterfaceMember] = behaviours.map(PluginInterfaceMember.behaviour)
 
     // MARK: Limits

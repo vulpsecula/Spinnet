@@ -6,7 +6,7 @@
 #   ./script/ax_insertion_matrix.sh                 build, check the grant, run every target
 #   ./script/ax_insertion_matrix.sh --host a2       historical Host A2 reproduction
 #   ./script/ax_insertion_matrix.sh --host current --only host-extra   panel left open, script path, line breaks, long text, IME
-#   ./script/ax_insertion_matrix.sh --host current --only candidate    host_operations: target captured at the gesture, compared at insertion
+#   ./script/ax_insertion_matrix.sh --host current --only targeted    targeted insertion: target captured at the gesture, compared at insertion
 #   ./script/ax_insertion_matrix.sh --only chrome,vscode
 #   ./script/ax_insertion_matrix.sh --only panel,panel-keys   the Host call under a Plugin View-like panel, and the P3 flow
 #   ./script/ax_insertion_matrix.sh --skip obsidian
@@ -22,7 +22,7 @@
 # the Host does for a Plugin View's standard insert action. With --host
 # current (the default) it compiles this working tree's SpinnetCore,
 # Sources/SpinnetHost/Services/{HostTextInserter,InsertionTargets,HostAccessibility}.swift
-# instead, and calls HostTextInserter (or, for candidate rows,
+# instead, and calls HostTextInserter (or, for targeted rows,
 # TargetedTextInserter) as the Host does, with a stand-in Plugin View panel
 # key over the target first.
 #
@@ -81,10 +81,6 @@ done
 [[ "$HOST" == "a2" || "$HOST" == "current" ]] || { echo "--host is a2 or current" >&2; exit 2; }
 PACKAGE_DIR="$BUILD_ROOT/package-$HOST"
 SCRATCH_DIR="$BUILD_ROOT/scratch-$HOST"
-OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/tmp/ax-insertion-matrix/$(date +%Y%m%d-%H%M%S)-$HOST}"
-mkdir -p "$OUTPUT_DIR"
-OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
-
 SIGNING_IDENTITY="${SPINNET_CODESIGN_IDENTITY:-}"
 if [[ -z "$SIGNING_IDENTITY" ]]; then
     SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development:/{print $2; exit}')"
@@ -248,6 +244,10 @@ build_app() {
     codesign --verify --deep --strict "$APP_BUNDLE"
     echo "Signed $APP_BUNDLE with $SIGNING_IDENTITY ($BUNDLE_ID)"
 
+    # A failed build has no results to retain.
+    OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/tmp/ax-insertion-matrix/$(date +%Y%m%d-%H%M%S)-$HOST}"
+    mkdir -p "$OUTPUT_DIR"
+    OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
     "$APP_BINARY" selftest --out "$OUTPUT_DIR/selftest-sample"
 }
 

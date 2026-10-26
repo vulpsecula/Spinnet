@@ -21,7 +21,8 @@ public enum CommandExecution: String, Codable, Equatable, Hashable {
 }
 
 /// Declarative operations performed by the trusted Host on behalf of a
-/// configured Action. The raw values are part of the public Plugin Interface.
+/// configured Action. Raw values identify internal adapters and historical
+/// saved Actions; current Plugin manifests use catalogue IDs.
 public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
     case openURL = "url.open"
     case openApplication = "application.open"
@@ -366,10 +367,9 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
     /// `deep_link_template`: the Plugin, not the Host, says which link each
     /// Command uses.
     public let deepLinkTemplate: String?
-    /// The catalogue ID of the Host Service the Command runs, when its
-    /// `host_command` is not a Plugin API Level 1 Host Command: under
-    /// Candidate Contract `namespaces`, such as `open.url`. The Host checks
-    /// it against the Plugin's declarations, not when decoding.
+    /// The catalogue ID the current manifest gives in `host_command`, such
+    /// as `open.url`. Internal adapter values remain decodable only so saved
+    /// Actions and predecessor metadata can be recovered; admission refuses them.
     public let hostServiceID: String?
     /// Members of that Host Service's input the Command fixes, written as
     /// `input`; the Action's configured input supplies the rest. Only a
@@ -453,9 +453,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
             CommandConfigurationField.self,
             forKey: .configuration
         )
-        // A Level 1 Host Command keeps its enum; any other name is a catalogue
-        // ID, held to the Plugin's declarations when the Host checks it, and
-        // only then is `input` read.
+        // Keep historical adapter values decodable for saved data. Current
+        // manifest admission accepts only catalogue IDs and checks their input.
         let hostCommandName = try container.decodeIfPresent(String.self, forKey: .hostCommand)
         let hostCommand = hostCommandName.flatMap(HostCommand.init(rawValue:))
         let hostServiceID = hostCommand == nil ? hostCommandName : nil
@@ -511,15 +510,15 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
 
 public struct PluginManifest: Codable, Equatable {
     public static let supportedProtocolVersion = "1.0"
+    public static var compatibilityMigrationMessage: String {
+        "Update this Plugin to declare engines.spinnet (for example \(HostCompatibility.current.rawValue)) "
+            + "and remove api_level and candidate_contracts. Old interface declarations are no longer supported."
+    }
 
-    /// Frames helper messages only; compatibility is `apiLevel`'s job.
+    /// Frames helper messages only; Host compatibility is declared separately.
     public let protocolVersion: String
-    /// The lowest Plugin API Level the Plugin needs, written as `api_level`.
-    public let apiLevel: Int
-    /// The exact Candidate Contract revisions the Plugin was written against,
-    /// written as `candidate_contracts`; empty for a Plugin using only stable
-    /// Levels.
-    public let candidateContracts: [CandidateContractRevision]
+    /// The supported Host version range, encoded as engines.spinnet.
+    public let hostCompatibility: HostCompatibility
     public let externalAppConnections: [ExternalAppConnectionDeclaration]
     public let id: PluginID
     public let name: String
@@ -541,8 +540,7 @@ public struct PluginManifest: Codable, Equatable {
 
     public init(
         protocolVersion: String = Self.supportedProtocolVersion,
-        apiLevel: Int = PluginAPILevel.undeclared,
-        candidateContracts: [CandidateContractRevision] = [],
+        hostCompatibility: HostCompatibility = .current,
         externalAppConnections: [ExternalAppConnectionDeclaration] = [],
         id: PluginID,
         name: String,
@@ -557,8 +555,7 @@ public struct PluginManifest: Codable, Equatable {
         migrations: PluginMigrations = PluginMigrations()
     ) throws {
         self.protocolVersion = protocolVersion
-        self.apiLevel = apiLevel
-        self.candidateContracts = candidateContracts
+        self.hostCompatibility = hostCompatibility
         self.externalAppConnections = externalAppConnections
         self.id = id
         self.name = name
@@ -576,8 +573,9 @@ public struct PluginManifest: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case protocolVersion = "protocol_version"
-        case apiLevel = "api_level"
-        case candidateContracts = "candidate_contracts"
+        case engines
+        case obsoleteAPILevel = "api_level"
+        case obsoleteCandidates = "candidate_contracts"
         case externalAppConnections = "external_app_connections"
         case id
         case name
@@ -595,8 +593,7 @@ public struct PluginManifest: Codable, Equatable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(protocolVersion, forKey: .protocolVersion)
-        try container.encode(apiLevel, forKey: .apiLevel)
-        if !candidateContracts.isEmpty { try container.encode(candidateContracts, forKey: .candidateContracts) }
+        try container.encode(["spinnet": hostCompatibility], forKey: .engines)
         if !externalAppConnections.isEmpty { try container.encode(externalAppConnections, forKey: .externalAppConnections) }
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
@@ -613,18 +610,16 @@ public struct PluginManifest: Codable, Equatable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.protocolVersion = try container.decode(String.self, forKey: .protocolVersion)
-        self.apiLevel = container.contains(.apiLevel)
-            ? try container.decode(Int.self, forKey: .apiLevel)
-            : PluginAPILevel.undeclared
-        if container.contains(.candidateContracts) {
-            self.candidateContracts = try container.decode([CandidateContractRevision].self, forKey: .candidateContracts)
-            guard !candidateContracts.isEmpty else {
-                throw ConfigurationError.invalidManifest("candidate_contracts names no Candidate Contract")
-            }
-        } else {
-            self.candidateContracts = []
+        guard !container.contains(.obsoleteAPILevel), !container.contains(.obsoleteCandidates),
+              container.contains(.engines) else {
+            throw ConfigurationError.invalidManifest(Self.compatibilityMigrationMessage)
         }
+        let engines = try container.decode([String: HostCompatibility].self, forKey: .engines)
+        guard engines.count == 1, let compatibility = engines["spinnet"] else {
+            throw ConfigurationError.invalidManifest("engines must declare only spinnet with a supported Host version range")
+        }
+        self.hostCompatibility = compatibility
+        self.protocolVersion = try container.decode(String.self, forKey: .protocolVersion)
         self.externalAppConnections = try container.decodeIfPresent([ExternalAppConnectionDeclaration].self, forKey: .externalAppConnections) ?? []
         if container.contains(.externalAppConnections), externalAppConnections.isEmpty {
             throw ConfigurationError.invalidManifest("external_app_connections names no External App")
@@ -658,25 +653,11 @@ public struct PluginManifest: Codable, Equatable {
                 "Unsupported protocol version \(protocolVersion)"
             )
         }
-        guard apiLevel >= 1 else {
-            throw ConfigurationError.invalidManifest("Plugin API Level \(apiLevel) does not exist")
-        }
-        guard candidateContracts.allSatisfy({ CandidateContractRevision.isValidName($0.name) && $0.revision >= 1 }),
-              Set(candidateContracts.map(\.name)).count == candidateContracts.count else {
-            throw ConfigurationError.invalidManifest(
-                "Each Candidate Contract is declared once, by an identifier and a revision of at least 1"
-            )
-        }
         try validateText(id.rawValue, name: "Plugin ID")
         try validateText(name, name: "Plugin name")
         try validateText(version, name: "Plugin version")
         guard Set(capabilities).count == capabilities.count else {
             throw ConfigurationError.invalidManifest("Plugin declares a Capability more than once")
-        }
-        if let later = capabilities.first(where: { $0.apiLevel > apiLevel }) {
-            throw ConfigurationError.invalidManifest(
-                "Capability \(later.rawValue) is part of Plugin API Level \(later.apiLevel), but the Plugin declares Level \(apiLevel)"
-            )
         }
         guard Set(optionalCapabilities).count == optionalCapabilities.count,
               optionalCapabilities.allSatisfy(capabilities.contains) else {
@@ -712,11 +693,6 @@ public struct PluginManifest: Codable, Equatable {
                           && tool.operations.allSatisfy { (scope.capability == .readReviewedTools ? HomebrewReadInput.operations : HomebrewTaskInput.operations).contains($0) }
                           && tool.kinds.allSatisfy { ["formula", "cask"].contains($0) }
                       }) else { throw ConfigurationError.invalidManifest("Invalid reviewed tool read scope") }
-                if scope.capability == .runReviewedToolTasks,
-                   scope.reviewedTools.contains(where: { $0.operations.contains(HomebrewCatalogRefresh.operation) }),
-                   apiLevel < 7, !candidateContracts.contains(HomebrewCatalogRefresh.declaration) {
-                    throw ConfigurationError.invalidManifest("Automatic catalog refresh requires Plugin API Level 7")
-                }
             } else if !scope.reviewedTools.isEmpty {
                 throw ConfigurationError.invalidManifest("Only reviewed tool Capabilities declare reviewed_tools")
             }
@@ -1103,9 +1079,16 @@ public struct PluginManifest: Codable, Equatable {
         switch command.execution {
         case .host:
             guard let hostCommand = command.hostCommand else {
-                // A catalogue ID's input is checked when the Command runs.
+                // A Ready-to-Use Preset must pass the same input grammar as
+                // editor placement, before the user can add it to a Menu.
+                guard let id = command.hostServiceID,
+                      let operation = HostServiceCatalogue.operation(id), operation.isOffered(at: .command),
+                      acceptsActionInput(input, for: command) else { return false }
                 if let field = command.configurationField, !field.isValidInput(input) { return false }
-                return command.configurationField != nil || acceptsActionInput(input, for: command)
+                // Template parameters are validated against the declared
+                // fields and scope; this route has no native commandStep.
+                if id == HostServiceCatalogue.deepLinkOperation { return true }
+                return operation.acceptsConfiguredInput(input, for: command)
             }
             if hostCommand == .openDeepLink { return acceptsActionInput(input, for: command) }
             return hostCommand.isValidInput(input)
@@ -1211,8 +1194,8 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
     /// The Deep Link Template a `deep_link.open` Action opens, recorded so a
     /// Plugin that points the Command at another link is noticed.
     public let deepLinkTemplate: String?
-    /// The catalogue ID of the Host Service the Action's Command runs, under
-    /// Candidate Contract `namespaces`; nil for a Level 1 Host Command.
+    /// The catalogue ID of the Host Service the Action's Command runs.
+    /// Historical saved Actions may instead retain an internal Host Command adapter.
     public let hostServiceID: String?
     public let input: JSONValue
 

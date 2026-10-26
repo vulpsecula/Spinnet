@@ -12,7 +12,7 @@ final class DeepLinkMigrationTests: XCTestCase {
     private static let repository = TestRepository.root
 
     private func shottr() throws -> PluginManifest {
-        try PluginManifestLoader.load(packageAt: Self.repository.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/Shottr.spinnetplugin"))
+        try PluginManifestLoader.load(packageAt: Self.repository.appendingPathComponent("Tests/Fixtures/HostPlugins/Shottr.spinnetplugin"))
             .manifest
     }
 
@@ -34,7 +34,7 @@ final class DeepLinkMigrationTests: XCTestCase {
         let ids = Set(templates.map(\.id))
         let commands = manifest.commands.filter { $0.deepLinkTemplate.map(ids.contains) ?? true }
         return try PluginManifest(
-            apiLevel: manifest.apiLevel, id: manifest.id, name: manifest.name, version: manifest.version,
+            hostCompatibility: manifest.hostCompatibility, id: manifest.id, name: manifest.name, version: manifest.version,
             capabilities: manifest.capabilities,
             capabilityScopes: [PluginCapabilityScope(
                 capability: scope.capability, commandIDs: commands.map(\.id),
@@ -149,7 +149,8 @@ final class DeepLinkMigrationTests: XCTestCase {
         let moved = migrated.actions[0]
         XCTAssertEqual(moved.id, delayed.id)
         XCTAssertEqual(moved.input, delayed.input)
-        XCTAssertEqual(moved.hostCommand, .openDeepLink)
+        XCTAssertNil(moved.hostCommand)
+        XCTAssertEqual(moved.hostServiceID, HostServiceCatalogue.deepLinkOperation)
         XCTAssertEqual(moved.deepLinkTemplate, "delayed")
         XCTAssertNil(moved.script)
         XCTAssertEqual(registry.availability(for: moved), .available)

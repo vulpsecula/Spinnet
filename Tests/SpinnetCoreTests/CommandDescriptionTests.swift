@@ -9,7 +9,7 @@ final class CommandDescriptionTests: XCTestCase {
         let field = description.map { ", \"description\": \(String(reflecting: $0))" } ?? ""
         return Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.described", "name": "Described", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.described", "name": "Described", "version": "1.0.0",
           "commands": [{"id": "run", "title": "Run", "execution": "javascript",
                         "is_configurable": false, "script": "run.js"\(field)}]
         }

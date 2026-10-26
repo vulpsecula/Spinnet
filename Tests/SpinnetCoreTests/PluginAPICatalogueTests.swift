@@ -1,24 +1,19 @@
 import SpinnetTestSupport
 import Foundation
 import XCTest
+import SpinnetPluginTestKit
 @testable import SpinnetCore
 
-/// `PluginAPI/README.md` is the catalogue of Plugin API Level 1: what a Plugin
-/// may use, by SDK namespace. Whatever the Host offers at Level 1 must be in
-/// it, so nothing a Plugin can reach goes unpublished, and the files it points
-/// to must exist.
+/// The current catalogue publishes what a Plugin may use. The navigation
+/// from PluginAPI/README.md must reach every reference and schema, without
+/// requiring the entry page to duplicate their contents.
 final class PluginAPICatalogueTests: XCTestCase {
     private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
 
-    /// The section of the README that lists what Level 1 offers.
     private func catalogue() throws -> String {
-        let readme = try String(contentsOf: Self.pluginAPI.appendingPathComponent("README.md"), encoding: .utf8)
-        guard let start = readme.range(of: "\n## What Level 1 offers\n") else {
-            throw ConfigurationError.malformedValue("The README has no \"What Level 1 offers\" section")
-        }
-        let rest = readme[start.upperBound...]
-        return String(rest[..<(rest.range(of: "\n## ")?.lowerBound ?? rest.endIndex)])
+        try FileManager.default.contentsOfDirectory(at: Self.pluginAPI.appendingPathComponent("reference"), includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "md" }.map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
     }
 
     private func schema(_ name: String) throws -> [String: JSONValue] {
@@ -43,16 +38,13 @@ final class PluginAPICatalogueTests: XCTestCase {
         let catalogue = try catalogue()
         XCTAssertFalse(names.isEmpty, "No \(kind) were found", file: file, line: line)
         for name in names where !catalogue.contains("`\(name)`") {
-            XCTFail("The catalogue in PluginAPI/README.md misses the \(kind) `\(name)`", file: file, line: line)
+            XCTFail("The catalogue in PluginAPI/reference/overview.md misses the \(kind) `\(name)`", file: file, line: line)
         }
     }
 
-    /// Each row of the catalogue's Host Services table names one service in
-    /// its third column, so a missing row fails even where the same name is
-    /// also a Capability mentioned elsewhere.
-    func testTheCatalogueListsEveryHostServiceTheHostRegisters() throws {
-        let listed = try publishedTableColumn(2, under: "### Host Services, by SDK namespace", in: "README.md")
-        XCTAssertEqual(listed.sorted(), PluginHostService.levelOne.map(\.rawValue).sorted())
+    /// Every callable public service remains documented by its catalogue ID.
+    func testTheCatalogueListsEveryCallableHostService() throws {
+        try assertCatalogued(HostServiceCatalogue.operations.filter { $0.isOffered(at: .call) }.map(\.id), "Host Service")
     }
 
     /// The tables of the views page list exactly what the schemas allow.
@@ -69,19 +61,12 @@ final class PluginAPICatalogueTests: XCTestCase {
                        strings(in: perform["enum"]).sorted())
         XCTAssertEqual(try publishedTableColumn(0, under: "## View Sessions", in: "reference/views.md").sorted(),
                        strings(in: type["enum"]).sorted())
-        XCTAssertEqual(try publishedTableColumn(0, under: "### Plugin Views, in `spinnet.ui`", in: "README.md",
-                                                table: 1).sorted(),
-                       strings(in: perform["enum"]).sorted())
+
     }
 
     func testTheCatalogueListsEveryHostCommandAndCapability() throws {
-        try assertCatalogued(HostCommand.allCases.map(\.rawValue), "Host Command")
-        try assertCatalogued(PluginCapability.allCases.filter { $0.apiLevel == 1 }.map(\.rawValue), "Capability")
-        // Level 2's own Capabilities are in its section.
-        let readme = try String(contentsOf: Self.pluginAPI.appendingPathComponent("README.md"), encoding: .utf8)
-        for capability in PluginCapability.allCases where capability.apiLevel == 2 {
-            XCTAssertTrue(readme.contains("`\(capability.rawValue)`"), "The README misses \(capability.rawValue)")
-        }
+        try assertCatalogued(HostServiceCatalogue.operations.filter { $0.isOffered(at: .command) }.map(\.id), "Host Command")
+        try assertCatalogued(PluginCapability.allCases.map(\.rawValue), "Capability")
     }
 
     func testTheCatalogueListsEveryViewComponentStandardActionAndEvent() throws {
@@ -102,8 +87,8 @@ final class PluginAPICatalogueTests: XCTestCase {
     }
 
     /// Each schema's `<service>.input` names a service the Host registers,
-    /// by its Level 1 name or, in Level 2's `namespaces.schema.json`, its
-    /// catalogue ID, and every Host Service the published schemas describe
+    /// by its catalogue ID or an internal schema definition name, and every
+    /// Host Service the published schemas describe
     /// has a result.
     func testSchemasDescribeOnlyRegisteredServices() throws {
         let files = try FileManager.default.contentsOfDirectory(
@@ -120,36 +105,54 @@ final class PluginAPICatalogueTests: XCTestCase {
         }
     }
 
-    /// Every file under `PluginAPI/` is reachable from its README.
+    /// The navigation reaches every schema and reference without flattening
+    /// those indexes into the entry page.
     func testTheReadmeLinksEverySchemaAndReferencePage() throws {
-        let readme = try String(contentsOf: Self.pluginAPI.appendingPathComponent("README.md"), encoding: .utf8)
+        let reachable = try PublishedPluginDocumentation.reachableFiles()
         for directory in ["schemas", "reference"] {
             let files = try FileManager.default.contentsOfDirectory(
                 at: Self.pluginAPI.appendingPathComponent(directory), includingPropertiesForKeys: nil
             ).map(\.lastPathComponent).filter { !$0.hasPrefix(".") }
             XCTAssertFalse(files.isEmpty, "PluginAPI/\(directory) is empty")
             for file in files {
-                XCTAssertTrue(readme.contains("(\(directory)/\(file))"), "The README does not link \(directory)/\(file)")
+                XCTAssertTrue(reachable.contains("\(directory)/\(file)"), "No navigation path reaches \(directory)/\(file)")
             }
         }
     }
 
-    /// Relative links between the published pages lead to files that exist.
+    /// The same walk validates local files and Markdown heading anchors,
+    /// including links from the entry guide and compatibility records.
     func testLinksBetweenThePublishedPagesResolve() throws {
-        let pages = [Self.pluginAPI.appendingPathComponent("README.md")] + (try FileManager.default.contentsOfDirectory(
-            at: Self.pluginAPI.appendingPathComponent("reference"), includingPropertiesForKeys: nil
-        ).filter { $0.pathExtension == "md" })
-        let link = try NSRegularExpression(pattern: #"\]\(([^)#:]+)(#[^)]*)?\)"#)
-        for page in pages {
-            let text = try String(contentsOf: page, encoding: .utf8)
-            for match in link.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
-                guard let range = Range(match.range(at: 1), in: text) else { continue }
-                let target = page.deletingLastPathComponent().appendingPathComponent(String(text[range])).standardizedFileURL
-                XCTAssertTrue(FileManager.default.fileExists(atPath: target.path),
-                              "\(page.lastPathComponent) links \(text[range]), which does not exist")
-            }
+        let reachable = try PublishedPluginDocumentation.reachableFiles()
+        for file in ["getting-started.md", "fixtures/README.md", "reference/README.md",
+                     "reference/compatibility.md", "examples/Hello.spinnetplugin/manifest.json",
+                     "examples/Hello.spinnetplugin/main.js"] {
+            XCTAssertTrue(reachable.contains(file), file)
         }
     }
+
+    /// The package offered to new authors must load and execute through the
+    /// actual helper, without requesting protected operations.
+    func testGettingStartedExampleLoadsAndRunsWithoutAuthority() throws {
+        let root = Self.pluginAPI.appendingPathComponent("examples/Hello.spinnetplugin")
+        let manifest = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: root.appendingPathComponent("manifest.json")))
+        let validator = try JSONSchemaSubsetValidator(schemaAt: Self.pluginAPI.appendingPathComponent("schemas/manifest.schema.json"))
+        XCTAssertEqual(validator.errors(for: manifest), [])
+        let package = try PluginUnderTest(packageAt: root)
+        XCTAssertEqual(package.manifest.hostCompatibility.rawValue, "^1.0.0")
+        XCTAssertTrue(package.manifest.capabilities.isEmpty)
+        XCTAssertEqual(package.manifest.preset.defaultPrimaryCommandID, CommandID("hello.show"))
+        let helper = try PluginTestHelper()
+        defer { helper.shutdown() }
+        let run = helper.run(.init("hello.show"), of: package, answering: RecordedHostServices())
+        let output = try run.result.get()
+        XCTAssertEqual(output, .object(["toast": .string("Hello from Spinnet")]))
+        let answerSchema = try JSONSchemaSubsetValidator(definition: "answer", inSchemaAt: Self.pluginAPI.appendingPathComponent("schemas/pages.schema.json"))
+        XCTAssertEqual(answerSchema.errors(for: output), [])
+        XCTAssertTrue(run.requests.isEmpty)
+        _ = try run.answer()
+    }
+
 }
 
 /// Reads the tables of the pages under `PluginAPI/`, so a test can compare
@@ -184,5 +187,74 @@ enum PublishedTable {
             return cells[cells.startIndex + column].split(separator: "`", omittingEmptySubsequences: false)
                 .enumerated().filter { $0.offset % 2 == 1 }.map { String($0.element) }
         }
+    }
+}
+
+
+/// Walks published Markdown navigation and checks each local destination.
+/// Contract tests share this so reorganizing an index does not weaken coverage.
+enum PublishedPluginDocumentation {
+    private static let root = TestRepository.root.appendingPathComponent("PluginAPI").standardizedFileURL
+
+    static func reachableFiles() throws -> Set<String> {
+        var pending = [root.appendingPathComponent("README.md")]
+        var visited = Set<URL>()
+        var reachable: Set<String> = ["README.md"]
+        let expression = try NSRegularExpression(pattern: #"\]\(([^)\s]+)\)"#)
+        while let page = pending.popLast() {
+            guard visited.insert(page).inserted else { continue }
+            let text = try String(contentsOf: page, encoding: .utf8)
+            for match in expression.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+                guard let range = Range(match.range(at: 1), in: text) else { continue }
+                let link = String(text[range])
+                guard URL(string: link)?.scheme == nil else { continue }
+                let parts = link.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+                let path = String(parts[0]).removingPercentEncoding ?? String(parts[0])
+                let target = path.isEmpty ? page : page.deletingLastPathComponent().appendingPathComponent(path).standardizedFileURL
+                guard FileManager.default.fileExists(atPath: target.path) else {
+                    throw ConfigurationError.malformedValue("\(page.path) links missing \(link)")
+                }
+                if parts.count == 2, target.pathExtension == "md" {
+                    let fragment = String(parts[1]).removingPercentEncoding ?? String(parts[1])
+                    let destination = try String(contentsOf: target, encoding: .utf8)
+                    guard anchors(in: destination).contains(fragment) else {
+                        throw ConfigurationError.malformedValue("\(page.path) links missing anchor \(link)")
+                    }
+                }
+                guard target.path.hasPrefix(root.path + "/") else { continue }
+                reachable.insert(String(target.path.dropFirst(root.path.count + 1)))
+                if target.pathExtension == "md" { pending.append(target) }
+            }
+        }
+        return reachable
+    }
+
+    private static func anchors(in text: String) -> Set<String> {
+        var result = Set<String>()
+        var counts: [String: Int] = [:]
+        var fence: String?
+        for line in text.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                let marker = String(trimmed.prefix(3))
+                if fence == marker { fence = nil } else if fence == nil { fence = marker }
+                continue
+            }
+            guard fence == nil, trimmed.hasPrefix("#") else { continue }
+            let heading = trimmed.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)
+            let plain = heading.replacingOccurrences(of: #"\[([^]]+)\]\([^)]*\)"#, with: "$1", options: .regularExpression)
+                .replacingOccurrences(of: #"<[^>]*>"#, with: "", options: .regularExpression)
+            var slug = ""
+            for scalar in plain.lowercased().unicodeScalars {
+                if CharacterSet.whitespaces.contains(scalar) { slug.append("-") }
+                else if CharacterSet.alphanumerics.contains(scalar) || scalar == "-" || scalar == "_" {
+                    slug.unicodeScalars.append(scalar)
+                }
+            }
+            let count = counts[slug, default: 0]
+            result.insert(count == 0 ? slug : "\(slug)-\(count)")
+            counts[slug] = count + 1
+        }
+        return result
     }
 }

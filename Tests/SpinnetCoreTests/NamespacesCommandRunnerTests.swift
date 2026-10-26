@@ -4,9 +4,9 @@ import XCTest
 
 /// A Command naming a catalogue ID runs without a script: the Action runner
 /// assembles the operation's input from the Command's fixed input and the
-/// Action's configured input, and hands it to the implementation Level 1
-/// already has, a Host Command or a Host Service, through recording
-/// adapters here. It fails with the operation's own category (design 6.5).
+/// Action's configured input, and hands it to a Host Command adapter or a
+/// Host Service through recording adapters. It fails with the operation's
+/// own category.
 final class NamespacesCommandRunnerTests: XCTestCase {
     private let commands = RecordingCatalogueExecutor()
     private let services = RecordingBroker()
@@ -80,7 +80,7 @@ final class NamespacesCommandRunnerTests: XCTestCase {
     }
 
     /// Decision N9: a capture naming only its source follows the user's
-    /// screenshot preferences, as Level 1's three capture Commands did; one
+    /// screenshot preferences; one
     /// stating both options goes to the Host Service a script would use.
     func testACaptureCommandFixesItsSource() throws {
         let capture: (inout [String: JSONValue]) -> Void = { $0["capabilities"] = .array([.string("write_clipboard"),
@@ -101,7 +101,7 @@ final class NamespacesCommandRunnerTests: XCTestCase {
                        .object(["source": .string("area"), "copy_to_clipboard": .bool(true), "save": .null]))
     }
 
-    /// The Commands Level 1 had no Host Command for run the Host Service a
+    /// Commands without a native Host Command adapter run the Host Service a
     /// script would call, or show the Host's own UI.
     func testNewCommandsRunTheirHostServiceOrTheHostsUI() throws {
         for id in ["window.toggleFullScreen", "window.restore"] {
@@ -120,7 +120,7 @@ final class NamespacesCommandRunnerTests: XCTestCase {
     }
 
     /// Design 6.5: an unavailable target or a failed effect is the
-    /// operation's `host_service_failed`, not Level 1's `command_unavailable`
+    /// operation's `host_service_failed`, rather than the native adapter's `command_unavailable`
     /// or `host_command_failed`.
     func testACommandFailsWithItsOperationsCategory() throws {
         commands.failure = HostCommandExecutionError.unavailable("The file is not available")

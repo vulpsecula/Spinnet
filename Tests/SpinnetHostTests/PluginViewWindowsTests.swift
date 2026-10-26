@@ -49,10 +49,9 @@ final class PluginViewWindowsTests: XCTestCase {
         XCTAssertEqual(window.closes, 0)
     }
 
-    /// Calling the Plugin again while its view is open (Candidate Contract
-    /// `collections` r2) brings the window forward where it is as soon as
-    /// the call is accepted; the call's view then updates it in place.
-    /// Under Level 1 the call is not taken: the Action starts again.
+    /// Calling the Plugin again while its View Session is open brings the
+    /// window forward as soon as the call is accepted; its answer updates
+    /// the view in place.
     func testACallBringsTheViewForwardWhereItIs() throws {
         harness = try PluginViewHarness(declaresHostOperations: true)
         try harness.present(PluginViewHarness.form(title: "First"))
@@ -227,7 +226,7 @@ final class PluginViewWindowsTests: XCTestCase {
         XCTAssertEqual(again.restored, [placed])
     }
 
-    /// A pinned window showing a page that cannot be resized (or a Level 1
+    /// A pinned window showing a page that cannot be resized (or a form/detail
     /// view) remembers where it moved, but keeps the size the user chose
     /// for a resizable page, so that size comes back with it (#80).
     func testAPageThatCannotBeResizedKeepsTheRememberedPinnedSize() throws {
@@ -345,8 +344,8 @@ final class PluginViewHarness {
     let pins: PluginViewPins
 
     /// `insertionTargets`, when given, is the App the Host shows as where
-    /// text goes, and `declaresHostOperations` makes the fixture's views
-    /// those of a Level 2 Plugin.
+    /// text goes. `declaresHostOperations` enables current interface members
+    /// for the fixture's View Sessions.
     init(insertionTargets: InsertionTargetTracker? = nil, declaresHostOperations: Bool = false,
          pins: PluginViewPins = PluginViewPins(defaults: nil)) throws {
         self.pins = pins
@@ -469,10 +468,9 @@ struct HeldEvent {
 }
 
 extension PluginViewHarness {
-    /// What Plugin API Level 2 adds for a Level 2 Plugin, or nothing for a
-    /// Level 1 Plugin.
-    static func permits(_ levelTwo: Bool) -> (PluginInterfaceMember) -> Bool {
-        { member in levelTwo && PluginInterfaceContracts.host.levels[2]?.contains(member) == true }
+    /// Current members when enabled, otherwise an explicitly denied interface.
+    static func permits(_ includesCurrentMembers: Bool) -> (PluginInterfaceMember) -> Bool {
+        { member in includesCurrentMembers && PluginInterfaceContracts.currentMembers.contains(member) }
     }
 }
 

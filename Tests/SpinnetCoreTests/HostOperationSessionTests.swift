@@ -2,8 +2,8 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// Requested Host Operations in View Sessions (ADR 0018, Candidate Contract
-/// `host_operations` r1), driven through the sessions' seams: a renderer
+/// Requested Host Operations in View Sessions, driven through the sessions'
+/// seams: a renderer
 /// that records, events the test answers by hand, a clock it advances, and
 /// a performer that holds each operation until the test finishes it. Each
 /// test follows one of the published scenarios.
@@ -30,7 +30,7 @@ final class HostOperationSessionTests: XCTestCase {
         sessions = PluginViewSessions(
             renderer: renderer, runEvent: runner.run, schedule: clock.schedule,
             showFeedback: { [unowned self] in feedback.append($0) },
-            permitting: { _ in { PluginInterfaceContracts.levelTwoMembers.contains($0) } },
+            permitting: { _ in { PluginInterfaceContracts.currentMembers.contains($0) } },
             operations: performer,
             reportOperation: { [unowned self] _, message in reported.append(message) }
         )
@@ -468,8 +468,8 @@ final class HostOperationSessionTests: XCTestCase {
         XCTAssertEqual(performer.performed.count, 0)
     }
 
-    /// A Plugin that does not declare the candidate cannot request.
-    func testALevelOnePluginsAnswerWithAnOperationIsAProtocolViolation() throws {
+    /// A session without operation membership refuses a requested operation.
+    func testAnOperationWithoutMembershipIsAProtocolViolation() throws {
         sessions = PluginViewSessions(renderer: renderer, runEvent: runner.run, schedule: clock.schedule,
                                       showFeedback: { _ in }, operations: performer)
         XCTAssertThrowsError(try sessions.actionAnswered(Self.action(), with: .object([

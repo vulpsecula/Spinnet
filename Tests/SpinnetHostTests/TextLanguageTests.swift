@@ -38,7 +38,7 @@ final class TextLanguageTests: XCTestCase {
     func testDetectLanguageAnswersAsTextLanguageDoes() throws {
         let manifest = try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.language", "name": "Language", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.language", "name": "Language", "version": "1.0.0",
           "commands": [{"id": "detect", "title": "Detect", "execution": "javascript",
                         "is_configurable": false, "script": "detect.js"}]
         }

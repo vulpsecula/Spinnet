@@ -58,7 +58,7 @@ final class ReviewedToolTaskTests: XCTestCase {
         let owner = PluginID("native-cli-confirmation")
         let command = CommandDeclaration(id: .init("upgrade"), title: "Upgrade", execution: .javascript, script: "upgrade.js")
         let scope = PluginCapabilityScope(capability: .runReviewedToolTasks, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["upgrade"], kinds: ["cask"])])
-        let manifest = try PluginManifest(apiLevel: 2, id: owner, name: "Homebrew", version: "1.0", capabilities: [.runReviewedToolTasks], capabilityScopes: [scope], commands: [command])
+        let manifest = try PluginManifest(id: owner, name: "Homebrew", version: "1.0", capabilities: [.runReviewedToolTasks], capabilityScopes: [scope], commands: [command])
         let registry = PluginRegistry(); try registry.register(.init(rootURL: root, manifest: manifest, origin: .installed))
         let action = try ActionConfiguration(id: .init("upgrade"), pluginID: owner, command: command, input: .null)
         let host = HostReviewedToolTasks(activities: .init(), journal: root.appendingPathComponent("journal"), runnerURL: root.appendingPathComponent("must-not-launch"),

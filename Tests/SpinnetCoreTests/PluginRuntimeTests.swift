@@ -13,7 +13,7 @@ final class PluginRuntimeTests: XCTestCase {
 
     func testBundledClipboardHistoryUsesPublicServiceWithoutBackgroundSubscription() throws {
         let root = TestRepository.root
-        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/LegacyBundledPlugins/ClipboardHistory.spinnetplugin"))
+        let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/HostPlugins/ClipboardHistory.spinnetplugin"))
         // Registered the way the Host registers a Bundled Plugin. The origin
         // grants nothing: ClipboardHistoryTests presents from an installed copy.
         let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
@@ -1883,8 +1883,11 @@ final class PluginRuntimeTests: XCTestCase {
     }
 }
 
-private struct NoopHostCommandExecutor: HostCommandExecutor {
+private struct NoopHostCommandExecutor: CatalogueCommandExecutor {
     func execute(_ action: ActionConfiguration) throws -> JSONValue { .null }
+    func perform(_ command: HostCommand, input: JSONValue, for action: ActionConfiguration, in package: PluginPackage) throws -> JSONValue { .null }
+    func showToast(_ text: String, for action: ActionConfiguration) throws {}
+    func showPluginSettings(for action: ActionConfiguration) throws {}
 }
 
 /// Virtual time is injected only at the OS timer boundary. Processes and the

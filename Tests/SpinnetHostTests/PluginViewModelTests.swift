@@ -79,10 +79,10 @@ final class PluginViewModelTests: XCTestCase {
     /// Acceptance: each standard action works without a View Event.
     func testStandardActionsArePerformedByTheHostWithoutAnEvent() throws {
         try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
-            .object(["title": .string("Copy"), "perform": .string("copy_text"), "text": .string("copied")]),
-            .object(["title": .string("Open"), "perform": .string("open_url"), "url": .string("https://example.com")]),
-            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("inserted")]),
-            .object(["title": .string("Settings"), "perform": .string("open_plugin_settings")])
+            .object(["title": .string("Copy"), "perform": .string("clipboard.write"), "text": .string("copied")]),
+            .object(["title": .string("Open"), "perform": .string("open.url"), "url": .string("https://example.com")]),
+            .object(["title": .string("Insert"), "perform": .string("selection.replace"), "text": .string("inserted")]),
+            .object(["title": .string("Settings"), "perform": .string("host.showPluginSettings")])
         ]))
         let model = try model()
         for action in model.description.actions { model.choose(action) }
@@ -101,7 +101,7 @@ final class PluginViewModelTests: XCTestCase {
     func testARefusedStandardActionShowsItsRepairRoute() throws {
         harness.grants = []
         try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
-            .object(["title": .string("Copy"), "perform": .string("copy_text"), "text": .string("copied"),
+            .object(["title": .string("Copy"), "perform": .string("clipboard.write"), "text": .string("copied"),
                      "closes_view": .bool(true)])
         ]))
         let model = try model()
@@ -117,7 +117,7 @@ final class PluginViewModelTests: XCTestCase {
 
     func testAStandardActionThatClosesTheViewEndsTheSessionOnceItSucceeds() throws {
         try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
-            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("x"),
+            .object(["title": .string("Insert"), "perform": .string("selection.replace"), "text": .string("x"),
                      "closes_view": .bool(true)])
         ]))
         let model = try model()
@@ -134,7 +134,7 @@ final class PluginViewModelTests: XCTestCase {
     func testAnInsertThatClosesTheViewClosesItBeforeTheTextIsTyped() throws {
         harness.insertionFinishesAtOnce = nil
         try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
-            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("x"),
+            .object(["title": .string("Insert"), "perform": .string("selection.replace"), "text": .string("x"),
                      "closes_view": .bool(true)])
         ]))
         let model = try model()
@@ -155,7 +155,7 @@ final class PluginViewModelTests: XCTestCase {
     func testAnInsertRefusedAtOnceKeepsTheViewOpenWithItsError() throws {
         harness.insertionFinishesAtOnce = .some(.unavailable("The App to insert into is no longer open"))
         try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
-            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("x"),
+            .object(["title": .string("Insert"), "perform": .string("selection.replace"), "text": .string("x"),
                      "closes_view": .bool(true)])
         ]))
         let model = try model()
@@ -170,7 +170,7 @@ final class PluginViewModelTests: XCTestCase {
     func testAnInsertThatKeepsTheViewOpenShowsALaterFailureInIt() throws {
         harness.insertionFinishesAtOnce = nil
         try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
-            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("x")])
+            .object(["title": .string("Insert"), "perform": .string("selection.replace"), "text": .string("x")])
         ]))
         let model = try model()
         model.isPinned = true
@@ -189,9 +189,9 @@ final class PluginViewModelTests: XCTestCase {
     func testAStandardActionThatClosesTheViewLeavesAPinnedViewOpen() throws {
         harness.insertionFinishesAtOnce = nil
         try harness.present(PluginViewHarness.detail(sections: [.object(["id": .string("a"), "text": .string("A")])], actions: [
-            .object(["title": .string("Copy"), "perform": .string("copy_text"), "text": .string("c"),
+            .object(["title": .string("Copy"), "perform": .string("clipboard.write"), "text": .string("c"),
                      "closes_view": .bool(true)]),
-            .object(["title": .string("Insert"), "perform": .string("insert_text"), "text": .string("x"),
+            .object(["title": .string("Insert"), "perform": .string("selection.replace"), "text": .string("x"),
                      "closes_view": .bool(true)])
         ]))
         let model = try model()
@@ -363,7 +363,7 @@ final class PluginViewModelTests: XCTestCase {
             ])]),
             "actions": .array([
                 .object(["id": .string("go"), "title": .string("Go"), "shortcut": .string("cmd+g")]),
-                .object(["title": .string("Copy It"), "perform": .string("copy_text"), "text": .string("x")])
+                .object(["title": .string("Copy It"), "perform": .string("clipboard.write"), "text": .string("x")])
             ])
         ]), toast: "Hello")
         let labels = try model().accessibilityLabels

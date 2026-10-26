@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Spinnet pages and collections (Plugin API Level 2)",
-  "description": "Plugin API Level 2, promoted from Candidate Contract collections revision 3. What a Level 2 script may answer and receive: an answer with a page, the page's components and collection, the page events, the called event of an explicit call into the open View Session, and operation_finished. A collection may give its total and one slice of its items from start, with sections as headers that count their items, and the Host keeps a window of them around what the user sees and asks for the rest with load_range; item actions may toggle the marks items carry; and page and item actions the Host performs may ask to notify. Level 1 answers and events stay valid and keep their meaning; Level 1's own schemas are unchanged and refuse everything here. Page and item actions name the Host Service they perform by its catalogue ID (../catalogue.json).",
+  "title": "Spinnet View Pages and answers",
+  "description": "Current pages, form/detail answers, literal command output and separately scoped catalog refresh.",
   "$defs": {
     "text": {
       "description": "A string with at least one character that is not white space.",
@@ -15,7 +15,7 @@
       "maxLength": 64
     },
     "answer": {
-      "description": "A Level 2 script's answer: Level 1's answer with view or, instead, page, plus a Requested Host Operation (host-operations.schema.json). An answer has at most one of view and page. An answer with neither keeps the view, page and state as they are, so {operation} alone requests an insertion without re-describing the page.",
+      "description": "An answer with view or page and an optional Requested Host Operation (host-operations.schema.json). An answer has at most one of view and page. An answer with neither keeps the view, page and state as they are, so {operation} alone requests an insertion without re-describing the page.",
       "type": [
         "object",
         "null"
@@ -23,7 +23,7 @@
       "additionalProperties": false,
       "properties": {
         "view": {
-          "description": "A Level 1 view, checked against plugin-view.schema.json with host_operations' view_additions. It keeps Level 1's view rules.",
+          "description": "A form/detail view checked against plugin-view.schema.json with requested-operation view additions.",
           "type": "object"
         },
         "page": {
@@ -36,7 +36,7 @@
           "const": true
         },
         "toast": {
-          "$ref": "#/$defs/text"
+          "$ref": "pages.schema.json#/$defs/text"
         },
         "operation": {
           "$ref": "host-operations.schema.json#/$defs/operation"
@@ -99,11 +99,11 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "$ref": "#/$defs/identifier",
+          "$ref": "pages.schema.json#/$defs/identifier",
           "description": "The View Page. The same ID refreshes the page on screen and keeps its immediate state; another ID changes page, remembering the last 4 pages' immediate state by ID."
         },
         "title": {
-          "$ref": "#/$defs/text"
+          "$ref": "pages.schema.json#/$defs/text"
         },
         "subtitle": {
           "type": "string"
@@ -113,7 +113,7 @@
           "type": "boolean"
         },
         "focus": {
-          "$ref": "#/$defs/identifier",
+          "$ref": "pages.schema.json#/$defs/identifier",
           "description": "The component focused when the page is new or reset; else the first text_field, else the collection."
         },
         "reset": {
@@ -128,7 +128,7 @@
               "maxItems": 40,
               "uniqueItems": true,
               "items": {
-                "$ref": "#/$defs/identifier"
+                "$ref": "pages.schema.json#/$defs/identifier"
               }
             }
           ]
@@ -143,7 +143,7 @@
           }
         },
         "resizable": {
-          "description": "Plugin API Level 2 addition (#80): the user may resize the page's panel, pinned or not, down to its minimum size. The Host lays the page out in the size there is (the collection, or a page without one, takes the room left; a grid with columns \"auto\" takes the columns its width holds) without running the script, and nothing tells the Plugin the size. Absent or false, the panel keeps the Host's default layout: fixed width, height following its content.",
+          "description": "current Plugin interface addition (#80): the user may resize the page's panel, pinned or not, down to its minimum size. The Host lays the page out in the size there is (the collection, or a page without one, takes the room left; a grid with columns \"auto\" takes the columns its width holds) without running the script, and nothing tells the Plugin the size. Absent or false, the panel keeps the Host's default layout: fixed width, height following its content.",
           "oneOf": [
             {
               "type": "boolean"
@@ -211,6 +211,9 @@
         },
         {
           "$ref": "#/$defs/activity_list"
+        },
+        {
+          "$ref": "#/$defs/adaptive"
         }
       ]
     },
@@ -277,7 +280,7 @@
       }
     },
     "text_field": {
-      "description": "A one-line text field, Level 1's text field with an ID. Its text, caret, selection and composition belong to the Host until the Plugin resets it.",
+      "description": "A one-line text field, current's text field with an ID. Its text, caret, selection and composition belong to the Host until the Plugin resets it.",
       "type": "object",
       "required": [
         "kind",
@@ -366,7 +369,7 @@
       }
     },
     "text_block": {
-      "description": "Text in Level 1's Markdown subset (views.md), with an optional title.",
+      "description": "Text in current's Markdown subset (views.md), with an optional title.",
       "type": "object",
       "required": [
         "kind",
@@ -392,6 +395,9 @@
         },
         "bind": {
           "$ref": "host-run-sources.schema.json#/$defs/binding"
+        },
+        "format": {
+          "const": "output"
         }
       }
     },
@@ -673,7 +679,7 @@
       }
     },
     "image": {
-      "description": "A picture the Host loads from its source (#81) into a frame of width \u00d7 height points, kept while it loads or after it fails, with Try Again. At most 8 per page.",
+      "description": "A picture the Host loads from its source (#81) into a frame of width × height points, kept while it loads or after it fails, with Try Again. At most 8 per page.",
       "type": "object",
       "required": [
         "kind",
@@ -804,7 +810,7 @@
       }
     },
     "page_action": {
-      "description": "A button: an event action with id and title, delivering action_chosen with the page's values and selection, or a page action that names a Host Service by its catalogue ID in perform with its input, which the Host performs without a View Event, as Level 1's standard actions are; with notify its outcome reaches the Plugin as operation_finished. No shortcut.",
+      "description": "A button: an event action with id and title, delivering action_chosen with the page's values and selection, or a page action that names a Host Service by its catalogue ID in perform with its input, which the Host performs without a View Event, as current's standard actions are; with notify its outcome reaches the Plugin as operation_finished. No shortcut.",
       "oneOf": [
         {
           "type": "object",
@@ -857,7 +863,7 @@
       },
       "allOf": [
         {
-          "$ref": "namespaces.schema.json#/$defs/perform_input"
+          "$ref": "host-operations.schema.json#/$defs/perform_input"
         }
       ]
     },
@@ -1047,7 +1053,7 @@
           }
         },
         "columns": {
-          "description": "Cells across, 2 to 12; 8 by default. Cells are square and divide the width. \"auto\" (Level 2 addition, #80): as many cells of at least min_cell_size as the width holds, 2 to 24, which the Host chooses again as the panel is resized; moving by rows and load_range follow the columns there are.",
+          "description": "Cells across, 2 to 12; 8 by default. Cells are square and divide the width. \"auto\" (current addition, #80): as many cells of at least min_cell_size as the width holds, 2 to 24, which the Host chooses again as the panel is resized; moving by rows and load_range follow the columns there are.",
           "oneOf": [
             {
               "type": "integer",
@@ -1268,7 +1274,7 @@
       }
     },
     "item_action": {
-      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own \u2318C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions.",
+      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own ⌘C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions.",
       "type": "object",
       "required": [
         "id",
@@ -1379,7 +1385,7 @@
       }
     },
     "event": {
-      "description": "One View Event at Level 2: a Level 1 event (from a Level 1 view, and setting or section events), a page event, called, or operation_finished.",
+      "description": "One View Event from a form/detail view or page, including settings/section events, called and operation_finished.",
       "oneOf": [
         {
           "$ref": "view-session.schema.json#/$defs/event"
@@ -1693,7 +1699,134 @@
           "maxLength": 256
         }
       },
-      "description": "A top-level Host control showing only this Plugin\u2019s active Host Activities and their native Stop. At most one/page; no Plugin items, owner, or actions. Timed status updates in whole seconds while visible."
+      "description": "A top-level Host control showing only this Plugin’s active Host Activities and their native Stop. At most one/page; no Plugin items, owner, or actions. Timed status updates in whole seconds while visible."
+    },
+    "adaptive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "content"
+      ],
+      "properties": {
+        "kind": {
+          "const": "adaptive"
+        },
+        "id": {
+          "$ref": "pages.schema.json#/$defs/identifier"
+        },
+        "content": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "pages.schema.json#/$defs/leaf"
+              },
+              {
+                "$ref": "pages.schema.json#/$defs/row"
+              },
+              {
+                "$ref": "pages.schema.json#/$defs/column"
+              }
+            ]
+          }
+        },
+        "min_card_width": {
+          "type": "number",
+          "minimum": 160,
+          "maximum": 600
+        },
+        "spacing": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "max_columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "fit": {
+          "$ref": "#/$defs/fit"
+        }
+      }
+    },
+    "fit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profiles"
+      ],
+      "properties": {
+        "profiles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/profile"
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "min_card_width",
+        "min_card_height"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "pages.schema.json#/$defs/identifier"
+        },
+        "min_card_width": {
+          "type": "number",
+          "minimum": 160,
+          "maximum": 600
+        },
+        "min_card_height": {
+          "type": "number",
+          "minimum": 48,
+          "maximum": 600
+        },
+        "spacing": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "overrides": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/text_override"
+          }
+        }
+      }
+    },
+    "text_override": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "pages.schema.json#/$defs/identifier"
+        },
+        "text": {
+          "type": "string"
+        },
+        "style": {
+          "$ref": "pages.schema.json#/$defs/text_style"
+        },
+        "hidden": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

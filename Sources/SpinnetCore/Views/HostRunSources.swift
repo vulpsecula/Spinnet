@@ -1,6 +1,6 @@
 import Foundation
 
-/// Visible-page observation, appended to Plugin API Level 2 (#82).
+/// Visible-page observation, appended to the current interface (#82).
 public enum HostRunSourceAddition {
     public static let pageSources = PluginInterfaceMember.behaviour("page_sources")
     public static let bindings = PluginInterfaceMember.behaviour("source_bindings")
@@ -13,13 +13,12 @@ public enum HostRunSourceAddition {
     public static let maximumFailureMessage = 512
 }
 
-/// Level 4 opts into live local activity delivery without changing older
-/// Plugins' source cadence or waking scripts for unchanged activity data.
+/// Local activity delivery has a one-second floor and wakes scripts only
+/// when the delivered activity data changes.
 public enum LiveActivityDelivery {
-    public static let apiLevel = 4
-    public static let declaration = CandidateContractRevision(name: "live_activity_delivery", revision: 1)
     public static let minimumInterval: TimeInterval = 1
     public static let member = PluginInterfaceMember.behaviour("live_activity_delivery")
+    public static let members = [member]
 }
 
 /// All result and authority inputs are retained as the complete JSON definition.
@@ -55,7 +54,7 @@ public struct PluginPageSource: Equatable {
         if perform == ReviewedToolReads.id {
             guard every == nil else { throw PluginPage.violation("tools.read sources sample once") }
             if input.value(atPointer: "/operation") == .string("commandOutput"), !permits(HomebrewCommandOutput.member) {
-                throw PluginPage.violation("Homebrew command output requires Plugin API Level 6")
+                throw PluginPage.violation("Homebrew command output is not provided by this Host")
             }
             do { _ = try HomebrewReadInput(input) }
             catch { throw PluginPage.violation(FetchedAnswer.message(for: error)) }

@@ -1,4 +1,4 @@
-# Local Spotify (Plugin API Level 2, #85)
+# Local Spotify (current interface, #85)
 
 `apps.perform` accepts the Reviewed App Interface for `com.spotify.client`:
 `playback` belongs to `playback_read`; `play`, `pause`, `previous` and `next`
@@ -43,3 +43,28 @@ The Host's reviewed native adapter follows the installed Spotify.sdef, not
 Plugin-supplied source. Real track values and transport UX still need checking
 with Spotify and Automation allowed by the user. Schemas and recorded answers
 alone cannot establish those native semantics.
+
+## Spotify controls and External App connections
+
+The [connection fixture](../fixtures/external-app-connections/valid.json) shows
+the declaration shape; the Host additionally checks its Command IDs and scope.
+
+`apps.perform` adds `play_pause`, `volume`, `set_volume`, `adjust_volume` and
+`next_checked` for the reviewed Spotify interface. Volume is Spotify's own
+integer 0–100; adjustment is an integer delta −100–100, clamped on the Host.
+The result is the observed volume. `next_checked` makes at most one Next send
+and one delayed observation, returning `changed`, `unconfirmed`,
+`no_current_track` or `stopped`. It never infers an empty queue or retries a send.
+All native calls share the reviewed deadline; a timeout after an effect does
+not establish that nothing happened. No cloud account, queue mutation or
+arbitrary Apple Events interface is exposed.
+
+current Spotify calls are prompt-free and target an already-running App.
+The manifest's optional `external_app_connections` member names reviewed
+Apps and dependent Command IDs. Plugin Settings owns connection status and an
+explicit Connect action; only that action may request Automation consent.
+Connection setup never starts playback, launches the target or replays an
+Action. Required scoped grants still apply, and removal, replacement,
+revocation and disable invalidate pending connection work. See the
+[connection schema](../schemas/external-app-connections.schema.json) and
+[control schema](../schemas/spotify-controls.schema.json).

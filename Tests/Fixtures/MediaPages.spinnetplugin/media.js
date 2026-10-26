@@ -1,5 +1,5 @@
-// Spotify- and System Monitor-shaped pages written against Plugin API
-// Level 2's Component Styles, columns, icons, images and progress (#81).
+// Spotify- and System Monitor-shaped pages using Component Styles, columns,
+// icons, images and progress.
 //
 // "Now Playing" shows a track: its artwork, loaded by the Host from an HTTPS
 // host the Command may contact or, with `offline`, from the package's own
@@ -88,7 +88,7 @@
     });
   }
 
-  const isTrack = spinnet.environment.commandID === "media.track";
+  const isTrack = commandID === "media.track";
   const kept = state || (isTrack ? { track: 0, position: 133, playing: true, offline: !!(input && input.offline) }
                                  : { sample: 0 });
   const show = (s) => ui.showPage(isTrack ? track(s) : metrics(s), { state: s });

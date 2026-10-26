@@ -53,7 +53,7 @@ final class HomebrewCatalogRefreshTests: XCTestCase {
             defer { try? FileManager.default.removeItem(at: root) }
             let owner = PluginID("catalog.fixture"), command = CommandDeclaration(id: .init("show"), title: "Show", execution: .javascript, script: "show.js")
             let scope = PluginCapabilityScope(capability: .runReviewedToolTasks, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: [operation], kinds: ["formula", "cask"])])
-            let manifest = try PluginManifest(apiLevel: 7, id: owner, name: "Catalog", version: "1", capabilities: [.runReviewedToolTasks], capabilityScopes: [scope], commands: [command])
+            let manifest = try PluginManifest(id: owner, name: "Catalog", version: "1", capabilities: [.runReviewedToolTasks], capabilityScopes: [scope], commands: [command])
             let registry = PluginRegistry(); try registry.register(.init(rootURL: root, manifest: manifest, origin: .installed))
             let action = try ActionConfiguration(id: .init("show"), pluginID: owner, command: command, input: .null)
             var reviews = 0, authorizations = 0
@@ -74,22 +74,21 @@ final class HomebrewCatalogRefreshTests: XCTestCase {
             performer.abandon(owner, because: .viewClosed)
         }
     }
-    func testRefreshOptInIsVersionedAndOldGrantsDoNotExpand() throws {
+    func testCurrentRefreshScopeDoesNotExpandPreviousGrants() throws {
         let command = CommandDeclaration(id: .init("show"), title: "Show", execution: .javascript, script: "show.js")
-        func manifest(_ level: Int, operation: String) throws -> PluginManifest {
-            try .init(apiLevel: level, id: .init("catalog.fixture"), name: "Catalog", version: "\(level)", capabilities: [.runReviewedToolTasks],
+        func manifest(_ version: Int, operation: String) throws -> PluginManifest {
+            try .init(id: .init("catalog.fixture"), name: "Catalog", version: "\(version)", capabilities: [.runReviewedToolTasks],
                       capabilityScopes: [.init(capability: .runReviewedToolTasks, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: [operation], kinds: ["formula", "cask"])])], commands: [command])
         }
-        XCTAssertThrowsError(try manifest(6, operation: "refreshCatalog"))
+        XCTAssertNoThrow(try manifest(6, operation: "refreshCatalog"))
         let old = try manifest(6, operation: "update"), new = try manifest(7, operation: "refreshCatalog")
         let grants = PluginCapabilityGrantStore()
         grants.setDecision(.granted, for: old.id, pluginVersion: old.version, capability: .runReviewedToolTasks, scope: old.scope(for: .runReviewedToolTasks))
         grants.prepareInstallation(of: new, replacing: old)
         XCTAssertEqual(grants.decision(for: new.id, pluginVersion: new.version, capability: .runReviewedToolTasks, scope: new.scope(for: .runReviewedToolTasks)), .notDetermined)
         XCTAssertTrue(PluginInterfaceContracts.host.permits(HomebrewCatalogRefresh.member, declaredBy: new))
-        XCTAssertFalse(PluginInterfaceContracts.host.permits(HomebrewCatalogRefresh.member, declaredBy: old))
-        let candidate = PluginInterfaceContracts(levels: PluginInterfaceContracts.host.levels.filter { $0.key <= 6 }, candidates: [HomebrewCatalogRefresh.contract])
-        XCTAssertEqual(try candidate.promoting(HomebrewCatalogRefresh.declaration.name, toLevel: 7).levels, PluginInterfaceContracts.host.levels)
+        XCTAssertTrue(PluginInterfaceContracts.host.permits(HomebrewCatalogRefresh.member, declaredBy: old))
+
     }
 
 }

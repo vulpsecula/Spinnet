@@ -30,7 +30,7 @@ public enum ShippedPluginPackages {
     /// The shipped Plugins whose Commands are all Host Commands: Open URL,
     /// Screenshot and the rest that used to be built into the Library.
     public static func hostCommandPlugins() throws -> [PluginPackage] {
-        try all().filter { $0.manifest.commands.allSatisfy { $0.hostCommand != nil } }
+        try all().filter { $0.manifest.commands.allSatisfy { $0.execution == .host } }
     }
 
     public static func named(_ name: String) throws -> PluginPackage {

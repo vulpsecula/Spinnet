@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import SpinnetCore
 
-/// One drawn page of a Plugin API Level 2 Plugin (ADR 0019): the page the session shows with the immediate state the Host
+/// One drawn page of a compatible Plugin (ADR 0019): the page the session shows with the immediate state the Host
 /// keeps for it, the keyboard roles of its search field and collection, and
 /// the Host's own chrome (target line, empty, loading and failure states).
 /// It turns the user's input into page events for its session, and page and
@@ -338,7 +338,8 @@ final class PluginPageModel: ObservableObject {
         guard searchesCollection(field) else { return false }
         switch move {
         case .up, .down: return moveSelection(move)
-        case .left, .right where collection?.style == .grid: return moveSelection(move)
+        case .left where collection?.style == .grid,
+             .right where collection?.style == .grid: return moveSelection(move)
         default: return false
         }
     }

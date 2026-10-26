@@ -48,26 +48,26 @@ final class PluginInstallationReviewTests: XCTestCase {
                        "An unchanged scope keeps its decision; an undecided one is asked for")
     }
 
-    func testAPluginThatNeedsANewerPluginAPILevelIsRefusedBeforeTheUserIsAsked() throws {
+    func testAPluginThatNeedsANewerHostIsRefusedBeforeTheUserIsAsked() throws {
         let (_, _, _, store) = makeStore()
         let source = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).appendingPathComponent("Newer.spinnetplugin")
         addTeardownBlock { try? FileManager.default.removeItem(at: source.deletingLastPathComponent()) }
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
-        // One Level past what this Host provides, so the test keeps meaning
-        // "newer" when the Host gains a Level.
-        let supported = PluginInterfaceContracts.host.highestStableLevel
+        // Require the next Host major version, independent of this release.
+        let nextMajor = HostVersion.current.major + 1
+        let required = "^\(nextMajor).0.0"
         try Data("""
-        {"protocol_version": "1.0", "api_level": \(supported + 1), "id": "com.example.newer", "name": "Newer",
+        {"protocol_version": "1.0", "engines": {"spinnet": "\(required)"}, "id": "com.example.newer", "name": "Newer",
          "version": "1.0.0",
          "commands": [{"id": "newer.run", "title": "Run", "execution": "javascript", "script": "run.js"}]}
         """.utf8).write(to: source.appendingPathComponent("manifest.json"))
         try Data("null".utf8).write(to: source.appendingPathComponent("run.js"))
 
         XCTAssertThrowsError(try store.review(source)) { error in
-            let refusal = error as? UnsupportedPluginAPILevel
-            XCTAssertEqual(refusal?.requiredLevel, supported + 1)
-            XCTAssertEqual(refusal?.supportedLevel, supported)
+            let refusal = error as? UnsupportedPluginHostVersion
+            XCTAssertEqual(refusal?.requirement.rawValue, required)
+            XCTAssertEqual(refusal?.hostVersion, .current)
         }
     }
 

@@ -24,7 +24,7 @@
     "actions": [
       {
         "title": "Copy 😀",
-        "perform": "copy_text",
+        "perform": "clipboard.write",
         "text": "😀"
       }
     ]

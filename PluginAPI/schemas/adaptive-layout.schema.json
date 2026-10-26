@@ -1,28 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Spinnet adaptive-layout (Plugin API Level 3)",
-  "description": "Stable Level 3 adaptive cards and passive viewport fit; Level 1/2 retain their published vocabulary.",
+  "title": "Spinnet adaptive-layout (current Plugin interface)",
+  "description": "Current adaptive cards and passive viewport fit; all compatible Plugins use the same shape.",
   "$defs": {
     "answer": {
-      "$ref": "pages-level-3.schema.json#/$defs/answer"
+      "$ref": "pages.schema.json#/$defs/answer"
     },
     "page": {
-      "$ref": "pages-level-3.schema.json#/$defs/page"
+      "$ref": "pages.schema.json#/$defs/page"
     },
     "adaptive": {
-      "$ref": "pages-level-3.schema.json#/$defs/adaptive"
+      "$ref": "pages.schema.json#/$defs/adaptive"
     },
     "component": {
-      "$ref": "pages-level-3.schema.json#/$defs/component"
+      "$ref": "pages.schema.json#/$defs/component"
     },
     "fit": {
-      "$ref": "pages-level-3.schema.json#/$defs/fit"
+      "$ref": "pages.schema.json#/$defs/fit"
     },
     "profile": {
-      "$ref": "pages-level-3.schema.json#/$defs/profile"
+      "$ref": "pages.schema.json#/$defs/profile"
     },
     "text_override": {
-      "$ref": "pages-level-3.schema.json#/$defs/text_override"
+      "$ref": "pages.schema.json#/$defs/text_override"
     }
   }
 }

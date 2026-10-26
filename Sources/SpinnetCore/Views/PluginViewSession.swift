@@ -6,8 +6,8 @@ public struct PluginViewPresentation: Equatable {
     /// The view description, opaque here; the renderer reads it. For a page
     /// it is the page as the script wrote it.
     public let view: JSONValue
-    /// The page shown, under Candidate Contract `collections`, already read;
-    /// nil for a Level 1 view.
+    /// The page shown, under `collections`, already read;
+    /// nil for a form/detail view.
     public let page: PluginPage?
     /// An event is in flight. The view shows its own busy state; the Host
     /// shows no Action progress for View Events.
@@ -117,7 +117,7 @@ public final class PluginViewSession {
     public var pluginID: PluginID { action.pluginID }
     public private(set) var view: JSONValue
     /// The page shown, when the last description was a page (Candidate
-    /// Contract `collections`); nil while a Level 1 view is shown.
+    /// Contract `collections`); nil while a form/detail view is shown.
     public private(set) var page: PluginPage?
     /// The state from the last answer that had a view: the last good state.
     public private(set) var state: JSONValue
@@ -146,8 +146,7 @@ public final class PluginViewSession {
     /// beyond the progress delay.
     public private(set) var isPerformingOperation = false
     public private(set) var operationProgress: String?
-    /// Which interface members the Plugin's declarations offer; one
-    /// declaring `host_operations` may answer a gesture with an operation.
+    /// Interface members offered by the Host for this session.
     public let permits: (PluginInterfaceMember) -> Bool
 
     private weak var renderer: PluginViewRenderer?
@@ -186,8 +185,8 @@ public final class PluginViewSession {
         }
 
         /// Whether a view that replaces the one it was made in drops it:
-        /// an event of a Level 1 view, which has no page provenance.
-        var isLevelOneViewEvent: Bool {
+        /// an event of a form/detail view, which has no page provenance.
+        var isViewPayloadEvent: Bool {
             switch event {
             case .fieldChanged, .submitted, .actionChosen, .sectionDelivered: return true
             default: return false
@@ -242,9 +241,9 @@ public final class PluginViewSession {
 
     /// Hands one user interaction to the script. `insertionTarget` is what
     /// the Host showed as where text would go when the user made it, for a
-    /// gesture of a Plugin declaring `host_operations`.
+    /// Plugin gesture.
     ///
-    /// An event of a page (Candidate Contract `collections`) is stamped with
+    /// An event of a page is stamped with
     /// the page and component it came from; one whose page is not on screen
     /// is dropped at once, and one whose page or component changed kind or
     /// was reset before it runs is dropped then, without a run or feedback.
@@ -337,7 +336,7 @@ public final class PluginViewSession {
     }
 
     /// Queues an explicit call of `action`, a complete Action of the
-    /// session's Plugin (Candidate Contract `collections` r2): it runs as
+    /// session's Plugin: it runs as
     /// `called` in order behind what is waiting, never merged with another
     /// call, from the last good state when its turn comes, and as a gesture
     /// waits while the Plugin has an operation outstanding. The view comes
@@ -599,17 +598,16 @@ public final class PluginViewSession {
 
     /// A call's answer committed a view: its Action handles the session
     /// from now on. Another Command's view may not rely on what the first
-    /// one was allowed to fetch, so its sections end. Events of a Level 1
-    /// view, which have no page provenance, are dropped as when Level 1
-    /// presents again, a delivery to be redelivered if its section is still
+    /// one was allowed to fetch, so its sections end. Events of a form/detail
+    /// view have no page provenance and are dropped when it presents again, a delivery to be redelivered if its section is still
     /// shown; page events keep their provenance, and calls, Settings
     /// notifications and results stay.
     private func handOver(to caller: ActionConfiguration) {
         if caller.commandID != action.commandID { commandChanged() }
         action = caller
-        let (dropped, kept) = queue.partitioned { $0.isLevelOneViewEvent }
+        let (dropped, kept) = queue.partitioned { $0.isViewPayloadEvent }
         queue = kept
-        if let pending = debouncing, pending.isLevelOneViewEvent {
+        if let pending = debouncing, pending.isViewPayloadEvent {
             debouncing = nil
             debounceToken += 1
         }
@@ -712,7 +710,7 @@ public final class PluginViewSessions {
     /// and every session that ends cancels its sections.
     ///
     /// `permitting` says which interface members an Action's Plugin may use,
-    /// so a Plugin declaring `host_operations` may answer a gesture with an
+    /// so a Plugin may answer a gesture with an
     /// operation, which `operations` checks and performs after the answer
     /// commits; `reportOperation` tells the user of an outcome no view
     /// shows, by default as feedback near the pointer.
@@ -842,12 +840,9 @@ public final class PluginViewSessions {
     }
 
     /// Calls `action` into its Plugin's open View Session and says whether
-    /// the session took it. A Plugin declaring `collections` r2 takes every
-    /// explicit call of a scripted Action while its session is open: the
-    /// call is queued as `called` and the view comes forward. Otherwise,
-    /// with no session open, for a Plugin under Level 1's rule, and for a
-    /// Host Command, which keeps its native path, the caller starts the
-    /// Action as usual, and an answer with a view replaces the session's.
+    /// the session took it. Scripted Actions queue as `called` and bring the
+    /// view forward. Without an open session, or for a native Host Command,
+    /// the caller starts the Action normally.
     public func call(_ action: ActionConfiguration) -> Bool {
         guard action.execution == .javascript, let session = sessions[action.pluginID], !session.isEnded,
               permitting(action)(CollectionsContract.repeatedCallsIntoSession) else { return false }
@@ -959,7 +954,7 @@ struct PageIdentity {
     private var components: [String: (kind: PluginPageComponent.Kind, instance: Int)] = [:]
     private var counter = 0
 
-    /// A page, or a Level 1 view when nil, was committed.
+    /// A page, or a form/detail view when nil, was committed.
     mutating func show(_ page: PluginPage?) {
         guard let page else {
             pageID = nil

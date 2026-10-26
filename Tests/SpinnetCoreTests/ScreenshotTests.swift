@@ -4,7 +4,7 @@ import XCTest
 /// Screenshots are a Host feature. Capture Area, Capture Full Screen and
 /// Capture Window are Host Commands, whose after-capture options live in the
 /// Screenshot entry's Plugin Settings. Another Plugin asks for a capture
-/// through the `capture_screen` Host Service with its own options, saving only
+/// through the `screen.capture` Host Service with its own options, saving only
 /// to a folder the user configured on its Action. These tests pin the Host
 /// Commands' authority, the settings, the service's input and folder checks,
 /// and, through the real helper, a Plugin's request.
@@ -37,15 +37,19 @@ final class ScreenshotTests: XCTestCase {
         func manifest(capabilities: String) -> Data {
             Data("""
             {
-              "protocol_version": "1.0", "id": "com.example.shooter", "name": "Shooter", "version": "1.0.0",
+              "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.shooter", "name": "Shooter", "version": "1.0.0",
               "capabilities": [\(capabilities)],
               "commands": [{"id": "shoot", "title": "Shoot", "execution": "host", "is_configurable": false,
-                            "host_command": "screen.capture_window"}]
+                            "host_command": "screen.capture", "input": {"source": "area"}}]
             }
             """.utf8)
         }
-        XCTAssertThrowsError(try PluginManifestLoader.decode(manifest(capabilities: "")))
-        XCTAssertNoThrow(try PluginManifestLoader.decode(manifest(capabilities: #""capture_screen""#)))
+        func register(_ data: Data) throws {
+            let declaration = try PluginManifestLoader.decode(data)
+            try PluginRegistry().register(PluginPackage(rootURL: FileManager.default.temporaryDirectory, manifest: declaration))
+        }
+        XCTAssertThrowsError(try register(manifest(capabilities: "")))
+        XCTAssertNoThrow(try register(manifest(capabilities: #""capture_screen""#)))
     }
 
     func testCaptureHostCommandsAskForTheCaptureCapabilityAndScreenRecordingOnly() throws {
@@ -296,7 +300,7 @@ final class ScreenshotTests: XCTestCase {
     func testConfiguredFoldersAreTheFolderFieldsTheActionUses() throws {
         let command = try XCTUnwrap(PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.shooter", "name": "Shooter", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.shooter", "name": "Shooter", "version": "1.0.0",
           "capabilities": ["capture_screen"],
           "commands": [{"id": "shoot", "title": "Shoot", "execution": "javascript", "is_configurable": true, "script": "shoot.js",
                         "configuration_fields": [
@@ -373,14 +377,14 @@ final class ScreenshotTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.shooter", "name": "Shooter", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.shooter", "name": "Shooter", "version": "1.0.0",
           "capabilities": ["capture_screen"],
           "commands": [{"id": "shoot", "title": "Shoot", "execution": "javascript", "is_configurable": true, "script": "shoot.js",
                         "configuration_fields": [{"key": "folder", "kind": "folder"}]}]
         }
         """.utf8).write(to: root.appendingPathComponent("manifest.json"))
         try Data("""
-        requestHostService("capture_screen", {
+        requestHostService("screen.capture", {
           source: "fullscreen", copy_to_clipboard: false, save: {folder: input.folder, format: "automatic"}
         }); null
         """.utf8).write(to: root.appendingPathComponent("shoot.js"))
@@ -430,9 +434,9 @@ final class ScreenshotTests: XCTestCase {
             id: PluginID("com.spinnet.test.screenshot"), name: "Screenshot", version: "1.0.0",
             capabilities: [.captureScreen],
             commands: [
-                CommandDeclaration(id: CommandID("area"), title: "Capture Area", isConfigurable: false, hostCommand: .captureArea),
-                CommandDeclaration(id: CommandID("full"), title: "Capture Full Screen", isConfigurable: false, hostCommand: .captureFullScreen),
-                CommandDeclaration(id: CommandID("window"), title: "Capture Window", isConfigurable: false, hostCommand: .captureWindow)
+                CommandDeclaration(id: CommandID("area"), title: "Capture Area", isConfigurable: false, hostServiceID: "screen.capture", fixedInput: .object(["source": .string("area")])),
+                CommandDeclaration(id: CommandID("full"), title: "Capture Full Screen", isConfigurable: false, hostServiceID: "screen.capture", fixedInput: .object(["source": .string("fullscreen")])),
+                CommandDeclaration(id: CommandID("window"), title: "Capture Window", isConfigurable: false, hostServiceID: "screen.capture", fixedInput: .object(["source": .string("window")]))
             ]
         )
     }

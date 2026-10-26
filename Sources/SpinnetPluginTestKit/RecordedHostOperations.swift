@@ -2,8 +2,8 @@ import Foundation
 import SpinnetCore
 
 /// Performs the Requested Host Operation a script's answer carries the way
-/// the Host performs it once the answer commits (Candidate Contract
-/// `host_operations`), with recorded outcomes in place of the desktop, and
+/// the Host performs it once the answer commits, with recorded outcomes
+/// in place of the desktop, and
 /// gives the `operation_finished` event to run next when the request asked
 /// to be told.
 ///

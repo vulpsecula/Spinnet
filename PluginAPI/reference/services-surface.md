@@ -1,4 +1,4 @@
-# Reviewed Services Host Surface (Level 2)
+# Reviewed Services Host Surface (current)
 
 `tools.showServices` shows a controlled native Host Surface for Homebrew's
 current user-owned services. Any installed Plugin declaring and granted

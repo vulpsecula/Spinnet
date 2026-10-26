@@ -3,11 +3,9 @@ import XCTest
 @testable import SpinnetCore
 import SpinnetPluginTestKit
 
-/// The Emoji-shaped and Brew-shaped fixtures, written against Candidate
-/// Contract `collections` r3, run the way their authors run them: through
-/// the public test kit's `PluginTestPage` and the real helper, against the
-/// Host this repository builds. Each follows published scenarios of the
-/// collections design and the E2 findings revision 3 answers.
+/// The Emoji-shaped and Brew-shaped fixtures run through the public test
+/// kit's `PluginTestPage` and the real helper, against the current Host.
+/// They exercise Collection Windows, navigation, selection and item actions.
 final class CollectionsFixturesRuntimeTests: XCTestCase {
     private var helpers: [PluginTestHelper] = []
     private var directories: [URL] = []
@@ -508,10 +506,10 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
 
     // MARK: The SDK
 
-    /// The helper adds the page builders only for a Level 2 Plugin; they
+    /// The helper supplies the current page builders; they
     /// map camel case to the members the Host reads, windows, toggles, marks
     /// and notify included, and have no `hasMore`.
-    func testThePageBuildersAreLevelTwos() throws {
+    func testThePageBuildersProduceCurrentWireShapes() throws {
         let probe = """
         (() => [spinnet.ui.components.grid({ id: "g", total: 3, start: 1, items: [], hasMore: true, columns: 4,
                                               sections: [spinnet.ui.components.section({ id: "s", count: 3 })] }),
@@ -521,8 +519,8 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
                 spinnet.clipboard.write.action("x", { notify: true }),
                 spinnet.open.url.action("https://brew.sh", { title: "Home", closesView: true })])()
         """
-        let levelTwo = try OperationsProbeFixture.write(scripts: ["pick.js": probe])
-        let built = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: levelTwo),
+        let current = try OperationsProbeFixture.write(scripts: ["pick.js": probe])
+        let built = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: current),
                                      answering: RecordedHostServices())
         XCTAssertEqual(try built.result.get(), .array([
             .object(["kind": .string("grid"), "id": .string("g"), "items": .array([]), "columns": .number(4),
@@ -537,11 +535,7 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
                      "closes_view": .bool(true)])
         ]))
 
-        let levelOne = try OperationsProbeFixture.write(scripts: ["pick.js": "[typeof spinnet.ui.page, typeof spinnet.ui.components]"],
-                                                        OperationsProbeFixture.levelOne)
-        let other = try helper().run(PluginTestInvocation("probe.pick"), of: PluginUnderTest(packageAt: levelOne),
-                                     answering: RecordedHostServices())
-        XCTAssertEqual(try other.result.get(), .array([.string("undefined"), .string("undefined")]))
+
     }
 }
 

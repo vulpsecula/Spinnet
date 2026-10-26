@@ -1,6 +1,5 @@
 {
   "protocol_version": "1.0",
-  "api_level": 2,
   "id": "com.example.sources-probe",
   "name": "Sources Probe",
   "version": "1.0.0",
@@ -35,5 +34,8 @@
     "is_configurable": false,
     "default_primary_command_id": "sources.show",
     "default_alternate_command_ids": []
+  },
+  "engines": {
+    "spinnet": "^1.0.0"
   }
 }

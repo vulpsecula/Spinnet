@@ -1,9 +1,8 @@
 import Foundation
 
-// MARK: - The addition to Plugin API Level 2
+// MARK: - App operations
 
-/// The App in front and its exits, appended to Plugin API Level 2 while it
-/// is open (#83): `apps.frontmost` identifies the App behind Spinnet's panel
+/// The App in front and its exits: `apps.frontmost` identifies the App behind Spinnet's panel
 /// by an App Target, under `read_frontmost_app`; `apps.quit` asks the Host
 /// to quit or force quit it, and `apps.close` to close its front window,
 /// under `quit_frontmost_app`. Quit and Close are exactly the App's own ⌘Q
@@ -13,22 +12,18 @@ import Foundation
 /// identifying an App never lets a Plugin end it, and ending one never
 /// tells the Plugin which it was.
 public enum CurrentAppAddition {
-    /// How the catalogue records that Level 2 itself, not a Candidate
-    /// Contract, first offered these IDs.
-    public static let origin = "level_2"
-
     public static let frontmostID = "apps.frontmost"
     public static let quitID = "apps.quit"
     public static let closeID = "apps.close"
     /// The operations that perform an `AppExit`.
     public static let exitIDs = [quitID, closeID]
 
-    /// The members appended to Level 2.
+    /// The members appended to the current interface.
     public static let members: [PluginInterfaceMember] = [
         .hostService(frontmostID), .request(quitID), .standardAction(quitID), .request(closeID), .standardAction(closeID)
     ]
 
-    /// The Capabilities only a Level 2 Plugin may declare.
+    /// The Capabilities only a compatible Plugin may declare.
     public static let capabilities: [PluginCapability] = [.readFrontmostApp, .quitFrontmostApp]
 }
 

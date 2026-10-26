@@ -1,12 +1,9 @@
 import Foundation
 @testable import SpinnetCore
 
-/// `Tests/Fixtures/OperationsProbe.spinnetplugin` is a tiny external Plugin
-/// declaring Plugin API Level 2, written against Candidate Contract
-/// `host_operations` revision 1 and the `namespaces` revision it required
-/// before Level 2 promoted them: a symbol picker whose view names
-/// where text goes and whose gestures request insertion and copying, and a
-/// Command without a view that tries to insert a stamp.
+/// `Tests/Fixtures/OperationsProbe.spinnetplugin` is a symbol picker whose
+/// view names where text goes and whose gestures request insertion and
+/// copying, plus a Command without a view that tries to insert a stamp.
 enum OperationsProbeFixture {
     static let package = NamespacesProbeFixture.fixtures.appendingPathComponent("OperationsProbe.spinnetplugin",
                                                                               isDirectory: true)
@@ -34,6 +31,4 @@ enum OperationsProbeFixture {
         return root
     }
 
-    /// The probe declaring no candidate: a Level 1 Plugin.
-    static let levelOne = ManifestVariant.levelOne
 }

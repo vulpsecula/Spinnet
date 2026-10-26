@@ -1,6 +1,6 @@
 import Foundation
 
-/// Additive Plugin API Level 2 effect and activity controls (#84).
+/// Additive the current interface effect and activity controls (#84).
 public enum KeepAwakeAddition {
     public static let id = "system.keepAwake"
     public static let listID = "activities.list"

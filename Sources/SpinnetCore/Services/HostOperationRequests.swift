@@ -131,8 +131,7 @@ final class HostOperationRequests {
         let target: InsertionTargetCapture
         /// What the performer bound when the Host accepted the request.
         let accepted: AcceptedHostOperationTarget
-        /// The Plugin declares `host_operations` r2: an outcome it asked to
-        /// hear reaches it after its view closed.
+        /// A requested outcome reaches the owner after its view closes.
         let deliversAfterClose: Bool
         /// The owner's last good state when it ended while this request ran,
         /// and why it ended.

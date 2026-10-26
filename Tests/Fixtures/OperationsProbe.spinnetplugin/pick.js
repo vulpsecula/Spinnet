@@ -1,4 +1,4 @@
-// A symbol picker written against Candidate Contract host_operations r1.
+// A symbol picker using Requested Host Operations.
 // Its view asks the Host to name where text goes; Return requests the
 // insertion, which the Host performs after this answer commits.
 (() => {

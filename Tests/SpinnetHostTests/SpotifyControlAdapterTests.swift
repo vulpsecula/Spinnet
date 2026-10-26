@@ -6,7 +6,7 @@ import SpinnetCore
 final class SpotifyControlAdapterTests: XCTestCase {
     private func request(_ operation: String, _ arguments: [String: JSONValue] = [:]) throws -> AppleEventRequest {
         try XCTUnwrap(ReviewedAppInterface.interface(for: SpotifyPlayback.bundleID)).request(operation: operation,
-            arguments: arguments, candidateContracts: [SpotifyControls.declaration])
+            arguments: arguments)
     }
 
     func testVolumeAdjustmentUsesReviewedPropertyClampsAndReturnsObservedVolume() throws {

@@ -135,7 +135,7 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
                   fill: fill, title: model.title)
     }
 
-    /// The window of a page (Plugin API Level 2).
+    /// The window of a page (the current interface).
     convenience init(pageModel: PluginPageModel) {
         let fill = PluginPanelFill()
         self.init(content: NSHostingController(rootView: PluginPanelRoot(fill: fill,

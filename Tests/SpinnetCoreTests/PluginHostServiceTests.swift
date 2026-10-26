@@ -9,7 +9,7 @@ final class PluginHostServiceTests: XCTestCase {
     func testAnInstalledPluginWithTheGrantPresentsTheClipboardHistoryWindow() throws {
         let manifest = try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.history-peeker",
           "name": "History Peeker",
           "version": "1.0.0",
@@ -99,7 +99,7 @@ final class PluginHostServiceTests: XCTestCase {
     func testDetectLanguageNeedsNoCapabilityAndAnswersACodeOrNull() throws {
         let manifest = try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.language",
           "name": "Language",
           "version": "1.0.0",
@@ -343,7 +343,7 @@ final class PluginHostServiceTests: XCTestCase {
     func testSelectedTextCopyFallbackNeedsItsOwnCurrentClipboardGrant() throws {
         let manifest = try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.selection-reader",
           "name": "Selection Reader",
           "version": "1.0.0",

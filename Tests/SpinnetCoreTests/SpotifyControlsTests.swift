@@ -4,47 +4,38 @@ import SpinnetCore
 import SpinnetPluginTestKit
 
 final class SpotifyControlsTests: XCTestCase {
-    private func package(candidate: Bool = true) throws -> PluginPackage {
-        let declaration = ""
+    private func package() throws -> PluginPackage {
         let manifest = try PluginManifestLoader.decode(Data("""
-        {"api_level":\(candidate ? 3 : 2),"protocol_version":"1.0","id":"test.spotify.controls","name":"Spotify","version":"1.0"\(declaration),
+        {"engines":{"spinnet":"^1.0.0"},"protocol_version":"1.0","id":"test.spotify.controls","name":"Spotify","version":"1.0",
         "capabilities":["control_external_app"],"capability_scopes":[{"capability":"control_external_app","command_ids":["control"],"data_types":[],"includes_existing_host_data":false,"https_hosts":[],"external_apps":[{"bundle_id":"com.spotify.client","operation_families":["playback_read","playback_control"]}]}],
         "commands":[{"id":"control","title":"Control","execution":"javascript","script":"control.js"}]}
         """.utf8))
         return PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/spotify-controls-test"), manifest: manifest)
     }
 
-    func testExactCandidateAdmitsControlsButStableDoesNotGainThem() throws {
-        let candidate = try package()
-        let registry = PluginRegistry()
-        try registry.register(candidate)
+    func testCurrentControlsStillRequireGrantsBeforeExternalDispatch() throws {
+        let package = try package()
+        let registry = PluginRegistry(); try registry.register(package)
         let grants = PluginCapabilityGrantStore()
-        for package in [candidate, try package(candidate: false)] {
-            grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-                capability: .controlExternalApp, scope: package.manifest.scope(for: .controlExternalApp))
-            let action = try ActionConfiguration(id: ActionID("control"), pluginID: package.manifest.id, command: package.manifest.commands[0], input: .null)
-            var dispatched = false
-            let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-                selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { _, _ in
-                    dispatched = true; return .object(["volume": .number(35)])
-                })
-            let request = PluginRuntimeHostServiceRequest(invocationID: "control", actionID: action.id, service: .performAppOperation,
-                input: .object(["bundle_id": .string("com.spotify.client"), "operation": .string("set_volume"),
-                    "arguments": .object(["volume": .number(35)])]))
-            if package.manifest.apiLevel < 3 {
-                XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action))
-                XCTAssertFalse(dispatched)
-            } else {
-                XCTAssertEqual(try broker.execute(request: request, for: package, action: action), .object(["volume": .number(35)]))
-                XCTAssertTrue(dispatched)
-            }
+        let action = try ActionConfiguration(id: .init("control"), pluginID: package.manifest.id, command: package.manifest.commands[0], input: .null)
+        var dispatches = 0
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { _, _ in
+            dispatches += 1; return .object(["volume": .number(35)])
+        })
+        let request = PluginRuntimeHostServiceRequest(invocationID: "control", actionID: action.id, service: .performAppOperation,
+            input: .object(["bundle_id": .string("com.spotify.client"), "operation": .string("set_volume"), "arguments": .object(["volume": .number(35)])]), operation: "apps.perform")
+        for decision in [PluginCapabilityGrantDecision.denied, .granted, .denied] {
+            grants.setDecision(decision, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .controlExternalApp, scope: package.manifest.scope(for: .controlExternalApp))
+            if decision == .granted { XCTAssertEqual(try broker.execute(request: request, for: package, action: action), .object(["volume": .number(35)])) }
+            else { XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action)) }
         }
+        XCTAssertEqual(dispatches, 1)
     }
 }
 
 
 extension SpotifyControlsTests {
-    func testPublicKitAcceptsCandidateVolumeAndRejectsBadTypedArgumentsBeforeAnswering() throws {
+    func testPublicKitAcceptsCurrentVolumeAndRejectsBadTypedArgumentsBeforeAnswering() throws {
         let package = try package()
         let action = try ActionConfiguration(id: ActionID("control"), pluginID: package.manifest.id, command: package.manifest.commands[0], input: .null)
         var answered = 0
@@ -104,10 +95,9 @@ extension SpotifyControlsTests {
         XCTAssertEqual(dispatched, 3)
     }
 
-    func testStableFixturesAndRetirementMetadataPreserveEarlierLevelBoundaries() throws {
+    func testPublishedFixturesPreserveTypedControlBounds() throws {
         let root = TestRepository.root.appendingPathComponent("PluginAPI")
-        let folder = root.appendingPathComponent("fixtures/level-3/spotify-controls")
-        XCTAssertEqual(try JSONDecoder().decode(CandidateContract.self, from: Data(contentsOf: root.appendingPathComponent("candidates/spotify_controls/r1/candidate.json"))).status, .retired(promotedToLevel: 3))
+        let folder = root.appendingPathComponent("fixtures/spotify-controls")
         struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }
         struct Index: Decodable { let fixtures: [Entry] }
         for entry in try JSONDecoder().decode(Index.self, from: Data(contentsOf: folder.appendingPathComponent("index.json"))).fixtures {
@@ -120,16 +110,15 @@ extension SpotifyControlsTests {
         XCTAssertEqual(try XCTUnwrap(ReviewedAppInterface.interface(for: SpotifyPlayback.bundleID)).request(operation: "next", arguments: [:]).handler, "next")
     }
 
-    func testCandidateMismatchAndBundledOriginAreRefusedBeforeRegistrationOrBrokerDispatch() throws {
+    func testLegacyDeclarationsAreRefusedAndCurrentBundledPackageIsAccepted() throws {
         let package = try package()
         let data = try JSONEncoder().encode(package.manifest)
         var retired = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         retired["candidate_contracts"] = [["name": "spotify_controls", "revision": 1]]
-        let wrong = try PluginManifestLoader.decode(JSONSerialization.data(withJSONObject: retired))
+        XCTAssertThrowsError(try PluginManifestLoader.decode(JSONSerialization.data(withJSONObject: retired)))
         let registry = PluginRegistry()
-        XCTAssertThrowsError(try registry.register(.init(rootURL: package.rootURL, manifest: wrong)))
         XCTAssertNoThrow(try registry.register(.init(rootURL: package.rootURL, manifest: package.manifest, origin: .bundled)))
-        let oldContracts = PluginInterfaceContracts(levels: [1: PluginInterfaceContracts.levelOneMembers, 2: PluginInterfaceContracts.levelTwoMembers])
+        let oldContracts = PluginInterfaceContracts(hostVersion: try HostVersion("0.9.0"))
         XCTAssertThrowsError(try oldContracts.check(package.manifest, origin: .installed))
         XCTAssertNotNil(registry.package(for: package.manifest.id))
     }
@@ -142,29 +131,27 @@ private final class SpotifyBoundaryAnswer: PluginHostServiceBroker {
 }
 
 extension SpotifyControlsTests {
-    func testRealHelperCannotForwardUndeclaredCandidateControlsToEvenAPermissiveBroker() throws {
+    func testRealHelperForwardsCurrentTypedControls() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("Spotify.spinnetplugin")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
-        let package = try package(candidate: false)
+        let package = try package()
         try JSONEncoder().encode(package.manifest).write(to: root.appendingPathComponent("manifest.json"))
         try "(function(){return {toast: String(spinnet.apps.perform({bundle_id:'com.spotify.client',operation:'volume'}).volume)};})()".write(to: root.appendingPathComponent("control.js"), atomically: true, encoding: .utf8)
         let helper = try PluginTestHelper(); defer { helper.shutdown() }
         let run = try helper.run(.init("control"), of: PluginUnderTest(packageAt: root), answering: SpotifyBoundaryAnswer())
-        XCTAssertThrowsError(try run.result.get()) { error in
-            guard case PluginRuntimeError.hostServiceFailed = error else { return XCTFail("Expected candidate gate, got \(error)") }
-        }
-        XCTAssertTrue(run.requests.isEmpty, "Undeclared operation must fail before reaching external dispatch")
+        XCTAssertEqual(try run.result.get().value(atPointer: "/toast"), .string("35"))
+        XCTAssertEqual(run.requests.count, 1)
     }
 }
 
 extension SpotifyControlsTests {
-    func testCandidateSynchronousStableControlsDoNotWaitForAutomationConsent() throws {
-        let candidate = try package()
-        let action = try ActionConfiguration(id: ActionID("control"), pluginID: candidate.manifest.id, command: candidate.manifest.commands[0], input: .null)
+    func testSynchronousControlsDoNotWaitForAutomationConsent() throws {
+        let plugin = try package()
+        let action = try ActionConfiguration(id: ActionID("control"), pluginID: plugin.manifest.id, command: plugin.manifest.commands[0], input: .null)
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: candidate.manifest.id, pluginVersion: candidate.manifest.version,
-            capability: .controlExternalApp, scope: candidate.manifest.scope(for: .controlExternalApp))
+        grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
+            capability: .controlExternalApp, scope: plugin.manifest.scope(for: .controlExternalApp))
         var prompts: [Bool] = []
         let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
             selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { _, allowsPrompt in
@@ -173,16 +160,16 @@ extension SpotifyControlsTests {
         for operation in ["play", "pause", "previous", "playback"] {
             _ = try broker.execute(request: .init(invocationID: "control", actionID: action.id, service: .performAppOperation,
                 input: .object(["bundle_id": .string("com.spotify.client"), "operation": .string(operation)]), operation: "apps.perform"),
-                for: candidate, action: action)
+                for: plugin, action: action)
         }
         XCTAssertEqual(prompts, [false, false, false, false])
     }
 }
 
 extension SpotifyControlsTests {
-    func testHelperWireCannotEnableTrustedAutomationPromptFlagAndLegacyStillPrompts() throws {
-        let candidate = try package()
-        let action = try ActionConfiguration(id: ActionID("control"), pluginID: candidate.manifest.id, command: candidate.manifest.commands[0], input: .null)
+    func testHelperWireCannotEnableTrustedAutomationPromptFlag() throws {
+        let plugin = try package()
+        let action = try ActionConfiguration(id: ActionID("control"), pluginID: plugin.manifest.id, command: plugin.manifest.commands[0], input: .null)
         let original = PluginRuntimeHostServiceRequest(invocationID: "control", actionID: action.id, service: .performAppOperation,
             input: .object(["bundle_id": .string("com.spotify.client"), "operation": .string("playback")]))
         var fields = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
@@ -192,17 +179,16 @@ extension SpotifyControlsTests {
         var trusted = original; trusted.allowsAutomationPrompt = true
         let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(trusted)) as? [String: Any])
         XCTAssertNil(encoded["allowsAutomationPrompt"]); XCTAssertNil(encoded["allows_automation_prompt"])
-        let legacy = try package(candidate: false)
         let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: legacy.manifest.id, pluginVersion: legacy.manifest.version,
-            capability: .controlExternalApp, scope: legacy.manifest.scope(for: .controlExternalApp))
+        grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
+            capability: .controlExternalApp, scope: plugin.manifest.scope(for: .controlExternalApp))
         var prompts: [Bool] = []
         let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
             selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { _, allowsPrompt in
                 prompts.append(allowsPrompt); return .null
             })
-        _ = try broker.execute(request: forged, for: candidate, action: action)
-        _ = try broker.execute(request: original, for: legacy, action: action)
-        XCTAssertEqual(prompts, [false, true])
+        _ = try broker.execute(request: forged, for: plugin, action: action)
+        _ = try broker.execute(request: original, for: plugin, action: action)
+        XCTAssertEqual(prompts, [false, false])
     }
 }

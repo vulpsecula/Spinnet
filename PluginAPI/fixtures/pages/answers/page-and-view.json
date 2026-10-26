@@ -21,8 +21,30 @@
             "id": "category",
             "title": "Category",
             "value": "all",
-            "choices": ["all", "smileys-emotion", "people-body", "animals-nature", "food-drink", "travel-places", "activities", "objects", "symbols", "flags"],
-            "choice_titles": ["All Categories", "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink", "Travel & Places", "Activities", "Objects", "Symbols", "Flags"]
+            "choices": [
+              "all",
+              "smileys-emotion",
+              "people-body",
+              "animals-nature",
+              "food-drink",
+              "travel-places",
+              "activities",
+              "objects",
+              "symbols",
+              "flags"
+            ],
+            "choice_titles": [
+              "All Categories",
+              "Smileys & Emotion",
+              "People & Body",
+              "Animals & Nature",
+              "Food & Drink",
+              "Travel & Places",
+              "Activities",
+              "Objects",
+              "Symbols",
+              "Flags"
+            ]
           }
         ]
       },
@@ -45,8 +67,16 @@
           }
         ],
         "items": [
-          {"id": "1F408", "title": "cat", "symbol": "🐈"},
-          {"id": "1F431", "title": "cat face", "symbol": "🐱"}
+          {
+            "id": "1F408",
+            "title": "cat",
+            "symbol": "🐈"
+          },
+          {
+            "id": "1F431",
+            "title": "cat face",
+            "symbol": "🐱"
+          }
         ]
       }
     ]
@@ -66,7 +96,7 @@
     "actions": [
       {
         "title": "Insert 🐈",
-        "perform": "insert_text",
+        "perform": "selection.replace",
         "text": "🐈",
         "shortcut": "cmd+1",
         "closes_view": true

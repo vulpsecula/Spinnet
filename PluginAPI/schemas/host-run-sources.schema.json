@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Spinnet Host-run sources (Plugin API Level 2)",
+  "title": "Spinnet Host-run sources",
   "description": "Visible-page bounded Host-run sources (#82, #85, #86, #87). HTTPS and reviewed Homebrew reads sample once; Spotify playback permits a one-second minimum repeating source without prompting or launching. Basic system.metrics snapshots permit a one-second minimum repeating source with a one-second deadline and require read_system_status.",
   "$defs": {
     "identifier": {
@@ -66,6 +66,9 @@
         },
         {
           "$ref": "#/$defs/activity_source"
+        },
+        {
+          "$ref": "#/$defs/command_output_source"
         }
       ]
     },
@@ -241,7 +244,14 @@
           "const": "tools.read"
         },
         "input": {
-          "$ref": "./reviewed-tools.schema.json#/$defs/tools.read.input"
+          "anyOf": [
+            {
+              "$ref": "reviewed-tools.schema.json#/$defs/tools.read.input"
+            },
+            {
+              "$ref": "homebrew-autoremove.schema.json#/$defs/previewInput"
+            }
+          ]
         },
         "deliver": {
           "$ref": "#/$defs/deliver"
@@ -324,6 +334,30 @@
         },
         "deliver": {
           "$ref": "#/$defs/deliver"
+        }
+      }
+    },
+    "command_output_source": {
+      "description": "Once-only native Homebrew command output; every is refused.",
+      "type": "object",
+      "required": [
+        "id",
+        "perform",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "host-run-sources.schema.json#/$defs/identifier"
+        },
+        "perform": {
+          "const": "tools.read"
+        },
+        "input": {
+          "$ref": "command-output.schema.json#/$defs/input"
+        },
+        "deliver": {
+          "$ref": "host-run-sources.schema.json#/$defs/deliver"
         }
       }
     }

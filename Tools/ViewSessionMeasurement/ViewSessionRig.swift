@@ -116,7 +116,7 @@ final class ViewSessionRig {
                 readView: { _, view in
                     _ = try PluginViewDescription(parsing: view, settingsFields: settingsFields, permits: permits)
                 },
-                // A Level 2 Plugin answers as the Host reads
+                // A Plugin answers as the Host reads
                 // it, pages included.
                 permitting: { _ in permits }
             )

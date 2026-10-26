@@ -1,6 +1,5 @@
 {
   "protocol_version": "1.0",
-  "api_level": 1,
   "id": "com.example.storage-counter",
   "name": "Storage Counter",
   "version": "1.0.0",
@@ -8,7 +7,9 @@
     "readiness": "ready_to_use",
     "is_configurable": false,
     "default_primary_command_id": "counter.count",
-    "default_alternate_command_ids": ["counter.overfill"]
+    "default_alternate_command_ids": [
+      "counter.overfill"
+    ]
   },
   "commands": [
     {
@@ -27,5 +28,8 @@
       "is_configurable": false,
       "script": "overfill.js"
     }
-  ]
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
 }

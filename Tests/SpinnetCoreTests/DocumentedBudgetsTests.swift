@@ -3,10 +3,9 @@ import XCTest
 @testable import SpinnetCore
 
 final class HostRunSourceBudgetsTests: XCTestCase {
-    func testLevelFourActivityDeliveryHasItsOwnPublishedFloor() {
-        XCTAssertPublished("minimum interval of **one second**", in: "reference/level-4.md")
+    func testActivityDeliveryHasItsOwnPublishedFloor() {
+        XCTAssertPublished("minimum interval of **one second**", in: "reference/activities.md")
         XCTAssertEqual(LiveActivityDelivery.minimumInterval, 1)
-        XCTAssertEqual(LiveActivityDelivery.apiLevel, 4)
         XCTAssertEqual(HostRunSourceAddition.deliveryInterval, 15)
     }
 
@@ -17,7 +16,7 @@ final class HostRunSourceBudgetsTests: XCTestCase {
         XCTAssertEqual(HostRunSourceAddition.maximumResultBytes, 524_288)
         XCTAssertPublished("shown text is truncated at 4,096 characters", in: "reference/sources.md")
         XCTAssertEqual(HostRunSourceAddition.maximumText, 4_096)
-        XCTAssertPublished("Deliveries of one source ID are at least 15 seconds apart", in: "reference/sources.md")
+        XCTAssertPublished("Deliveries of a non-activity source ID are at least 15 seconds apart", in: "reference/sources.md")
         XCTAssertEqual(HostRunSourceAddition.deliveryInterval, 15)
         XCTAssertPublished("Local adapters must publish a minimum of at least one second", in: "reference/sources.md")
         XCTAssertEqual(HostRunSourceAddition.minimumInterval, 1)
@@ -154,7 +153,7 @@ final class ScriptedActionBudgetsTests: XCTestCase {
     /// Sections", and PluginAPI/reference/views.md, "Host-Fetched Sections".
     func testHostFetchedSectionBudgetsMatchADR0010() {
         XCTAssertPublished("each request has its own 15-second budget, redirects included; "
-                           + "a script's own `https_request` keeps its 3-second budget", in: "reference/views.md")
+                           + "a script's own `http.request` keeps its 3-second budget", in: "reference/views.md")
         XCTAssertPublished("for 10 minutes, among at most 50 answers across all Plugins", in: "reference/views.md")
 
         // "A section request has its own 15-second budget, since it holds no
@@ -292,9 +291,9 @@ final class HTTPSRequestBudgetsTests: XCTestCase {
 
 final class ExternalAppBudgetsTests: XCTestCase {
 
-    /// PluginAPI/reference/host-services.md, "perform_app_operation"
+    /// PluginAPI/reference/host-services.md, "apps.perform"
     func testRequestTextBudgetMatchesDocumentedInterface() {
-        XCTAssertPublished("`translateText`, which alone takes `text`, non-blank and at most 128 KiB of UTF-8",
+        XCTAssertPublished("Only `translateText` takes `text`, non-blank and at most 128 KiB of UTF-8",
                            in: "reference/host-services.md")
         XCTAssertEqual(ExternalAppBudgets.maximumRequestTextBytes, 128 * 1024)
     }
@@ -364,9 +363,9 @@ final class PluginViewBudgetsTests: XCTestCase {
     }
 }
 
-/// Plugin API Level 2's page and Requested Host Operation budgets (#79),
+/// Current page and Requested Host Operation budgets,
 /// promoted unchanged from `collections` r3 and `host_operations` r2.
-final class LevelTwoBudgetsTests: XCTestCase {
+final class PageAndOperationBudgetsTests: XCTestCase {
     /// PluginAPI/reference/pages.md, "Budgets" and "Components"
     func testPageBudgetsMatchThePublishedPage() {
         XCTAssertPublished("A Host holds at most 40 components per page, 2,000 items per collection (given in one "
@@ -415,7 +414,7 @@ final class PageSizingBudgetsTests: XCTestCase {
     }
 }
 
-/// The bounds of styles, images and progress, appended to Level 2 by #81
+/// The bounds of current styles, images and progress
 /// from the decoding measurements recorded in PluginAPI/reference/pages.md,
 /// "Images" (and docs/research/page-image-measurements.md).
 final class PagePresentationBudgetsTests: XCTestCase {
@@ -497,10 +496,10 @@ final class ReviewedTaskRecoveryBudgetsTests: XCTestCase {
     }
 }
 
-/// Stable Level 3 adaptive bounds, separate from the Level 2 vocabulary.
+/// Current adaptive card bounds, including passive viewport fit.
 final class AdaptivePageBudgetsTests: XCTestCase {
     func testStableAdaptiveBudgetsMatchThePublishedReference() {
-        let reference = "reference/level-3.md"
+        let reference = "reference/adaptive-layout.md"
         XCTAssertPublished("There are 1–8 children", in: reference)
         XCTAssertEqual(AdaptivePageLayout.maximumChildren, 8)
         XCTAssertPublished("is 160–600 points (default 200)", in: reference)
@@ -518,7 +517,7 @@ final class AdaptivePageBudgetsTests: XCTestCase {
 
 final class AdaptiveViewportBudgetsTests: XCTestCase {
     func testViewportMetadataHasSeparatePublishedBounds() {
-        let reference = "reference/level-3.md"
+        let reference = "reference/adaptive-layout.md"
         XCTAssertPublished("1–3 profiles",in:reference)
         XCTAssertEqual(AdaptiveViewportLayout.maximumProfiles,3)
         XCTAssertPublished("0–40 overrides",in:reference)

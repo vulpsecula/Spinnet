@@ -2,11 +2,9 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// Component Styles, columns, icons, images and progress (#81), appended to
-/// Plugin API Level 2, as `PluginAPI/` publishes them and the Host reads
-/// them: a Level 2 Plugin gets them and a Level 1 one does not, the page
-/// rules beyond the schema name what is wrong, and the types, reference,
-/// SDK and catalogue name every member.
+/// Component Styles, columns, icons, images and progress, as `PluginAPI/`
+/// publishes them and the Host reads them. Parser membership is enforced,
+/// semantic page rules explain refusals, and public artifacts list each member.
 final class PagePresentationContractTests: XCTestCase {
     private static let pluginAPI = PagesContractTests.pluginAPI
 
@@ -19,22 +17,22 @@ final class PagePresentationContractTests: XCTestCase {
             Self.pluginAPI.appendingPathComponent("fixtures/pages").appendingPathComponent(file)))
     }
 
-    func testTheAdditionIsLevelTwosAndNotLevelOnes() {
-        let levelTwo = CollectionsFixtures.permits, levelOne = CollectionsFixtures.levelOne
+    func testPresentationMembersArePublishedAndCanBeDenied() {
+        let current = CollectionsFixtures.permits, denied = CollectionsFixtures.denied
         for member in PagePresentation.members {
-            XCTAssertTrue(levelTwo(member), "\(member)")
-            XCTAssertFalse(levelOne(member), "\(member)")
+            XCTAssertTrue(current(member), "\(member)")
+            XCTAssertFalse(denied(member), "\(member)")
         }
-        XCTAssertEqual(Set(PagePresentation.componentKinds + CollectionsContract.componentKinds + ["activity_list"]),
-                       Set(PluginPageComponent.Kind.allCases.filter { PluginInterfaceContracts.levelTwoMembers.contains(.viewComponent($0.rawValue)) }.map(\.rawValue)))
+        XCTAssertEqual(Set(PagePresentation.componentKinds + CollectionsContract.componentKinds + ["activity_list", "adaptive"]),
+                       Set(PluginPageComponent.Kind.allCases.filter { PluginInterfaceContracts.currentMembers.contains(.viewComponent($0.rawValue)) }.map(\.rawValue)))
     }
 
     /// A Plugin the addition is not offered to, such as one pinned to the
     /// first published members, has none of it.
     func testWithoutTheAdditionAStyleOrColumnIsUnknown() throws {
-        let revisionThree = Set(CollectionsContract.promoted.members + HostOperationsContract.promoted.members
-                                + HostServiceCatalogue.promoted.members)
-        let permits: (PluginInterfaceMember) -> Bool = { revisionThree.contains($0) }
+        let withoutPresentation = Set(CollectionsContract.members + HostOperationsContract.members
+                                + HostServiceCatalogue.members)
+        let permits: (PluginInterfaceMember) -> Bool = { withoutPresentation.contains($0) }
         XCTAssertThrowsError(try PluginScriptAnswer(parsing: answer("answers/spotify-track.json"), permits: permits)) {
             XCTAssertEqual($0 as? PluginRuntimeError, .protocolViolation("The image component is not offered to this Plugin"))
         }
@@ -87,19 +85,19 @@ final class PagePresentationContractTests: XCTestCase {
     /// The types, reference, SDK and catalogue name every kind and style
     /// member.
     func testTheTypesReferenceSDKAndCatalogueNameEveryMember() throws {
-        let types = try text("spinnet-level-2.d.ts"), reference = try text("reference/pages.md")
-        let sdk = try text("spinnet-level-2.js"), catalogue = try text("catalogue.json")
+        let types = try text("sdk/spinnet.d.ts"), reference = try text("reference/pages.md")
+        let sdk = try text("sdk/spinnet.js"), catalogue = try text("catalogue.json")
         for kind in PagePresentation.componentKinds {
-            XCTAssertTrue(types.contains("kind: \"\(kind)\""), "spinnet-level-2.d.ts has no \(kind)")
+            XCTAssertTrue(types.contains("kind: \"\(kind)\""), "spinnet.d.ts has no \(kind)")
             XCTAssertTrue(reference.contains("`\(kind)`"), "pages.md does not name \(kind)")
-            XCTAssertTrue(sdk.contains("kind: \"\(kind)\""), "spinnet-level-2.js does not build \(kind)")
+            XCTAssertTrue(sdk.contains("kind: \"\(kind)\""), "spinnet.js does not build \(kind)")
             XCTAssertTrue(catalogue.contains("\"ui.components.\(kind)\""), "catalogue.json lists no \(kind) builder")
         }
         XCTAssertFalse(catalogue.contains("#81 measures and adds"), "No builder of #81 is still reserved")
         for member in PluginPageStyle.Member.allCases.map(\.rawValue) {
-            XCTAssertTrue(types.contains("\(member)?:"), "spinnet-level-2.d.ts has no style \(member)")
+            XCTAssertTrue(types.contains("\(member)?:"), "spinnet.d.ts has no style \(member)")
             XCTAssertTrue(reference.contains("`\(member)`"), "pages.md does not name \(member)")
-            XCTAssertTrue(sdk.contains("\(member): o."), "spinnet-level-2.js does not build \(member)")
+            XCTAssertTrue(sdk.contains("\(member): o."), "spinnet.js does not build \(member)")
         }
         for state in PluginPageProgress.State.allCases.map(\.rawValue) {
             XCTAssertTrue(types.contains("\"\(state)\""), state)

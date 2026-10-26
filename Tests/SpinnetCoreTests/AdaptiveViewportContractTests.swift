@@ -17,14 +17,14 @@ final class AdaptiveViewportContractTests: XCTestCase {
                 "style": .object(["font_size": .number(20)])])])])])])
         return .object(["id": .string("metrics"), "title": .string("Metrics"), "resizable": .bool(true), "content": .array([.object(adaptive)])])
     }
-    func testLevelThreeAdmitsViewportProfilesWithoutChangingCanonicalComponents() throws {
+    func testCurrentViewportProfilesPreserveCanonicalComponents() throws {
         let manifest = try PluginManifestLoader.load(packageAt: Self.fixture).manifest
         try PluginInterfaceContracts.host.check(manifest, origin: .installed)
         let page = try PluginPage(parsing: Self.page(), permits: Self.permits)
         XCTAssertEqual(page.components.map(\.id), ["cards", "cpu", "value", "note"])
         XCTAssertEqual(page.inputs.map(\.id), ["note"])
-        XCTAssertThrowsError(try PluginPage(parsing: Self.page(), permits: { $0 != AdaptiveViewportLayout.viewportFit && AdaptivePageContractTests.permits($0) }), "Revision1 cannot use fit")
-        XCTAssertThrowsError(try PluginPage(parsing: Self.page(), permits: CollectionsFixtures.permits))
+        XCTAssertThrowsError(try PluginPage(parsing: Self.page(), permits: { $0 != AdaptiveViewportLayout.viewportFit && AdaptivePageContractTests.permits($0) }), "A Host without viewport fit must refuse it")
+        XCTAssertNoThrow(try PluginPage(parsing: Self.page(), permits: CollectionsFixtures.permits))
     }
     func testProfilesOnlyOverrideBoundedPassiveTextAndNeverIntroduceTrees() throws {
         func fit(_ overrides: [JSONValue], profiles: Int = 1) -> JSONValue {
@@ -43,7 +43,7 @@ final class AdaptiveViewportContractTests: XCTestCase {
     }
 
     func testPublishedStableViewportFixturesMatchSchemaAndPublicParser() throws {
-        let root = PagesContractTests.pluginAPI.appendingPathComponent("fixtures/level-3/adaptive-layout")
+        let root = PagesContractTests.pluginAPI.appendingPathComponent("fixtures/adaptive-layout")
         let validator = try JSONSchemaSubsetValidator(definition:"answer",inSchemaAt:PagesContractTests.pluginAPI.appendingPathComponent("schemas/adaptive-layout.schema.json"))
         struct Index: Decodable { struct Fixture: Decodable { let file:String; let valid:Bool }; let fixtures:[Fixture] }
         let index = try JSONDecoder().decode(Index.self,from:Data(contentsOf:root.appendingPathComponent("index.json")))
@@ -53,11 +53,9 @@ final class AdaptiveViewportContractTests: XCTestCase {
             do { _ = try PluginScriptAnswer(parsing:value,permits:Self.permits); XCTAssertTrue(fixture.valid,fixture.file) }
             catch { XCTAssertFalse(fixture.valid,"\(fixture.file): \(error)") }
         }
-        let declared = try JSONDecoder().decode(CandidateContract.self,from:Data(contentsOf:PagesContractTests.pluginAPI.appendingPathComponent("candidates/adaptive_layout/r2/candidate.json")))
-        XCTAssertEqual(declared.status, .retired(promotedToLevel: 3))
-        XCTAssertFalse(PluginInterfaceContracts.levelTwoMembers.contains(AdaptiveViewportLayout.viewportFit))
-        let manifest = try PluginManifestLoader.load(packageAt:Self.fixture).manifest
-        XCTAssertThrowsError(try PluginInterfaceContracts(levels:[1: PluginInterfaceContracts.levelOneMembers, 2: PluginInterfaceContracts.levelTwoMembers],candidates:[AdaptivePageLayout.contract]).check(manifest,origin:.installed))
+        XCTAssertTrue(PluginInterfaceContracts.currentMembers.contains(AdaptiveViewportLayout.viewportFit))
+        let manifest = try PluginManifestLoader.load(packageAt: Self.fixture).manifest
+        XCTAssertThrowsError(try PluginInterfaceContracts(hostVersion: HostVersion("0.9.0")).check(manifest, origin: .installed))
     }
 
 }

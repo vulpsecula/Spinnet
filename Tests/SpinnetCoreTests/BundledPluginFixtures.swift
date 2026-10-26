@@ -22,6 +22,6 @@ enum TranslatorFixture {
 }
 
 private func legacyPlugin(_ name: String) throws -> PluginPackage {
-    let directory = TestRepository.tests.appendingPathComponent("Fixtures/LegacyBundledPlugins")
+    let directory = TestRepository.tests.appendingPathComponent("Fixtures/HostPlugins")
     return try PluginUnderTest(packageAt: directory.appendingPathComponent(name + ".spinnetplugin"), origin: .bundled).package
 }

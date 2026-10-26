@@ -3,7 +3,7 @@ import SpinnetCore
 import SwiftUI
 
 // Component Styles, icons, images and Progress on a page (Plugin API
-// Level 2, #81). A style applies to the component that carries it only;
+// the current interface, #81). A style applies to the component that carries it only;
 // the Host's fields, buttons, Collection and chrome keep their native look,
 // focus rings and colours.
 

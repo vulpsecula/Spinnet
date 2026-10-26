@@ -485,13 +485,20 @@ public final class HostConfigurationEditor {
                     ?? existingAction?.input
                     ?? fallbackInputs[commandID]
                     ?? .null
-                if validateInputs,
-                   command.execution == .host,
-                   let hostCommand = command.hostCommand,
-                   !hostCommand.isValidInput(input) {
-                    throw ConfigurationError.invalidAction(
-                        "Configuration input is invalid for Command \(commandID.rawValue)"
-                    )
+                if validateInputs, command.execution == .host {
+                    let valid: Bool
+                    if let adapter = command.hostCommand {
+                        valid = adapter.isValidInput(input)
+                    } else if let operation = command.hostServiceID.flatMap(HostServiceCatalogue.operation) {
+                        valid = operation.acceptsConfiguredInput(input, for: command)
+                    } else {
+                        valid = false
+                    }
+                    if !valid {
+                        throw ConfigurationError.invalidAction(
+                            "Configuration input is invalid for Command \(commandID.rawValue)"
+                        )
+                    }
                 }
                 if validateInputs,
                    let field = command.configurationField,

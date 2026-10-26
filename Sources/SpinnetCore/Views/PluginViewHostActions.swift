@@ -15,10 +15,10 @@ public struct PluginViewOrigin: Equatable {
 
 /// Where a Plugin View's standard insert action types its text.
 public enum PluginViewInsertionTarget: Equatable {
-    /// Plugin API Level 1: the App in front when an Action last presented
+    /// Form/detail presentation: the App in front when an Action last presented
     /// the view.
     case origin(PluginViewOrigin?)
-    /// Candidate Contract `host_operations`: the App in front when the Host
+    /// the App in front when the Host
     /// inserts, only if it is the App the button named when it was pressed.
     case shown(InsertionTargetCapture)
 }

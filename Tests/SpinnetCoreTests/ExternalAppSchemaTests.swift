@@ -4,8 +4,8 @@ import XCTest
 @testable import SpinnetCore
 
 /// `PluginAPI/schemas/external-apps.schema.json` publishes the inputs of
-/// `perform_app_operation` and `open_deep_link` (ADR 0012), and every
-/// Reviewed App Interface available to a Level 1 Plugin. A Reviewed App Interface must accept
+/// catalogue apps.perform and apps.openDeepLink, and every
+/// current Reviewed App Interface. A Reviewed App Interface must accept
 /// exactly the operations the schema publishes for it.
 final class ExternalAppSchemaTests: XCTestCase {
     private static let schemaURL = TestRepository.root
@@ -26,12 +26,12 @@ final class ExternalAppSchemaTests: XCTestCase {
               case .object(let interfaces)? = listing["$defs"] else {
             return XCTFail("The schema lists no Reviewed App Interfaces")
         }
-        XCTAssertEqual(Set(interfaces.keys), Set(ReviewedAppInterface.reviewed(atAPILevel: 1).map(\.bundleID)))
+        XCTAssertEqual(Set(interfaces.keys), Set(ReviewedAppInterface.reviewed.map(\.bundleID)))
     }
 
     func testEachReviewedAppInterfaceAcceptsExactlyThePublishedOperations() throws {
         let schema = try JSONSchemaSubsetValidator(definition: "perform_app_operation.input", inSchemaAt: Self.schemaURL)
-        for interface in ReviewedAppInterface.reviewed(atAPILevel: 1) {
+        for interface in ReviewedAppInterface.reviewed {
             var candidates: [(String, [String: JSONValue]?)] = [("reviewCode", nil), ("", nil)]
             for operation in interface.operations {
                 let arguments = Dictionary(uniqueKeysWithValues: operation.parameters.map {
@@ -68,6 +68,19 @@ final class ExternalAppSchemaTests: XCTestCase {
         }
     }
 
+    func testConnectionFixtureHasThePublishedShapeAndDecodesItsPrerequisite() throws {
+        let api = TestRepository.root.appendingPathComponent("PluginAPI")
+        let data = try Data(contentsOf: api.appendingPathComponent("fixtures/external-app-connections/valid.json"))
+        let value = try JSONDecoder().decode(JSONValue.self, from: data)
+        let schema = try JSONSchemaSubsetValidator(schemaAt: api.appendingPathComponent("schemas/external-app-connections.schema.json"))
+        XCTAssertEqual(schema.errors(for: value), [])
+        struct Declaration: Decodable { let external_app_connections: [ExternalAppConnectionDeclaration] }
+        let declaration = try JSONDecoder().decode(Declaration.self, from: data)
+        XCTAssertEqual(declaration.external_app_connections, [
+            .init(bundleID: "com.spotify.client", commandIDs: [.init("spotify.play")])
+        ])
+    }
+
     func testEveryDeepLinkTheHostOpensIsOfThePublishedShape() throws {
         let schema = try JSONSchemaSubsetValidator(definition: "open_deep_link.input", inSchemaAt: Self.schemaURL)
         let scope = try XCTUnwrap(DeepLinkTemplateTests.manifest().scope(for: .controlExternalApp))
@@ -95,9 +108,24 @@ final class ExternalAppSchemaTests: XCTestCase {
         }
     }
 
-    func testBothServicesAnswerNull() throws {
+    func testCurrentAppResultsIncludeNullAndStrictObservedSpotifyShapes() throws {
         let definitions = try definitions()
-        XCTAssertEqual(definitions["perform_app_operation.result"], .object(["type": .string("null")]))
         XCTAssertEqual(definitions["open_deep_link.result"], .object(["type": .string("null")]))
+        let validator = try JSONSchemaSubsetValidator(definition: "perform_app_operation.result", inSchemaAt: Self.schemaURL)
+        let accepted: [JSONValue] = [
+            .null,
+            .object(["state": .string("stopped"), "position": .number(0), "track": .null]),
+            .object(["volume": .number(0)]), .object(["volume": .number(100)]),
+            .object(["outcome": .string("changed")]), .object(["outcome": .string("unconfirmed")]),
+            .object(["outcome": .string("no_current_track")]), .object(["outcome": .string("stopped")])
+        ]
+        for value in accepted { XCTAssertEqual(validator.errors(for: value), [], "\(value)") }
+        let refused: [JSONValue] = [
+            .object([:]), .object(["volume": .number(-1)]), .object(["volume": .number(101)]),
+            .object(["volume": .number(0.5)]), .object(["volume": .string("50")]),
+            .object(["volume": .number(50), "extra": .bool(true)]),
+            .object(["outcome": .string("empty_queue")]), .object(["state": .string("playing")])
+        ]
+        for value in refused { XCTAssertFalse(validator.errors(for: value).isEmpty, "\(value)") }
     }
 }

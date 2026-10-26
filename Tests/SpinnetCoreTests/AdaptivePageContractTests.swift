@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 import SpinnetCore
 
-/// Public Level 3 answer parsing: cards are identified components, not
+/// Current answer parsing: cards are identified components, not
 /// Collection items, so their fields and source bindings remain ordinary.
 final class AdaptivePageContractTests: XCTestCase {
     static let fixture = TestRepository.tests
@@ -29,17 +29,12 @@ final class AdaptivePageContractTests: XCTestCase {
         guard case .textField(let field)? = page.component("note") else { return XCTFail("Missing identified field") }
         XCTAssertEqual(field.value, "initial")
     }
-    func testLevelThreeAdmissionKeepsEarlierVocabularySeparate() throws {
-        try PluginInterfaceContracts.host.check(Self.manifest, origin: .installed)
-        XCTAssertFalse(PluginInterfaceContracts.levelTwoMembers.contains(.viewComponent("adaptive")))
-        XCTAssertThrowsError(try PluginScriptAnswer(parsing: Self.answer, permits: CollectionsFixtures.permits))
-        XCTAssertThrowsError(try PluginScriptAnswer(parsing: Self.answer, permits: CollectionsFixtures.levelOne))
-        XCTAssertNoThrow(try PluginInterfaceContracts.host.check(Self.manifest, origin: .bundled))
-        let oldHost = PluginInterfaceContracts(levels: [1: PluginInterfaceContracts.levelOneMembers, 2: PluginInterfaceContracts.levelTwoMembers])
-        XCTAssertThrowsError(try oldHost.check(Self.manifest, origin: .installed))
-        let wrongRevision = CandidateContract(name: "adaptive_layout", revision: 2, baseLevel: 2,
-            members: [.viewComponent("adaptive")], tag: "plugin-api-candidate/adaptive_layout/r2")
-        XCTAssertThrowsError(try PluginInterfaceContracts(levels: oldHost.levels, candidates: [wrongRevision]).check(Self.manifest, origin: .installed))
+    func testCurrentAdaptiveMembershipAndHostVersionAreCheckedIndependently() throws {
+        for origin in [PluginOrigin.installed, .bundled] { try PluginInterfaceContracts.host.check(Self.manifest, origin: origin) }
+        XCTAssertTrue(PluginInterfaceContracts.currentMembers.contains(.viewComponent("adaptive")))
+        XCTAssertThrowsError(try PluginScriptAnswer(parsing: Self.answer, permits: { $0 != .viewComponent("adaptive") }))
+        let older = PluginInterfaceContracts(hostVersion: try HostVersion("0.9.0"))
+        XCTAssertThrowsError(try older.check(Self.manifest, origin: .installed))
     }
 
     func testAdaptiveChildrenCannotBypassSharedIdentityAndDepthBudgets() throws {
@@ -59,7 +54,7 @@ final class AdaptivePageContractTests: XCTestCase {
     }
 
     func testPublishedStableCardFixturesFollowSchemaAndHostBounds() throws {
-        let root = PagesContractTests.pluginAPI.appendingPathComponent("fixtures/level-3/adaptive-cards")
+        let root = PagesContractTests.pluginAPI.appendingPathComponent("fixtures/adaptive-cards")
         let validator = try JSONSchemaSubsetValidator(definition: "answer", inSchemaAt: PagesContractTests.pluginAPI.appendingPathComponent("schemas/adaptive-layout.schema.json"))
         struct Index: Decodable { struct Fixture: Decodable { let file: String; let valid: Bool }; let fixtures: [Fixture] }
         let fixtures = try JSONDecoder().decode(Index.self, from: Data(contentsOf: root.appendingPathComponent("index.json"))).fixtures

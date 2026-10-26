@@ -2,19 +2,16 @@ import SpinnetTestSupport
 import Foundation
 @testable import SpinnetCore
 
-/// `Tests/Fixtures/NamespacesProbe.spinnetplugin` is a tiny external Plugin
-/// declaring Plugin API Level 2, written against Candidate Contract
-/// `namespaces` revision 1 before Level 2 promoted it: a script that
-/// calls Host Services by their catalogue IDs, and a Command that runs one
-/// directly without a script. Its variants name Level 1 names and reserved
-/// IDs, which the Host refuses.
+/// `Tests/Fixtures/NamespacesProbe.spinnetplugin` calls Host Services by
+/// catalogue ID and runs one directly as a scriptless Command. Its negative
+/// variants name internal adapter names and reserved IDs, which the Host refuses.
 enum NamespacesProbeFixture {
     static let fixtures = TestRepository.tests
         .appendingPathComponent("Fixtures", isDirectory: true)
     static let package = fixtures.appendingPathComponent("NamespacesProbe.spinnetplugin", isDirectory: true)
     static let pluginID = PluginID("com.example.namespaces-probe")
 
-    /// The Host this repository builds, which provides Level 2.
+    /// The current interface of the Host this repository builds.
     static var host: PluginInterfaceContracts { .host }
 
     /// A copy of the probe in a temporary directory, its manifest changed by
@@ -60,6 +57,4 @@ enum NamespacesProbeFixture {
         }
     }
 
-    /// The probe declaring no candidate: a Level 1 Plugin.
-    static let levelOne = ManifestVariant.levelOne
 }

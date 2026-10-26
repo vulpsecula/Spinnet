@@ -44,7 +44,7 @@ final class HostActionRunnerTests: XCTestCase {
             commands: [CommandDeclaration(
                 id: action.commandID,
                 title: "Changed title",
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             )]
         )
         try registry.register(PluginPackage(
@@ -67,7 +67,7 @@ final class HostActionRunnerTests: XCTestCase {
         let command = CommandDeclaration(
             id: CommandID("fixture.open_file"),
             title: "Open File",
-            hostCommand: .openFile
+            hostServiceID: "open.path"
         )
         let action = try ActionConfiguration(
             id: ActionID("missing-file"),
@@ -185,7 +185,7 @@ final class HostActionRunnerTests: XCTestCase {
             command: CommandDeclaration(
                 id: CommandID("fixture.open_url"),
                 title: "Open URL",
-                hostCommand: .openURL
+                hostServiceID: "open.url"
             ),
             input: .string("https://example.com")
         )

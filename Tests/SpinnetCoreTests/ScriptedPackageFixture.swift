@@ -16,7 +16,7 @@ enum ScriptedPackageFixture {
     /// Capability boundary between them.
     private static let manifest = """
     {
-      "protocol_version": "1.0",
+      "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
       "id": "com.spinnet.fixture",
       "name": "Spinnet Fixture Plugin",
       "version": "1.0.0",
@@ -31,15 +31,15 @@ enum ScriptedPackageFixture {
         }
       },
       "commands": [
-        {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "is_configurable": true, "host_command": "url.open"},
-        {"id": "fixture.open_application", "title": "Open Application", "execution": "host", "is_configurable": true, "host_command": "application.open"},
-        {"id": "fixture.open_file", "title": "Open File", "execution": "host", "is_configurable": true, "host_command": "file.open"},
-        {"id": "fixture.open_folder", "title": "Open Folder", "execution": "host", "is_configurable": true, "host_command": "folder.open"},
-        {"id": "fixture.invoke_keyboard_shortcut", "title": "Run Keyboard Shortcut", "execution": "host", "is_configurable": true, "host_command": "keyboard_shortcut.invoke"},
-        {"id": "fixture.invoke_service", "title": "Run macOS Service", "execution": "host", "is_configurable": true, "host_command": "service.invoke"},
-        {"id": "fixture.invoke_shortcut", "title": "Run Shortcut", "execution": "host", "is_configurable": true, "host_command": "shortcut.invoke"},
-        {"id": "fixture.copy_text", "title": "Copy Text", "execution": "host", "is_configurable": true, "host_command": "clipboard.copy"},
-        {"id": "fixture.present_feedback", "title": "Present Feedback", "execution": "host", "is_configurable": true, "host_command": "feedback.present"},
+        {"id": "fixture.open_url", "title": "Open URL", "execution": "host", "is_configurable": true, "host_command": "open.url"},
+        {"id": "fixture.open_application", "title": "Open Application", "execution": "host", "is_configurable": true, "host_command": "open.application"},
+        {"id": "fixture.open_file", "title": "Open File", "execution": "host", "is_configurable": true, "host_command": "open.path"},
+        {"id": "fixture.open_folder", "title": "Open Folder", "execution": "host", "is_configurable": true, "host_command": "open.path"},
+        {"id": "fixture.invoke_keyboard_shortcut", "title": "Run Keyboard Shortcut", "execution": "host", "is_configurable": true, "host_command": "keyboard.press"},
+        {"id": "fixture.invoke_service", "title": "Run macOS Service", "execution": "host", "is_configurable": true, "host_command": "system.runService"},
+        {"id": "fixture.invoke_shortcut", "title": "Run Shortcut", "execution": "host", "is_configurable": true, "host_command": "system.runShortcut"},
+        {"id": "fixture.copy_text", "title": "Copy Text", "execution": "host", "is_configurable": true, "host_command": "clipboard.write"},
+        {"id": "fixture.present_feedback", "title": "Present Feedback", "execution": "host", "is_configurable": true, "host_command": "host.toast"},
         {"id": "fixture.transform_text", "title": "Transform Text", "execution": "javascript", "is_configurable": false, "script": "transform-text.js"},
         {"id": "fixture.transform_data", "title": "Transform Structured Data", "execution": "javascript", "is_configurable": true, "script": "structured-data.js"}
       ]
@@ -50,13 +50,13 @@ enum ScriptedPackageFixture {
     /// the clipboard, so revoking either Capability changes the outcome.
     private static let transformText = """
     (() => {
-      const selectedText = String(requestHostService("read_selected_text"));
+      const selectedText = String(requestHostService("selection.readText"));
       const output = selectedText
         .trim()
         .split(/\\s+/)
         .map((word, index) => index % 2 === 0 ? word.toUpperCase() : word.toLowerCase())
         .join("-");
-      requestHostService("write_clipboard", output);
+      requestHostService("clipboard.write", output);
       let checksum = 2166136261;
       for (let index = 0; index < output.length; index += 1) {
         checksum = Math.imul(checksum ^ output.charCodeAt(index), 16777619) >>> 0;

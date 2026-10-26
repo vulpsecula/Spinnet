@@ -39,9 +39,8 @@ extension ReviewedServicesSurfaceTests {
         let scope = PluginCapabilityScope(capability: .readReviewedTools, commandIDs: [CommandID("services")], reviewedTools: [.init(tool: "homebrew", operations: ["services"], kinds: ["formula"])])
         XCTAssertNoThrow(try ReviewedServicesAddition.authorize(in: scope))
         XCTAssertThrowsError(try ReviewedServicesAddition.authorize(in: .init(capability: .readReviewedTools, commandIDs: [CommandID("services")], reviewedTools: [.init(tool: "homebrew", operations: ["installed"], kinds: ["formula"])])))
-        let request = try RequestedHostOperation(parsing: .object(["perform": .string("tools.showServices"), "input": good]), permits: { PluginInterfaceContracts.levelTwoMembers.contains($0) })
+        let request = try RequestedHostOperation(parsing: .object(["perform": .string("tools.showServices"), "input": good]), permits: { PluginInterfaceContracts.currentMembers.contains($0) })
         XCTAssertEqual(try request.implementation()?.service, .showReviewedServices)
-        XCTAssertFalse(PluginHostService.showReviewedServices.isLevelOne)
         XCTAssertFalse(HostServiceCatalogue.operation("tools.showServices")!.isOffered(at: .call))
     }
 
@@ -61,7 +60,7 @@ extension ReviewedServicesSurfaceTests {
             let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: dir.appendingPathComponent(fixture.file)))
             let schema = try JSONSchemaSubsetValidator(definition: fixture.definition, inSchemaAt: api.appendingPathComponent("schemas/" + (fixture.schema ?? "namespaces.schema.json")))
             XCTAssertEqual(schema.errors(for: value).isEmpty, fixture.valid, fixture.file)
-            if fixture.definition == "operation" { XCTAssertEqual((try? RequestedHostOperation(parsing: value, permits: { PluginInterfaceContracts.levelTwoMembers.contains($0) })) != nil, fixture.valid) }
+            if fixture.definition == "operation" { XCTAssertEqual((try? RequestedHostOperation(parsing: value, permits: { PluginInterfaceContracts.currentMembers.contains($0) })) != nil, fixture.valid) }
         }
     }
 
@@ -85,7 +84,7 @@ extension ReviewedServicesSurfaceTests {
     func testBrokerOpensOnlyAnExactlyScopedAndCurrentlyGrantedSurface() throws {
         let command = CommandDeclaration(id: CommandID("services"), title: "Services", hostServiceID: ReviewedServicesAddition.id, fixedInput: .object(["tool": .string("homebrew")]))
         let scope = PluginCapabilityScope(capability: .readReviewedTools, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["services"], kinds: ["formula"])])
-        let manifest = try PluginManifest(apiLevel: 2, id: PluginID("com.example.services"), name: "Services", version: "1.0", capabilities: [.readReviewedTools], capabilityScopes: [scope], commands: [command])
+        let manifest = try PluginManifest(id: PluginID("com.example.services"), name: "Services", version: "1.0", capabilities: [.readReviewedTools], capabilityScopes: [scope], commands: [command])
         let package = PluginPackage(rootURL: URL(fileURLWithPath: "/private/tmp/services-fixture"), manifest: manifest, origin: .installed)
         let action = try ActionConfiguration(id: ActionID("services"), pluginID: manifest.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore(); var shown = 0, presentations: [ReviewedServicesAddition.Presentation] = []
@@ -117,7 +116,7 @@ extension ReviewedServicesSurfaceTests {
         let command = CommandDeclaration(id: CommandID("services"), title: "Services", execution: .javascript, script: "services.js")
         let readScope = PluginCapabilityScope(capability: .readReviewedTools, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["services"], kinds: ["formula"])])
         let taskScope = PluginCapabilityScope(capability: .runReviewedToolTasks, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["serviceRestart"], kinds: ["formula"])])
-        let manifest = try PluginManifest(apiLevel: 2, id: PluginID("com.example.services"), name: "Services", version: "1.0", capabilities: [.readReviewedTools, .runReviewedToolTasks], optionalCapabilities: [.runReviewedToolTasks], capabilityScopes: [readScope,taskScope], commands: [command])
+        let manifest = try PluginManifest(id: PluginID("com.example.services"), name: "Services", version: "1.0", capabilities: [.readReviewedTools, .runReviewedToolTasks], optionalCapabilities: [.runReviewedToolTasks], capabilityScopes: [readScope,taskScope], commands: [command])
         let package = PluginPackage(rootURL: URL(fileURLWithPath: "/private/tmp/services-fixture"), manifest: manifest, origin: .installed)
         let action = try ActionConfiguration(id: ActionID("services"), pluginID: manifest.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore(), registry = PluginRegistry()

@@ -3,7 +3,7 @@ import Combine
 import SpinnetCore
 
 /// The App insertion would go to now, as the Host shows it in the Plugin
-/// Views of Plugins declaring `host_operations` (ADR 0018): the App in
+/// Views (ADR 0018): the App in
 /// front, kept current from activation notifications, or no App while
 /// Spinnet or nothing is in front. Its name is Host data, shown to the user
 /// and never given to a Plugin.
@@ -98,7 +98,7 @@ extension InsertionTargetApp {
     }
 }
 
-/// Inserts for a Plugin API Level 2 Plugin: into the App in front
+/// Inserts for a compatible Plugin: into the App in front
 /// at that moment, only if it is the App the Host showed when the user
 /// acted and, where Accessibility exposed the element focused in it then,
 /// only if that element is still focused. Every insertion path of such a

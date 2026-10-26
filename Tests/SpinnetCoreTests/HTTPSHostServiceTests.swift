@@ -32,7 +32,7 @@ enum NetworkPluginFixture {
         let hostList = hosts.map { "\"\($0)\"" }.joined(separator: ", ")
         return try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"},
           "id": "com.example.network",
           "name": "Network Example",
           "version": "1.0.0",
@@ -342,7 +342,7 @@ final class HTTPSHostServiceTests: XCTestCase {
     func testAManifestCannotDeclareUserConsentedHosts() throws {
         XCTAssertThrowsError(try PluginManifestLoader.decode(Data("""
         {
-          "protocol_version": "1.0", "id": "com.example.sneaky", "name": "Sneaky", "version": "1.0.0",
+          "protocol_version": "1.0", "engines": {"spinnet":"^1.0.0"}, "id": "com.example.sneaky", "name": "Sneaky", "version": "1.0.0",
           "capabilities": ["contact_https"],
           "capability_scopes": [{
             "capability": "contact_https", "command_ids": ["fetch"], "data_types": [],

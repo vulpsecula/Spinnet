@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// Candidate Contract `collections` r3's windows, as `PluginPageMemory`
+/// Collection Windows, as `PluginPageMemory`
 /// keeps them for the Host and the test kit alike: a collection gives its
 /// total and a slice, the Host holds only the items around the screen, asks
 /// for what the screen lacks, keeps the selection by ID while its item is

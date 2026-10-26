@@ -6,23 +6,23 @@ through its `spinnet` wrapper or `requestHostService(name, input)`. For every
 request the Host reads the current manifest, grant and System Permission
 afresh; a helper message never carries a Plugin identity or a Capability claim.
 How a failure reaches the script is in [Scripts](scripts.md#failures); the
-[catalogue](../README.md#what-level-1-offers) lists each service with its
+[catalogue](sdk.md) lists each service with its
 wrapper, Capability and System Permission.
 
 ## Text
 
-### detect_language
+### text.detectLanguage
 
-`detect_language` requires no Capability and no System Permission. Its input
+`text.detectLanguage` requires no Capability and no System Permission. Its input
 is a text string the Plugin already holds; its result is the BCP 47 code of
 that text, such as `en` or `zh-Hans`, decided on this Mac by the Natural
 Language framework, or `null` when the text is too short or mixed to tell
 (confidence below 0.5). Nothing leaves the machine. Other input fails with
 `host_service_failed`.
 
-### read_selected_text
+### selection.readText
 
-`read_selected_text` requires the `read_selected_text` Capability and the
+`selection.readText` requires the `read_selected_text` Capability and the
 macOS Accessibility System Permission. Its input is `null` and its result is a
 string. Every Plugin and Host Command that reads a selection goes through this
 one reader.
@@ -51,9 +51,9 @@ selection could not be read, and still a string, possibly empty, when it was.
 Capability refusals and a missing Accessibility permission still fail the
 request.
 
-### insert_text
+### selection.replace
 
-`insert_text` requires the `insert_into_focused_app` Capability and the
+`selection.replace` requires the `insert_into_focused_app` Capability and the
 Accessibility System Permission. Its input is a string of at most 128 KiB, the
 largest text an HTTPS response can carry, and its result is `null`. It replaces
 the selection in the App in front with the text, as typing it would; it never
@@ -73,22 +73,22 @@ the App leaves the front while the text is typed.
 
 ## Clipboard
 
-### write_clipboard
+### clipboard.write
 
-`write_clipboard` requires the `write_clipboard` Capability. Its input is a
+`clipboard.write` requires the `write_clipboard` Capability. Its input is a
 string and its result is `null`.
 
-### read_current_clipboard
+### clipboard.read
 
-`read_current_clipboard` requires its own `read_current_clipboard` Capability.
+`clipboard.read` requires the `read_current_clipboard` Capability.
 Input is `null`; the result is `{ "text": "…", "type": "text" }` or type `url`,
 or `null` when no supported, permitted content is available. It does not read
 Clipboard History.
 
 ## Clipboard History
 
-`read_clipboard_history`, `read_clipboard_history_content` and
-`present_clipboard_history` all require the `read_clipboard_history`
+`clipboardHistory.read`, `clipboardHistory.readContent` and
+`clipboardHistory.show` all require the `read_clipboard_history`
 Capability, including the manifest's exact data-type scope. None of them
 enables or resumes collection: only the Host collects clipboard changes, and
 only while the user has turned collection on. Collection, pause, retention
@@ -102,9 +102,9 @@ as UTF-8; a known textual representation cannot fall back to `binary` to bypass
 its grant. One grant lists every requested type and discloses access to entries
 retained before it. Adding a type requires new consent.
 
-### present_clipboard_history
+### clipboardHistory.show
 
-`present_clipboard_history` accepts `null`, opens the Clipboard History window,
+`clipboardHistory.show` accepts `null`, opens the Clipboard History window,
 and returns `null`. It is the one Host Surface: the user reads their own
 history there and the Plugin learns nothing, so the granted Capability is all
 it needs, whether the Plugin is Bundled or installed.
@@ -118,9 +118,9 @@ them to the current screens on the next explicit opening, and forgets them
 when the Plugin is removed. Restart opens no window. Closing the window
 closes its details whether pinned or not.
 
-### read_clipboard_history
+### clipboardHistory.read
 
-`read_clipboard_history` accepts `null` for the newest page or
+`clipboardHistory.read` accepts `null` for the newest page or
 `{ "offset": 50 }` for a nonnegative integer offset. The result has `state`
 (`off`, `paused`, or `collecting`), `entries`, an optional `nextOffset`, and an
 optional `expiresAt`. Dates are seconds since 2001-01-01 UTC. Off and paused
@@ -171,9 +171,9 @@ Additional type-scoped metadata:
   modification date changes. File-reference representations take precedence
   over alternative representations of the same item, including `file:` URLs.
 
-### read_clipboard_history_content
+### clipboardHistory.read_content
 
-`read_clipboard_history_content` accepts exactly:
+`clipboardHistory.readContent` accepts exactly:
 
 ```json
 {"entry_id":"11111111-1111-1111-1111-111111111111","offset":0,"length":196608}
@@ -202,15 +202,15 @@ accumulating a large payload in one invocation.
 
 ## Focused window
 
-`read_focused_window`, `set_focused_window_frame`,
-`toggle_focused_window_full_screen` and `restore_focused_window_frame` require
+`window.read`, `window.setFrame`,
+`window.toggleFullScreen` and `window.restore` require
 the `position_focused_window` Capability and the Accessibility System
 Permission. Coordinates are global points with the origin at the top-left of
 the primary display and y growing downwards, as Accessibility reports window
 frames. A Plugin never names a window, its application, or an accessibility
 action.
 
-### read_focused_window
+### window.read
 
 It accepts `null` and returns the focused window's frame and the visible frame
 of the screen holding most of it: the screen less the menu bar, the Dock, and
@@ -226,11 +226,11 @@ coordinates, left to right and then top to bottom, and `displayIndex`, the
 position in it of the display holding the window. Nothing identifies the window
 or its application.
 
-### set_focused_window_frame
+### window.setFrame
 
 It accepts exactly `{"x":…,"y":…,"width":…,"height":…}` with finite numbers,
 coordinates within ±100000, and a size greater than 0 and at most 100000, and
-returns `null`. It applies only to the window `read_focused_window` last
+returns `null`. It applies only to the window `window.read` last
 returned, and only while that window is still focused; if focus moved in
 between, the request fails and nothing moves. A missing focused window, or one
 whose position or size cannot be set, fails with `host_service_failed` before
@@ -238,18 +238,18 @@ anything changes; a write the window rejects part-way restores its original
 frame. A full-screen window fails with "leave full screen before choosing a
 layout" and does not move.
 
-### toggle_focused_window_full_screen
+### window.toggleFullScreen
 
 It accepts `null` and returns `null`, moving whichever window is focused into
 or out of macOS full screen. A window that does not report its full-screen
 state, or does not allow it to be set, fails with `host_service_failed` and
 nothing changes.
 
-### restore_focused_window_frame
+### window.restore
 
 It accepts only `null` and returns `null`. It returns the focused window to the
 frame it had before Spinnet last moved it. Before each
-`set_focused_window_frame` the Host records the window's frame, unless the
+`window.setFrame` the Host records the window's frame, unless the
 window is still where Spinnet last put it (within 2 points), so consecutive
 layouts restore to the frame from before the first one. The Host keeps one
 frame per window for the 50 most recently moved windows, in memory only, and
@@ -259,18 +259,18 @@ is looked up for the window focused when the request arrives.
 
 ## Opening
 
-### open_url
+### open.url
 
-`open_url` requires the `open_url` Capability and no System Permission. Its
+`open.url` requires the `open_url` Capability and no System Permission. Its
 input is a link string and its result is `null`. The Host trims the text and
 opens it in the default browser only if it is an http or https link with a
 host, no whitespace or control characters inside, and at most 2048 characters;
 anything else fails with `host_service_failed` and nothing opens. The Plugin
 learns nothing about the page, so opening a link is not fetching it.
 
-### open_local_path
+### open.path
 
-`open_local_path` requires its own `open_local_path` Capability and no System
+`open.path` requires its own `open_local_path` Capability and no System
 Permission. It accepts an absolute local path or `~/path`, up to 4096 UTF-8
 bytes, with no control characters or `//` prefix. The Host expands `~`, checks
 that the target exists, and opens it in Finder or its default App, launching an
@@ -278,9 +278,9 @@ application if the path is one. It returns `null`, never file contents.
 
 ## Screen
 
-### capture_screen
+### screen.capture
 
-`capture_screen` requires the `capture_screen` Capability and the macOS Screen
+`screen.capture` requires the `capture_screen` Capability and the macOS Screen
 Recording System Permission. It accepts
 `{ "source": "area"|"fullscreen"|"window", "copy_to_clipboard": bool,
 "save": null | { "folder": string, "format": "automatic"|"png"|"jpg" } }` and
@@ -298,9 +298,9 @@ and a second capture while one is running is refused.
 
 ## HTTPS
 
-### https_request
+### http.request
 
-`https_request` requires `contact_https`. Its input, published with its result
+`http.request` requires `contact_https`. Its input, published with its result
 in [`schemas/https-request.schema.json`](../schemas/https-request.schema.json),
 is:
 
@@ -380,7 +380,7 @@ TC3). OAuth is not covered.
 
 ## External Apps
 
-`perform_app_operation` and `open_deep_link` require the `control_external_app`
+`apps.perform` and `apps.openDeepLink` require the `control_external_app`
 Capability, whose scope names each External App the Plugin reaches. Their
 inputs, and every Reviewed App Interface the Host ships, are published in
 [`schemas/external-apps.schema.json`](../schemas/external-apps.schema.json).
@@ -389,9 +389,10 @@ External App a Command reaches is not installed, its Menu Items are
 unavailable with "Install <App> to use <App> Commands", naming the application
 as the Plugin's manifest does.
 
-### perform_app_operation
+### apps.perform
 
-Its input is `{bundle_id, operation, arguments?}`, and its result is `null`.
+Its input is `{bundle_id, operation, arguments?}`; the reviewed operation defines
+the result, including observed Spotify playback, volume or Next outcome.
 The Host sends Apple Events only through a Reviewed App Interface it ships for
 that application (ADR 0012): the scope's `operation_families` must include the
 operation's family, the operation must be one the interface describes, and its
@@ -402,15 +403,18 @@ the Plugin cannot send AppleScript source, arbitrary Apple Events, or another
 handler. macOS asks the user separately for Automation consent, which they
 manage in System Settings > Privacy & Security > Automation.
 
-Level 1 ships one Reviewed App Interface. Bob (`com.hezongyidev.Bob`), through
-its `request` handler: the `translate` family's operations
-`selectionTranslate`, `snipTranslate`, `inputTranslate`,
-`pasteboardTranslate`, and `translateText`, which alone takes `text`,
+Bob (`com.hezongyidev.Bob`) uses its `request` handler for the `translate`
+family: `selectionTranslate`, `snipTranslate`, `inputTranslate`,
+`pasteboardTranslate`, and `translateText`. Only `translateText` takes `text`,
 non-blank and at most 128 KiB of UTF-8. Bob reads the selection, clipboard or
-screen where asked and shows the result itself. Adding an application is a Host
-release.
+screen where asked and shows the result itself.
 
-### open_deep_link
+[Spotify](spotify.md) offers reviewed local playback and controls, with
+Host-owned connection setup. [Terminal Homebrew](terminal-homebrew.md) is a typed,
+gesture-requested handoff, never a synchronous raw shell call. Adding a reviewed
+application or operation requires a Host release.
+
+### apps.openDeepLink
 
 Its input is `{template, parameters?}`, and its result is `null`. A Plugin
 declares Deep Link Templates in its `control_external_app` scope, under an
@@ -441,10 +445,10 @@ const runs = (spinnet.storage.get("runs") ?? 0) + 1;
 spinnet.storage.set({ key: "runs", value: runs });
 ```
 
-A key is a non-empty string of at most 128 characters. `get_storage_value`
-takes a key and answers its value or `null`; `set_storage_value` takes exactly
-`{key, value}`, and a `null` value removes the key; `remove_storage_value`
-takes a key; `list_storage_keys` and `clear_storage` take `null`, and the first
+A key is a non-empty string of at most 128 characters. `storage.get`
+takes a key and answers its value or `null`; `storage.set` takes exactly
+`{key, value}`, and a `null` value removes the key; `storage.remove`
+takes a key; `storage.keys` and `storage.clear` take `null`, and the first
 answers the sorted key names only. A value may be up to 512 KiB as JSON, so it
 always fits in one helper message; a Plugin may keep up to 10 MiB, the default
 capacity of Raycast's `Cache`, and it may keep up to 1000 keys, so the list of
