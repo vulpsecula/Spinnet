@@ -86,11 +86,6 @@ final class HostServiceCatalogueTests: XCTestCase {
         }
     }
 
-    func testTheCatalogueFollowsItsSchema() throws {
-        let validator = try JSONSchemaSubsetValidator(schemaAt: Self.schemas.appendingPathComponent("catalogue.schema.json"))
-        XCTAssertEqual(validator.errors(for: .object(try json("catalogue.json"))), [])
-    }
-
     /// Every internal execution adapter has a public ID for refusal guidance.
     func testEveryInternalAdapterHasAPublicID() {
         for service in PluginHostService.allCases where service.usesInternalName {

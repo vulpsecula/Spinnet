@@ -8,27 +8,6 @@ final class PublishedPluginContractTests: XCTestCase {
     private static let pluginAPI = TestRepository.root
         .appendingPathComponent("PluginAPI")
 
-    private func json(_ path: String) throws -> JSONValue {
-        try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: Self.pluginAPI.appendingPathComponent(path)))
-    }
-
-    private func object(_ value: JSONValue?) -> [String: JSONValue] {
-        if case .object(let members)? = value { return members }
-        return [:]
-    }
-
-    private func array(_ value: JSONValue?) -> [JSONValue] {
-        if case .array(let values)? = value { return values }
-        return []
-    }
-
-    private func string(_ value: JSONValue?) -> String? {
-        if case .string(let text)? = value { return text }
-        return nil
-    }
-
-    private func strings(_ value: JSONValue?) -> [String] { array(value).compactMap(string) }
-
     private func text(_ path: String) throws -> String {
         try String(contentsOf: Self.pluginAPI.appendingPathComponent(path), encoding: .utf8)
     }
@@ -135,7 +114,7 @@ final class PublishedPluginContractTests: XCTestCase {
         let reachable = try PublishedPluginDocumentation.reachableFiles()
         for file in ["catalogue.json", "sdk/spinnet.js", "sdk/spinnet.d.ts", "fixtures/pages/index.json",
                      "fixtures/host-operations/index.json", "reference/namespaces.md", "reference/host-operations.md",
-                     "reference/pages.md", "reference/compatibility.md", "reference/compatibility.md"] {
+                     "reference/pages.md", "reference/compatibility.md"] {
             XCTAssertTrue(reachable.contains(file), "No navigation path reaches \(file)")
         }
     }

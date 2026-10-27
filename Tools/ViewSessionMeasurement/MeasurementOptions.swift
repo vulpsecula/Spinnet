@@ -152,8 +152,9 @@ struct MeasurementOptions {
             case "--typing-samples": typingSamples = try count(for: argument)
             case "--keystroke-intervals":
                 let text = try value(for: argument)
-                let intervals = text.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-                guard !intervals.isEmpty, intervals.allSatisfy({ $0 > 0 }) else {
+                let parts = text.split(separator: ",", omittingEmptySubsequences: false)
+                let intervals = parts.compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+                guard !intervals.isEmpty, intervals.count == parts.count, intervals.allSatisfy({ $0 > 0 }) else {
                     throw UsageError(description: "--keystroke-intervals needs milliseconds such as 50,160, not \(text)")
                 }
                 keystrokeIntervals = intervals
@@ -183,7 +184,12 @@ struct MeasurementOptions {
             case "--git-revision": gitRevision = try value(for: argument)
             case "--host-name": hostProcessName = try value(for: argument)
             case "--helper-name": helperProcessName = try value(for: argument)
-            case "--host-pid": hostProcessID = Int32(try count(for: argument, minimum: 1))
+            case "--host-pid":
+                let text = try value(for: argument)
+                guard let pid = Int32(text), pid > 0 else {
+                    throw UsageError(description: "--host-pid needs a positive 32-bit process ID, not \(text)")
+                }
+                hostProcessID = pid
             case "-h", "--help": throw UsageError(description: "")
             default: throw UsageError(description: "Unknown argument \(argument)")
             }

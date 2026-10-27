@@ -168,6 +168,73 @@ final class ClipboardHistoryWindowTests: XCTestCase {
         XCTAssertNil(controller.model.snapshot)
     }
 
+    func testFocusRequestedDuringRefreshReturnsToTheListAndSpaceOpensDetail() throws {
+        _ = NSApplication.shared
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))
+        try store.applyControl(.configure(enabled: true, paused: false, retentionDays: 1))
+        try store.observe(changeCount: 1, content: .init(text: "refresh focus", type: .text),
+                          sourceName: "Notes", sourceBundleID: "notes")
+
+        let queryLock = NSLock()
+        let releaseQuery = DispatchSemaphore(value: 0)
+        defer { releaseQuery.signal() }
+        var blockNextQuery = false
+        var queryIsBlocked = false
+        let controller = ClipboardHistoryWindow(
+            pluginID: PluginID("com.example.history"), grants: PluginCapabilityGrantStore(),
+            query: { offset in
+                let shouldBlock = queryLock.withLock {
+                    guard blockNextQuery else { return false }
+                    blockNextQuery = false
+                    queryIsBlocked = true
+                    return true
+                }
+                if shouldBlock { releaseQuery.wait() }
+                return try store.query(dataTypes: ["text"], offset: offset)
+            },
+            restoration: { try store.restoration(copyID: $0, dataTypes: ["text"]) },
+            openPrivacy: {}, openPluginSettings: {}, openIgnoredApplications: {},
+            clearHistory: { $0(nil) }, deleteCopies: { $1(nil) }, notify: { _ in }
+        )
+        defer { controller.close() }
+        let window = try XCTUnwrap(controller.window)
+        let content = try XCTUnwrap(window.contentView)
+        func containsTable(_ view: NSView) -> Bool {
+            view is NSTableView || view.subviews.contains(where: containsTable)
+        }
+
+        controller.present()
+        controller.model.isPinned = true
+        pump { controller.model.snapshot != nil && window.firstResponder is NSTableView }
+        _ = try XCTUnwrap(window.firstResponder as? NSTableView, "The initial list has the keyboard")
+
+        queryLock.withLock { blockNextQuery = true }
+        controller.model.refresh()
+        pump { queryLock.withLock { queryIsBlocked } && !containsTable(content) }
+        XCTAssertTrue(queryLock.withLock { queryIsBlocked }, "The refresh query reached its gate")
+        XCTAssertTrue(controller.model.isLoading)
+        XCTAssertNil(controller.model.snapshot)
+        XCTAssertFalse(containsTable(content), "Loading temporarily removes the list")
+
+        controller.model.focusList()
+        pump { controller.model.isLoading && !containsTable(content) }
+        releaseQuery.signal()
+        pump { controller.model.snapshot != nil && !controller.model.isLoading && window.firstResponder is NSTableView }
+        XCTAssertNotNil(controller.model.snapshot)
+        XCTAssertFalse(controller.model.isLoading)
+        XCTAssertTrue(window.firstResponder is NSTableView,
+                      "A focus request made while loading reaches the rebuilt list; responder: \(String(describing: window.firstResponder))")
+
+        try key(49, " ", in: window)
+        func detailIsVisible() -> Bool {
+            NSApp.windows.contains { $0 !== window && $0.title == "refresh focus" && $0.isVisible }
+        }
+        pump { detailIsVisible() }
+        XCTAssertTrue(detailIsVisible(), "Space opens the selected copy after refresh")
+    }
+
     private func makeWindow(texts: [String], pins: PluginViewPins = PluginViewPins(defaults: nil),
                             paster: ClipboardHistoryPaster = ClipboardHistoryPaster(),
                             deleteCopies: @escaping (Set<UUID>, @escaping (String?) -> Void) -> Void = { $1(nil) })

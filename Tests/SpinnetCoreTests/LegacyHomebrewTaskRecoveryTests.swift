@@ -47,12 +47,6 @@ final class LegacyHomebrewTaskRecoveryTests: XCTestCase {
         XCTAssertEqual(transport.admissionCalls, 0)
     }
 
-    func testAStaleInspectionContinuationIsExplicitlyRefused() {
-        XCTAssertThrowsError(try LegacyHomebrewTaskRecovery.rejectInspectionContinuation()) {
-            XCTAssertEqual($0 as? PluginHostServiceError, .tool(.planChanged))
-        }
-    }
-
     func testMismatchedRootPlanCannotProveAnotherJournalIdleOrStopItsTask() throws {
         let root = try directory()
         defer { try? FileManager.default.removeItem(at: root) }

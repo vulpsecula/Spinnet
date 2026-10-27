@@ -66,22 +66,6 @@ final class CurrentFeatureCompositionTests: XCTestCase {
         XCTAssertThrowsError(try PluginManifestLoader.decode(JSONEncoder().encode(stale)))
     }
 
-    func testPublishedStableToolAndSpotifyFixturesRetainTheirTypedBounds() throws {
-        let api = PagesContractTests.pluginAPI
-        struct Entry: Decodable { let file: String; let definition: String; let valid: Bool }
-        struct Index: Decodable { let fixtures: [Entry] }
-        for name in ["homebrew-autoremove", "spotify-controls"] {
-            let folder = api.appendingPathComponent("fixtures/\(name)")
-            let index = try JSONDecoder().decode(Index.self, from: Data(contentsOf: folder.appendingPathComponent("index.json")))
-            for entry in index.fixtures {
-                let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: folder.appendingPathComponent(entry.file)))
-                let schema = try JSONSchemaSubsetValidator(definition: entry.definition,
-                    inSchemaAt: api.appendingPathComponent("schemas/\(name).schema.json"))
-                XCTAssertEqual(schema.errors(for: value).isEmpty, entry.valid, "\(name)/\(entry.file): \(schema.errors(for: value))")
-            }
-        }
-    }
-
     func testCurrentSDKBuildersAreAvailableToEveryCompatiblePlugin() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("SDK.spinnetplugin")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

@@ -1319,34 +1319,14 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
 
 public struct MenuSlotConfiguration: Codable, Equatable, Hashable {
     public let item: MenuItemConfiguration?
-    /// Compatibility accessor for callers that still read a Slot name. New
-    /// code should read the alias from the Menu Item instead.
-    @available(*, deprecated, message: "Read MenuItemConfiguration.alias instead")
-    public var alias: String? { item?.alias }
-    @available(*, deprecated, message: "Menu Item aliases are no longer stored on Slots")
-    public var name: String? { item?.alias }
-
     public static var empty: Self { Self(item: nil) }
 
     public static func occupied(_ item: MenuItemConfiguration) -> Self {
         Self(item: item)
     }
 
-    @available(*, deprecated, message: "Pass the alias to MenuItemConfiguration instead")
-    public static func occupied(
-        _ item: MenuItemConfiguration,
-        name: String?
-    ) -> Self {
-        Self(item: item, legacyName: name)
-    }
-
     public init(item: MenuItemConfiguration?) {
         self.item = item
-    }
-
-    @available(*, deprecated, message: "Pass the alias to MenuItemConfiguration instead")
-    public init(item: MenuItemConfiguration?, name: String?) {
-        self.init(item: item, legacyName: name)
     }
 
     private init(item: MenuItemConfiguration?, legacyName: String?) {

@@ -336,6 +336,18 @@ final class ReviewedToolTaskTests: XCTestCase {
         let startupDeadline = Date().addingTimeInterval(15)
         while !FileManager.default.fileExists(atPath: directory.appendingPathComponent("started").path), Date() < startupDeadline { Thread.sleep(forTimeInterval: 0.01) }
         XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("started").path))
+        // This runner only waits for Stop; it never reserves a mutation.
+        // Complete the real runner's birth-bound launch handshake rather
+        // than leaving the Host's launch-pending lease unresolved forever.
+        let launchLease = try HomebrewTaskProcessLease.load(from: directory)
+        XCTAssertTrue(launchLease.runnerLaunchPending)
+        XCTAssertNil(launchLease.reservation)
+        XCTAssertNil(launchLease.leaderPID)
+        XCTAssertTrue(launchLease.members.isEmpty)
+        XCTAssertFalse(launchLease.ownershipUncertain)
+        let identity = try XCTUnwrap(HomebrewTaskProcessLease.loadRunnerIdentity(from: directory))
+        XCTAssertEqual(HomebrewTaskProcess.startIdentity(identity.pid), identity.identity)
+        try HomebrewTaskProcessLease(taskID: id, runnerPID: identity.pid, runnerIdentity: identity.identity).save(to: directory)
         host!.invalidate(owner)
         XCTAssertTrue(host!.hasRunningTasks)
         XCTAssertTrue(activities.list(for: owner).isEmpty)

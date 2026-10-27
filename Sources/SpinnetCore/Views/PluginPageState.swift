@@ -81,8 +81,6 @@ public struct PluginCollectionWindow: Equatable {
 
     public func position(of id: String) -> Int? { positions[id] }
 
-    public func isHeld(_ position: Int) -> Bool { items[position] != nil }
-
     public func isStale(_ position: Int) -> Bool { stale.contains(position) }
 
     /// The positions held, in order.

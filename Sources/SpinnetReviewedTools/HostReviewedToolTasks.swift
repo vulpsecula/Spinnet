@@ -169,7 +169,7 @@ public final class HostReviewedToolTasks {
                         confirmTitle: plan.confirmation.confirmTitle, isDestructive: true), scope: plan.scope, steps: plan.steps, generation: plan.generation)
             }
             if (!plan.steps.isEmpty || ["upgradeSelected", "autoremove"].contains(input.operation)), plan.confirmation.details == nil {
-                let details = try HomebrewTaskNativeConfirmation.details(plan, disclosure: .init(receipts: [], targets: []), cancellation: cancellation)
+                let details = try HomebrewTaskNativeConfirmation.details(plan, cancellation: cancellation)
                 plan.confirmation = .init(title: plan.confirmation.title, message: plan.confirmation.message,
                     confirmTitle: plan.confirmation.confirmTitle, isDestructive: true, details: details)
             }
@@ -329,6 +329,9 @@ public final class HostReviewedToolTasks {
             current.detached = held.detached || FileManager.default.fileExists(atPath: directory.appendingPathComponent("detached").path)
             let activeLease = (try? HomebrewTaskProcessLease.load(from: directory)).map { !$0.provesNoOwnedExecution } ?? false
             let rootPending = legacyRecovery.mayHavePrivilegedExecution(current)
+            // Terminal output can be committed before the runner exits. Its
+            // unresolved lease/Root work still owns the lane and Host Stop.
+            if current.result != nil && (activeLease || rootPending) { orphanedTasks.insert(id) }
             if current.result == nil || orphanedTasks.contains(id) || activeLease || rootPending {
                 let runnerPID = held.runnerPID ?? current.runnerPID
                 let identity = held.runnerIdentity ?? current.runnerIdentity
@@ -416,8 +419,9 @@ public final class HostReviewedToolTasks {
             record.detached = FileManager.default.fileExists(atPath: directory.appendingPathComponent("detached").path)
             let activeLease = (try? HomebrewTaskProcessLease.load(from: directory)).map { !$0.provesNoOwnedExecution } ?? false
             let rootPending = record.privilegePlan?.requiresSystemAuthorization == true
+            let terminalExecutionHeld = record.result != nil && (activeLease || rootPending)
             if record.result == nil || activeLease || rootPending,
-               record.runnerPID == nil || record.runnerIdentity == nil || HomebrewTaskProcess.startIdentity(record.runnerPID!) != record.runnerIdentity {
+               terminalExecutionHeld || record.runnerPID == nil || record.runnerIdentity == nil || HomebrewTaskProcess.startIdentity(record.runnerPID!) != record.runnerIdentity {
                 reconcileLostRunner(&record, directory: directory)
             }
             records[record.id] = record
@@ -449,7 +453,8 @@ public final class HostReviewedToolTasks {
             orphanedTasks.remove(record.id); recoveryPowerReleases.removeValue(forKey: record.id)?()
         } else {
             orphanedTasks.insert(record.id)
-            record.stage = "unknown: runner lost; waiting for independently proven process reaping; no replay"
+            let runnerAlive = record.runnerPID.flatMap { HomebrewTaskProcess.startIdentity($0) }.map { $0 == record.runnerIdentity } ?? false
+            record.stage = "unknown: \(runnerAlive ? "execution ownership unresolved" : "runner lost"); waiting for independently proven process reaping; no replay"
             if recoveryPowerReleases[record.id] == nil, let recoveryPower {
                 do { recoveryPowerReleases[record.id] = try recoveryPower.acquire(.idleSystem, reason: "Spinnet Homebrew Task recovery") }
                 catch { record.stage += "; idle sleep prevention unavailable" }

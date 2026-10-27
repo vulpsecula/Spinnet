@@ -34,7 +34,7 @@ final class HomebrewNativeInstallerContinuationTests: XCTestCase {
             let parsed = try HomebrewNativeInstallerContinuation.parse(Data((text + "\n").utf8), exitStatus: 0)
             XCTAssertEqual(parsed.reason, reason); XCTAssertEqual(parsed.stage, stage)
         }
-        for text in ["", "None\nRequireRestart", "Warning: RequireRestart", "RequireRestart\0", String(repeating: "x", count: 65_537)] {
+        for text in ["", "None\nRequireRestart", "Warning: RequireRestart", "RequireRestart\0", "SpinnetManualInstallation\n", String(repeating: "x", count: 65_537)] {
             XCTAssertThrowsError(try HomebrewNativeInstallerContinuation.parse(Data(text.utf8), exitStatus: 0))
         }
         XCTAssertThrowsError(try HomebrewNativeInstallerContinuation.parse(Data("None".utf8), exitStatus: 1))

@@ -1,11 +1,6 @@
 import Foundation
 
-public protocol ConfigurationStore {
-    func load() throws -> HostConfiguration?
-    func save(_ configuration: HostConfiguration) throws
-}
-
-public final class HostConfigurationStore: ConfigurationStore {
+public final class HostConfigurationStore {
     public let fileURL: URL
 
     private let fileManager: FileManager
@@ -231,13 +226,6 @@ public final class HostConfigurationEditor {
         var slots = configuration.menu.slots
         slots[index] = .occupied(item.withAlias(name))
         try replaceConfiguration(actions: configuration.actions, slots: slots)
-    }
-
-    /// Compatibility spelling for clients written before aliases moved onto
-    /// Menu Items. The operation now follows the Menu Item identity.
-    @available(*, deprecated, message: "Use renameMenuItem(at:name:) instead")
-    public func renameSlot(at index: Int, name: String?) throws {
-        try renameMenuItem(at: index, name: name)
     }
 
     /// Rebuilds one Menu Slot from a single Plugin's selected Commands. The
@@ -512,10 +500,6 @@ public final class HostConfigurationEditor {
             actions: configuration.actions,
             slots: configuration.menu.slots + [.occupied(item)]
         )
-    }
-
-    public func removeMenuItem(at index: Int) throws {
-        try removeSlot(at: index)
     }
 
     public func addEmptySlot() throws {

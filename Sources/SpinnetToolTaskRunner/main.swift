@@ -173,7 +173,12 @@ do {
         if identities.count > HomebrewTaskProcessLease.maximumMembers { lease.ownershipUncertain = true; try lease.save(to: directory); throw PluginHostServiceError.tool(.outputTooLarge) }
         if let birth = identities[process.processIdentifier] { lease.leaderPID = process.processIdentifier; lease.leaderIdentity = birth }
         lease.members = Dictionary(uniqueKeysWithValues: identities.map { (String($0.key), $0.value) })
+        let uncertain = process.ownershipUncertain
+        lease.ownershipUncertain = lease.ownershipUncertain || uncertain
         lease.observedAt = Date(); try lease.save(to: directory)
+        // Preserve this census's verified Stop identities before refusing to
+        // continue; incomplete ancestry never becomes permission to clear them.
+        if uncertain { throw PluginHostServiceError.tool(.failed) }
     }
     func noSpawn(_ process: HomebrewTaskProcess) {
         guard process.processIdentifier == 0 else { return }
@@ -183,8 +188,7 @@ do {
     }
     func reapedProcess(_ result: HomebrewTaskProcess.Result) {
         lock.lock(); defer { lock.unlock() }
-        if !lease.ownershipUncertain { lease.reservation = nil; lease.leaderPID = nil; lease.leaderIdentity = nil; lease.members = [:] }
-        lease.observedAt = Date()
+        lease.recordReaping(result)
         do { try lease.save(to: directory); lastResult = lease.ownershipUncertain ? .init(outcome: "unknown", exitStatus: 70, stop: result.stop) : result }
         catch { lastResult = .init(outcome: "unknown", exitStatus: 70, stop: result.stop) }
         finished.signal()

@@ -30,6 +30,13 @@ public struct HomebrewTaskProcessLease: Codable {
         self.leaderPID = leaderPID; self.leaderIdentity = leaderIdentity; self.members = members; observedAt = Date()
     }
     public var provesNoOwnedExecution: Bool { !ownershipUncertain && !runnerLaunchPending && reservation == nil && leaderPID == nil && leaderIdentity == nil && members.isEmpty }
+    /// A completed leader does not prove all owned execution ended after an
+    /// incomplete census. Keep its reservation and verified Stop identities.
+    public mutating func recordReaping(_ result: HomebrewTaskProcess.Result) {
+        ownershipUncertain = ownershipUncertain || result.ownershipUncertain
+        if !ownershipUncertain { reservation = nil; leaderPID = nil; leaderIdentity = nil; members = [:] }
+        observedAt = Date()
+    }
     private func validate() throws {
         guard version == 1, taskID.range(of: "^activity_[A-Za-z0-9_-]{1,55}$", options: .regularExpression) != nil,
               runnerPID > 1, runnerIdentity > 0, observedAt.timeIntervalSinceReferenceDate.isFinite,

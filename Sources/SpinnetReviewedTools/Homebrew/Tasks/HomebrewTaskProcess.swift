@@ -17,7 +17,10 @@ public final class HomebrewTaskProcess {
         public let outcome: String
         public let exitStatus: Int32
         public let stop: String?
-        public init(outcome: String, exitStatus: Int32, stop: String?) { self.outcome = outcome; self.exitStatus = exitStatus; self.stop = stop }
+        public let ownershipUncertain: Bool
+        public init(outcome: String, exitStatus: Int32, stop: String?, ownershipUncertain: Bool = false) {
+            self.outcome = outcome; self.exitStatus = exitStatus; self.stop = stop; self.ownershipUncertain = ownershipUncertain
+        }
     }
     private let executable: URL
     private let arguments: [String]
@@ -33,6 +36,9 @@ public final class HomebrewTaskProcess {
     private var stopAt: TimeInterval?
     private var ended = false
     private var observedIdentities: [pid_t: UInt64] = [:]
+    private var uncertainOwnership = false
+    // Internal supervision seam; configured before start by census regressions.
+    var processInventory: () -> [proc_bsdinfo]? = HomebrewTaskProcess.processes
     public init(executable: URL, arguments: [String], environment: [String: String],
                 interruptGrace: TimeInterval = 10, terminateGrace: TimeInterval = 5, standardInput: Data? = nil, inputPolicy: InputPolicy = .vendor,
                 groupPolicy: GroupPolicy = .independentGroup, outputPolicy: OutputPolicy = .pipe) {
@@ -51,6 +57,7 @@ public final class HomebrewTaskProcess {
         self.outputPolicy = outputPolicy
     }
     public var processIdentifier: Int32 { lock.lock(); defer { lock.unlock() }; return pid }
+    public var ownershipUncertain: Bool { lock.lock(); defer { lock.unlock() }; return uncertainOwnership }
     /// Resource supervision sees only identities captured for this Task. PID
     /// reuse never becomes signal or RSS authority for an unrelated process.
     public var ownedProcessIdentities: [Int32: UInt64] {
@@ -137,7 +144,11 @@ public final class HomebrewTaskProcess {
         } }
         close(outputWrite); outputWrite = -1
         let leaderIdentity = status == 0 ? Self.identityIncludingZombie(child) : nil
-        if status == 0 { pid = child; if let leaderIdentity { observedIdentities[child] = leaderIdentity } }
+        if status == 0 {
+            pid = child
+            if let leaderIdentity { observedIdentities[child] = leaderIdentity }
+            else { uncertainOwnership = true }
+        }
         lock.unlock()
         guard status == 0 else { throw PluginHostServiceError.tool(.failed) }
         let leader = child, reader = descriptors[0]
@@ -146,7 +157,7 @@ public final class HomebrewTaskProcess {
         DispatchQueue.global(qos: .utility).async { [self] in
             defer { close(reader) }
             var exitStatus: Int32 = 0, reaped = false, lastSignal: Int32 = 0, pipeOpen = true
-            var descendants: [pid_t: UInt64] = [:]
+            var census = Census()
             while true {
                 // Reserve the original leader's zombie PID through a final
                 // census. Reaping a leader that exits after the census would
@@ -155,32 +166,11 @@ public final class HomebrewTaskProcess {
                 let exitedBeforeCensus = !reaped && waitid(P_PID, id_t(leader), &exitInfo, WEXITED | WNOHANG | WNOWAIT) == 0 && exitInfo.si_pid == leader
                 // Remember identity before reparenting. A recycled PID can
                 // never receive one of this Task's stop signals.
-                let processes = Self.processes()
-                let current = Dictionary(processes.map { (Int32($0.pbi_pid), Self.identity($0)) }, uniquingKeysWith: { first, _ in first })
-                var known = descendants.filter { current[$0.key] == $0.value }
-                if let leaderIdentity, Self.startIdentity(leader) == leaderIdentity { known[leader] = leaderIdentity }
-                // Group members are admitted only while the original leader
-                // is live or an original member still binds that kernel group.
-                let originalGroup = ownsGroup && (exitedBeforeCensus || (!reaped && leaderIdentity.map { Self.identityIncludingZombie(leader) == $0 } == true) || known.contains { pid, identity in
-                    current[pid] == identity && processes.contains { Int32($0.pbi_pid) == pid && Int32($0.pbi_pgid) == leader }
-                })
-                if originalGroup {
-                    for info in processes where Int32(info.pbi_pgid) == leader && descendants.count < 4096 {
-                        if Int32(info.pbi_pid) != leader { descendants[Int32(info.pbi_pid)] = Self.identity(info) }
-                    }
-                }
-                // Rebind each parent by start identity before discovering a
-                // child; a recycled parent PID cannot authorize descendants.
-                for _ in 0..<64 {
-                    var discovered = false
-                    var parents = descendants.filter { current[$0.key] == $0.value }
-                    if let leaderIdentity, current[leader] == leaderIdentity { parents[leader] = leaderIdentity }
-                    for info in processes where parents[Int32(info.pbi_ppid)] == current[Int32(info.pbi_ppid)] && parents[Int32(info.pbi_ppid)] != nil && descendants.count < 4096 {
-                        let child = Int32(info.pbi_pid), identity = Self.identity(info)
-                        if descendants[child] != identity { descendants[child] = identity; discovered = true }
-                    }
-                    if !discovered { break }
-                }
+                let inventory = processInventory()
+                let processes = inventory ?? []
+                census.observe(inventory, leader: leader, leaderIdentity: leaderIdentity, ownsGroup: ownsGroup,
+                    leaderGroupBound: exitedBeforeCensus || (!reaped && leaderIdentity.map { Self.identityIncludingZombie(leader) == $0 } == true),
+                    identity: Self.startIdentity)
                 var buffer = [UInt8](repeating: 0, count: 8192)
                 let bytes = Darwin.read(reader, &buffer, buffer.count)
                 if bytes > 0 { output(Data(buffer.prefix(bytes))) }
@@ -189,12 +179,13 @@ public final class HomebrewTaskProcess {
                 else if bytes == 0 || (bytes < 0 && errno == EIO && outputPolicy == .terminal) { pipeOpen = false }
                 if !reaped, exitedBeforeCensus || leaderIdentity == nil { reaped = waitpid(leader, &exitStatus, WNOHANG) == leader }
                 lock.lock(); let stopping = stopAt; lock.unlock()
-                let liveDescendants = descendants.filter { key, identity in Self.startIdentity(key) == identity }
+                let liveDescendants = census.members.filter { key, identity in Self.startIdentity(key) == identity }
                 let leaderAlive = leaderIdentity.map { Self.startIdentity(leader) == $0 } ?? false
                 let groupExists = ownsGroup && (leaderAlive || processes.contains { info in
                     Int32(info.pbi_pgid) == leader && liveDescendants[Int32(info.pbi_pid)] == Self.identity(info)
                 })
                 lock.lock()
+                uncertainOwnership = uncertainOwnership || census.ownershipUncertain
                 observedIdentities = liveDescendants
                 if leaderAlive, let leaderIdentity { observedIdentities[leader] = leaderIdentity }
                 lock.unlock()
@@ -216,11 +207,13 @@ public final class HomebrewTaskProcess {
                 }
                 usleep(10_000)
             }
-            lock.lock(); ended = true; observedIdentities = [:]; let wasStopped = stopAt != nil; lock.unlock()
+            lock.lock(); ended = true; observedIdentities = [:]
+            let wasStopped = stopAt != nil, uncertain = uncertainOwnership; lock.unlock()
             let signaled = exitStatus & 0x7f
             let code = signaled == 0 ? (exitStatus >> 8) & 0xff : 128 + signaled
-            finished(Result(outcome: wasStopped ? "stopped" : code == 0 ? "completed" : "failed", exitStatus: code,
-                stop: wasStopped ? lastSignal == SIGKILL ? "killed" : lastSignal == SIGTERM ? "terminated" : "interrupted" : nil))
+            finished(Result(outcome: uncertain ? "unknown" : wasStopped ? "stopped" : code == 0 ? "completed" : "failed", exitStatus: code,
+                stop: wasStopped ? lastSignal == SIGKILL ? "killed" : lastSignal == SIGTERM ? "terminated" : "interrupted" : nil,
+                ownershipUncertain: uncertain))
         }
     }
     static func identity(_ info: proc_bsdinfo) -> UInt64 { info.pbi_start_tvsec &* 1_000_000 &+ info.pbi_start_tvusec }
@@ -234,14 +227,71 @@ public final class HomebrewTaskProcess {
         guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size, info.pbi_status != SZOMB else { return nil }
         return identity(info)
     }
-    private static func processes() -> [proc_bsdinfo] {
-        let count = proc_listallpids(nil, 0)
-        guard count > 0, count <= 65_536 else { return [] }
-        var ids = [pid_t](repeating: 0, count: Int(count) + 64)
-        let actual = ids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
-        return ids.prefix(Int(max(0, actual))).compactMap { pid in
+    private static func processes() -> [proc_bsdinfo]? {
+        guard let ids = processIDs(proc_listallpids) else { return nil }
+        return ids.compactMap { pid in
             var info = proc_bsdinfo(); let size = Int32(MemoryLayout<proc_bsdinfo>.stride)
             return proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size && info.pbi_status != SZOMB ? info : nil
+        }
+    }
+    static func processIDs(_ list: (UnsafeMutableRawPointer?, Int32) -> Int32) -> [pid_t]? {
+        let count = list(nil, 0)
+        guard count > 0, count <= HomebrewTaskProcessLease.maximumProcessInventory else { return nil }
+        var ids = [pid_t](repeating: 0, count: Int(count) + 64)
+        let actual = ids.withUnsafeMutableBytes { list($0.baseAddress, Int32($0.count)) }
+        // A full buffer may be truncated by concurrent process creation.
+        guard actual > 0, actual < ids.count, actual <= HomebrewTaskProcessLease.maximumProcessInventory else { return nil }
+        return Array(ids.prefix(Int(actual)))
+    }
+
+    /// Bounded live ancestry evidence. Once a census misses possible children,
+    /// later PID disappearance cannot reconstruct their lost ancestry.
+    struct Census {
+        private(set) var members: [pid_t: UInt64] = [:]
+        private(set) var ownershipUncertain = false
+
+        private mutating func add(_ info: proc_bsdinfo, leader: pid_t, maximumMembers: Int) -> Bool {
+            let pid = Int32(info.pbi_pid), birth = HomebrewTaskProcess.identity(info)
+            guard pid != leader, members[pid] != birth else { return false }
+            guard members.count < max(0, maximumMembers - 1) else { ownershipUncertain = true; return false }
+            members[pid] = birth; return true
+        }
+
+        mutating func observe(_ inventory: [proc_bsdinfo]?, leader: pid_t, leaderIdentity: UInt64?,
+                              ownsGroup: Bool, leaderGroupBound: Bool, identity: (pid_t) -> UInt64?,
+                              maximumMembers: Int = HomebrewTaskProcessLease.maximumMembers) {
+            // The budget counts live births, not every PID seen during a long
+            // upgrade. A reused PID never inherits its previous ownership.
+            members = members.filter { identity($0.key) == $0.value }
+            guard let inventory else { ownershipUncertain = true; return }
+            let current = Dictionary(inventory.map { (Int32($0.pbi_pid), HomebrewTaskProcess.identity($0)) }, uniquingKeysWith: { first, _ in first })
+            let originalGroup = ownsGroup && (leaderGroupBound || inventory.contains {
+                Int32($0.pbi_pgid) == leader && members[Int32($0.pbi_pid)] == HomebrewTaskProcess.identity($0)
+            })
+            func candidates(_ parents: [pid_t: UInt64]) -> [proc_bsdinfo] {
+                inventory.filter {
+                    let parent = Int32($0.pbi_ppid)
+                    return parents[parent] != nil && parents[parent] == current[parent]
+                }
+            }
+            // Reserve one member slot for the leader in the durable lease.
+            if originalGroup {
+                for info in inventory where Int32(info.pbi_pgid) == leader { _ = add(info, leader: leader, maximumMembers: maximumMembers) }
+            }
+            for round in 0..<HomebrewTaskProcessLease.maximumDiscoveryDepth {
+                var parents = members.filter { current[$0.key] == $0.value }
+                if let leaderIdentity, current[leader] == leaderIdentity { parents[leader] = leaderIdentity }
+                var discovered = false
+                for info in candidates(parents) { if add(info, leader: leader, maximumMembers: maximumMembers) { discovered = true } }
+                if !discovered { break }
+                if round == HomebrewTaskProcessLease.maximumDiscoveryDepth - 1 {
+                    var finalParents = members.filter { current[$0.key] == $0.value }
+                    if let leaderIdentity, current[leader] == leaderIdentity { finalParents[leader] = leaderIdentity }
+                    if candidates(finalParents).contains(where: { Int32($0.pbi_pid) != leader && members[Int32($0.pbi_pid)] != HomebrewTaskProcess.identity($0) }) {
+                        ownershipUncertain = true
+                    }
+                }
+            }
         }
     }
 }

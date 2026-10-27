@@ -31,11 +31,6 @@ final class LegacyHomebrewTaskRecovery {
         return inspection != nil
     }
 
-    /// A stale in-memory continuation cannot become fresh execution authority.
-    static func rejectInspectionContinuation() throws -> Never {
-        throw PluginHostServiceError.tool(.planChanged)
-    }
-
     func mayHavePrivilegedExecution(_ record: HomebrewTaskJournal, refresh: Bool = false) -> Bool {
         guard let plan = record.privilegePlan, plan.requiresSystemAuthorization else { return false }
         guard plan.taskID == record.id else { return true }

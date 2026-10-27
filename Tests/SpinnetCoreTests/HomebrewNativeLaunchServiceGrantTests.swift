@@ -46,14 +46,6 @@ final class HomebrewNativeLaunchServiceGrantTests: XCTestCase {
         changed["coverage"] = coverage
         let drift = try JSONDecoder().decode(HomebrewNativeLaunchServices.Manifest.self, from: JSONSerialization.data(withJSONObject: changed))
         XCTAssertThrowsError(try grant.revalidateEmptyRemoval(manifest) { drift }, "A changed inventory cannot become a no-op or gain removal authority")
-        let cask = HomebrewPrivilegePlan.Cask(name: "example", version: "2", sha256: String(repeating: "a", count: 64), packages: [], launchServiceRemovals: [grant])
-        let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgrade"), "kind": .string("cask"), "name": .string("example")]))
-        let plan = HomebrewTaskPlan(id: UUID(), owner: .init("legacy-confirmation"), pluginName: "Homebrew", input: input, resolvedInput: input,
-            package: .object(["name": .string("example"), "kind": .string("cask"), "tap": .string("homebrew/cask"), "installed_version": .string("1"), "version": .string("2")]),
-            executable: URL(fileURLWithPath: "/opt/homebrew/bin/brew"), confirmation: .init(title: "Legacy", message: "", confirmTitle: "Continue", isDestructive: true), generation: 0)
-        let details = try HomebrewTaskNativeConfirmation.legacyDetails(plan, privilegedCasks: [cask], disclosure: .init(receipts: [], targets: []), cancellation: .init())
-        XCTAssertEqual(details.actionRows.map(\.title), ["Upgrade example"])
-        XCTAssertFalse(details.rows.contains { $0.id.contains("/unmatched/") })
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(grant)) as? [String: Any])
         object["bytesSHA256"] = String(repeating: "a", count: 64)
         let substituted = try JSONDecoder().decode(HomebrewNativeLaunchServiceGrant.self, from: JSONSerialization.data(withJSONObject: object))
