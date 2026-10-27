@@ -1,3 +1,5 @@
+import SpinnetCore
+
 enum SelectedTextReadResolver {
     static func readSelectedText(
         allowClipboardCopyFallback: Bool,
@@ -34,8 +36,10 @@ enum SelectedTextReadResolver {
         case .noSelection:
             return ""
         case .unavailable:
-            guard let accessibilityError else { return "" }
-            throw accessibilityError
+            // A copy that could not run says nothing about whether text is
+            // selected. Preserve that distinction for best-effort callers,
+            // which may have their own way to read the selection.
+            throw accessibilityError ?? PluginHostServiceError.unavailable("Selected text could not be read")
         }
     }
 }

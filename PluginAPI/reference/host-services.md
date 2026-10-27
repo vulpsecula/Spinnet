@@ -35,8 +35,9 @@ Host stays Accessibility-only. The Host waits briefly for the copy, restores
 the saved pasteboard only if the change stays stable while the target App is
 frontmost, and keeps these temporary contents out of Clipboard History. A
 completed copy with no clipboard change returns empty text, so a Plugin can
-wait for text it is given instead; an interrupted or unavailable copy keeps the
-Accessibility error. Some Apps write one Copy in several pasteboard steps, so
+wait for text it is given instead; an interrupted or unavailable copy reports
+an unreadable selection, preserving any Accessibility error. Some Apps write
+one Copy in several pasteboard steps, so
 each further change while the target stays frontmost restarts the brief wait,
 up to a quarter of a second. Apps that forbid copying leave the pasteboard
 unchanged and read as empty. AppKit does not say which process wrote a
