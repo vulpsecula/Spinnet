@@ -1,5 +1,3 @@
-## Agent skills
-
 ### Issue tracker
 
 Issues and specs live in GitHub Issues; task maps are optional. For issue
@@ -47,5 +45,7 @@ commands for tight package-level checks.
   Confirm the running app path and Plugin versions before reporting acceptance.
 
 For launch options, signing and Plugin source overrides, read
-[the launcher](script/build_and_run.sh) and
-[the Plugin resolver](script/resolve_bundled_plugins.sh).
+[the launcher](script/build_and_run.sh) and [the Plugin resolver](script/resolve_bundled_plugins.sh).
+
+### Sub-agent Rules
+For review only sub-agents, choose suitable model and reasoning depth for the task (e.g., GPT-6.1 Sol Medium, Opus 5.5 Medium).
