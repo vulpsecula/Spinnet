@@ -1,5 +1,6 @@
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewCatalogRefreshTests: XCTestCase {
     private let refresh: JSONValue = .object(["tool": .string("homebrew"), "operation": .string("refreshCatalog")])

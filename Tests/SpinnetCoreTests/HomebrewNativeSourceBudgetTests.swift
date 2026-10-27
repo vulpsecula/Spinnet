@@ -2,6 +2,7 @@ import XCTest
 import CryptoKit
 import Darwin
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeSourceBudgetTests: XCTestCase {
     func testOuterPackageAndPayloadEachFitButCombinedExpansionRefuses() throws {

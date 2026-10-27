@@ -14,8 +14,9 @@ final class PluginStorageHostServiceTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         storage = PluginStorage(directory: directory)
         broker = CapabilityCheckedHostServiceBroker(
-            grantStore: PluginCapabilityGrantStore(), systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
+            grantStore: PluginCapabilityGrantStore(),
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
             pluginStorage: storage
         )
     }
@@ -132,8 +133,9 @@ final class PluginStorageHostServiceTests: XCTestCase {
 
     func testWithoutAStoreTheServicesAreUnavailable() throws {
         broker = CapabilityCheckedHostServiceBroker(
-            grantStore: PluginCapabilityGrantStore(), systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }
+            grantStore: PluginCapabilityGrantStore(),
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in })
         )
         let keeper = try makePackage("com.example.keeper")
 

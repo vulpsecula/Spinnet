@@ -1,5 +1,6 @@
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeInspectionTransportTests: XCTestCase {
     private typealias Model = HomebrewNativeInspection

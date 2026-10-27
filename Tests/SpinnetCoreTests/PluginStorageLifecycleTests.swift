@@ -84,8 +84,10 @@ final class PluginStorageLifecycleTests: XCTestCase {
         let runner = HostActionRunner(
             executor: NoHostCommands(), scriptedExecutor: helper,
             hostServiceBroker: CapabilityCheckedHostServiceBroker(
-                grantStore: PluginCapabilityGrantStore(), systemPermissionCheck: { _ in false },
-                selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, pluginStorage: storage
+                grantStore: PluginCapabilityGrantStore(),
+                systemPermissionCheck: { _ in false },
+                clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+                pluginStorage: storage
             )
         )
         let action = try plugin.action(for: PluginTestInvocation("counter.count"))

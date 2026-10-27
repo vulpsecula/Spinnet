@@ -90,6 +90,9 @@ final class MenuEditorModel: ObservableObject {
 
     let editor: HostConfigurationEditor
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
+    /// Sheet saves persist before publishing editor state or Undo history.
+    var persistConfiguration: ((HostConfiguration) throws -> Void)?
+    var onConfigurationSaved: ((HostConfiguration) -> Void)?
 
     /// Composition edits are refused unless the Menu Editor is the visible
     /// surface. A drag or a delete arriving from a stale view would otherwise
@@ -319,11 +322,12 @@ final class MenuEditorModel: ObservableObject {
         }
     }
 
-    func configurationDidChange(_ configuration: HostConfiguration) {
+    func configurationDidChange(_ configuration: HostConfiguration, alreadyPersisted: Bool = false) {
         selectedMenuIndex = min(selectedMenuIndex, max(configuration.menu.slots.count - 1, 0))
         refreshMenuSlots()
         refreshToken += 1
-        onConfigurationChanged?(configuration)
+        if alreadyPersisted, let onConfigurationSaved { onConfigurationSaved(configuration) }
+        else { onConfigurationChanged?(configuration) }
     }
 
     func selectMenuItem(at index: Int) {
@@ -699,7 +703,7 @@ final class MenuEditorModel: ObservableObject {
         placementMessage = setup.replacing
             ? "Menu Item in Slot \(setup.slotIndex + 1) replaced."
             : "Menu Item added to Slot \(setup.slotIndex + 1)."
-        configurationDidChange(configuration)
+        configurationDidChange(configuration, alreadyPersisted: true)
         record(.composition(CompositionHistoryEntry(
             before: before,
             after: editor.configuration,
@@ -715,12 +719,15 @@ final class MenuEditorModel: ObservableObject {
         let selectedIndexBefore = selectedMenuIndex
         guard configuration != before else {
             editingMenuIndex = nil
+            // A credential-only save can restore availability without changing
+            // an Action's reference. Publish it without inventing an Undo edit.
+            configurationDidChange(configuration, alreadyPersisted: true)
             return
         }
         editor.restore(configuration)
         editingMenuIndex = nil
         placementMessage = "Menu Item in Slot \(selectedMenuIndex + 1) updated."
-        configurationDidChange(configuration)
+        configurationDidChange(configuration, alreadyPersisted: true)
         recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
     }
 

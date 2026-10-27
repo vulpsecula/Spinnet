@@ -1,5 +1,6 @@
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewPrivilegeTests: XCTestCase {
     func testFullConfirmedBatchAuthorizationBoundCannotFailAfterOnlyOneHundredActions() throws {

@@ -2,6 +2,7 @@ import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 import SpinnetPluginTestKit
 
 final class ReviewedToolsProbeRuntimeTests: XCTestCase {
@@ -39,7 +40,12 @@ final class ReviewedToolsProbeRuntimeTests: XCTestCase {
         let grants = PluginCapabilityGrantStore()
         var discovered = 0
         let profile = HomebrewReadProfile(executable: { discovered += 1; throw PluginHostServiceError.tool(.missing) })
-        let checked = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedTools: profile)
+        let checked = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            tools: .init(reader: profile)
+        )
         for decision in [PluginCapabilityGrantDecision.granted, .denied] {
             grants.setDecision(decision, for: plugin.manifest.id, pluginVersion: plugin.manifest.version, capability: .readReviewedTools, scope: plugin.manifest.scope(for: .readReviewedTools))
             let run = helper.run(PluginTestInvocation("probe.read", input: .object(["tool": .string("homebrew"), "operation": .string("installed"), "kind": .string("cask")])), of: plugin, answering: checked)
@@ -87,7 +93,13 @@ final class ReviewedToolsProbeRuntimeTests: XCTestCase {
             if runs == 1 { engine.setVisible(false, pluginID: plugin.manifest.id) }
             return HomebrewReadOutput(status: 0, stdout: Data((runs == 1 ? #"{"formulae":[{"name":"old"}],"casks":[]}"# : #"{"formulae":[{"name":"current"}],"casks":[]}"#).utf8))
         })
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, pluginRegistry: registry, reviewedTools: profile)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            tools: .init(reader: profile),
+            pluginRegistry: registry
+        )
         var deliveries: [PluginViewEvent] = []
         engine = HostRunSources(adapters: ["tools.read": broker.reviewedToolSourceAdapter(using: registry)], now: { clock }, schedule: { scheduled.append((clock + $0, $1)) }, background: { $0() }, executor: { $0() })
         engine.onDelivery = { _, event, current in if current() { deliveries.append(event) } }
@@ -120,7 +132,12 @@ final class ReviewedToolsProbeRuntimeTests: XCTestCase {
             grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version, capability: .readReviewedTools, scope: scope)
             return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[],"casks":[]}"#.utf8))
         }
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedTools: profile)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            tools: .init(reader: profile)
+        )
         let invocation = PluginTestInvocation("probe.read")
         let action = try plugin.action(for: invocation)
         let request = PluginRuntimeHostServiceRequest(invocationID: "read", actionID: action.id, service: .reviewedToolRead, input: .object(["tool": .string("homebrew"), "operation": .string("installed")]), operation: "tools.read")

@@ -37,9 +37,12 @@ final class PluginViewHostActionsTests: XCTestCase {
         settingsShown = []
         stored = [:]
         let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { [unowned self] _ in self.accessibilityGranted },
-            selectedTextProvider: { _ in "" },
-            clipboardWriter: { _ in XCTFail("A standard action does not go through the service's own effect") }
+            grantStore: grants,
+            systemPermissionCheck: { [unowned self] _ in self.accessibilityGranted },
+            clipboard: .init(
+                selectedTextProvider: { _ in "" },
+                clipboardWriter: { _ in XCTFail("A standard action does not go through the service's own effect") }
+            )
         )
         let package = package!
         actions = PluginViewHostActions(

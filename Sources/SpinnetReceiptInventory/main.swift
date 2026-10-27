@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import SpinnetCore
+import SpinnetReviewedTools
 
 // Fixed read-only CLI, used exclusively by matching Host/helper code. It can
 // enumerate native receipts and file identities; it has no mutation command.

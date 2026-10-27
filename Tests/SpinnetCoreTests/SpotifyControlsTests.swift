@@ -19,9 +19,16 @@ final class SpotifyControlsTests: XCTestCase {
         let grants = PluginCapabilityGrantStore()
         let action = try ActionConfiguration(id: .init("control"), pluginID: package.manifest.id, command: package.manifest.commands[0], input: .null)
         var dispatches = 0
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { _, _ in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(
+                reviewedAppPerformer: { _, _ in
             dispatches += 1; return .object(["volume": .number(35)])
-        })
+        }
+            )
+        )
         let request = PluginRuntimeHostServiceRequest(invocationID: "control", actionID: action.id, service: .performAppOperation,
             input: .object(["bundle_id": .string("com.spotify.client"), "operation": .string("set_volume"), "arguments": .object(["volume": .number(35)])]), operation: "apps.perform")
         for decision in [PluginCapabilityGrantDecision.denied, .granted, .denied] {
@@ -63,12 +70,18 @@ extension SpotifyControlsTests {
         grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
             capability: .controlExternalApp, scope: package.manifest.scope(for: .controlExternalApp))
         var dispatched = 0
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { request, allowsPrompt in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(
+                reviewedAppPerformer: { request, allowsPrompt in
                 XCTAssertFalse(allowsPrompt)
                 dispatched += 1
                 return request.handler == "play_pause" ? .null : .object(["volume": .number(35)])
-            })
+            }
+            )
+        )
         func call(_ operation: String, _ arguments: [String: JSONValue]) throws -> JSONValue {
             try broker.execute(request: .init(invocationID: "control", actionID: action.id, service: .performAppOperation,
                 input: .object(["bundle_id": .string("com.spotify.client"), "operation": .string(operation),
@@ -153,10 +166,16 @@ extension SpotifyControlsTests {
         grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
             capability: .controlExternalApp, scope: plugin.manifest.scope(for: .controlExternalApp))
         var prompts: [Bool] = []
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { _, allowsPrompt in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(
+                reviewedAppPerformer: { _, allowsPrompt in
                 prompts.append(allowsPrompt); return .null
-            })
+            }
+            )
+        )
         for operation in ["play", "pause", "previous", "playback"] {
             _ = try broker.execute(request: .init(invocationID: "control", actionID: action.id, service: .performAppOperation,
                 input: .object(["bundle_id": .string("com.spotify.client"), "operation": .string(operation)]), operation: "apps.perform"),
@@ -183,10 +202,16 @@ extension SpotifyControlsTests {
         grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
             capability: .controlExternalApp, scope: plugin.manifest.scope(for: .controlExternalApp))
         var prompts: [Bool] = []
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { _, allowsPrompt in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(
+                reviewedAppPerformer: { _, allowsPrompt in
                 prompts.append(allowsPrompt); return .null
-            })
+            }
+            )
+        )
         _ = try broker.execute(request: forged, for: plugin, action: action)
         _ = try broker.execute(request: original, for: plugin, action: action)
         XCTAssertEqual(prompts, [false, false])

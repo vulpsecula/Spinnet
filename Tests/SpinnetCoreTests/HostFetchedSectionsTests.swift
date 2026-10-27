@@ -579,9 +579,10 @@ final class HostFetchedRequestBrokerTests: XCTestCase {
 
     private var broker: CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            httpsTransport: transport, credentialStore: credentials, responseCache: cache
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            network: .init(httpsTransport: transport, credentialStore: credentials, responseCache: cache)
         )
     }
 
@@ -755,9 +756,10 @@ final class HostFetchedRequestBrokerTests: XCTestCase {
         }
         let redirecting = RedirectingTransport { cancellation.cancel() }
         let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            httpsTransport: redirecting, credentialStore: credentials
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            network: .init(httpsTransport: redirecting, credentialStore: credentials)
         )
         XCTAssertThrowsError(try broker.sendHostFetchedRequest(
             HostFetchedRequest(parsing: HostFetchedSectionsTests.fetch(mode: "deliver")),

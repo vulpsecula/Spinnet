@@ -1,6 +1,7 @@
 import XCTest
 import ServiceManagement
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewSystemServicePreparationTests: XCTestCase {
     func testDailyBuildKeepsItsServiceAndSigningIdentitiesSeparateFromLifecycleFixtures() {

@@ -98,12 +98,14 @@ public struct ReviewedAppInterface: Equatable {
 
     /// The request for `operation` with `arguments`, after checking both
     /// against this interface. The caller has already checked the scope.
-    public func request(operation name: String, arguments: [String: JSONValue]) throws -> AppleEventRequest {
+    public func request(operation name: String, arguments: [String: JSONValue],
+                        homebrewExecutable: URL? = nil) throws -> AppleEventRequest {
         if format == .terminalHomebrew {
             guard name == "homebrew" else {
                 throw PluginHostServiceError.externalAppOperationUnsupported("Terminal does not support \(name)")
             }
-            return try TerminalHomebrew.request(arguments: arguments, executable: HomebrewReadProfile.discover())
+            guard let homebrewExecutable else { throw PluginHostServiceError.tool(.missing) }
+            return try TerminalHomebrew.request(arguments: arguments, executable: homebrewExecutable)
         }
         if format == .spotify, SpotifyControls.operationNames.contains(name) {
             return AppleEventRequest(bundleID: bundleID, applicationName: self.name, handler: name, argument: "",

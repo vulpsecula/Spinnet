@@ -1,5 +1,6 @@
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewSearchFailureDetailTests: XCTestCase {
     private func failure(_ status: Int32, _ stderr: String) throws -> PluginHostServiceError {

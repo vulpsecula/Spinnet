@@ -77,9 +77,14 @@ final class KeepAwakeBundledRegressionTests: XCTestCase {
                 recorded.effects.shutdown()
             }
             try registry.register(package)
-            let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
-                selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-                keepAwakeEffects: recorded.effects, activities: recorded.activities, pluginRegistry: registry)
+            let broker = CapabilityCheckedHostServiceBroker(
+                grantStore: grants,
+                systemPermissionCheck: { _ in false },
+                clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+                keepAwakeEffects: recorded.effects,
+                activities: recorded.activities,
+                pluginRegistry: registry
+            )
             let plugin = try PluginUnderTest(packageAt: package.rootURL, origin: .bundled)
             let action = try plugin.action(for: PluginTestInvocation("coffee.manual"))
             let request = PluginRuntimeHostServiceRequest(invocationID: "manual", actionID: action.id,

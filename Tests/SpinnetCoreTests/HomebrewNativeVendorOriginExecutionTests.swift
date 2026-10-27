@@ -1,6 +1,7 @@
 import XCTest
 import Darwin
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeVendorOriginExecutionTests: XCTestCase {
     func testOwnedFixedWorkerResidentMemoryCapStopsAndReaps() throws {

@@ -48,8 +48,12 @@ public final class RecordedHostSources {
         try registry.register(plugin.package)
         credentials = InMemoryPluginCredentialStore()
         for (reference, secret) in secrets { try credentials.setSecret(secret, for: plugin.manifest.id, reference: reference) }
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, httpsTransport: transport, credentialStore: credentials)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            network: .init(httpsTransport: transport, credentialStore: credentials)
+        )
         let tools = broker.reviewedToolSourceAdapter(using: registry)
         let recorded = RecordedHostServices(operations: operations)
         let toolSource = HostSourceAdapter(deadline: tools.deadline, ownerIdentity: tools.ownerIdentity, authorize: tools.authorize,

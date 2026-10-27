@@ -170,8 +170,16 @@ checkout uses the committed documentation, source and tests.
 
 `SpinnetCore` owns manifest/configuration validation, Plugin registration,
 Action editing, persistence, Menu geometry, the Clipboard History Store and
-the `HostActionRunner` seam. `SpinnetHost` owns the AppKit overlay, triggers,
-settings, common Host Command adapters, clipboard collection and feedback.
+the `HostActionRunner` seam. It keeps Reviewed Tool request models and input
+validation, while `SpinnetReviewedTools` owns concrete tool discovery, execution
+and historical Task recovery. The Plugin helper and public TestKit depend on
+Core without linking that execution module.
+
+`SpinnetHost` owns the AppKit overlay, triggers, settings, common Host Command
+adapters, clipboard collection and feedback. Its Action dispatcher owns the
+invocation queues shared by Actions and View Events. Configuration Sheets
+persist before publishing their new Menu state; a failed save keeps the draft
+open and reports any failure to restore a partially written credential.
 
 Scripted Actions launch `SpinnetPluginHelper` on demand. Registration, idle
 state, Menu opening and Host Commands do not launch a Plugin helper.

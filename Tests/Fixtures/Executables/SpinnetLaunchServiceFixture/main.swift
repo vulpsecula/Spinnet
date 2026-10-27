@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import SpinnetCore
+import SpinnetReviewedTools
 
 // Unprivileged owned read-only inventory lifetime fixture, never shipped.
 guard getuid() != 0 else { exit(64) }

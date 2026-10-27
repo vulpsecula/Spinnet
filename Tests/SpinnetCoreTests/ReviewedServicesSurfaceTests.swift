@@ -2,6 +2,7 @@ import SpinnetTestSupport
 import Foundation
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class ReviewedServicesSurfaceTests: XCTestCase {
     func testSurfaceStopsHiddenReadsAndRefusesForeignServices() throws {
@@ -88,7 +89,12 @@ extension ReviewedServicesSurfaceTests {
         let package = PluginPackage(rootURL: URL(fileURLWithPath: "/private/tmp/services-fixture"), manifest: manifest, origin: .installed)
         let action = try ActionConfiguration(id: ActionID("services"), pluginID: manifest.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore(); var shown = 0, presentations: [ReviewedServicesAddition.Presentation] = []
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in XCTFail("Services requires no System Permission"); return false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedServicesPresenter: { _, _, presentation in shown += 1; presentations.append(presentation) })
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in XCTFail("Services requires no System Permission"); return false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            tools: .init(presenter: { _, _, presentation in shown += 1; presentations.append(presentation) })
+        )
         let request = PluginRuntimeHostServiceRequest(invocationID: "surface", actionID: action.id, service: .showReviewedServices, input: .object(["tool": .string("homebrew")]), operation: ReviewedServicesAddition.id)
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action))
         XCTAssertEqual(shown, 0)
@@ -122,7 +128,11 @@ extension ReviewedServicesSurfaceTests {
         let grants = PluginCapabilityGrantStore(), registry = PluginRegistry()
         try registry.register(package)
         grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: .readReviewedTools, scope: readScope)
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in })
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in })
+        )
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let tasks = HostReviewedToolTasks(activities: HostActivities(), journal: directory, runnerURL: URL(fileURLWithPath: "/bin/true"), executable: { URL(fileURLWithPath: "/bin/true") }, preflight: { _ in .object(["name": .string("redis"), "kind": .string("formula"), "tap": .string("homebrew/core")]) }, trustedTaps: { [] })

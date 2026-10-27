@@ -44,9 +44,16 @@ final class RichClipboardHistoryTests: XCTestCase {
                 capability: .readClipboardHistory, scope: package.manifest.scope(for: .readClipboardHistory))
         }
         func request(_ package: PluginPackage, service: PluginHostService = .readClipboardHistory, input: JSONValue = .null) throws -> JSONValue {
-            let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-                clipboardHistoryProvider: { [self] in try store.query(dataTypes: $0, offset: $1) },
-                clipboardHistoryContentProvider: { [self] in try store.readContent(entryID: $0, dataTypes: $1, offset: $2, length: $3) })
+            let broker = CapabilityCheckedHostServiceBroker(
+                grantStore: grants,
+                systemPermissionCheck: { _ in false },
+                clipboard: .init(
+                    selectedTextProvider: { _ in "" },
+                    clipboardWriter: { _ in },
+                    clipboardHistoryProvider: { [self] in try store.query(dataTypes: $0, offset: $1) },
+                    clipboardHistoryContentProvider: { [self] in try store.readContent(entryID: $0, dataTypes: $1, offset: $2, length: $3) }
+                )
+            )
             let action = try ActionConfiguration(id: ActionID("browse"), pluginID: package.manifest.id, command: command, input: .null)
             return try broker.execute(request: .init(invocationID: "i", actionID: action.id, requestID: "r", service: service, input: input), for: package, action: action)
         }

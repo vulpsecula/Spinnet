@@ -4,6 +4,7 @@ import Darwin
 #if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
 import ServiceManagement
 import SpinnetCore
+import SpinnetReviewedTools
 
 // This executable and its extra XPC method exist only in an isolated test build.
 // Normal packaging never ships this product or selects its service identifiers.

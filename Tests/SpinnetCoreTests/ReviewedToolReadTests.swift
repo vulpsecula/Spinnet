@@ -1,6 +1,7 @@
 import SpinnetTestSupport
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class ReviewedToolReadTests: XCTestCase {
     func testInstalledZapReviewAdviceDoesNotGrantOrdinaryUninstallAuthority() throws {

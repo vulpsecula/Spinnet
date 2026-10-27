@@ -1,5 +1,6 @@
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewSignedCaskCatalogTests: XCTestCase {
     func testRootCanVerifyOfficialGeneratedCodeAndLanguageWithoutTrustingTheRubyProcess() throws {

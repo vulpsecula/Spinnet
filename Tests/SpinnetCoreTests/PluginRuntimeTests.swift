@@ -34,13 +34,20 @@ final class PluginRuntimeTests: XCTestCase {
         grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version, capability: .readClipboardHistory, scope: package.manifest.scope(for: .readClipboardHistory))
         var queries = 0
         var presentations = 0
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            clipboardHistoryProvider: { types, offset in queries += 1; return try store.query(dataTypes: types, offset: offset) },
-            clipboardHistoryPresenter: { shownPackage, shownAction in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(
+                selectedTextProvider: { _ in "" },
+                clipboardWriter: { _ in },
+                clipboardHistoryProvider: { types, offset in queries += 1; return try store.query(dataTypes: types, offset: offset) },
+                clipboardHistoryPresenter: { shownPackage, shownAction in
                 XCTAssertEqual(shownPackage.manifest.id, package.manifest.id)
                 XCTAssertEqual(shownAction.id, action.id)
                 presentations += 1
-            })
+            }
+            )
+        )
         XCTAssertEqual(try supervisor.execute(action, in: package, using: broker), .null)
         // Browsing presents the Host window and reads nothing: the snapshot the
         // reading service returns was never what opened it.
@@ -600,12 +607,18 @@ final class PluginRuntimeTests: XCTestCase {
         let entered = DispatchSemaphore(value: 0)
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
-            systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(
+                selectedTextProvider: { _ in
                 entered.signal()
                 _ = release.wait(timeout: .now() + 5)
                 return "late result"
-            }, clipboardWriter: { _ in XCTFail("Cancelled execution must not request another service") })
+            },
+                clipboardWriter: { _ in XCTFail("Cancelled execution must not request another service") }
+            )
+        )
         let process = Process()
         let control = ActionExecutionControl()
         let completed = expectation(description: "late service discarded")
@@ -708,8 +721,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "Spinnet Plugin fixture" },
-            clipboardWriter: { clipboardValue = $0 }
+            clipboard: .init(selectedTextProvider: { _ in "Spinnet Plugin fixture" }, clipboardWriter: { clipboardValue = $0 })
         )
         let supervisor = PluginRuntimeSupervisor(helperURL: helperURL)
         let result = try supervisor.execute(
@@ -760,8 +772,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "Spinnet Plugin fixture" },
-            clipboardWriter: { clipboardValue = $0 }
+            clipboard: .init(selectedTextProvider: { _ in "Spinnet Plugin fixture" }, clipboardWriter: { clipboardValue = $0 })
         )
         let runner = HostActionRunner(
             executor: NoopHostCommandExecutor(),
@@ -820,11 +831,13 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in
+            clipboard: .init(
+                selectedTextProvider: { _ in
                 selectedTextProviderCalled = true
                 return "Spinnet Plugin fixture"
             },
-            clipboardWriter: { _ in clipboardWriterCalled = true }
+                clipboardWriter: { _ in clipboardWriterCalled = true }
+            )
         )
 
         let outcome = HostActionRunner(
@@ -874,11 +887,13 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in
+            clipboard: .init(
+                selectedTextProvider: { _ in
                 selectedTextProviderCalled = true
                 return "Spinnet Plugin fixture"
             },
-            clipboardWriter: { _ in clipboardWriterCalled = true }
+                clipboardWriter: { _ in clipboardWriterCalled = true }
+            )
         )
 
         let outcome = HostActionRunner(
@@ -927,11 +942,13 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in
+            clipboard: .init(
+                selectedTextProvider: { _ in
                 selectedTextProviderCalled = true
                 return "Spinnet Plugin fixture"
             },
-            clipboardWriter: { _ in }
+                clipboardWriter: { _ in }
+            )
         )
 
         let outcome = HostActionRunner(
@@ -979,7 +996,8 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in
+            clipboard: .init(
+                selectedTextProvider: { _ in
                 grantStore.setDecision(
                     .denied,
                     for: package.manifest.id,
@@ -988,7 +1006,8 @@ final class PluginRuntimeTests: XCTestCase {
                 )
                 return "Spinnet Plugin fixture"
             },
-            clipboardWriter: { _ in clipboardWriterCalled = true }
+                clipboardWriter: { _ in clipboardWriterCalled = true }
+            )
         )
 
         let outcome = HostActionRunner(
@@ -1041,8 +1060,7 @@ final class PluginRuntimeTests: XCTestCase {
         let hostServiceBroker = CapabilityCheckedHostServiceBroker(
             grantStore: grantStore,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "selected text" },
-            clipboardWriter: { _ in }
+            clipboard: .init(selectedTextProvider: { _ in "selected text" }, clipboardWriter: { _ in })
         )
 
         let outcome = HostActionRunner(
@@ -1612,9 +1630,11 @@ final class PluginRuntimeTests: XCTestCase {
                     pluginVersion: package.manifest.version, capability: grant)
             }
             var writes = 0
-            let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
-                systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in "example" },
-                clipboardWriter: { _ in writes += 1 })
+            let broker = CapabilityCheckedHostServiceBroker(
+                grantStore: grants,
+                systemPermissionCheck: { _ in true },
+                clipboard: .init(selectedTextProvider: { _ in "example" }, clipboardWriter: { _ in writes += 1 })
+            )
             var processes: [Process] = []
             let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),
                 registry: registry, grantStore: grants,
@@ -1652,14 +1672,20 @@ final class PluginRuntimeTests: XCTestCase {
         let entered = DispatchSemaphore(value: 0)
         let release = DispatchSemaphore(value: 1)
         defer { release.signal(); release.signal() }
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
-            systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(
+                selectedTextProvider: { _ in
                 entered.signal()
                 guard release.wait(timeout: .now() + 3) == .success else {
                     throw PluginRuntimeError.timedOut
                 }
                 return "example"
-            }, clipboardWriter: { _ in })
+            },
+                clipboardWriter: { _ in }
+            )
+        )
         let clock = RuntimeTestClock()
         let process = Process()
         let supervisor = PluginRuntimeSupervisor(helperURL: try XCTUnwrap(helperURLIfBuilt()),

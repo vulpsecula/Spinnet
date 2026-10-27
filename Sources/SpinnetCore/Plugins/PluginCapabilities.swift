@@ -461,9 +461,50 @@ public final class PluginCapabilityGrantStore {
     }
 
     /// A stable snapshot suitable for persistence by a Host settings layer.
+    /// Adds endpoint consent without exposing a transient decision to running
+    /// work. Persistence runs under the authority lock and must not reenter it.
+    public func addConsentedHTTPSHosts(_ hosts: [String], for pluginID: PluginID, pluginVersion: String,
+                                      declaredScope: PluginCapabilityScope,
+                                      persisting: ([PluginCapabilityGrant]) throws -> Void) throws {
+        lock.lock()
+        let observers: [() -> Void]
+        do {
+            let capability = declaredScope.capability
+            let previous = scopes[pluginID]?[pluginVersion]?[capability]
+            guard previous == nil || previous?.declaredPart == declaredScope.declaredPart else {
+                throw ConfigurationError.invalidAction("The Plugin's declared access changed. Reopen its settings before saving.")
+            }
+            var added = previous?.consentedHTTPSHosts ?? []
+            for host in hosts.map({ $0.lowercased() }) where !added.contains(host) && !declaredScope.httpsHosts.contains(host) {
+                added.append(host)
+            }
+            let decision = previous?.declaredPart == declaredScope.declaredPart
+                ? decisions[pluginID]?[pluginVersion]?[capability] ?? .notDetermined : .notDetermined
+            let scope = declaredScope.withConsentedHTTPSHosts(added)
+            var proposed = grantsUnderLock.filter {
+                !($0.pluginID == pluginID && $0.pluginVersion == pluginVersion && $0.capability == capability)
+            }
+            proposed.append(PluginCapabilityGrant(pluginID: pluginID, pluginVersion: pluginVersion,
+                                                  capability: capability, decision: decision, scope: scope))
+            try persisting(proposed)
+            decisions[pluginID, default: [:]][pluginVersion, default: [:]][capability] = decision
+            scopes[pluginID, default: [:]][pluginVersion, default: [:]][capability] = scope
+            observers = Array(changeObservers.values)
+        } catch {
+            lock.unlock()
+            throw error
+        }
+        lock.unlock()
+        observers.forEach { $0() }
+    }
+
     public var allGrants: [PluginCapabilityGrant] {
         lock.lock()
         defer { lock.unlock() }
+        return grantsUnderLock
+    }
+
+    private var grantsUnderLock: [PluginCapabilityGrant] {
         return decisions
             .flatMap { pluginID, versions in
                 versions.flatMap { pluginVersion, capabilities in
@@ -776,155 +817,40 @@ public protocol PluginHostServiceBroker {
 public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     private let grantStore: PluginCapabilityGrantStore
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
-    private let selectedTextProvider: (_ allowingCopyFallback: Bool) throws -> String
-    private let clipboardWriter: (String) throws -> Void
-    private let currentClipboardProvider: () throws -> ClipboardContent?
-    private let clipboardHistoryProvider: ([String], Int) throws -> ClipboardHistorySnapshot
-    private let clipboardHistoryPresenter: (PluginPackage, ActionConfiguration) -> Void
-    private let clipboardHistoryContentProvider: (UUID, [String], Int, Int) throws -> ClipboardHistoryContentChunk
-    private let focusedWindowProvider: () throws -> FocusedWindow
-    private let focusedWindowFrameSetter: (WindowRect) throws -> Void
-    private let focusedWindowFullScreenToggler: () throws -> Void
-    private let focusedWindowFrameRestorer: () throws -> Void
-    private let urlOpener: (URL) throws -> Void
-    private let screenCapturer: (ScreenCaptureRequest) throws -> Void
-    private let httpsTransport: HTTPSTransport?
-    private let credentialStore: PluginCredentialStore?
-    private let focusedTextInserter: (String) throws -> Void
-    /// Inserts for a compatible Plugin, into the App in
-    /// front only if it is the one the Host showed when the user acted.
-    private let targetedTextInserter: (String, InsertionTargetCapture) throws -> Void
-    private let languageDetector: (String) -> String?
-    /// Answers to repeated requests, for the Host-Fetched Sections of every
-    /// Plugin.
-    public let responseCache: FetchedResponseCache
-    private let localPathOpener: (URL) throws -> Void
-    private let appleEventSender: (AppleEventRequest) throws -> Void
-    private let deepLinkOpener: (DeepLink) throws -> Void
+    private let clipboard: HostClipboardServices
+    private let windows: HostWindowServices
+    private let workspace: HostWorkspaceServices
+    private let screenCapture: HostScreenCaptureServices
+    private let text: HostTextServices
+    private let network: HostNetworkServices
+    private let externalApps: HostExternalAppServices
+    private let tools: HostReviewedToolServices
     private let pluginStorage: PluginStorage?
-    /// Opens an application by path or bundle identifier, for a call of
-    /// `open.application` under `namespaces`.
-    private let applicationOpener: (String) throws -> Void
-    /// Starts a capture that copies or saves as the user's screenshot
-    /// preferences say, for a call of `screen.capture` naming only a source
-    /// (decision N9).
-    private let preferredScreenCapturer: (ScreenCaptureSource) throws -> Void
-    /// `apps.frontmost`'s result for a Plugin: the App in front with the App
-    /// Target the Host gives that Plugin for it, or null.
-    private let frontmostAppIdentifier: (PluginID) throws -> JSONValue
     private let keepAwakeEffects: HostKeepAwake?
     private let activities: HostActivities?
     private let pluginRegistry: PluginRegistry?
-    let systemMetrics = SystemMetricsSampler()
-    private let reviewedAppPerformer: (AppleEventRequest, Bool) throws -> JSONValue
-    private let reviewedServicesPresenter: (PluginPackage, ActionConfiguration, ReviewedServicesAddition.Presentation) throws -> Void
     private var managementInvalidationObserver: UUID?
     private var managementRevocationObserver: UUID?
-    private let reviewedTools: HomebrewReadProfile
-    private let reviewedTasks: HostReviewedToolTasks?
+    let systemMetrics = SystemMetricsSampler()
 
-    public init(
-        grantStore: PluginCapabilityGrantStore,
-        systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool,
-        selectedTextProvider: @escaping (_ allowingCopyFallback: Bool) throws -> String,
-        clipboardWriter: @escaping (String) throws -> Void,
-        currentClipboardProvider: @escaping () throws -> ClipboardContent? = { nil },
-        clipboardHistoryProvider: @escaping ([String], Int) throws -> ClipboardHistorySnapshot = { _, _ in
-            throw PluginHostServiceError.unavailable("Clipboard History")
-        },
-        clipboardHistoryContentProvider: @escaping (UUID, [String], Int, Int) throws -> ClipboardHistoryContentChunk = { _, _, _, _ in
-            throw PluginHostServiceError.unavailable("Clipboard History content")
-        },
-        clipboardHistoryPresenter: @escaping (PluginPackage, ActionConfiguration) -> Void = { _, _ in },
-        focusedWindowProvider: @escaping () throws -> FocusedWindow = {
-            throw PluginHostServiceError.unavailable("Focused window")
-        },
-        focusedWindowFrameSetter: @escaping (WindowRect) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Focused window")
-        },
-        focusedWindowFullScreenToggler: @escaping () throws -> Void = {
-            throw PluginHostServiceError.unavailable("Focused window")
-        },
-        focusedWindowFrameRestorer: @escaping () throws -> Void = {
-            throw PluginHostServiceError.unavailable("Focused window")
-        },
-        urlOpener: @escaping (URL) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Opening links")
-        },
-        screenCapturer: @escaping (ScreenCaptureRequest) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Screen capture")
-        },
-        httpsTransport: HTTPSTransport? = nil,
-        credentialStore: PluginCredentialStore? = nil,
-        focusedTextInserter: @escaping (String) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Text insertion")
-        },
-        targetedTextInserter: @escaping (String, InsertionTargetCapture) throws -> Void = { _, _ in
-            throw PluginHostServiceError.unavailable("Text insertion")
-        },
-        localPathOpener: @escaping (URL) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Opening local paths")
-        },
-        languageDetector: @escaping (String) -> String? = { _ in nil },
-        responseCache: FetchedResponseCache = FetchedResponseCache(),
-        appleEventSender: @escaping (AppleEventRequest) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Apple Events")
-        },
-        deepLinkOpener: @escaping (DeepLink) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Deep links")
-        },
-        pluginStorage: PluginStorage? = nil,
-        applicationOpener: @escaping (String) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Opening applications")
-        },
-        preferredScreenCapturer: @escaping (ScreenCaptureSource) throws -> Void = { _ in
-            throw PluginHostServiceError.unavailable("Screen capture")
-        },
-        frontmostAppIdentifier: @escaping (PluginID) throws -> JSONValue = { _ in
-            throw PluginHostServiceError.unavailable("The App in front")
-        },
-        keepAwakeEffects: HostKeepAwake? = nil, activities: HostActivities? = nil,
-        reviewedAppPerformer: @escaping (AppleEventRequest, Bool) throws -> JSONValue = { _, _ in throw PluginHostServiceError.unavailable("Reviewed App reads") },
-        reviewedServicesPresenter: @escaping (PluginPackage, ActionConfiguration, ReviewedServicesAddition.Presentation) throws -> Void = { _, _, _ in throw PluginHostServiceError.unavailable("The reviewed Services surface is unavailable") },
-        pluginRegistry: PluginRegistry? = nil, reviewedTools: HomebrewReadProfile? = nil, reviewedTasks: HostReviewedToolTasks? = nil
-    ) {
+    public var responseCache: FetchedResponseCache { network.responseCache }
+
+    public init(grantStore: PluginCapabilityGrantStore,
+                systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool,
+                clipboard: HostClipboardServices = .init(), windows: HostWindowServices = .init(),
+                workspace: HostWorkspaceServices = .init(), screenCapture: HostScreenCaptureServices = .init(),
+                text: HostTextServices = .init(), network: HostNetworkServices = .init(),
+                externalApps: HostExternalAppServices = .init(), tools: HostReviewedToolServices = .init(),
+                pluginStorage: PluginStorage? = nil, keepAwakeEffects: HostKeepAwake? = nil,
+                activities: HostActivities? = nil, pluginRegistry: PluginRegistry? = nil) {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
-        self.selectedTextProvider = selectedTextProvider
-        self.clipboardWriter = clipboardWriter
-        self.currentClipboardProvider = currentClipboardProvider
-        self.clipboardHistoryProvider = clipboardHistoryProvider
-        self.clipboardHistoryPresenter = clipboardHistoryPresenter
-        self.clipboardHistoryContentProvider = clipboardHistoryContentProvider
-        self.focusedWindowProvider = focusedWindowProvider
-        self.focusedWindowFrameSetter = focusedWindowFrameSetter
-        self.focusedWindowFullScreenToggler = focusedWindowFullScreenToggler
-        self.focusedWindowFrameRestorer = focusedWindowFrameRestorer
-        self.urlOpener = urlOpener
-        self.screenCapturer = screenCapturer
-        self.httpsTransport = httpsTransport
-        self.credentialStore = credentialStore
-        self.focusedTextInserter = focusedTextInserter
-        self.targetedTextInserter = targetedTextInserter
-        self.languageDetector = languageDetector
-        self.responseCache = responseCache
-        self.localPathOpener = localPathOpener
-        self.appleEventSender = appleEventSender
-        self.deepLinkOpener = deepLinkOpener
-        self.pluginStorage = pluginStorage
-        self.applicationOpener = applicationOpener
-        self.preferredScreenCapturer = preferredScreenCapturer
-        self.frontmostAppIdentifier = frontmostAppIdentifier
-        self.keepAwakeEffects = keepAwakeEffects
-        self.activities = activities
-        self.pluginRegistry = pluginRegistry
-        self.reviewedServicesPresenter = reviewedServicesPresenter
-        self.reviewedTasks = reviewedTasks
-        self.reviewedTools = reviewedTools ?? HomebrewReadProfile(management: HomebrewManagementReads(targets: .shared, transport: httpsTransport))
-        let reads = self.reviewedTools
-        managementInvalidationObserver = pluginRegistry?.observeInvalidation { reads.invalidateManagementTargets(owner: $0) }
-        managementRevocationObserver = grantStore.observeRevocation { reads.invalidateManagementTargets(owner: $0) }
-        self.reviewedAppPerformer = reviewedAppPerformer
+        self.clipboard = clipboard; self.windows = windows; self.workspace = workspace
+        self.screenCapture = screenCapture; self.text = text; self.network = network
+        self.externalApps = externalApps; self.tools = tools; self.pluginStorage = pluginStorage
+        self.keepAwakeEffects = keepAwakeEffects; self.activities = activities; self.pluginRegistry = pluginRegistry
+        managementInvalidationObserver = pluginRegistry?.observeInvalidation { tools.invalidateManagementTargets(owner: $0) }
+        managementRevocationObserver = grantStore.observeRevocation { tools.invalidateManagementTargets(owner: $0) }
     }
 
     deinit {
@@ -1036,18 +962,18 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             try HomebrewCommandOutput.check(request.input, manifest: package.manifest)
             try HomebrewReadInput(request.input).authorize(in: package.manifest.scope(for: .readReviewedTools))
         case .httpsRequest:
-            try httpsPerformer(for: package).validate(request.input)
+            try network.validate(request.input, for: package, grantStore: grantStore)
         case .performAppOperation:
-            _ = try appleEventRequest(from: request.input, package: package)
+            _ = try externalApps.appleEventRequest(from: request.input, package: package)
         case .openDeepLink:
-            _ = try deepLink(from: request.input, scope: package.manifest.scope(for: .controlExternalApp))
+            _ = try externalApps.deepLink(from: request.input, scope: package.manifest.scope(for: .controlExternalApp))
         default: break
         }
         try authorize(service, for: package, action: action)
 
         switch service {
         case .showReviewedServices:
-            try reviewedServicesPresenter(package, action, ReviewedServicesAddition.presentation(request.input)); return .null
+            try tools.present(package, action: action, input: request.input); return .null
         case .systemMetrics:
             return try systemMetrics.read(request.input, owner: package.manifest.id)
         case .reviewedToolRead:
@@ -1078,190 +1004,42 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         case .stopActivity:
             let id = try KeepAwakeRequest.stopID(input: request.input)
             guard let activities else { throw PluginHostServiceError.unavailable("Host activities") }
-            if activities.list(for: package.manifest.id).contains(where: { $0.id == id && $0.kind == "task" }), let reviewedTasks {
-                try reviewedTasks.stop(id, for: package.manifest.id)
+            if activities.list(for: package.manifest.id).contains(where: { $0.id == id && $0.kind == "task" }), tools.canStopTasks {
+                try tools.stopTask(id, owner: package.manifest.id)
                 return .null
             }
             activities.stop(id, for: package.manifest.id)
             return .null
-        case .readClipboardHistoryContent:
-            guard case .object(let fields) = request.input, fields.count == 3,
-                  case .string(let id) = fields["entry_id"], let entryID = UUID(uuidString: id),
-                  case .number(let offset) = fields["offset"], offset.isFinite, offset >= 0, offset <= Double(Int.max / 2), offset.rounded() == offset,
-                  case .number(let length) = fields["length"], length >= 1,
-                  length <= Double(ClipboardHistoryBudgets.maximumContentChunkBytes),
-                  length.rounded() == length else {
-                throw PluginHostServiceError.invalidInput("Expected entry_id, nonnegative integer offset, and length 1…196608")
-            }
-            let chunk = try readHistory {
-                try clipboardHistoryContentProvider(entryID, package.manifest.scope(for: .readClipboardHistory)?.dataTypes ?? [], Int(offset), Int(length))
-            }
-            return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(chunk))
-        case .readCurrentClipboard:
-            guard request.input == .null else {
-                throw PluginHostServiceError.invalidInput("read_current_clipboard expects null")
-            }
-            guard let content = try currentClipboardProvider(),
-                  package.manifest.scope(for: .readCurrentClipboard)?.dataTypes.contains(content.type.rawValue) == true else { return .null }
-            return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(content))
-        case .presentClipboardHistory:
-            guard request.input == .null else {
-                throw PluginHostServiceError.invalidInput("present_clipboard_history expects null")
-            }
-            // The Host Surface: the granted Capability decides, not where the
-            // Plugin came from.
-            clipboardHistoryPresenter(package, action)
-            // The Plugin learns nothing from presenting; the user reads the window.
-            return .null
-        case .readClipboardHistory:
-            var offset = 0
-            if case .object(let fields) = request.input, fields.count == 1,
-               case .number(let value) = fields["offset"], value >= 0, value <= Double(Int.max / 2), value.rounded() == value {
-                offset = Int(value)
-            } else if request.input != .null {
-                throw PluginHostServiceError.invalidInput("Expected null or a nonnegative integer offset")
-            }
-            let snapshot = try readHistory {
-                try clipboardHistoryProvider(package.manifest.scope(for: .readClipboardHistory)?.dataTypes ?? [], offset)
-            }
-            return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(snapshot))
-        case .readSelectedText:
-            let bestEffort: Bool
-            switch request.input {
-            case .null: bestEffort = false
-            case .object(["best_effort": .bool(true)]): bestEffort = true
-            default:
-                throw PluginHostServiceError.invalidInput("read_selected_text expects null or {\"best_effort\": true}")
-            }
-            let allowsCopyFallback = grantStore.allowsSelectedTextCopyFallback(for: action.commandID, in: package.manifest)
-            do {
-                return .string(try selectedTextProvider(allowsCopyFallback))
-            } catch {
-                // A failed Host Service ends the Plugin's Action, so a Plugin
-                // with its own fallback asks for null instead. Refusals were
-                // checked above and are never softened this way.
-                guard bestEffort else { throw error }
-                if case PluginHostServiceError.systemPermissionDenied = error { throw error }
-                return .null
-            }
-        case .writeClipboard:
-            guard case .string(let text) = request.input else {
-                throw PluginHostServiceError.invalidInput(
-                    "write_clipboard expects a text string"
-                )
-            }
-            try clipboardWriter(text)
-            return .null
-        case .readFocusedWindow:
-            guard request.input == .null else {
-                throw PluginHostServiceError.invalidInput("read_focused_window expects null")
-            }
-            return try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(focusedWindowProvider()))
-        case .setFocusedWindowFrame:
-            guard let frame = WindowRect(json: request.input) else {
-                throw PluginHostServiceError.invalidInput(
-                    "set_focused_window_frame expects x, y, width, and height, with a positive size"
-                )
-            }
-            try focusedWindowFrameSetter(frame)
-            return .null
-        case .toggleFocusedWindowFullScreen:
-            guard request.input == .null else {
-                throw PluginHostServiceError.invalidInput("toggle_focused_window_full_screen expects null")
-            }
-            try focusedWindowFullScreenToggler()
-            return .null
-        case .restoreFocusedWindowFrame:
-            guard request.input == .null else {
-                throw PluginHostServiceError.invalidInput("restore_focused_window_frame expects null")
-            }
-            try focusedWindowFrameRestorer()
-            return .null
-        case .openLocalPath where request.operation == "open.application":
-            // An application by path or bundle identifier, under the grant
-            // that already lets a script launch one by its path.
-            guard case .string(let application) = request.input,
-                  !application.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  application.utf8.count <= OpenableLocalPath.maximumBytes else {
-                throw PluginHostServiceError.invalidInput("open.application expects an application's path or bundle identifier")
-            }
-            try applicationOpener(application)
-            return .null
-        case .openLocalPath:
-            guard case .string(let path) = request.input else {
-                throw PluginHostServiceError.invalidInput("open_local_path expects a local path")
-            }
-            try localPathOpener(OpenableLocalPath.validate(path))
-            return .null
-        case .openURL:
-            guard case .string(let text) = request.input else {
-                throw PluginHostServiceError.invalidInput("open_url expects a link string")
-            }
-            // Validated here, not trusted from the script: only an http or
-            // https link reaches the browser, and nothing comes back.
-            try urlOpener(OpenableURL.validate(text))
-            return .null
-        case .captureScreen where request.operation != nil && request.input.isSourceAlone:
-            // The Plugin names only what to capture; the user's screenshot
-            // preferences say whether to copy or save (decision N9), and the
-            // Plugin learns neither.
-            guard case .object(let fields) = request.input, case .string(let raw)? = fields["source"],
-                  let source = ScreenCaptureSource(rawValue: raw) else {
-                throw PluginHostServiceError.invalidInput("screen.capture expects source: area, fullscreen or window")
-            }
-            try preferredScreenCapturer(source)
-            return .null
+        case .readClipboardHistoryContent, .readCurrentClipboard, .presentClipboardHistory,
+             .readClipboardHistory, .readSelectedText, .writeClipboard:
+            return try clipboard.execute(request, for: package, action: action,
+                allowsCopyFallback: service == .readSelectedText
+                    && grantStore.allowsSelectedTextCopyFallback(for: action.commandID, in: package.manifest))
+        case .readFocusedWindow, .setFocusedWindowFrame, .toggleFocusedWindowFullScreen, .restoreFocusedWindowFrame:
+            return try windows.execute(request, for: package, action: action)
+        case .openLocalPath, .openURL, .identifyFrontmostApp:
+            return try workspace.execute(request, for: package, action: action)
         case .captureScreen:
-            // The folder comes from the Action the user configured, never from
-            // the Plugin alone: the request may only name that folder.
-            let registered = package.manifest.commands.first { $0.id == action.commandID }
-            let capture = try ScreenCaptureRequest(
-                serviceInput: request.input,
-                configuredFolders: registered?.configuredFolders(in: action.input) ?? []
-            )
-            // Starting the capture is the Action. The user finishes or cancels
-            // it on screen after the Action has returned, which is why the
-            // Plugin receives nothing back.
-            try screenCapturer(capture)
-            return .null
+            return try screenCapture.execute(request, for: package, action: action)
         case .httpsRequest:
-            return try httpsPerformer(for: package).perform(request.input)
+            return try network.perform(request.input, for: package, grantStore: grantStore)
         case .performAppOperation:
             if request.input.value(atPointer: "/bundle_id") == .string(TerminalHomebrew.bundleID), !request.allowsTerminalHandoff {
                 throw PluginHostServiceError.unavailable("Terminal Homebrew is available only as a gesture-requested Host Operation")
             }
-            let event = try appleEventRequest(from: request.input, package: package)
+            let event = try externalApps.appleEventRequest(from: request.input, package: package)
             if event.bundleID == SpotifyPlayback.bundleID {
                 return try performReviewedApp(event, package: package, action: action,
                     allowsPrompt: package.manifest.externalAppConnections.isEmpty
                         && event.handler == "playback" && request.allowsAutomationPrompt)
             }
-            try appleEventSender(event)
+            try externalApps.send(event)
             return .null
         case .openDeepLink:
-            try deepLinkOpener(deepLink(from: request.input, scope: package.manifest.scope(for: .controlExternalApp)))
+            try externalApps.openDeepLink(request.input, scope: package.manifest.scope(for: .controlExternalApp))
             return .null
-        case .insertText:
-            guard case .string(let text) = request.input,
-                  text.utf8.count <= HTTPSRequestBudgets.maximumResponseBodyBytes else {
-                throw PluginHostServiceError.invalidInput("insert_text expects a text string of at most 128 KiB")
-            }
-            if let target = request.insertionTarget {
-                try targetedTextInserter(text, target)
-            } else {
-                try focusedTextInserter(text)
-            }
-            return .null
-        case .identifyFrontmostApp:
-            guard request.input == .null else {
-                throw PluginHostServiceError.invalidInput("apps.frontmost takes no input")
-            }
-            return try frontmostAppIdentifier(package.manifest.id)
-        case .detectLanguage:
-            guard case .string(let text) = request.input else {
-                throw PluginHostServiceError.invalidInput("detect_language expects a text string")
-            }
-            return languageDetector(text).map(JSONValue.string) ?? .null
+        case .insertText, .detectLanguage:
+            return try text.execute(request, for: package, action: action)
         case .getStorageValue, .setStorageValue, .removeStorageValue, .listStorageKeys, .clearStorage:
             guard let pluginStorage else {
                 throw PluginHostServiceError.unavailable("Plugin Storage")
@@ -1287,20 +1065,11 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             throw PluginHostServiceError.unavailable("The Plugin is no longer active")
         }
         try authorize(.httpsRequest, for: package, action: action)
-        let performer = try httpsPerformer(for: package, timeout: ScriptedActionBudgets.hostFetchedSectionDeadline,
-                                           cancellation: cancellation)
-        var destination: URL?
-        if case .object(let fields) = request.request, case .string(let address)? = fields["url"] {
-            destination = URL(string: address)
-        }
-        return try namingTheRefusedHost(of: destination, for: package) {
-            try sendAnsweringFromCache(request.request, for: package, mayAnswerFromCache: request.isCacheable,
-                                       performer: performer)
-        }
+        return try network.send(request, for: package, grantStore: grantStore, cancellation: cancellation)
     }
 
     func validateHTTPSource(_ input: JSONValue, for package: PluginPackage) throws {
-        try httpsPerformer(for: package).validate(input)
+        try network.validate(input, for: package, grantStore: grantStore)
     }
 
     public func reviewedAppSourceAdapter(using registry: PluginRegistry) -> HostSourceAdapter {
@@ -1311,13 +1080,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                 guard let package = registry.package(for: action.pluginID), registry.isEnabled(for: action.pluginID) else {
                     throw PluginHostServiceError.unavailable("The Plugin is no longer active")
                 }
-                _ = try self.appleEventRequest(from: source.input, package: package)
+                _ = try self.externalApps.appleEventRequest(from: source.input, package: package)
                 try self.authorize(.performAppOperation, for: package, action: action)
             }, sample: { [self] action, source, cancellation in
                 guard !cancellation.isCancelled, let package = registry.package(for: action.pluginID) else {
                     throw PluginHostServiceError.unavailable("The playback read was cancelled")
                 }
-                let request = try self.appleEventRequest(from: source.input, package: package)
+                let request = try self.externalApps.appleEventRequest(from: source.input, package: package)
                 let result = try self.performReviewedApp(request, package: package, action: action, allowsPrompt: false, registry: registry)
                 guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The playback read was cancelled") }
                 return result
@@ -1341,7 +1110,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
         }
         try check()
-        let result = try reviewedAppPerformer(request, allowsPrompt)
+        let result = try externalApps.performReviewed(request, allowsPrompt: allowsPrompt)
         try check()
         return result
     }
@@ -1395,7 +1164,7 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             if owner == package.manifest.id { validity.revoke(); cancellation.cancel() }
         }
         defer { grantStore.removeRevocationObserver(revocation) }
-        return try reviewedTools.read(input, owner: package.manifest.id, timeout: timeout, cancellation: cancellation) {
+        return try tools.read(input, owner: package.manifest.id, timeout: timeout, cancellation: cancellation) {
             guard validity.isCurrent else { throw PluginHostServiceError.capabilityDenied(.readReviewedTools) }
             try read.authorize(in: package.manifest.scope(for: .readReviewedTools))
             try self.authorize(.reviewedToolRead, for: package, action: action)
@@ -1404,21 +1173,6 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
                     throw PluginHostServiceError.unavailable("The accepted Plugin registration is no longer current")
                 }
             }
-        }
-    }
-
-    /// Runs `send`; when its destination is outside the consented hosts,
-    /// though the grant stood a moment ago, it is a host the user never
-    /// allowed, such as a self-hosted endpoint, and the refusal names it.
-    private func namingTheRefusedHost<T>(of destination: URL?, for package: PluginPackage,
-                                         _ send: () throws -> T) throws -> T {
-        do {
-            return try send()
-        } catch PluginHostServiceError.capabilityScopeDenied(.contactHTTPS) {
-            guard let host = destination.flatMap(HTTPSDestination.host(of:)) else {
-                throw PluginHostServiceError.capabilityScopeDenied(.contactHTTPS)
-            }
-            throw PluginHostServiceError.failed(package.manifest.refusalToContact(host))
         }
     }
 
@@ -1437,137 +1191,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             return try PluginPackageResource.read(path, in: package.rootURL)
         case .url(let url):
             try authorize(.httpsRequest, for: package, action: action)
-            let performer = try httpsPerformer(for: package, timeout: PageImageBudgets.loadDeadline,
-                                               cancellation: cancellation)
-            return try namingTheRefusedHost(of: url, for: package) {
-                try performer.fetchImage(url, maximumBytes: PageImageBudgets.maximumImageBytes)
-            }
+            return try network.fetchImage(url, for: package, grantStore: grantStore, cancellation: cancellation)
         }
     }
 
-    /// Performs an `https_request` input the Host sends for a view.
-    /// Asking the same question twice, such as translating the same text
-    /// again, is answered from the last answer when the Plugin allows it;
-    /// the caller has checked the Plugin's authority first, so a withdrawn
-    /// grant stops these too, and a kept answer is given only while the
-    /// request would still be sent, its host consented to now. Only a 2xx
-    /// answer is kept.
-    private func sendAnsweringFromCache(_ input: JSONValue, for package: PluginPackage, mayAnswerFromCache: Bool,
-                                        performer: PluginHTTPSRequestPerformer) throws -> JSONValue {
-        let key = mayAnswerFromCache ? FetchedResponseCache.key(pluginID: package.manifest.id, request: input) : nil
-        if let key, let cached = responseCache.response(for: key) {
-            try performer.validate(input)
-            return cached
-        }
-        let response = try performer.perform(input)
-        if let key, case .object(let fields) = response, case .number(let status)? = fields["status"],
-           (200..<300).contains(Int(status)) {
-            responseCache.store(response, for: key)
-        }
-        return response
-    }
-
-    /// The Apple Event for a `perform_app_operation` input: an application
-    /// in the scope, one of its Reviewed App Interface's operations from a
-    /// family the scope names, and arguments that interface accepts.
-    private func appleEventRequest(from input: JSONValue, package: PluginPackage) throws -> AppleEventRequest {
-        let manifest = package.manifest
-        let scope = manifest.scope(for: .controlExternalApp)
-        guard case .object(let fields) = input, case .string(let bundleID)? = fields["bundle_id"],
-              case .string(let operation)? = fields["operation"],
-              Set(fields.keys).isSubset(of: ["bundle_id", "operation", "arguments"]) else {
-            throw PluginHostServiceError.invalidInput(
-                "perform_app_operation expects bundle_id, operation, and optional arguments"
-            )
-        }
-        var arguments: [String: JSONValue] = [:]
-        if let supplied = fields["arguments"] {
-            guard case .object(let values) = supplied else {
-                throw PluginHostServiceError.invalidInput("perform_app_operation arguments must be an object")
-            }
-            arguments = values
-        }
-        guard let target = scope?.externalApps.first(where: { $0.bundleID == bundleID }) else {
-            throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
-        }
-        guard let interface = ReviewedAppInterface.interface(for: bundleID) else {
-            throw PluginHostServiceError.externalAppOperationUnsupported(
-                "\(bundleID) has no Apple Events interface Spinnet has reviewed"
-            )
-        }
-        if bundleID == TerminalHomebrew.bundleID {
-            do { try PluginInterfaceContracts.host.check(manifest, origin: package.origin) }
-            catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
-            guard PluginInterfaceContracts.host.permits(TerminalHomebrew.member, declaredBy: manifest) else {
-                throw PluginHostServiceError.unavailable("Terminal Homebrew is not provided by this Host")
-            }
-        }
-        if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation) {
-            do { try PluginInterfaceContracts.host.check(manifest, origin: package.origin) }
-            catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
-        }
-        if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation),
-           !PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: manifest) {
-            throw PluginHostServiceError.unavailable("Spotify \(operation) is not provided by this Host")
-        }
-        if let family = interface.operations.first(where: { $0.name == operation })?.family
-            ?? (bundleID == SpotifyPlayback.bundleID ? SpotifyControls.family(for: operation) : nil),
-           !target.operationFamilies.contains(family) {
-            throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp)
-        }
-        return try interface.request(operation: operation, arguments: arguments)
-    }
-
-    private func deepLink(from input: JSONValue, scope: PluginCapabilityScope?) throws -> DeepLink {
-        guard case .object(let fields) = input, case .string(let template)? = fields["template"],
-              Set(fields.keys).isSubset(of: ["template", "parameters"]) else {
-            throw PluginHostServiceError.invalidInput("open_deep_link expects a template and optional parameters")
-        }
-        var parameters: [String: JSONValue] = [:]
-        if let supplied = fields["parameters"] {
-            guard case .object(let values) = supplied else {
-                throw PluginHostServiceError.invalidInput("open_deep_link parameters must be an object")
-            }
-            parameters = values
-        }
-        guard let scope else { throw PluginHostServiceError.capabilityScopeDenied(.controlExternalApp) }
-        return try scope.deepLink(template: template, parameters: parameters)
-    }
-
-    /// A performer for the Plugin's declared hosts plus those the user
-    /// consented to, read from the grant each time so a change applies at once.
-    private func httpsPerformer(
-        for package: PluginPackage, timeout: TimeInterval = HTTPSRequestBudgets.timeout,
-        cancellation: HostFetchedSections.Cancellation = .init()
-    ) throws -> PluginHTTPSRequestPerformer {
-        guard let httpsTransport else {
-            throw PluginHostServiceError.unavailable("HTTPS transport")
-        }
-        let pluginID = package.manifest.id
-        var performer = PluginHTTPSRequestPerformer(
-            transport: httpsTransport,
-            consentedHosts: package.manifest.contactableHTTPSHosts(in: grantStore),
-            credential: { [credentialStore] reference in
-                try credentialStore?.secret(for: pluginID, reference: reference)
-            }
-        )
-        performer.timeout = timeout
-        performer.cancellation = cancellation
-        return performer
-    }
-
-    /// Filesystem errors can contain the private archive or payload URL.
-    private func readHistory<T>(_ read: () throws -> T) throws -> T {
-        do { return try read() }
-        catch let error as PluginHostServiceError { throw error }
-        catch { throw PluginHostServiceError.failed("Clipboard History could not be read") }
-    }
-}
-
-private extension JSONValue {
-    /// An object with `source` as its only member.
-    var isSourceAlone: Bool {
-        guard case .object(let fields) = self else { return false }
-        return fields.count == 1 && fields["source"] != nil
-    }
 }

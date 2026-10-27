@@ -47,9 +47,10 @@ final class TextLanguageTests: XCTestCase {
         let action = try ActionConfiguration(id: ActionID("detect"), pluginID: manifest.id,
                                              command: manifest.commands[0], input: .null)
         let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: PluginCapabilityGrantStore(), systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            languageDetector: TextLanguage.detect
+            grantStore: PluginCapabilityGrantStore(),
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            text: .init(languageDetector: TextLanguage.detect)
         )
 
         for text in ["Good morning, how are you today?", "早上好，今天过得怎么样？",

@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewSearchBootstrapDiagnosticTests: XCTestCase {
     private let warning = "/opt/homebrew/Library/Homebrew/utils.sh: line 144: cannot create temp file for here document: Operation not permitted"

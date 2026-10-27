@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SpinnetCore
+import SpinnetReviewedTools
 
 /// The App insertion would go to now, as the Host shows it in the Plugin
 /// Views (ADR 0018): the App in

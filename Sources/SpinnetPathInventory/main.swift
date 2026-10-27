@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import SpinnetCore
+import SpinnetReviewedTools
 
 // No mutation, arbitrary executable, shell, environment or plugin operation.
 let mode = Array(CommandLine.arguments.dropFirst())

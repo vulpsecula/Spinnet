@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import SpinnetCore
+import SpinnetReviewedTools
 
 // launchd runs this signed helper as root. XPC checks every message's signing
 // requirement (macOS 13+); PID lookup is used only for task ancestry/liveness,

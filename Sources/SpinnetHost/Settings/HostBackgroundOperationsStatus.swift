@@ -1,5 +1,6 @@
 import ServiceManagement
 import SpinnetCore
+import SpinnetReviewedTools
 
 /// Host-owned background authorization, independent of any Plugin grant.
 enum HostBackgroundOperationsStatus: Equatable {

@@ -1,5 +1,6 @@
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewCLIReadTests: XCTestCase {
     private func fixture(_ body: String) throws -> URL {

@@ -18,8 +18,9 @@ final class TerminalHomebrewTests: XCTestCase {
         let manifest = try PluginManifest(id: .init("terminal"), name: "Terminal", version: "1", capabilities: [.controlExternalApp], capabilityScopes: [scope], commands: [command])
         for origin in [PluginOrigin.installed, .bundled] { try PluginInterfaceContracts.host.check(manifest, origin: origin) }
         let interface = try XCTUnwrap(ReviewedAppInterface.interface(for: TerminalHomebrew.bundleID))
-        XCTAssertEqual(try interface.request(operation: "homebrew", arguments: ["command": .string("version")]).handler, "do script")
-        XCTAssertThrowsError(try interface.request(operation: "homebrew", arguments: ["command": .string("shell")]))
+        let executable = URL(fileURLWithPath: "/opt/homebrew/bin/brew")
+        XCTAssertEqual(try interface.request(operation: "homebrew", arguments: ["command": .string("version")], homebrewExecutable: executable).handler, "do script")
+        XCTAssertThrowsError(try interface.request(operation: "homebrew", arguments: ["command": .string("shell")], homebrewExecutable: executable))
     }
     func testUnknownOperationsOptionsExecutablePathsAndPackageInjectionAreRefused() {
         let rejected: [[String: JSONValue]] = [
@@ -54,8 +55,13 @@ extension TerminalHomebrewTests {
         let action = try ActionConfiguration(id: .init("run"), pluginID: manifest.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore(), activities = HostActivities()
         var sent: [AppleEventRequest] = []
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, appleEventSender: { sent.append($0) }, activities: activities)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(appleEventSender: { sent.append($0) }, homebrewExecutable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }),
+            activities: activities
+        )
         grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: .controlExternalApp, scope: scope)
         var request = PluginRuntimeHostServiceRequest(invocationID: "run", actionID: action.id, service: .performAppOperation, input: .object([
             "bundle_id": .string(TerminalHomebrew.bundleID), "operation": .string("homebrew"), "arguments": .object(["command": .string("version")])]), operation: "apps.perform")

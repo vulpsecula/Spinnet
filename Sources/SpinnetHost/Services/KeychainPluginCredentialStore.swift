@@ -4,7 +4,7 @@ import SpinnetCore
 
 /// Keeps Plugin credentials as generic passwords in the user's Keychain, one
 /// item per Plugin and credential reference, readable only on this device.
-final class KeychainPluginCredentialStore: PluginCredentialStore {
+final class KeychainPluginCredentialStore: PluginCredentialStore, CredentialSaveNotifications {
     static let defaultService = "com.vulpsecula.Spinnet.plugin-credential"
 
     /// The Keychain item's account. Stored items are found by it, so it
@@ -15,6 +15,24 @@ final class KeychainPluginCredentialStore: PluginCredentialStore {
 
     private let service: String
     var onChange: ((PluginID) -> Void)?
+    private var saveDepth = 0
+    private var pendingChanges: Set<PluginID> = []
+
+    func beginSave() { saveDepth += 1 }
+
+    func endSave(publishingChanges: Bool) {
+        precondition(saveDepth > 0)
+        saveDepth -= 1
+        guard saveDepth == 0 else { return }
+        let changed = pendingChanges
+        pendingChanges = []
+        if publishingChanges { changed.forEach { onChange?($0) } }
+    }
+
+    private func changed(_ pluginID: PluginID) {
+        if saveDepth > 0 { pendingChanges.insert(pluginID) }
+        else { onChange?(pluginID) }
+    }
 
     init(service: String = defaultService) {
         self.service = service
@@ -39,7 +57,10 @@ final class KeychainPluginCredentialStore: PluginCredentialStore {
         guard status == errSecSuccess, let data = result as? Data else {
             throw PluginHostServiceError.failed("The credential could not be read from the Keychain")
         }
-        return String(data: data, encoding: .utf8)
+        guard let secret = String(data: data, encoding: .utf8) else {
+            throw PluginHostServiceError.failed("The stored credential is not valid text")
+        }
+        return secret
     }
 
     func hasSecret(for pluginID: PluginID, reference: String) -> Bool {
@@ -66,7 +87,7 @@ final class KeychainPluginCredentialStore: PluginCredentialStore {
         guard status == errSecSuccess else {
             throw ConfigurationError.invalidAction("The credential could not be saved to the Keychain")
         }
-        onChange?(pluginID)
+        changed(pluginID)
     }
 
     func removeSecret(for pluginID: PluginID, reference: String) throws {
@@ -74,6 +95,6 @@ final class KeychainPluginCredentialStore: PluginCredentialStore {
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw ConfigurationError.invalidAction("The credential could not be removed from the Keychain")
         }
-        onChange?(pluginID)
+        changed(pluginID)
     }
 }

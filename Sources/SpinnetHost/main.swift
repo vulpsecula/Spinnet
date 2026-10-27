@@ -1,5 +1,6 @@
 import AppKit
 import SpinnetCore
+import SpinnetReviewedTools
 
 final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     #if DEBUG
@@ -45,7 +46,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var clipboardWindow: ClipboardHistoryWindow?
     private var clipboardWindowAction: ActionConfiguration?
     private var clipboardBroker: CapabilityCheckedHostServiceBroker!
-    private var actionRunner: HostActionRunner!
+    private var actionDispatcher: HostActionDispatcher!
     private var pluginRuntime: PluginRuntimeSupervisor?
     private var menu: MenuPresentationController!
     private var feedback: HostFeedbackPresenter!
@@ -117,8 +118,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         try screenCapturer.begin(ScreenshotSettings(defaults: .standard).request(for: source))
     }
     private let pluginCredentials = KeychainPluginCredentialStore()
-    private var executions: [ActionID: ActionLifecycle] = [:]
-    private var executionFeedback: [ActionID: HostFeedbackPresenter] = [:]
     /// A toast without a view, shown near the pointer.
     private let toasts = HostToastPresenter()
     /// Each Plugin's View Session, if it has one (ADR 0010).
@@ -128,14 +127,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var fetchedSections: HostFetchedSections!
     private var sources: HostRunSources!
     private var sourceGrantObserver: UUID?
-    private var pluginQueues: [PluginID: DispatchQueue] = [:]
-    private let actionInvocationQueue = DispatchQueue(
-        label: "com.vulpsecula.Spinnet.action-invocation",
-        qos: .userInitiated
-    )
     private static let defaultSlotCount = 8
 
     func applicationWillTerminate(_ notification: Notification) {
+        actionDispatcher?.shutdown()
         keepAwake.shutdown()
         pluginRuntime?.shutdown()
     }
@@ -180,84 +175,93 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 systemPermissionCheck: { [pluginHostServiceProvider] permission in
                     pluginHostServiceProvider.isGranted(permission)
                 },
-                selectedTextProvider: { [selectedTextReader] allowingCopyFallback in
+                clipboard: .init(
+                    selectedTextProvider: { [selectedTextReader] allowingCopyFallback in
                     try selectedTextReader.read(allowingCopyFallback: allowingCopyFallback)
                 },
-                clipboardWriter: { [pluginHostServiceProvider] text in
+                    clipboardWriter: { [pluginHostServiceProvider] text in
                     try pluginHostServiceProvider.writeClipboard(text)
                 },
-                currentClipboardProvider: {
+                    currentClipboardProvider: {
                     if Thread.isMainThread { return ClipboardCollector.readCurrent() }
                     return DispatchQueue.main.sync { ClipboardCollector.readCurrent() }
                 },
-                clipboardHistoryProvider: { [clipboardStore] types, offset in
+                    clipboardHistoryProvider: { [clipboardStore] types, offset in
                     try clipboardStore!.query(dataTypes: types, offset: offset)
                 },
-                clipboardHistoryContentProvider: { [clipboardStore] id, types, offset, length in
+                    clipboardHistoryContentProvider: { [clipboardStore] id, types, offset, length in
                     try clipboardStore!.readContent(entryID: id, dataTypes: types, offset: offset, length: length)
                 },
-                clipboardHistoryPresenter: { [weak self] package, action in
+                    clipboardHistoryPresenter: { [weak self] package, action in
                     DispatchQueue.main.async { [weak self] in self?.presentClipboardHistory(package: package, action: action) }
-                },
-                focusedWindowProvider: { [pluginHostServiceProvider] in
+                }
+                ),
+                windows: .init(
+                    focusedWindowProvider: { [pluginHostServiceProvider] in
                     try pluginHostServiceProvider.readFocusedWindow()
                 },
-                focusedWindowFrameSetter: { [pluginHostServiceProvider] frame in
+                    focusedWindowFrameSetter: { [pluginHostServiceProvider] frame in
                     try pluginHostServiceProvider.setFocusedWindowFrame(frame)
                 },
-                focusedWindowFullScreenToggler: { [pluginHostServiceProvider] in
+                    focusedWindowFullScreenToggler: { [pluginHostServiceProvider] in
                     try pluginHostServiceProvider.toggleFocusedWindowFullScreen()
                 },
-                focusedWindowFrameRestorer: { [pluginHostServiceProvider] in
+                    focusedWindowFrameRestorer: { [pluginHostServiceProvider] in
                     try pluginHostServiceProvider.restoreFocusedWindowFrame()
-                },
-                urlOpener: { [pluginHostServiceProvider] url in
+                }
+                ),
+                workspace: .init(
+                    urlOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openURL(url)
                 },
-                screenCapturer: { [screenCapturer] request in
-                    try screenCapturer.begin(request)
-                },
-                httpsTransport: URLSessionHTTPSTransport(),
-                credentialStore: pluginCredentials,
-                // The script waits on its helper's queue while the main
-                // thread brings the App in front forward.
-                focusedTextInserter: { [textInserter] text in
-                    try textInserter.insertAndWait(text, into: .frontmost)
-                },
-                // A synchronous `selection.replace` of a Plugin declaring
-                // `host_operations`, compared with the target its view showed.
-                targetedTextInserter: { text, shown in
-                    try targetedInserter.insertAndWait(text, shown: shown)
-                },
-                localPathOpener: { [pluginHostServiceProvider] url in
+                    localPathOpener: { [pluginHostServiceProvider] url in
                     try pluginHostServiceProvider.openLocalPath(url)
                 },
-                languageDetector: { text in TextLanguage.detect(text) },
-                appleEventSender: { request in try AppleEventSender().send(request) },
-                deepLinkOpener: { link in try DeepLinkOpener().open(link) },
-                pluginStorage: pluginStorage,
-                // `open.application` and a `screen.capture` naming only its
-                // source, called by a Plugin declaring the catalogue.
-                applicationOpener: { application in
+                    applicationOpener: { application in
                     guard AppKitHostCommandAdapter().openApplication(application) else {
                         throw PluginHostServiceError.unavailable("The application is not available")
                     }
                 },
-                preferredScreenCapturer: captureScreen,
-                // `apps.frontmost`, on the broker's thread: the main thread
-                // keeps which App is in front current, and the App's menu is
-                // read here, within its bound, so this never waits on it.
-                frontmostAppIdentifier: { [appTargets, runningApps] pluginID in
+                    frontmostAppIdentifier: { [appTargets, runningApps] pluginID in
                     appTargets.identifyFrontmost(of: runningApps, for: pluginID)
+                }
+                ),
+                screenCapture: .init(
+                    screenCapturer: { [screenCapturer] request in
+                    try screenCapturer.begin(request)
                 },
-                keepAwakeEffects: keepAwake, activities: activities,
-                reviewedAppPerformer: { request, prompt in try SpotifyAppleEvents().perform(request, allowsPrompt: prompt) },
-                reviewedServicesPresenter: { [weak self, registry] package, action, presentation in
+                    preferredScreenCapturer: captureScreen
+                ),
+                text: .init(
+                    focusedTextInserter: { [textInserter] text in
+                    try textInserter.insertAndWait(text, into: .frontmost)
+                },
+                    targetedTextInserter: { text, shown in
+                    try targetedInserter.insertAndWait(text, shown: shown)
+                },
+                    languageDetector: { text in TextLanguage.detect(text) }
+                ),
+                network: .init(httpsTransport: URLSessionHTTPSTransport(), credentialStore: pluginCredentials),
+                externalApps: .init(
+                    appleEventSender: { request in try AppleEventSender().send(request) },
+                    deepLinkOpener: { link in try DeepLinkOpener().open(link) },
+                    reviewedAppPerformer: { request, prompt in try SpotifyAppleEvents().perform(request, allowsPrompt: prompt) },
+                    homebrewExecutable: HomebrewReadProfile.discover
+                ),
+                tools: .init(
+                    reader: HomebrewReadProfile(management: HomebrewManagementReads(targets: .shared, transport: URLSessionHTTPSTransport())),
+                    tasks: reviewedTasks,
+                    presenter: { [weak self, registry] package, action, presentation in
                     guard let admission = registry.ownerAdmission(for: action.pluginID), registry.isCurrent(admission, for: package) else {
                         throw PluginHostServiceError.unavailable("The Services owner changed")
                     }
                     DispatchQueue.main.async { [weak self] in self?.presentReviewedServices(package: package, action: action, admission: admission, presentation: presentation) }
-                }, pluginRegistry: registry, reviewedTasks: reviewedTasks
+                }
+                ),
+                pluginStorage: pluginStorage,
+                keepAwakeEffects: keepAwake,
+                activities: activities,
+                pluginRegistry: registry
             )
             clipboardBroker = hostServiceBroker
             if appTargetObservers == nil {
@@ -281,7 +285,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     }
                 )
             }
-            actionRunner = HostActionRunner(
+            let actionRunner = HostActionRunner(
                 executor: AppKitHostCommandExecutor(
                     grantStore: capabilityGrants,
                     systemPermissionCheck: { [pluginHostServiceProvider] permission in
@@ -334,6 +338,25 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             menu.onDismiss = { [weak self] in self?.triggers?.unregisterEscape() }
             feedback = HostFeedbackPresenter()
+            actionDispatcher = HostActionDispatcher(
+                runner: actionRunner, registry: registry, sessions: viewSessions, feedback: feedback,
+                makeFeedback: {
+                    #if DEBUG
+                    HostFeedbackPresenter(displayDuration: CommandLine.arguments.contains("--lifecycle-check") ? 10 : 1.5)
+                    #else
+                    HostFeedbackPresenter()
+                    #endif
+                },
+                willStart: { [weak self] in
+                    #if DEBUG
+                    self?.lifecycleTestWindow?.hide()
+                    #endif
+                }, didDismiss: { [weak self] in
+                    #if DEBUG
+                    self?.lifecycleTestWindow?.show()
+                    #endif
+                }
+            )
             settings = SettingsWindowController(
                 editor: editor,
                 capabilityGrantStore: capabilityGrants,
@@ -369,6 +392,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             clipboardCollector = collector
             settings.onConfigurationChanged = { [weak self] configuration in
                 self?.configurationDidChange(configuration)
+            }
+            settings.persistConfiguration = { [configurationStore] in try configurationStore.save($0) }
+            settings.onConfigurationSaved = { [weak self] in self?.applyConfiguration($0) }
+            settings.persistEndpointGrants = { [unowned self] in try self.saveCapabilityGrants($0) }
+            settings.onEndpointConsentSaved = { [weak self] in
+                self?.clipboardBroker?.responseCache.clear()
+                if let self, let configuration = self.currentConfiguration {
+                    self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                }
             }
             settings.reviewPluginInstallation = { [unowned self] url in
                 try self.pluginInstallation.review(url)
@@ -664,104 +696,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func invoke(_ configuredAction: ActionConfiguration) {
-        guard let actionRunner else { return }
-        let registry = self.registry
-        guard configuredAction.execution == .javascript else {
-            // Bind an ongoing effect's original owner before this click can
-            // wait on the dispatch queue, never after a replacement/regrant.
-            let invocation = actionRunner.prepareInvocation(configuredAction, using: registry)
-            actionInvocationQueue.async { [weak self] in
-                let outcome = invocation()
-                DispatchQueue.main.async { self?.feedback.showOutcome(outcome) }
-            }
-            return
-        }
-        // Calling a Plugin whose View Session is open runs the Action in
-        // that session when the Plugin declares collections r2 (#78): the
-        // panel comes forward and the view shows the call's progress.
-        if viewSessions.call(configuredAction) { return }
-        do {
-            let action = try configuredAction.newInvocation()
-            #if DEBUG
-            lifecycleTestWindow?.hide()
-            let presenter = HostFeedbackPresenter(
-                displayDuration: CommandLine.arguments.contains("--lifecycle-check") ? 10 : 1.5
-            )
-            #else
-            let presenter = HostFeedbackPresenter()
-            #endif
-            executionFeedback[action.id] = presenter
-            let queue = pluginQueue(for: action.pluginID)
-            let lifecycle = ActionLifecycle(action: action, execute: { action, control, finish in
-                queue.async {
-                    let outcome = actionRunner.invoke(action, using: registry, control: control)
-                    DispatchQueue.main.async { finish(outcome) }
-                }
-            }, onChange: { [weak self, weak presenter] state in
-                guard let self, let presenter else { return }
-                switch state {
-                case .running(let visible):
-                    if visible {
-                        presenter.showProgress(for: action) { [weak self] in
-                            self?.executions[action.id]?.cancel()
-                        }
-                    }
-                case .finished(let outcome):
-                    self.executions.removeValue(forKey: action.id)
-                    presenter.onDismiss = { [weak self] in
-                        self?.executionFeedback.removeValue(forKey: action.id)
-                        #if DEBUG
-                        self?.lifecycleTestWindow?.show()
-                        #endif
-                    }
-                    // A view, a closed view or a toast is the Action's own
-                    // feedback; only an answer that shows nothing is reported
-                    // as completed.
-                    var outcome = outcome
-                    if case .succeeded(let answer) = outcome.terminal {
-                        do {
-                            if try self.viewSessions.actionAnswered(configuredAction, with: answer) {
-                                presenter.dismiss()
-                                return
-                            }
-                        } catch let refusal as PluginHostServiceError {
-                            // A Requested Host Operation the Action may not
-                            // request refuses its whole answer.
-                            outcome = ActionOutcome(actionID: outcome.actionID, pluginID: outcome.pluginID,
-                                title: outcome.title, terminal: .failed(ActionFailure(pluginID: outcome.pluginID,
-                                    actionID: outcome.actionID, category: refusal.actionFailureCategory,
-                                    message: refusal.description)))
-                        } catch {
-                            let violation = error as? PluginRuntimeError
-                                ?? .protocolViolation("The script's answer is invalid")
-                            outcome = ActionOutcome(actionID: outcome.actionID, pluginID: outcome.pluginID,
-                                title: outcome.title, terminal: .failed(ActionFailure(pluginID: outcome.pluginID,
-                                    actionID: outcome.actionID, category: violation.failureCategory,
-                                    message: violation.description)))
-                        }
-                    }
-                    presenter.showOutcome(outcome, retry: { [weak self, weak presenter] in
-                        presenter?.dismiss()
-                        self?.executionFeedback.removeValue(forKey: action.id)
-                        self?.invoke(configuredAction)
-                    })
-                }
-            })
-            executions[action.id] = lifecycle
-            // Starting an Action is a gesture: it waits while its Plugin has
-            // a Requested Host Operation outstanding (ADR 0018).
-            viewSessions.whenOperationSlotFree(for: action.pluginID) { [weak lifecycle] in lifecycle?.start() }
-        } catch {
-            feedback.showMessage("Action configuration is unavailable")
-        }
-    }
-
-    /// Actions of one Plugin run one after another, View Events included.
-    private func pluginQueue(for pluginID: PluginID) -> DispatchQueue {
-        if let queue = pluginQueues[pluginID] { return queue }
-        let queue = DispatchQueue(label: "com.vulpsecula.Spinnet.plugin.\(pluginID.rawValue)", qos: .userInitiated)
-        pluginQueues[pluginID] = queue
-        return queue
+        actionDispatcher?.invoke(configuredAction)
     }
 
     /// Each View Event runs its Command through the Action runner, broker
@@ -805,13 +740,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let sessions = PluginViewSessions(
             renderer: makePluginViewWindows(sections: fetchedSections),
             runEvent: { [weak self] action, delivery, control, started, finish in
-                guard let self, let actionRunner = self.actionRunner else { return }
-                self.pluginQueue(for: action.pluginID).async {
-                    control.restartDeadline()
-                    DispatchQueue.main.async(execute: started)
-                    let outcome = actionRunner.invoke(action, using: registry, control: control, delivering: delivery)
-                    DispatchQueue.main.async { finish(outcome) }
-                }
+                self?.actionDispatcher?.runEvent(action, delivery, control, started, finish)
             },
             schedule: { delay, operation in
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
@@ -1141,9 +1070,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func saveCapabilityGrants() throws {
+    private func saveCapabilityGrants(_ proposed: [PluginCapabilityGrant]? = nil) throws {
         do {
-            let data = try StoredDataMigration.encodeCapabilityGrants(capabilityGrants)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(proposed ?? capabilityGrants.allGrants)
             let fileURL = capabilityGrantsFileURL()
             try FileManager.default.createDirectory(
                 at: fileURL.deletingLastPathComponent(),

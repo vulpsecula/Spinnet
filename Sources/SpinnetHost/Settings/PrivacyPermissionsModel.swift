@@ -2,6 +2,7 @@ import Combine
 import CoreGraphics
 import Foundation
 import SpinnetCore
+import SpinnetReviewedTools
 import ServiceManagement
 
 /// Owns the three layers of authority the Privacy & Permissions page presents:
@@ -41,6 +42,10 @@ final class PrivacyPermissionsModel: ObservableObject {
     var connectionSettings: ((PluginID) -> ExternalAppConnectionsModel)?
     /// Fires with the full grant set so the Host can re-authorize running work.
     var onGrantsChanged: (([PluginCapabilityGrant]) -> Void)?
+    /// Saves the proposed endpoint decision before it becomes observable.
+    /// The writer uses its argument and must not read back from grantStore.
+    var persistEndpointGrants: ([PluginCapabilityGrant]) throws -> Void = { _ in }
+    var onEndpointConsentSaved: (() -> Void)?
 
     private enum Keys {
         static let permissionGuideShown = "privacy.permission-guide-shown"
@@ -245,8 +250,8 @@ final class PrivacyPermissionsModel: ObservableObject {
 
     /// Records the user's consent to new endpoint hosts, or refuses the save.
     func approveEndpointConsent(_ consent: HTTPSEndpointConsent, allowedHosts: Set<String>) throws {
-        try consent.approve(allowedHosts: allowedHosts, grantStore: grantStore)
-        onGrantsChanged?(grantStore.allGrants)
+        try consent.commit(allowedHosts: allowedHosts, grantStore: grantStore, persisting: persistEndpointGrants)
+        if !consent.newHosts.isEmpty { onEndpointConsentSaved?() }
     }
 
     // MARK: Consent and review sheets

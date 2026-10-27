@@ -37,9 +37,13 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
         let plugin = try PluginUnderTest(packageAt: fixture)
         let recorded = RecordedKeepAwake()
         let grants = PluginCapabilityGrantStore()
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            keepAwakeEffects: recorded.effects, activities: recorded.activities)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            keepAwakeEffects: recorded.effects,
+            activities: recorded.activities
+        )
         let token = grants.observeCapabilityRevocation { recorded.effects.revoke($0) }
         defer { grants.removeRevocationObserver(token); recorded.effects.shutdown() }
         let helper = try PluginTestHelper()
@@ -61,9 +65,13 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
         let plugin = try PluginUnderTest(packageAt: fixture)
         let recorded = RecordedKeepAwake()
         let grants = PluginCapabilityGrantStore()
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            keepAwakeEffects: recorded.effects, activities: recorded.activities)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            keepAwakeEffects: recorded.effects,
+            activities: recorded.activities
+        )
         let token = grants.observeCapabilityRevocation { recorded.apps.targets.forget($0.pluginID); recorded.effects.revoke($0) }
         defer { grants.removeRevocationObserver(token); recorded.effects.shutdown() }
         for capability in [PluginCapability.keepAwake, .readFrontmostApp] {
@@ -97,9 +105,13 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
             grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
                 capability: capability, scope: plugin.manifest.scope(for: capability))
         }
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            keepAwakeEffects: recorded.effects, activities: recorded.activities)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            keepAwakeEffects: recorded.effects,
+            activities: recorded.activities
+        )
         let action = try plugin.action(for: PluginTestInvocation("probe.direct"))
         let request = PluginRuntimeHostServiceRequest(invocationID: "start", actionID: action.id,
             service: .keepAwakeEffect, input: KeepAwakeRequest().json, operation: "system.keepAwake")
@@ -129,9 +141,14 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
         }
         guard case .object(let front) = recorded.apps.targets.identifyFrontmost(of: recorded.apps, for: plugin.manifest.id),
               case .string(let target)? = front["target"] else { return XCTFail("No App Target") }
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            keepAwakeEffects: recorded.effects, activities: recorded.activities, pluginRegistry: registry)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            keepAwakeEffects: recorded.effects,
+            activities: recorded.activities,
+            pluginRegistry: registry
+        )
         let action = try plugin.action(for: PluginTestInvocation("probe.coffee"))
         let admitted = try XCTUnwrap(broker.keepAwakeAdmission(for: plugin.package))
         let appRequest = PluginRuntimeHostServiceRequest(invocationID: "paused", actionID: action.id,
@@ -162,9 +179,14 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
             defer { registry.removeInvalidationObserver(observation); grants.removeRevocationObserver(revocation); recorded.effects.shutdown() }
             grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
                 capability: .keepAwake, scope: plugin.manifest.scope(for: .keepAwake))
-            let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
-                selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-                keepAwakeEffects: recorded.effects, activities: recorded.activities, pluginRegistry: registry)
+            let broker = CapabilityCheckedHostServiceBroker(
+                grantStore: grants,
+                systemPermissionCheck: { _ in false },
+                clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+                keepAwakeEffects: recorded.effects,
+                activities: recorded.activities,
+                pluginRegistry: registry
+            )
             let invocation = PluginTestInvocation("probe.direct")
             let action = try plugin.action(for: invocation)
             let request = PluginRuntimeHostServiceRequest(invocationID: "paused", actionID: action.id,
@@ -204,9 +226,14 @@ final class KeepAwakeProbeRuntimeTests: XCTestCase {
             defer { registry.removeInvalidationObserver(mutation); grants.removeRevocationObserver(revocation); recorded.effects.shutdown() }
             grants.setDecision(.granted, for: plugin.manifest.id, pluginVersion: plugin.manifest.version,
                 capability: .keepAwake, scope: plugin.manifest.scope(for: .keepAwake))
-            let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in false },
-                selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-                keepAwakeEffects: recorded.effects, activities: recorded.activities, pluginRegistry: registry)
+            let broker = CapabilityCheckedHostServiceBroker(
+                grantStore: grants,
+                systemPermissionCheck: { _ in false },
+                clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+                keepAwakeEffects: recorded.effects,
+                activities: recorded.activities,
+                pluginRegistry: registry
+            )
             let runner = HostActionRunner(executor: NoLegacyCommand(), hostServiceBroker: broker)
             let action = try plugin.action(for: PluginTestInvocation("probe.direct"))
             // Exactly the production direct Host Command entry: prepare on

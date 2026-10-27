@@ -130,8 +130,10 @@ final class AuthorityChecks {
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in accessibility.value },
-            selectedTextProvider: { _ in throw PluginHostServiceError.unavailable("not used by Emoji") },
-            clipboardWriter: { copied.value.append($0) }
+            clipboard: .init(
+                selectedTextProvider: { _ in throw PluginHostServiceError.unavailable("not used by Emoji") },
+                clipboardWriter: { copied.value.append($0) }
+            )
         )
         let rig = try ViewSessionRig(helperURL: helperURL, fixtureURL: packageURL, grantStore: grants)
         defer { rig.shutdown() }

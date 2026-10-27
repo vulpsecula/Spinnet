@@ -1,5 +1,6 @@
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewCommandOutputTests: XCTestCase {
     func testACommandThatExceededItsDeadlineCannotReturnACompletedOutput() throws {
@@ -92,7 +93,12 @@ final class HomebrewCommandOutputTests: XCTestCase {
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }, execute: { _, _, _, _ in
             launches += 1; return .init(status: 0, stdout: Data("Homebrew native output\n".utf8))
         })
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedTools: profile)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            tools: .init(reader: profile)
+        )
         let request = PluginRuntimeHostServiceRequest(invocationID: "run", actionID: action.id, service: .reviewedToolRead, input: .object(["tool": .string("homebrew"), "operation": .string("commandOutput"), "command": .string("version")]), operation: "tools.read")
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action)); XCTAssertEqual(launches, 0)
         grants.setDecision(.granted, for: current.id, pluginVersion: current.version, capability: .readReviewedTools, scope: scope)

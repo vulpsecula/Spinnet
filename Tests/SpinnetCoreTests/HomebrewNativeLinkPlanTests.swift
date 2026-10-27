@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeLinkPlanTests: XCTestCase {
     func testNativePreviewKeepsRawOutputAndCannotWriteOrInventAnExactFileGrant() throws {

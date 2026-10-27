@@ -1,6 +1,7 @@
 import XCTest
 import Darwin
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewReadSandboxTests: XCTestCase {
     private func run(_ arguments: [String], executable: String = "/opt/homebrew/bin/brew", writableCache: URL? = nil) throws -> (Int32, String, String) {

@@ -451,9 +451,10 @@ final class ScreenshotTests: XCTestCase {
         capture: @escaping (ScreenCaptureRequest) throws -> Void
     ) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: permissions,
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            screenCapturer: capture
+            grantStore: grants,
+            systemPermissionCheck: permissions,
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            screenCapture: .init(screenCapturer: capture)
         )
     }
 

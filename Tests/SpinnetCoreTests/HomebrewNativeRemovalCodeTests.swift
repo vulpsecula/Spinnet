@@ -1,5 +1,6 @@
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 import Darwin
 
 final class HomebrewNativeRemovalCodeTests: XCTestCase {

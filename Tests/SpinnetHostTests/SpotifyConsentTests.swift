@@ -15,11 +15,18 @@ final class SpotifyConsentTests: XCTestCase {
             capability: .controlExternalApp, scope: manifest.scope(for: .controlExternalApp))
         let registry = PluginRegistry(grantStore: grants); try registry.register(package)
         let action = try ActionConfiguration(id: ActionID("show"), pluginID: manifest.id, command: manifest.commands[0], input: .null)
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { _, allowsPrompt in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(
+                reviewedAppPerformer: { _, allowsPrompt in
                 XCTAssertTrue(allowsPrompt, "Trusted Requested playback is the explicit consent path")
                 return .object(["state": .string("paused"), "position": .number(0), "track": .null])
-            }, pluginRegistry: registry)
+            }
+            ),
+            pluginRegistry: registry
+        )
         let desktop = FakeDesktop()
         let apps = FakeApps(desktop: desktop)
         let inserter = TargetedTextInserter(tracker: InsertionTargetTracker(environment: apps.environment),

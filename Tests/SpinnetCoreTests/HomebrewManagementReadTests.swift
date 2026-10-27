@@ -1,6 +1,7 @@
 import SpinnetTestSupport
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 import SpinnetPluginTestKit
 
 final class HomebrewManagementReadTests: XCTestCase {

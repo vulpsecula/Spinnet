@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import SpinnetCore
+import SpinnetReviewedTools
 
 final class NativeInspectionOperation {
     let session: HomebrewNativeInspectionSession

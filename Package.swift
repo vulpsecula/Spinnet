@@ -31,21 +31,24 @@ let package = Package(
         .executableTarget(name: "SpinnetArchiveBootstrap"),
         .executableTarget(name: "SpinnetArchiveDecoder", linkerSettings: [.linkedLibrary("archive"), .linkedLibrary("compression"), .linkedLibrary("xar"), .linkedLibrary("z")]),
         .target(name: "SpinnetCore"),
-        .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetCore"], linkerSettings: [.linkedFramework("IOKit")]),
-        .executableTarget(name: "SpinnetHomebrewAskpass", dependencies: ["SpinnetCore"]),
-        .executableTarget(name: "SpinnetToolAuthorizationClient", dependencies: ["SpinnetCore"]),
-        .executableTarget(name: "SpinnetPrivilegedToolHelper", dependencies: ["SpinnetCore"]),
-        .executableTarget(name: "SpinnetBackgroundLifecycleProbe", dependencies: ["SpinnetCore"], path: "Tools/BackgroundLifecycleProbe"),
-        .executableTarget(name: "SpinnetReceiptInventory", dependencies: ["SpinnetCore"]),
-        .executableTarget(name: "SpinnetPathInventory", dependencies: ["SpinnetCore"]),
-        .executableTarget(name: "SpinnetVendorOrigin", dependencies: ["SpinnetCore", "SpinnetPathCancellation"]),
-        .executableTarget(name: "SpinnetVendorOriginFixture", dependencies: ["SpinnetCore"], path: "Tests/Fixtures/Executables/SpinnetVendorOriginFixture"),
-        .executableTarget(name: "SpinnetLaunchServiceInventory", dependencies: ["SpinnetCore", "SpinnetPathCancellation"]),
-        .executableTarget(name: "SpinnetLaunchServiceFixture", dependencies: ["SpinnetCore"], path: "Tests/Fixtures/Executables/SpinnetLaunchServiceFixture"),
-        .executableTarget(name: "SpinnetPathRemoval", dependencies: ["SpinnetCore", "SpinnetPathCancellation"]),
+        // Native Reviewed Tool execution is unavailable to the Plugin helper
+        // and public recorded TestKit; only the Host and fixed workers link it.
+        .target(name: "SpinnetReviewedTools", dependencies: ["SpinnetCore"]),
+        .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetReviewedTools", "SpinnetCore"], linkerSettings: [.linkedFramework("IOKit")]),
+        .executableTarget(name: "SpinnetHomebrewAskpass", dependencies: ["SpinnetReviewedTools", "SpinnetCore"]),
+        .executableTarget(name: "SpinnetToolAuthorizationClient", dependencies: ["SpinnetReviewedTools", "SpinnetCore"]),
+        .executableTarget(name: "SpinnetPrivilegedToolHelper", dependencies: ["SpinnetReviewedTools", "SpinnetCore"]),
+        .executableTarget(name: "SpinnetBackgroundLifecycleProbe", dependencies: ["SpinnetReviewedTools", "SpinnetCore"], path: "Tools/BackgroundLifecycleProbe"),
+        .executableTarget(name: "SpinnetReceiptInventory", dependencies: ["SpinnetReviewedTools", "SpinnetCore"]),
+        .executableTarget(name: "SpinnetPathInventory", dependencies: ["SpinnetReviewedTools", "SpinnetCore"]),
+        .executableTarget(name: "SpinnetVendorOrigin", dependencies: ["SpinnetReviewedTools", "SpinnetCore", "SpinnetPathCancellation"]),
+        .executableTarget(name: "SpinnetVendorOriginFixture", dependencies: ["SpinnetReviewedTools", "SpinnetCore"], path: "Tests/Fixtures/Executables/SpinnetVendorOriginFixture"),
+        .executableTarget(name: "SpinnetLaunchServiceInventory", dependencies: ["SpinnetReviewedTools", "SpinnetCore", "SpinnetPathCancellation"]),
+        .executableTarget(name: "SpinnetLaunchServiceFixture", dependencies: ["SpinnetReviewedTools", "SpinnetCore"], path: "Tests/Fixtures/Executables/SpinnetLaunchServiceFixture"),
+        .executableTarget(name: "SpinnetPathRemoval", dependencies: ["SpinnetReviewedTools", "SpinnetCore", "SpinnetPathCancellation"]),
         .executableTarget(
             name: "SpinnetHost",
-            dependencies: ["SpinnetCore"],
+            dependencies: ["SpinnetCore", "SpinnetReviewedTools"],
             linkerSettings: [
                 .linkedFramework("AppKit", .when(platforms: [.macOS]))
             ]
@@ -94,12 +97,12 @@ let package = Package(
         ),
         .testTarget(
             name: "SpinnetCoreTests",
-            dependencies: ["SpinnetTestSupport", "SpinnetCore", "SpinnetPluginHelper", "SpinnetPluginTestKit", "SpinnetPrivilegedToolHelper", "SpinnetReceiptInventory", "SpinnetArchiveBootstrap", "SpinnetArchiveDecoder", "SpinnetPathInventory", "SpinnetPathRemoval", "SpinnetVendorOrigin", "SpinnetVendorOriginFixture", "SpinnetLaunchServiceInventory", "SpinnetLaunchServiceFixture"],
+            dependencies: ["SpinnetReviewedTools", "SpinnetTestSupport", "SpinnetCore", "SpinnetPluginHelper", "SpinnetPluginTestKit", "SpinnetPrivilegedToolHelper", "SpinnetReceiptInventory", "SpinnetArchiveBootstrap", "SpinnetArchiveDecoder", "SpinnetPathInventory", "SpinnetPathRemoval", "SpinnetVendorOrigin", "SpinnetVendorOriginFixture", "SpinnetLaunchServiceInventory", "SpinnetLaunchServiceFixture"],
             resources: [.copy("ArchiveFixtures")]
         ),
         .testTarget(
             name: "SpinnetHostTests",
-            dependencies: ["SpinnetHost", "SpinnetPluginTestKit", "SpinnetTestSupport"]
+            dependencies: ["SpinnetReviewedTools", "SpinnetHost", "SpinnetPluginTestKit", "SpinnetTestSupport"]
         )
     ]
 )

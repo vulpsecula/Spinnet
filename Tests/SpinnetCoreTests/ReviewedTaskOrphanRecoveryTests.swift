@@ -2,6 +2,7 @@ import XCTest
 import Foundation
 import Darwin
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class ReviewedTaskOrphanRecoveryTests: XCTestCase {
     private final class Power: PowerAssertions {

@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import SpinnetCore
+import SpinnetReviewedTools
 
 // Owned current-UID process-lifetime fixture ONLY. Never a signed production
 // source worker or a Root acceptance test, and never installed in the App.

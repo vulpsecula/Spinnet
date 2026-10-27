@@ -162,7 +162,8 @@ final class PluginSettingsModel: ObservableObject {
         return needed.newHosts.isEmpty ? nil : needed
     }
 
-    /// Writes the settings, or leaves everything as it was and sets `error`.
+    /// Reports any failed save, including a compensation failure. The draft
+    /// stays open; success alone clears secrets and notifies its caller.
     @discardableResult
     func save() -> Bool {
         do {
@@ -188,14 +189,16 @@ final class PluginSettingsModel: ObservableObject {
             if !typed.isEmpty, credentialStore == nil {
                 throw ConfigurationError.invalidAction("Credentials cannot be stored in this session")
             }
-            if let endpointConsent {
-                try approveConsent(endpointConsent, allowedEndpointHosts)
-            }
-            try store.setValues(values, for: manifest.id)
-            for (reference, secret) in typed {
-                try credentialStore?.setSecret(secret, for: manifest.id, reference: reference)
-            }
+            let previous = store.hasValues(for: manifest.id) ? store.values(for: manifest.id) : nil
+            try ConfigurationSave.perform(
+                pluginID: manifest.id, secrets: typed, credentialStore: credentialStore,
+                consent: endpointConsent, allowedHosts: allowedEndpointHosts,
+                values: .init(write: { try self.store.setValues(self.values, for: self.manifest.id) },
+                              restore: { try self.store.restoreValues(previous, for: self.manifest.id) }),
+                commitConsent: approveConsent
+            )
             secrets = [:]
+            storedSecrets = [:]
             error = nil
             onSaved()
             return true

@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import SpinnetCore
+import SpinnetReviewedTools
 
 // sudo invokes this signed executable. Its sole stdout value is the password;
 // errors, cancellations and command context are never written to that stream.

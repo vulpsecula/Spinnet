@@ -35,8 +35,12 @@ final class ActivitySourceDeliveryTests: XCTestCase {
                 ]), detached: false)
             }
             publish("first chunk")
-            let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-                selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, activities: activities)
+            let broker = CapabilityCheckedHostServiceBroker(
+                grantStore: grants,
+                systemPermissionCheck: { _ in true },
+                clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+                activities: activities
+            )
             let page = try PluginPage(parsing: .object([
                 "id": .string("tasks"), "title": .string("Tasks"),
                 "sources": .array([.object(["id": .string("activities"), "perform": .string("activities.list"),

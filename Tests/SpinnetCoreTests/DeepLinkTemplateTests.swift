@@ -268,9 +268,10 @@ final class DeepLinkHostServiceTests: XCTestCase {
                            capability: .controlExternalApp, scope: manifest.scope(for: .controlExternalApp))
         var opened: [DeepLink] = []
         let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            deepLinkOpener: { opened.append($0) }
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(deepLinkOpener: { opened.append($0) })
         )
         let search = try XCTUnwrap(manifest.commands.first { $0.id == CommandID("notes.search") })
         let action = try ActionConfiguration(id: ActionID("search"), pluginID: manifest.id, command: search, input: .null)

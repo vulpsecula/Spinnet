@@ -307,6 +307,21 @@ final class SettingsWindowModel: ObservableObject {
         }
     }
 
+    /// Persist a sheet draft before changing editor state, Undo or presentation.
+    func saveMenuItem(_ draft: MenuItemSaveDraft) throws {
+        let previous = editor.configuration
+        let setup = menuEditor.pendingPresetSetup
+        try ConfigurationSave.perform(
+            pluginID: draft.pluginID, secrets: draft.secrets, credentialStore: credentialStore,
+            consent: draft.consent, allowedHosts: draft.allowedHosts,
+            values: .init(write: { try self.menuEditor.persistConfiguration?(draft.configuration) },
+                          restore: { try self.menuEditor.persistConfiguration?(previous) }),
+            commitConsent: { [privacy] in try privacy.approveEndpointConsent($0, allowedHosts: $1) }
+        )
+        if let setup { menuEditor.savePresetSetup(draft.configuration, for: setup) }
+        else { menuEditor.saveMenuItemConfiguration(draft.configuration) }
+    }
+
     /// The settings section for a Plugin that declares settings.
     func pluginSettingsModel(for manifest: PluginManifest) -> PluginSettingsModel? {
         guard manifest.hasSettings, let store = pluginSettingsStore else { return nil }
@@ -947,13 +962,7 @@ struct SettingsRootView: View {
                     slotIndex: index,
                     presetPluginID: menuEditor.pendingPresetSetup.map { PluginID($0.pluginID) },
                     permissionModel: privacy,
-                    onSaved: { configuration in
-                        if let setup = menuEditor.pendingPresetSetup {
-                            menuEditor.savePresetSetup(configuration, for: setup)
-                        } else {
-                            menuEditor.saveMenuItemConfiguration(configuration)
-                        }
-                    },
+                    onSaved: model.saveMenuItem,
                     credentialStore: model.credentialStore,
                     pluginSettings: { [store = model.pluginSettingsStore] manifest in
                         manifest.resolvedSettings(stored: store?.values(for: manifest.id) ?? [:])
@@ -1066,7 +1075,7 @@ private struct SlotConfigurationSheet: View {
     let editor: HostConfigurationEditor
     let slotIndex: Int
     let presetPluginID: PluginID?
-    let onSaved: (HostConfiguration) -> Void
+    let onSaved: (MenuItemSaveDraft) throws -> Void
     private let permissionModel: PrivacyPermissionsModel?
     private let pluginManifest: PluginManifest?
     private let pluginID: PluginID?
@@ -1095,7 +1104,7 @@ private struct SlotConfigurationSheet: View {
         slotIndex: Int,
         presetPluginID: PluginID? = nil,
         permissionModel: PrivacyPermissionsModel? = nil,
-        onSaved: @escaping (HostConfiguration) -> Void,
+        onSaved: @escaping (MenuItemSaveDraft) throws -> Void,
         credentialStore: PluginCredentialStore? = nil,
         pluginSettings: (PluginManifest) -> [String: JSONValue] = { _ in [:] }
     ) {
@@ -1625,23 +1634,8 @@ private struct SlotConfigurationSheet: View {
                 let secrets = CredentialFieldSecrets.typed(
                     for: selectedCommands, inputs: inputs, secrets: credentialSecrets
                 )
-                guard secrets.values.allSatisfy(PluginCredentialReference.isValidSecret) else {
-                    throw ConfigurationError.invalidAction("A credential must be one line of at most 4096 characters.")
-                }
-                // A new endpoint host needs explicit consent before anything
-                // is saved; the consent then joins the Plugin's contact scope.
-                if let endpointConsent, let permissionModel {
-                    try permissionModel.approveEndpointConsent(endpointConsent, allowedHosts: allowedEndpointHosts)
-                }
-                if !secrets.isEmpty {
-                    guard let credentialStore else {
-                        throw ConfigurationError.invalidAction("Credentials cannot be stored in this session")
-                    }
-                    for (reference, secret) in secrets {
-                        try credentialStore.setSecret(secret, for: pluginID, reference: reference)
-                    }
-                }
-                onSaved(finalConfiguration)
+                try onSaved(MenuItemSaveDraft(configuration: finalConfiguration, pluginID: pluginID,
+                                              secrets: secrets, consent: endpointConsent, allowedHosts: allowedEndpointHosts))
                 dismiss()
                 return
             }
@@ -1658,7 +1652,7 @@ private struct SlotConfigurationSheet: View {
                 actions: editor.configuration.actions,
                 menu: MenuConfiguration(slots: slots)
             )
-            onSaved(finalConfiguration)
+            try onSaved(MenuItemSaveDraft(configuration: finalConfiguration))
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

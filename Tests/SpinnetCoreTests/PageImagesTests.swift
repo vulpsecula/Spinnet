@@ -56,9 +56,10 @@ final class PageImageBrokerTests: XCTestCase {
 
     private var broker: CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            httpsTransport: transport, credentialStore: credentials, responseCache: FetchedResponseCache()
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            network: .init(httpsTransport: transport, credentialStore: credentials, responseCache: FetchedResponseCache())
         )
     }
 
@@ -145,9 +146,10 @@ final class PageImageBrokerTests: XCTestCase {
         let slow = StallingHTTPSTransport(stalling: "/slow.png", answer: HTTPSTransportResponse(
             status: 200, headers: ["content-type": "image/png"], body: PageImageSamples.image(4, 4)))
         let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            httpsTransport: slow, credentialStore: credentials, responseCache: FetchedResponseCache()
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            network: .init(httpsTransport: slow, credentialStore: credentials, responseCache: FetchedResponseCache())
         )
         let registry = self.registry!
         let images = PluginPageImages(

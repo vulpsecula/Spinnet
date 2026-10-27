@@ -186,9 +186,11 @@ final class HostOperationsTests: XCTestCase {
                            copied: @escaping (String) -> Void = { _ in },
                            settings: @escaping (PluginID) -> Void = { _ in },
                            accessibility: Bool = true) -> HostOperationsPerformer {
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in accessibility },
-                                                        selectedTextProvider: { _ in "" },
-                                                        clipboardWriter: copied)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in accessibility },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: copied)
+        )
         return HostOperationsPerformer(registry: registry, broker: { broker }, inserter: inserter,
                                        openPluginSettings: settings)
     }
@@ -297,8 +299,11 @@ final class HostOperationsTests: XCTestCase {
         }
         let command = try XCTUnwrap(manifest.commands.first { $0.id == CommandID("probe.quit_front") })
         let action = try ActionConfiguration(id: ActionID("quit"), pluginID: manifest.id, command: command, input: .null)
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-                                                        selectedTextProvider: { _ in "" }, clipboardWriter: { _ in })
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in })
+        )
         let desktop = DesktopRunningApps(environment: .init(frontmost: { nil }, application: { _ in nil },
                                                             ownProcessIdentifier: 1, observe: { _, _ in NSObject() },
                                                             isAccessibilityTrusted: { true }, menuItems: { _ in [] }))

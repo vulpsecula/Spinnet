@@ -485,33 +485,10 @@ public final class HostConfigurationEditor {
                     ?? existingAction?.input
                     ?? fallbackInputs[commandID]
                     ?? .null
-                if validateInputs, command.execution == .host {
-                    let valid: Bool
-                    if let adapter = command.hostCommand {
-                        valid = adapter.isValidInput(input)
-                    } else if let operation = command.hostServiceID.flatMap(HostServiceCatalogue.operation) {
-                        valid = operation.acceptsConfiguredInput(input, for: command)
-                    } else {
-                        valid = false
-                    }
-                    if !valid {
-                        throw ConfigurationError.invalidAction(
-                            "Configuration input is invalid for Command \(commandID.rawValue)"
-                        )
-                    }
-                }
-                if validateInputs,
-                   let field = command.configurationField,
-                   !field.isValidInput(input) {
-                    throw ConfigurationError.invalidAction(
-                        "\(command.title): \(field.inputRequirement ?? "The value is invalid.")"
-                    )
-                }
-                if validateInputs, !(registry.package(for: pluginID)?.manifest.acceptsActionInput(input, for: command)
-                                     ?? command.acceptsConfigurationFieldsInput(input)) {
-                    throw ConfigurationError.invalidAction(
-                        "\(command.title): Fill in every setting with one of its offered values."
-                    )
+                if validateInputs, let problem = CommandInputValidation.problem(
+                    with: input, for: command, in: registry.package(for: pluginID)?.manifest
+                ) {
+                    throw ConfigurationError.invalidAction(problem)
                 }
             }
             return try makeAvailableAction(

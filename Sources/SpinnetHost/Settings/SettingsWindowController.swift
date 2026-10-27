@@ -21,6 +21,19 @@ final class SettingsWindowController: NSWindowController {
     private var workspaceObservers: [NSObjectProtocol] = []
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
+    var onConfigurationSaved: ((HostConfiguration) -> Void)?
+    var persistConfiguration: ((HostConfiguration) throws -> Void)? {
+        get { model.menuEditor.persistConfiguration }
+        set { model.menuEditor.persistConfiguration = newValue }
+    }
+    var persistEndpointGrants: ([PluginCapabilityGrant]) throws -> Void {
+        get { model.privacy.persistEndpointGrants }
+        set { model.privacy.persistEndpointGrants = newValue }
+    }
+    var onEndpointConsentSaved: (() -> Void)? {
+        get { model.privacy.onEndpointConsentSaved }
+        set { model.privacy.onEndpointConsentSaved = newValue }
+    }
     var onAppearanceChanged: ((MenuAppearanceConfiguration) -> Void)?
     var onTriggerChanged: ((MenuTriggerConfiguration) -> Void)?
     var onEnabledChanged: ((Bool) -> Void)?
@@ -172,6 +185,11 @@ final class SettingsWindowController: NSWindowController {
         ])
         model.menuEditor.onConfigurationChanged = { [weak self] configuration in
             self?.onConfigurationChanged?(configuration)
+        }
+        model.menuEditor.onConfigurationSaved = { [weak self] configuration in
+            guard let self else { return }
+            if let saved = self.onConfigurationSaved { saved(configuration) }
+            else { self.onConfigurationChanged?(configuration) }
         }
         model.appearance.onChange = { [weak self] appearance in
             self?.onAppearanceChanged?(appearance)

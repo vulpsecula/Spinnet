@@ -76,9 +76,10 @@ final class HTTPSHostServiceTests: XCTestCase {
 
     private var broker: CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            httpsTransport: transport, credentialStore: credentials
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            network: .init(httpsTransport: transport, credentialStore: credentials)
         )
     }
 

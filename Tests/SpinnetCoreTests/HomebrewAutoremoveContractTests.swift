@@ -1,6 +1,7 @@
 import SpinnetTestSupport
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 import SpinnetPluginTestKit
 
 final class HomebrewAutoremoveContractTests: XCTestCase {
@@ -61,7 +62,12 @@ extension HomebrewAutoremoveContractTests {
         let registry = PluginRegistry(); try registry.register(package)
         var reads = 0, preparations = 0, authorizations = 0
         let profile = HomebrewReadProfile(executable: { reads += 1; return URL(fileURLWithPath: "/missing") })
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: .init(), systemPermissionCheck: { _ in true }, selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedTools: profile)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: .init(),
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            tools: .init(reader: profile)
+        )
         let request = PluginRuntimeHostServiceRequest(invocationID: "run", actionID: action.id, service: .reviewedToolRead, input: preview)
         func scopeRefusal(_ error: Error) { XCTAssertEqual(error as? PluginHostServiceError, .capabilityScopeDenied(.readReviewedTools)) }
         XCTAssertThrowsError(try broker.execute(request: request, for: package, action: action)) { scopeRefusal($0) }

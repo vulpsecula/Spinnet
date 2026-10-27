@@ -1,6 +1,7 @@
 import XCTest
 import Darwin
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeVendorOriginWorkerTests: XCTestCase {
     func testConfirmedSignedURLFixtureBytesCopyInsideWorkerBeforeMissingOriginalMemberRefuses() throws {

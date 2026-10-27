@@ -750,6 +750,58 @@ final class HostServicesTests: XCTestCase {
         )
     }
 
+    func testKeyboardExecutionRejectsInputsThatCannotBeSaved() throws {
+        let command = CommandDeclaration(id: CommandID("keyboard"), title: "Keyboard", hostServiceID: "keyboard.press")
+        let manifest = try PluginManifest(id: PluginID("example.keyboard"), name: "Keyboard", version: "1", commands: [command])
+        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/keyboard.spinnetplugin"), manifest: manifest)
+        let registry = PluginRegistry()
+        try registry.register(package)
+        let adapter = RecordingHostCommandAdapter()
+        let executor = AppKitHostCommandExecutor(adapter: adapter, systemPermissionCheck: { _ in true })
+        let inputs: [JSONValue] = [
+            .string("A+"), .string("+A"),
+            .object(["key": .string("C"), "modifiers": .string("")]),
+            .object(["key": .string("C"), "modifiers": .string("+")])
+        ]
+        for (index, input) in inputs.enumerated() {
+            let action = try ActionConfiguration(id: ActionID("keyboard-\(index)"), pluginID: manifest.id,
+                                                command: command, input: input)
+            guard case .failed = HostActionRunner(executor: executor).invoke(action, using: registry).terminal else {
+                XCTFail("The executor accepted an invalid keyboard input: \(input)")
+                continue
+            }
+        }
+        XCTAssertTrue(adapter.keyboardShortcuts.isEmpty)
+    }
+
+    func testKeyboardExecutionMapsTheSharedGrammarWithoutLosingNativeFlags() throws {
+        let command = CommandDeclaration(id: CommandID("keyboard"), title: "Keyboard", hostServiceID: "keyboard.press")
+        let manifest = try PluginManifest(id: PluginID("example.keyboard"), name: "Keyboard", version: "1", commands: [command])
+        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/keyboard.spinnetplugin"), manifest: manifest)
+        let registry = PluginRegistry()
+        try registry.register(package)
+        let adapter = RecordingHostCommandAdapter()
+        let executor = AppKitHostCommandExecutor(adapter: adapter, systemPermissionCheck: { _ in true })
+        let cases: [(JSONValue, UInt16, UInt64)] = [
+            (.string("⌘⇧P"), 35, CGEventFlags.maskCommand.rawValue | CGEventFlags.maskShift.rawValue),
+            (.string("cmd++P"), 35, CGEventFlags.maskCommand.rawValue),
+            (.string("fn+F20"), 90, CGEventFlags.maskSecondaryFn.rawValue),
+            (.object(["key_code": .number(127), "modifiers": .number(4294967296)]), 127, 4294967296),
+            (.object(["character": .string("p"), "modifier_flags": .array([])]), 35, 0),
+            (.object(["key": .string("ENTER"), "modifiers": .string("caps lock")]), 36, CGEventFlags.maskAlphaShift.rawValue)
+        ]
+        for (index, test) in cases.enumerated() {
+            let action = try ActionConfiguration(id: ActionID("keyboard-\(index)"), pluginID: manifest.id,
+                                                command: command, input: test.0)
+            guard case .succeeded = HostActionRunner(executor: executor).invoke(action, using: registry).terminal else {
+                XCTFail("The executor rejected a valid keyboard input: \(test.0)")
+                continue
+            }
+            XCTAssertEqual(adapter.keyboardShortcuts.last, HostKeyboardShortcut(keyCode: test.1, modifiers: test.2))
+        }
+        XCTAssertEqual(adapter.keyboardShortcuts.count, cases.count)
+    }
+
     func testMalformedCatalogueCommandInputHasStableFailureOutcome() throws {
         let command = CommandDeclaration(
             id: CommandID("fixture.open_url"),

@@ -36,9 +36,11 @@ final class NamespacesHostServiceTests: XCTestCase {
                         capture: @escaping (ScreenCaptureRequest) -> Void = { _ in },
                         preferredCapture: @escaping (ScreenCaptureSource) -> Void = { _ in }) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "selected" }, clipboardWriter: clipboard,
-            screenCapturer: capture, applicationOpener: application, preferredScreenCapturer: preferredCapture
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "selected" }, clipboardWriter: clipboard),
+            workspace: .init(applicationOpener: application),
+            screenCapture: .init(screenCapturer: capture, preferredScreenCapturer: preferredCapture)
         )
     }
 

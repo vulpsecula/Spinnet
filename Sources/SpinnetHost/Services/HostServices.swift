@@ -501,99 +501,23 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
     }
 
     private func parseKeyboardShortcut(_ input: JSONValue) throws -> HostKeyboardShortcut {
-        switch input {
-        case .string(let value):
-            return try parseKeyboardShortcutString(value)
-        case .object(let values):
-            let parsedKeyCode: UInt16
-            if case .number(let rawKeyCode) = values["key_code"],
-               rawKeyCode.isFinite,
-               rawKeyCode.rounded() == rawKeyCode,
-               (0...127).contains(rawKeyCode) {
-                parsedKeyCode = UInt16(rawKeyCode)
-            } else if let key = stringValue(from: input, keys: ["key", "character"]) {
-                parsedKeyCode = try keyCode(for: key)
-            } else {
-                throw HostCommandExecutionError.invalidInput("Expected a key or key_code")
-            }
-            let modifiers = try parseModifiers(values["modifiers"] ?? values["modifier_flags"])
-            return HostKeyboardShortcut(keyCode: parsedKeyCode, modifiers: modifiers)
-        default:
-            throw HostCommandExecutionError.invalidInput("Expected a keyboard shortcut")
+        let parsed = try CommandKeyboardShortcutInput(input)
+        let keyCode: UInt16
+        switch parsed.key {
+        case .virtualCode(let value): keyCode = value
+        case .named(let name): keyCode = try self.keyCode(for: name)
         }
-    }
-
-    private func parseKeyboardShortcutString(_ value: String) throws -> HostKeyboardShortcut {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            throw HostCommandExecutionError.invalidInput("Expected a keyboard shortcut")
-        }
-        var modifiers: UInt64 = 0
-        var key = trimmed
-        let symbols: [(String, UInt64)] = [
-            ("⌘", UInt64(CGEventFlags.maskCommand.rawValue)),
-            ("⇧", UInt64(CGEventFlags.maskShift.rawValue)),
-            ("⌥", UInt64(CGEventFlags.maskAlternate.rawValue)),
-            ("⌃", UInt64(CGEventFlags.maskControl.rawValue))
-        ]
-        for (symbol, flag) in symbols where key.contains(symbol) {
-            modifiers |= flag
-            key = key.replacingOccurrences(of: symbol, with: "")
-        }
-        let parts = key.split(separator: "+", omittingEmptySubsequences: true)
-        if parts.count > 1 {
-            key = String(parts.last!)
-            for modifier in parts.dropLast() {
-                modifiers |= try parseModifier(String(modifier))
+        let modifiers = parsed.modifiers.reduce(into: parsed.rawModifierFlags) { flags, modifier in
+            switch modifier {
+            case .command: flags |= UInt64(CGEventFlags.maskCommand.rawValue)
+            case .shift: flags |= UInt64(CGEventFlags.maskShift.rawValue)
+            case .option: flags |= UInt64(CGEventFlags.maskAlternate.rawValue)
+            case .control: flags |= UInt64(CGEventFlags.maskControl.rawValue)
+            case .function: flags |= UInt64(CGEventFlags.maskSecondaryFn.rawValue)
+            case .capsLock: flags |= UInt64(CGEventFlags.maskAlphaShift.rawValue)
             }
         }
-        return HostKeyboardShortcut(
-            keyCode: try keyCode(for: key),
-            modifiers: modifiers
-        )
-    }
-
-    private func parseModifiers(_ input: JSONValue?) throws -> UInt64 {
-        guard let input else { return 0 }
-        switch input {
-        case .number(let value):
-            guard let modifiers = UInt64(exactly: value) else {
-                throw HostCommandExecutionError.invalidInput("Keyboard modifiers are invalid")
-            }
-            return modifiers
-        case .string(let value):
-            return try value.split(separator: "+").reduce(into: UInt64(0)) { result, part in
-                result |= try parseModifier(String(part))
-            }
-        case .array(let values):
-            return try values.reduce(into: UInt64(0)) { result, value in
-                guard case .string(let modifier) = value else {
-                    throw HostCommandExecutionError.invalidInput("Keyboard modifiers are invalid")
-                }
-                result |= try parseModifier(modifier)
-            }
-        default:
-            throw HostCommandExecutionError.invalidInput("Keyboard modifiers are invalid")
-        }
-    }
-
-    private func parseModifier(_ value: String) throws -> UInt64 {
-        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "command", "cmd", "⌘":
-            return UInt64(CGEventFlags.maskCommand.rawValue)
-        case "shift", "⇧":
-            return UInt64(CGEventFlags.maskShift.rawValue)
-        case "option", "opt", "alt", "⌥":
-            return UInt64(CGEventFlags.maskAlternate.rawValue)
-        case "control", "ctrl", "⌃":
-            return UInt64(CGEventFlags.maskControl.rawValue)
-        case "function", "fn":
-            return UInt64(CGEventFlags.maskSecondaryFn.rawValue)
-        case "caps_lock", "caps lock":
-            return UInt64(CGEventFlags.maskAlphaShift.rawValue)
-        default:
-            throw HostCommandExecutionError.invalidInput("Unknown keyboard modifier \(value)")
-        }
+        return HostKeyboardShortcut(keyCode: keyCode, modifiers: modifiers)
     }
 
     private func keyCode(for value: String) throws -> UInt16 {

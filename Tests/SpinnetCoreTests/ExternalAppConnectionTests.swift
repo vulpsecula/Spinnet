@@ -114,13 +114,19 @@ final class ExternalAppConnectionTests: XCTestCase {
         try registry.register(package)
         let action = try ActionConfiguration(id: ActionID("control"), pluginID: manifest.id, command: manifest.commands[0], input: .null)
         var sends = 0
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            reviewedAppPerformer: { _, allowsPrompt in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(
+                reviewedAppPerformer: { _, allowsPrompt in
                 XCTAssertFalse(allowsPrompt)
                 sends += 1
                 return .null
-            }, pluginRegistry: registry)
+            }
+            ),
+            pluginRegistry: registry
+        )
         let request = PluginRuntimeHostServiceRequest(invocationID: "control", actionID: action.id,
             service: .performAppOperation, input: .object(["bundle_id": .string("com.spotify.client"), "operation": .string("pause")]))
         XCTAssertNoThrow(try broker.execute(request: request, for: package, action: action))

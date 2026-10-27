@@ -33,12 +33,19 @@ extension SpotifyPlaybackTests {
         }
         decision(.granted)
         let registry = PluginRegistry(grantStore: grants); try registry.register(package)
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }, reviewedAppPerformer: { _, allowsPrompt in
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(
+                reviewedAppPerformer: { _, allowsPrompt in
                 XCTAssertFalse(allowsPrompt, "Visible sources may never request Automation consent")
                 decision(.denied); decision(.granted)
                 return .object(["state": .string("playing")])
-            }, pluginRegistry: registry)
+            }
+            ),
+            pluginRegistry: registry
+        )
         let source = try PluginPageSource(parsing: .object(["id": .string("playback"), "perform": .string("apps.perform"),
             "input": .object(["bundle_id": .string("com.spotify.client"), "operation": .string("playback")]), "every": .number(1)]), permits: { _ in true })
         let adapter = broker.reviewedAppSourceAdapter(using: registry)

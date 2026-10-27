@@ -28,9 +28,10 @@ final class ReviewedAppInterfaceTests: XCTestCase {
                            pluginVersion: package.manifest.version, capability: .controlExternalApp,
                            scope: package.manifest.scope(for: .controlExternalApp))
         return CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            appleEventSender: sent
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(appleEventSender: sent)
         )
     }
 

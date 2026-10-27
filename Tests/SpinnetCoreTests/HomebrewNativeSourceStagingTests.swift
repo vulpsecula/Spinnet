@@ -2,6 +2,7 @@ import XCTest
 import CryptoKit
 import Darwin
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeSourceStagingTests: XCTestCase {
     func testSignedMultiplePackageArtifactsCannotAliasOneRawInstallerForRepeatedExecution() throws {

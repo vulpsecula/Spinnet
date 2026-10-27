@@ -1,5 +1,6 @@
 import Foundation
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 /// Retained cryptographic/worker regressions use independently verified cached
 /// publisher bytes, without loading the installed Homebrew Ruby implementation.

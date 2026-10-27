@@ -1,5 +1,6 @@
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 import Darwin
 
 final class HomebrewNoCheckSnapshotTests: XCTestCase {

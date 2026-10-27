@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import SpinnetCore
+import SpinnetReviewedTools
 import SpinnetPathCancellation
 
 // Only the authenticated Root helper chooses the fixed, sealed worker and

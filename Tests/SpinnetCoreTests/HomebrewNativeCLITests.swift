@@ -1,6 +1,7 @@
 import XCTest
 import Darwin
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeCLITests: XCTestCase {
     func testSignedAskpassAcceptsActualSudoCallbackWithoutReadingCredentials() throws {
@@ -68,9 +69,7 @@ final class HomebrewNativeCLITests: XCTestCase {
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgrade"),
                                                 "kind": .string("cask"), "name": .string("spotify")]))
         let plan = try host.prepare(input, owner: .init("native-cli"), pluginName: "Homebrew")
-        XCTAssertTrue(plan.nativeCLI)
-        XCTAssertFalse(plan.requiresNativeInspection)
-        XCTAssertFalse(plan.needsSystemAuthorization)
+        XCTAssertEqual(plan.executionModel, "native-cli-v1")
         XCTAssertTrue(plan.confirmation.message.contains("login password"))
         let id = try host.launch(plan)
         let record = try HomebrewTaskJournal.load(from: journal.appendingPathComponent(id))

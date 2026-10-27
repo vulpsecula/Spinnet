@@ -1,5 +1,6 @@
 import Foundation
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class RecordedNativeTaskInspection: HomebrewNativeInspectionTransporting {
     static let digest = String(repeating: "a", count: 64)

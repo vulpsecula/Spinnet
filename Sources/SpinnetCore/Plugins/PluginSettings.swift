@@ -137,6 +137,11 @@ public final class PluginSettingsStore {
     }
 
     public func setValues(_ newValues: [String: JSONValue], for pluginID: PluginID) throws {
+        try restoreValues(newValues, for: pluginID)
+    }
+
+    /// Restores this Plugin only; nil restores the absence of a saved entry.
+    public func restoreValues(_ newValues: [String: JSONValue]?, for pluginID: PluginID) throws {
         try lock.withLock {
             var updated = values
             updated[pluginID.rawValue] = newValues

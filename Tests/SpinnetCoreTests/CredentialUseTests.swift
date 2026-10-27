@@ -73,9 +73,10 @@ final class CredentialUseTests: XCTestCase {
     @discardableResult
     private func send(_ input: JSONValue) throws -> JSONValue {
         let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            httpsTransport: transport, credentialStore: credentials
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            network: .init(httpsTransport: transport, credentialStore: credentials)
         )
         let command = try XCTUnwrap(manifest.commands.first)
         let action = try ActionConfiguration(id: ActionID("fetch"), pluginID: manifest.id, command: command, input: .null)

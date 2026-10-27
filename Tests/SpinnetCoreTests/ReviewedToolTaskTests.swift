@@ -1,6 +1,7 @@
 import SpinnetTestSupport
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 import SpinnetPluginTestKit
 
 final class ReviewedToolTaskTests: XCTestCase {
@@ -113,7 +114,7 @@ final class ReviewedToolTaskTests: XCTestCase {
             }, trustedTaps: { [] })
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example")]))
         let plan = try host.prepare(input, owner: .init("ordinary-removal"), pluginName: "Homebrew")
-        XCTAssertFalse(plan.needsPrivileges)
+        XCTAssertEqual(plan.executionModel, "native-cli-v1", "Metadata cannot select a legacy Root execution model")
         XCTAssertFalse(plan.confirmation.message.contains("macOS system authorization"))
         host.decline(plan)
     }
@@ -127,7 +128,7 @@ final class ReviewedToolTaskTests: XCTestCase {
             })
             let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("uninstall"), "kind": .string("cask"), "name": .string("example"), "zap": .bool(zap)]))
             let plan = try host.prepare(input, owner: PluginID("zap-review"), pluginName: "Homebrew")
-            XCTAssertFalse(plan.needsPrivileges)
+            XCTAssertEqual(plan.executionModel, "native-cli-v1", "Metadata cannot select a legacy Root execution model")
                 XCTAssertEqual(plan.confirmation.message.contains("Zap deletes"), zap)
             host.decline(plan)
         }
@@ -144,7 +145,7 @@ final class ReviewedToolTaskTests: XCTestCase {
                         "paths_fingerprint": .string(String(repeating: "a", count: 64)), "changes": .array([change])])])
             }, trustedTaps: { [] })
             let plan = try host.prepare(HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string(operation), "kind": .string("cask"), "name": .string("example")])), owner: PluginID("cask-metadata"), pluginName: "Homebrew")
-            XCTAssertFalse(plan.needsPrivileges)
+            XCTAssertEqual(plan.executionModel, "native-cli-v1", "Metadata cannot select a legacy Root execution model")
             XCTAssertFalse(plan.confirmation.message.contains("macOS system authorization"))
             XCTAssertFalse(plan.confirmation.message.contains("quit the affected App"))
             host.decline(plan)

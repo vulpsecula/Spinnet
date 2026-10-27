@@ -166,11 +166,14 @@ final class WindowRestoreTests: XCTestCase {
         restore: @escaping () throws -> Void
     ) -> CapabilityCheckedHostServiceBroker {
         CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in accessibility() },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            focusedWindowProvider: { XCTFail("Restoring should not read the window"); throw PluginHostServiceError.unavailable("") },
-            focusedWindowFrameSetter: { _ in XCTFail("Restoring should not set a Plugin frame") },
-            focusedWindowFrameRestorer: restore
+            grantStore: grants,
+            systemPermissionCheck: { _ in accessibility() },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            windows: .init(
+                focusedWindowProvider: { XCTFail("Restoring should not read the window"); throw PluginHostServiceError.unavailable("") },
+                focusedWindowFrameSetter: { _ in XCTFail("Restoring should not set a Plugin frame") },
+                focusedWindowFrameRestorer: restore
+            )
         )
     }
 

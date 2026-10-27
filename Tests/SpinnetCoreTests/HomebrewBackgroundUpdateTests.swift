@@ -1,5 +1,6 @@
 import XCTest
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewBackgroundUpdateTests: XCTestCase {
     func testMatchingLoadedHelperNeedsNoRestartEvenDuringWork() throws {

@@ -2,6 +2,7 @@ import Foundation
 import Darwin
 import IOKit.pwr_mgt
 import SpinnetCore
+import SpinnetReviewedTools
 
 private func execNative(_ executable: URL, arguments: [String], environment: [String: String]) -> Never {
     let argv = ([executable.path] + arguments).map { strdup($0) } + [nil]

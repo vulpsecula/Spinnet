@@ -1,5 +1,6 @@
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewPackageMetadataTests: XCTestCase {
     func testInstalledFormulaDirectoryComesFromDiscoveredPrefixNotReturnedArbitraryPaths() throws {

@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import SpinnetCore
+import SpinnetReviewedTools
 import SpinnetPathCancellation
 
 guard Array(CommandLine.arguments.dropFirst()) == ["--capture"] else { exit(64) }

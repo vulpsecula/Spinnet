@@ -1,5 +1,6 @@
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 /// Retired private execution refuses before launch; installed history remains data-only.
 final class HomebrewSourceReadTests: XCTestCase {

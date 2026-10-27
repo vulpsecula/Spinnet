@@ -74,15 +74,30 @@ public struct HTTPSEndpointConsent {
     /// Records the consent, or refuses the save when it was not given for
     /// every new host. Consent names hosts, not a yes: allowing one host must
     /// not carry over to another the endpoint was edited to afterwards.
-    public func approve(allowedHosts: Set<String>, grantStore: PluginCapabilityGrantStore) throws {
-        guard !newHosts.isEmpty, let declared = manifest.scope(for: .contactHTTPS) else { return }
+    public func validate(allowedHosts: Set<String>) throws {
+        guard !newHosts.isEmpty, manifest.scope(for: .contactHTTPS) != nil else { return }
         guard Set(newHosts).isSubset(of: allowedHosts) else {
             throw ConfigurationError.invalidAction(
                 "Allow \(manifest.name) to contact \(newHosts.joined(separator: ", ")) before saving."
             )
         }
+    }
+
+    public func approve(allowedHosts: Set<String>, grantStore: PluginCapabilityGrantStore) throws {
+        try validate(allowedHosts: allowedHosts)
+        guard !newHosts.isEmpty, let declared = manifest.scope(for: .contactHTTPS) else { return }
         let existing = grantStore.consentedHTTPSHosts(for: manifest.id, pluginVersion: manifest.version, declaredScope: declared)
         grantStore.setConsentedHTTPSHosts(existing + newHosts, for: manifest.id,
                                           pluginVersion: manifest.version, declaredScope: declared)
+    }
+
+    /// Persist an additive, Plugin-scoped decision before publishing authority.
+    /// The writer must use its supplied snapshot and must not reenter the store.
+    public func commit(allowedHosts: Set<String>, grantStore: PluginCapabilityGrantStore,
+                       persisting: ([PluginCapabilityGrant]) throws -> Void) throws {
+        try validate(allowedHosts: allowedHosts)
+        guard !newHosts.isEmpty, let declared = manifest.scope(for: .contactHTTPS) else { return }
+        try grantStore.addConsentedHTTPSHosts(newHosts, for: manifest.id, pluginVersion: manifest.version,
+                                             declaredScope: declared, persisting: persisting)
     }
 }

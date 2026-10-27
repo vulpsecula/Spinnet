@@ -1,5 +1,6 @@
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 import SpinnetTestSupport
 @testable import SpinnetHost
 
@@ -103,9 +104,12 @@ final class HomebrewBundledRegressionTests: XCTestCase {
         let package = try ShippedPluginPackages.named("Homebrew")
         let grants = PluginCapabilityGrantStore()
         let profile = HomebrewReadProfile(executable: { throw PluginHostServiceError.tool(.missing) })
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants,
-            systemPermissionCheck: { _ in false }, selectedTextProvider: { _ in "" },
-            clipboardWriter: { _ in }, reviewedTools: profile)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            tools: .init(reader: profile)
+        )
         let action = try XCTUnwrap(try fixture.configuration().actions.first)
         let request = PluginRuntimeHostServiceRequest(invocationID: "missing-homebrew", actionID: action.id,
             service: .reviewedToolRead,

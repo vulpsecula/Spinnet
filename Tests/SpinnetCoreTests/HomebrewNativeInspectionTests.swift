@@ -1,5 +1,6 @@
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeInspectionTests: XCTestCase {
     private let digestValue = String(repeating: "a", count: 64)

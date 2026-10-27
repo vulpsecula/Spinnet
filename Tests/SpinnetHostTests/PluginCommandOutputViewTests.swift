@@ -1,5 +1,6 @@
 import AppKit
 import SpinnetCore
+@testable import SpinnetReviewedTools
 import XCTest
 @testable import SpinnetHost
 

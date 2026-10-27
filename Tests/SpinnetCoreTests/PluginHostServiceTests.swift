@@ -51,10 +51,14 @@ final class PluginHostServiceTests: XCTestCase {
 
         var presentations = 0
         let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            clipboardHistoryProvider: { types, offset in try store.query(dataTypes: types, offset: offset) },
-            clipboardHistoryPresenter: { _, _ in presentations += 1 }
+            grantStore: grants,
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(
+                selectedTextProvider: { _ in "" },
+                clipboardWriter: { _ in },
+                clipboardHistoryProvider: { types, offset in try store.query(dataTypes: types, offset: offset) },
+                clipboardHistoryPresenter: { _, _ in presentations += 1 }
+            )
         )
         func request(_ service: PluginHostService, _ input: JSONValue) -> PluginRuntimeHostServiceRequest {
             PluginRuntimeHostServiceRequest(
@@ -114,12 +118,15 @@ final class PluginHostServiceTests: XCTestCase {
                                              command: manifest.commands[0], input: .null)
         var detected: [String] = []
         let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: PluginCapabilityGrantStore(), systemPermissionCheck: { _ in false },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            languageDetector: { text in
+            grantStore: PluginCapabilityGrantStore(),
+            systemPermissionCheck: { _ in false },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            text: .init(
+                languageDetector: { text in
                 detected.append(text)
                 return text.hasPrefix("Guten") ? "de" : nil
             }
+            )
         )
         func detect(_ input: JSONValue, for action: ActionConfiguration = action) throws -> JSONValue {
             try broker.execute(request: PluginRuntimeHostServiceRequest(
@@ -285,8 +292,7 @@ final class PluginHostServiceTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: store,
             systemPermissionCheck: { _ in accessibilityGranted },
-            selectedTextProvider: { _ in "selected text" },
-            clipboardWriter: { clipboardValue = $0 }
+            clipboard: .init(selectedTextProvider: { _ in "selected text" }, clipboardWriter: { clipboardValue = $0 })
         )
 
         let readRequest = PluginRuntimeHostServiceRequest(
@@ -376,16 +382,18 @@ final class PluginHostServiceTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { allowingCopyFallback in
+            clipboard: .init(
+                selectedTextProvider: { allowingCopyFallback in
                 guard allowingCopyFallback else { return "AX selection" }
                 fallbackReads += 1
                 return "temporary clipboard text"
             },
-            clipboardWriter: { _ in },
-            currentClipboardProvider: {
+                clipboardWriter: { _ in },
+                currentClipboardProvider: {
                 clipboardReads += 1
                 return .init(text: "current clipboard text", type: .text)
             }
+            )
         )
         func request(_ service: PluginHostService) -> PluginRuntimeHostServiceRequest {
             PluginRuntimeHostServiceRequest(
@@ -429,8 +437,7 @@ final class PluginHostServiceTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: grants,
             systemPermissionCheck: { _ in accessibilityGranted },
-            selectedTextProvider: { _ in try selection() },
-            clipboardWriter: { _ in }
+            clipboard: .init(selectedTextProvider: { _ in try selection() }, clipboardWriter: { _ in })
         )
         func read(_ input: JSONValue) throws -> JSONValue {
             try broker.execute(
@@ -499,8 +506,7 @@ final class PluginHostServiceTests: XCTestCase {
         let broker = CapabilityCheckedHostServiceBroker(
             grantStore: store,
             systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "selected text" },
-            clipboardWriter: { _ in }
+            clipboard: .init(selectedTextProvider: { _ in "selected text" }, clipboardWriter: { _ in })
         )
         let request = PluginRuntimeHostServiceRequest(
             invocationID: "invocation-1",

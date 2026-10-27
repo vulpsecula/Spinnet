@@ -86,9 +86,10 @@ public final class RecordedHostFetchedSections {
         }
         transport.responses = responses
         let broker = CapabilityCheckedHostServiceBroker(
-            grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            httpsTransport: transport, credentialStore: secrets, responseCache: cache
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            network: .init(httpsTransport: transport, credentialStore: secrets, responseCache: cache)
         )
 
         var sections: [Section] = []

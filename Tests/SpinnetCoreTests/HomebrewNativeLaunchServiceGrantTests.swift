@@ -1,6 +1,7 @@
 import XCTest
 import Darwin
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeLaunchServiceGrantTests: XCTestCase {
     func testHeldParentChecksAllowKnownSiblingRemovalsButRefuseNamespaceSubstitution() throws {
@@ -47,11 +48,10 @@ final class HomebrewNativeLaunchServiceGrantTests: XCTestCase {
         XCTAssertThrowsError(try grant.revalidateEmptyRemoval(manifest) { drift }, "A changed inventory cannot become a no-op or gain removal authority")
         let cask = HomebrewPrivilegePlan.Cask(name: "example", version: "2", sha256: String(repeating: "a", count: 64), packages: [], launchServiceRemovals: [grant])
         let input = try HomebrewTaskInput(.object(["tool": .string("homebrew"), "operation": .string("upgrade"), "kind": .string("cask"), "name": .string("example")]))
-        var plan = HomebrewTaskPlan(id: UUID(), owner: .init("legacy-confirmation"), pluginName: "Homebrew", input: input, resolvedInput: input,
+        let plan = HomebrewTaskPlan(id: UUID(), owner: .init("legacy-confirmation"), pluginName: "Homebrew", input: input, resolvedInput: input,
             package: .object(["name": .string("example"), "kind": .string("cask"), "tap": .string("homebrew/cask"), "installed_version": .string("1"), "version": .string("2")]),
             executable: URL(fileURLWithPath: "/opt/homebrew/bin/brew"), confirmation: .init(title: "Legacy", message: "", confirmTitle: "Continue", isDestructive: true), generation: 0)
-        plan.privilegedCasks = [cask]
-        let details = try HomebrewTaskNativeConfirmation.details(plan, disclosure: .init(receipts: [], targets: []), cancellation: .init())
+        let details = try HomebrewTaskNativeConfirmation.legacyDetails(plan, privilegedCasks: [cask], disclosure: .init(receipts: [], targets: []), cancellation: .init())
         XCTAssertEqual(details.actionRows.map(\.title), ["Upgrade example"])
         XCTAssertFalse(details.rows.contains { $0.id.contains("/unmatched/") })
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(grant)) as? [String: Any])

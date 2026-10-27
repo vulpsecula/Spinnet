@@ -2,6 +2,7 @@ import XCTest
 import CryptoKit
 import Darwin
 @testable import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeVendorOriginTests: XCTestCase {
     func testActualAppleLatestPBZXFixtureDecodesOriginalPayloadAndResourceBytesUnprivileged() throws {

@@ -195,7 +195,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
         case .openFile, .openFolder:
             return stringValue(from: input, keys: ["path"]) != nil
         case .invokeKeyboardShortcut:
-            return validKeyboardShortcutInput(input)
+            return (try? CommandKeyboardShortcutInput(input)) != nil
         case .invokeService:
             return validNamedInput(input, keys: ["name", "service"])
         case .invokeShortcut:
@@ -216,88 +216,6 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
             case .null, .object: return true
             default: return false
             }
-        }
-    }
-
-    private func validKeyboardShortcutInput(_ input: JSONValue) -> Bool {
-        switch input {
-        case .string(let value):
-            return validKeyboardShortcutString(value)
-        case .object(let values):
-            if let modifiers = values["modifiers"] ?? values["modifier_flags"],
-               !validKeyboardModifiers(modifiers) {
-                return false
-            }
-            if let keyCode = values["key_code"], case .number(let value) = keyCode,
-               value.isFinite, value.rounded() == value, (0...127).contains(value) {
-                return true
-            }
-            guard let key = stringValue(from: input, keys: ["key", "character"]) else {
-                return false
-            }
-            return validKeyboardKey(key)
-        default:
-            return false
-        }
-    }
-
-    private func validKeyboardShortcutString(_ value: String) -> Bool {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        var key = trimmed
-        let symbols = ["⌘", "⇧", "⌥", "⌃"]
-        for symbol in symbols {
-            key = key.replacingOccurrences(of: symbol, with: "")
-        }
-        let parts = key.split(separator: "+", omittingEmptySubsequences: true)
-        guard let keyPart = parts.last,
-              validKeyboardKey(String(keyPart)) else {
-            return false
-        }
-        return parts.dropLast().allSatisfy { validKeyboardModifier(String($0)) }
-    }
-
-    private func validKeyboardModifiers(_ input: JSONValue) -> Bool {
-        switch input {
-        case .number(let value):
-            return UInt64(exactly: value) != nil
-        case .string(let value):
-            let parts = value.split(separator: "+", omittingEmptySubsequences: true)
-            return !parts.isEmpty && parts.allSatisfy { validKeyboardModifier(String($0)) }
-        case .array(let values):
-            return values.allSatisfy { value in
-                guard case .string(let modifier) = value else { return false }
-                return validKeyboardModifier(modifier)
-            }
-        default:
-            return false
-        }
-    }
-
-    private func validKeyboardModifier(_ value: String) -> Bool {
-        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "command", "cmd", "⌘", "shift", "⇧", "option", "opt", "alt", "⌥",
-             "control", "ctrl", "⌃", "function", "fn", "caps_lock", "caps lock":
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func validKeyboardKey(_ value: String) -> Bool {
-        let key = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !key.isEmpty else { return false }
-        if key.count == 1,
-           let scalar = key.unicodeScalars.first,
-           ((65...90).contains(scalar.value) || (48...57).contains(scalar.value)) {
-            return true
-        }
-        switch key {
-        case "RETURN", "ENTER", "ESCAPE", "ESC", "TAB", "SPACE", "DELETE", "BACKSPACE",
-             "LEFT", "RIGHT", "UP", "DOWN":
-            return true
-        default:
-            return (1...20).contains { key == "F\($0)" }
         }
     }
 
@@ -1076,31 +994,7 @@ public struct PluginManifest: Codable, Equatable {
     }
 
     private func validDefaultInput(_ input: JSONValue, for command: CommandDeclaration) -> Bool {
-        switch command.execution {
-        case .host:
-            guard let hostCommand = command.hostCommand else {
-                // A Ready-to-Use Preset must pass the same input grammar as
-                // editor placement, before the user can add it to a Menu.
-                guard let id = command.hostServiceID,
-                      let operation = HostServiceCatalogue.operation(id), operation.isOffered(at: .command),
-                      acceptsActionInput(input, for: command) else { return false }
-                if let field = command.configurationField, !field.isValidInput(input) { return false }
-                // Template parameters are validated against the declared
-                // fields and scope; this route has no native commandStep.
-                if id == HostServiceCatalogue.deepLinkOperation { return true }
-                return operation.acceptsConfiguredInput(input, for: command)
-            }
-            if hostCommand == .openDeepLink { return acceptsActionInput(input, for: command) }
-            return hostCommand.isValidInput(input)
-        case .javascript:
-            if let field = command.configurationField, !field.isValidInput(input) {
-                return false
-            }
-            if !acceptsActionInput(input, for: command) {
-                return false
-            }
-            return (try? JSONEncoder().encode(input)) != nil
-        }
+        CommandInputValidation.problem(with: input, for: command, in: self) == nil
     }
 
     private func isValidScriptReference(_ value: String) -> Bool {

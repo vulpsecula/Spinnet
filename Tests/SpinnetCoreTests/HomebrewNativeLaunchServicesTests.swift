@@ -1,6 +1,7 @@
 import XCTest
 import Darwin
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewNativeLaunchServicesTests: XCTestCase {
     func testOwnedSystemWideAgentRegisteredInSystemUsesOneConcreteRemovalTarget() throws {

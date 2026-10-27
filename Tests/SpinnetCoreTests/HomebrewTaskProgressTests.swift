@@ -2,6 +2,7 @@ import Foundation
 import Network
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 
 final class HomebrewTaskProgressTests: XCTestCase {
     func testTerminalFitsDefaultPanelAndKeepsInputClosed() throws {

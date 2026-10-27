@@ -101,10 +101,13 @@ final class SpotifyBundledRegressionTests: XCTestCase {
         let action = try XCTUnwrap(stored.actions.first)
         let reinstalled = try XCTUnwrap(relaunchedRegistry.package(for: package.manifest.id))
         XCTAssertEqual(relaunchedRegistry.availability(for: action), .unavailable(.capabilityDenied))
-        let broker = CapabilityCheckedHostServiceBroker(grantStore: grants, systemPermissionCheck: { _ in true },
-            selectedTextProvider: { _ in "" }, clipboardWriter: { _ in },
-            reviewedAppPerformer: { _, _ in XCTFail("Reinstallation must not authorize Spotify"); return .null },
-            pluginRegistry: relaunchedRegistry)
+        let broker = CapabilityCheckedHostServiceBroker(
+            grantStore: grants,
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }),
+            externalApps: .init(reviewedAppPerformer: { _, _ in XCTFail("Reinstallation must not authorize Spotify"); return .null }),
+            pluginRegistry: relaunchedRegistry
+        )
         let request = PluginRuntimeHostServiceRequest(invocationID: "reinstalled", actionID: action.id,
             service: .performAppOperation, input: .object(["bundle_id": .string("com.spotify.client"),
                 "operation": .string("play_pause")]), operation: "apps.perform")

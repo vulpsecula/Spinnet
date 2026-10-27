@@ -1,5 +1,6 @@
 import XCTest
 import SpinnetCore
+@testable import SpinnetReviewedTools
 @testable import SpinnetHost
 
 final class HomebrewManagementNativeTests: XCTestCase {
