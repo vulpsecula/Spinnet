@@ -30,6 +30,14 @@ _Avoid_: Unavailable Plugin, broken Plugin, disabled Plugin
 Removing a Plugin from the Library and forgetting its data, grants and Host view preferences, while retaining its Menu Items as unavailable. A removed Bundled Plugin remains suppressed across launches and app updates.
 _Avoid_: Delete Plugin, uninstall preset, clear Plugin
 
+**Plugin Update**:
+Replacing an installed Plugin's package with a newer version of the same Plugin, keeping its Plugin Storage, Plugin Settings, Menu Items and Capability decisions; Capabilities the new version newly requests are left for the user to decide.
+_Avoid_: Reinstall, upgrade
+
+**Update Source**:
+The GitHub repository a Plugin declares as where newer versions of it are published. The Host accepts a Plugin Update from it only for the same Plugin identity, and it grants no authority.
+_Avoid_: Registry, update URL, marketplace
+
 **Plugin Storage**:
 Data a Plugin keeps for itself between invocations and launches, which only that Plugin can reach and which is deleted when the Plugin is removed. It holds the Plugin's own data, never the user's choices or a secret.
 _Avoid_: LocalStorage, cache, Plugin data, Plugin Settings
@@ -74,6 +82,10 @@ _Avoid_: Empty Menu Item, sector
 A configured entry that occupies a Menu Slot, binds one Primary Action, and may expose Alternate Actions, all configured from the Commands of one Plugin.
 _Avoid_: Sector, button
 
+**Alternate Ring**:
+An arc outside one Menu Item's wedge that presents its Alternate Actions in Runtime Mode, as the alternative to listing them in a context menu.
+_Avoid_: Secondary Menu, submenu, sub-ring
+
 **Menu Item Alias**:
 A user-defined display name for one Menu Item, independent of its Preset, Plugin, and Action names and not required to be unique.
 _Avoid_: Action title, Plugin name
@@ -93,6 +105,14 @@ _Avoid_: Preview Menu, test Menu
 **Runtime Mode**:
 The executable presentation of a Menu when the user invokes it outside Settings.
 _Avoid_: Live preview, actual Menu
+
+**Current App**:
+The App in front when the user invokes a Menu, which stays in front behind the Menu. It selects the App Override that applies and is distinct from an Insertion Target.
+_Avoid_: Focused App, App under the pointer, active App
+
+**App Override**:
+An App-specific replacement of the Menu Items in chosen Menu Slots, applied while that App is the Current App; every other Slot keeps the default Menu's Menu Item.
+_Avoid_: App Menu, per-app profile, app-specific Menu
 
 **Library**:
 The settings collection from which the user adds Menu Items: one Menu Item Preset per Plugin in a single list, followed by any Refused Plugins with their reasons.
