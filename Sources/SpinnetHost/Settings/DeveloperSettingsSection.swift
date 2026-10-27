@@ -2,20 +2,30 @@
 import AppKit
 import SwiftUI
 
-/// The Developer page of Settings, listed only by a DEBUG Host.
-struct DeveloperSettingsView: View {
+/// The Developer section, last on the General page of a DEBUG Host.
+struct DeveloperSettingsSection: View {
+    /// The section's names, in the order its controls appear.
+    static let accessibleNames = [
+        "Developer",
+        "Relaunch Spinnet",
+        "Lifecycle Test Window",
+        "Copy Diagnostics",
+        "Reveal Data Folder",
+        "Copy Log Stream Command"
+    ]
+
     let tools: DeveloperTools
-    let hide: () -> Void
     @State private var diagnostics: DeveloperDiagnostics?
     @State private var notice: String?
 
     var body: some View {
-        ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                pageHeader(
-                    title: SettingsPage.developer.title,
-                    description: "Shortcuts for developing and testing Spinnet. Only development builds have this page."
-                )
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Developer").font(.title2.weight(.semibold)).accessibilityAddTraits(.isHeader)
+                    Text("Shortcuts for developing and testing Spinnet. Only development builds have this section.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 section("Host") {
                     actionRow(
@@ -31,12 +41,6 @@ struct DeveloperSettingsView: View {
                         "Lifecycle Test Window", button: "Open",
                         detail: "Run the slow and hanging Action fixtures.",
                         action: tools.openLifecycleTestWindow
-                    )
-                    Divider()
-                    actionRow(
-                        "Hide Developer Page", button: "Hide",
-                        detail: "Option-click the version on the About page to show it again.",
-                        action: hide
                     )
                 }
 
@@ -76,8 +80,6 @@ struct DeveloperSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(maxWidth: 680, alignment: .leading)
-        }
         .onAppear { diagnostics = tools.diagnostics() }
     }
 

@@ -195,37 +195,24 @@ final class SettingsWindowModel: ObservableObject {
 
     @Published var page: SettingsPage = .menu
     #if DEBUG
-    /// What the Developer page runs. Only a DEBUG Host sets it.
+    /// What General's Developer section runs. Only a DEBUG Host sets it.
     @Published var developerTools: DeveloperTools?
-    /// Whether the Developer page is listed. It stays hidden until revealed
-    /// by Option-clicking the version on the About page, so someone given a
-    /// development build does not wander into it.
-    @Published private(set) var developerPageRevealed: Bool
-    static let developerPageRevealedKey = "settings.developer-page-revealed"
-
-    var canRevealDeveloperPage: Bool { developerTools != nil && !developerPageRevealed }
-
-    func revealDeveloperPage() {
-        guard developerTools != nil else { return }
-        developerPageRevealed = true
-        defaults.set(true, forKey: Self.developerPageRevealedKey)
-        selectPage(.developer)
-    }
-
-    func hideDeveloperPage() {
-        developerPageRevealed = false
-        defaults.removeObject(forKey: Self.developerPageRevealedKey)
-        if page == .developer { selectPage(.about) }
-    }
     #endif
 
     /// The pages the navigation lists, in order.
-    var navigationPages: [SettingsPage] {
-        #if DEBUG
-        if developerTools != nil && developerPageRevealed { return SettingsPage.allCases }
-        #endif
-        return SettingsPage.allCases.filter { $0 != .developer }
+    var navigationPages: [SettingsPage] { SettingsPage.allCases }
+    /// Launch at Login reads and changes the system's login item.
+    let launchAtLogin: LaunchAtLoginModel
+    /// Whether the Status Item shows while no Host Activity is ongoing.
+    @Published var showsStatusItem: Bool {
+        didSet {
+            guard showsStatusItem != oldValue else { return }
+            defaults.set(showsStatusItem, forKey: Self.showsStatusItemKey)
+            onShowsStatusItemChanged?(showsStatusItem)
+        }
     }
+    static let showsStatusItemKey = "general.show-status-item"
+    var onShowsStatusItemChanged: ((Bool) -> Void)?
     /// The Menu Editor owns Slot selection, composition edits and their undo
     /// history.
     let menuEditor: MenuEditorModel
@@ -268,6 +255,7 @@ final class SettingsWindowModel: ObservableObject {
         capabilityGrantStore: PluginCapabilityGrantStore = PluginCapabilityGrantStore(),
         defaults: UserDefaults = .standard,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
+        loginItems: LoginItemService = MainAppLoginItemService(),
         accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() },
         mouseInputConflictCheck: @escaping (Int) -> [MouseInputConflict] = {
             MouseInputConflictDetector().detect(mouseButton: $0)
@@ -276,9 +264,8 @@ final class SettingsWindowModel: ObservableObject {
         self.editor = editor
         self.metadata = metadata
         self.defaults = defaults
-        #if DEBUG
-        developerPageRevealed = defaults.bool(forKey: Self.developerPageRevealedKey)
-        #endif
+        launchAtLogin = LaunchAtLoginModel(service: loginItems)
+        showsStatusItem = defaults.object(forKey: Self.showsStatusItemKey) as? Bool ?? true
         menuEditor = MenuEditorModel(editor: editor)
         privacy = PrivacyPermissionsModel(
             grantStore: capabilityGrantStore,
@@ -449,6 +436,11 @@ final class SettingsWindowModel: ObservableObject {
                 "Undo Slot edit",
                 "Redo Slot edit"
             ])
+        } else if page == .general {
+            names.append(contentsOf: launchAtLogin.accessibleNames)
+            #if DEBUG
+            if developerTools != nil { names.append(contentsOf: DeveloperSettingsSection.accessibleNames) }
+            #endif
         } else if page == .privacyAndPermissions {
             names.append(contentsOf: [
                 "Collect Clipboard History",
@@ -603,16 +595,11 @@ struct SettingsRootView: View {
                 .padding(.bottom, 12)
                 .accessibilityAddTraits(.isHeader)
 
-            ForEach(model.navigationPages.filter { $0 != .developer }, id: \.self) { page in
+            ForEach(model.navigationPages, id: \.self) { page in
                 navigationButton(page)
             }
 
             Spacer()
-            // Apart from the pages users see, at the foot of the list.
-            if model.navigationPages.contains(.developer) {
-                navigationButton(.developer)
-                    .padding(.bottom, 8)
-            }
             Text("Settings")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -876,6 +863,8 @@ struct SettingsRootView: View {
     private var pageContent: some View {
         Group {
             switch model.page {
+            case .general:
+                GeneralSettingsView(model: model, launchAtLogin: model.launchAtLogin)
             case .menu:
                 VStack(spacing: 0) {
                     spinnetEnabledSwitch
@@ -936,18 +925,7 @@ struct SettingsRootView: View {
                 )
                 .onAppear { privacy.refreshSystemPermissionStatus() }
             case .about:
-                #if DEBUG
-                AboutSettingsView(metadata: model.metadata,
-                                  revealDeveloperPage: model.canRevealDeveloperPage ? model.revealDeveloperPage : nil)
-                #else
                 AboutSettingsView(metadata: model.metadata)
-                #endif
-            case .developer:
-                #if DEBUG
-                if let tools = model.developerTools { DeveloperSettingsView(tools: tools, hide: model.hideDeveloperPage) }
-                #else
-                EmptyView()
-                #endif
             }
         }
         .padding(.horizontal, 28)
@@ -2738,9 +2716,6 @@ private struct PrivacySettingsView: View {
 
 private struct AboutSettingsView: View {
     let metadata: ApplicationMetadata
-    /// Set only in a DEBUG Host whose Developer page is hidden: Option-clicking
-    /// the version reveals it. Nothing on the page hints at it.
-    var revealDeveloperPage: (() -> Void)?
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -2753,9 +2728,6 @@ private struct AboutSettingsView: View {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(metadata.name).font(.largeTitle.weight(.semibold)).accessibilityLabel(metadata.name)
                         Text(metadata.versionAndBuild).foregroundStyle(.secondary).accessibilityLabel(metadata.versionAndBuild)
-                            .onTapGesture {
-                                if NSEvent.modifierFlags.contains(.option) { revealDeveloperPage?() }
-                            }
                     }
                 }
                 Text(metadata.description).font(.title3).fixedSize(horizontal: false, vertical: true).accessibilityLabel(metadata.description)

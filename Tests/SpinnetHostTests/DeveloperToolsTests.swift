@@ -81,50 +81,6 @@ final class DeveloperToolsTests: XCTestCase {
         XCTAssertFalse(relaunched)
     }
 
-    func testTheDeveloperPageStaysHiddenUntilRevealedAndRemembersIt() throws {
-        let suite = "DeveloperToolsTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let userPages: [SettingsPage] = [.menu, .appearance, .privacyAndPermissions, .about]
-        func makeSettings() throws -> SettingsWindowController {
-            let controller = SettingsWindowController(editor: try makeEditor(), defaults: defaults)
-            controller.developerTools = Self.tools()
-            return controller
-        }
-
-        let controller = try makeSettings()
-        XCTAssertEqual(controller.presentationSnapshot.navigationPages, userPages,
-                       "Developer tools alone do not list the page")
-        controller.select(page: .developer)
-        XCTAssertEqual(controller.currentPage, .menu, "An unlisted page cannot be selected")
-
-        controller.revealDeveloperPage()
-        XCTAssertEqual(controller.presentationSnapshot.navigationPages, userPages + [.developer])
-        XCTAssertEqual(controller.currentPage, .developer)
-        XCTAssertEqual(controller.presentationSnapshot.visibleRegions, [.navigation, .pageContent])
-        XCTAssertEqual(try makeSettings().presentationSnapshot.navigationPages.last, .developer,
-                       "A revealed page stays revealed across launches")
-
-        controller.hideDeveloperPage()
-        XCTAssertEqual(controller.presentationSnapshot.navigationPages, userPages)
-        XCTAssertEqual(controller.currentPage, .about)
-        XCTAssertEqual(try makeSettings().presentationSnapshot.navigationPages, userPages)
-    }
-
-    func testOnlyAHostWithDeveloperToolsCanRevealThePage() throws {
-        let suite = "DeveloperToolsTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let controller = SettingsWindowController(editor: try makeEditor(), defaults: defaults)
-        controller.revealDeveloperPage()
-        XCTAssertFalse(controller.presentationSnapshot.navigationPages.contains(.developer))
-    }
-
-    private static func tools() -> DeveloperTools {
-        DeveloperTools(diagnostics: { minimalDiagnostics }, dataDirectory: FileManager.default.temporaryDirectory,
-                       showLifecycleTestWindow: {}, canRelaunch: false, relaunch: {})
-    }
-
     private static let minimalDiagnostics = DeveloperDiagnostics(
         appPath: "/A.app", bundleIdentifier: "b", version: "1", sourceRevision: "r", processIdentifier: 1,
         arguments: ["--lifecycle-check"], bundledPluginSource: "none", dataDirectory: "/d", plugins: [], refused: []

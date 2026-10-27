@@ -2,13 +2,12 @@ import AppKit
 import SpinnetCore
 
 enum SettingsPage: String, CaseIterable, Hashable {
+    /// App-wide preferences. In a DEBUG Host its last section is Developer.
+    case general
     case menu
     case appearance
     case privacyAndPermissions = "privacy-and-permissions"
     case about
-    /// Shortcuts for developing and testing the Host. Only a DEBUG Host has
-    /// it, and lists it only once revealed from the About page.
-    case developer
 }
 
 enum SettingsRegion: String, Equatable {
@@ -68,6 +67,15 @@ private struct SettingsPageDescriptor {
 extension SettingsPage {
     private var descriptor: SettingsPageDescriptor {
         switch self {
+        case .general:
+            return SettingsPageDescriptor(
+                title: "General",
+                showsEditorMode: false,
+                accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.general"),
+                contentAccessibilityNames: { _ in
+                    ["General", "Launch at Login", "Show Status Item"]
+                }
+            )
         case .menu:
             return SettingsPageDescriptor(
                 title: "Menu",
@@ -140,23 +148,6 @@ extension SettingsPage {
                     ]
                 }
             )
-        case .developer:
-            return SettingsPageDescriptor(
-                title: "Developer",
-                showsEditorMode: false,
-                accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.developer"),
-                contentAccessibilityNames: { _ in
-                    [
-                        "Developer",
-                        "Relaunch Spinnet",
-                        "Lifecycle Test Window",
-                        "Hide Developer Page",
-                        "Copy Diagnostics",
-                        "Reveal Data Folder",
-                        "Copy Log Stream Command"
-                    ]
-                }
-            )
         }
     }
 
@@ -164,11 +155,11 @@ extension SettingsPage {
 
     var systemImageName: String {
         switch self {
+        case .general: return "gearshape"
         case .menu: return "circle.hexagongrid"
         case .appearance: return "paintbrush"
         case .privacyAndPermissions: return "hand.raised"
         case .about: return "info.circle"
-        case .developer: return "hammer"
         }
     }
 

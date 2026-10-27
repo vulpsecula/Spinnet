@@ -50,7 +50,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var pluginRuntime: PluginRuntimeSupervisor?
     private var menu: MenuPresentationController!
     private var feedback: HostFeedbackPresenter!
-    private var settings: SettingsWindowController!
+    /// Internal so a test can stand in for the launched window.
+    var settings: SettingsWindowController!
     private var configurationStore: HostConfigurationStore!
     private var statusItemController: StatusItemController?
     private var triggers: GlobalTriggerController?
@@ -473,6 +474,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 self?.triggers?.setMouseButtonCaptureActive(isCapturing, onCapture: session.capture)
             }
             installStatusItem()
+            settings.onShowsStatusItemChanged = { [weak self] in self?.statusItemController?.setShowsStatusItem($0) }
             try installTriggers()
             if settings.permissionGuidePresented { settings.present() }
             #if DEBUG
@@ -521,6 +523,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         triggers?.stop()
         reviewedTasks.beginExit()
         return .terminateNow
+    }
+
+    /// Opening Spinnet again while it runs opens Settings, the way back when
+    /// the Status Item is hidden.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settings?.present()
+        return false
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -599,6 +608,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             openSettings: { [weak self] in self?.settings.present() },
             quit: { NSApp.terminate(nil) }, activities: activities
         )
+        controller.setShowsStatusItem(settings.showsStatusItem)
         controller.install()
         statusItemController = controller
     }

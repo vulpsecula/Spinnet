@@ -11,6 +11,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let scheduleTick: (@escaping () -> Void) -> (() -> Void)
 
     private(set) var statusItem: NSStatusItem?
+    /// Whether the Host asked for the Status Item at all.
+    private var installed = false
+    /// The saved Show Status Item preference. While it is off the Status Item
+    /// still shows whenever a Host Activity is ongoing, so its Stop control
+    /// stays reachable.
+    private var showsStatusItem = true
 
     init(openSettings: @escaping () -> Void, quit: @escaping () -> Void, activities: HostActivities? = nil,
          scheduleTick: @escaping (@escaping () -> Void) -> (() -> Void) = HostActivityListModel.schedule) {
@@ -24,6 +30,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                 guard let self else { return }
                 if let menu = self.openMenu { self.replaceItems(in: menu); self.reconcileTick() }
                 else { self.statusItem?.menu = self.makeMenu() }
+                self.reconcileVisibility()
             }
         }
     }
@@ -31,16 +38,42 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     deinit { cancelTick?(); if let observation { activities?.removeChangeObserver(observation) } }
 
     func install() {
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "circle.hexagongrid.fill",
-            accessibilityDescription: "Spinnet"
-        )
-        statusItem.button?.setAccessibilityLabel("Spinnet Status Item")
-        statusItem.button?.setAccessibilityHelp("Open Settings, stop ongoing activities, or Quit Spinnet.")
-        statusItem.button?.toolTip = "Spinnet Status Item"
-        statusItem.menu = makeMenu()
-        self.statusItem = statusItem
+        installed = true
+        reconcileVisibility()
+    }
+
+    func setShowsStatusItem(_ shows: Bool) {
+        showsStatusItem = shows
+        reconcileVisibility()
+    }
+
+    /// Adds or removes the Status Item. An open menu is never pulled away;
+    /// the Status Item goes once the menu closes.
+    private func reconcileVisibility() {
+        let shown = installed && (showsStatusItem || !ongoingActivities.isEmpty)
+        if shown, statusItem == nil {
+            let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+            statusItem.button?.image = NSImage(
+                systemSymbolName: "circle.hexagongrid.fill",
+                accessibilityDescription: "Spinnet"
+            )
+            statusItem.button?.setAccessibilityLabel("Spinnet Status Item")
+            statusItem.button?.setAccessibilityHelp("Open Settings, stop ongoing activities, or Quit Spinnet.")
+            statusItem.button?.toolTip = "Spinnet Status Item"
+            statusItem.menu = makeMenu()
+            self.statusItem = statusItem
+        } else if !shown, openMenu == nil, let statusItem {
+            NSStatusBar.system.removeStatusItem(statusItem)
+            self.statusItem = nil
+        }
+    }
+
+    /// Host Activities the Status Item lists: an ended Task is history, not
+    /// ongoing.
+    private var ongoingActivities: [HostActivity] {
+        (activities?.list() ?? []).filter {
+            !($0.kind == "task" && $0.detail?.value(atPointer: "/status") == .string("ended"))
+        }
     }
 
     func showServices(_ model: ReviewedServicesSurface, owner: PluginID) {
@@ -76,7 +109,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(settingsItem)
         menu.addItem(.separator())
 
-        for activity in activities?.list() ?? [] where !(activity.kind == "task" && activity.detail?.value(atPointer: "/status") == .string("ended")) {
+        for activity in ongoingActivities {
             let heading = NSMenuItem(title: activity.name, action: nil, keyEquivalent: "")
             heading.isEnabled = false
             menu.addItem(heading)
@@ -123,6 +156,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         services.hide()
         openMenu = nil
         cancelTick?(); cancelTick = nil
+        reconcileVisibility()
     }
 
     private func replaceItems(in menu: NSMenu) {

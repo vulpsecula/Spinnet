@@ -104,15 +104,23 @@ final class SettingsWindowController: NSWindowController {
     }
 
     #if DEBUG
-    /// Setting this lets the About page reveal the Developer page.
+    /// Setting this adds the Developer section to the General page.
     var developerTools: DeveloperTools? {
         get { model.developerTools }
         set { model.developerTools = newValue }
     }
-
-    func revealDeveloperPage() { model.revealDeveloperPage() }
-    func hideDeveloperPage() { model.hideDeveloperPage() }
     #endif
+
+    var launchAtLogin: LaunchAtLoginModel { model.launchAtLogin }
+    /// The saved Show Status Item preference.
+    var showsStatusItem: Bool {
+        get { model.showsStatusItem }
+        set { model.showsStatusItem = newValue }
+    }
+    var onShowsStatusItemChanged: ((Bool) -> Void)? {
+        get { model.onShowsStatusItemChanged }
+        set { model.onShowsStatusItemChanged = newValue }
+    }
 
     var permissionGuidePresented: Bool { model.privacy.permissionGuidePresented }
     var clipboardCollectionEnabled: Bool {
@@ -138,6 +146,7 @@ final class SettingsWindowController: NSWindowController {
         capabilityGrantStore: PluginCapabilityGrantStore = PluginCapabilityGrantStore(),
         defaults: UserDefaults = .standard,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
+        loginItems: LoginItemService = MainAppLoginItemService(),
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
         credentialStore: PluginCredentialStore? = nil,
         pluginSettingsStore: PluginSettingsStore? = nil,
@@ -148,7 +157,8 @@ final class SettingsWindowController: NSWindowController {
             metadata: metadata,
             capabilityGrantStore: capabilityGrantStore,
             defaults: defaults,
-            clipboardHistoryStore: clipboardHistoryStore
+            clipboardHistoryStore: clipboardHistoryStore,
+            loginItems: loginItems
         )
         model.credentialStore = credentialStore
         model.pluginSettingsStore = pluginSettingsStore
@@ -171,7 +181,7 @@ final class SettingsWindowController: NSWindowController {
         window.minSize = NSSize(width: 1_280, height: 720)
         window.setAccessibilityLabel("Spinnet Settings")
         window.setAccessibilityHelp(
-            "Use the Settings navigation to switch between Menu, Appearance, Privacy & Permissions, and About."
+            "Use the Settings navigation to switch between General, Menu, Appearance, Privacy & Permissions, and About."
         )
         let contentView = NSView()
         contentView.addSubview(hostingView)
@@ -232,6 +242,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func present() {
+        model.launchAtLogin.refresh()
         model.privacy.refreshSystemPermissionStatus()
         model.trigger.refreshConflicts()
         model.menuEditor.refreshMenuSlots()
