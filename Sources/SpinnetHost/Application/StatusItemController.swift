@@ -10,9 +10,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private var cancelTick: (() -> Void)?
     private let scheduleTick: (@escaping () -> Void) -> (() -> Void)
 
+    /// Created once at install and then only shown or hidden, so it keeps the
+    /// place the user Command-dragged it to.
     private(set) var statusItem: NSStatusItem?
-    /// Whether the Host asked for the Status Item at all.
-    private var installed = false
     /// The saved Show Status Item preference. While it is off the Status Item
     /// still shows whenever a Host Activity is ongoing, so its Stop control
     /// stays reachable.
@@ -38,7 +38,18 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     deinit { cancelTick?(); if let observation { activities?.removeChangeObserver(observation) } }
 
     func install() {
-        installed = true
+        guard statusItem == nil else { return }
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem.autosaveName = "Spinnet Status Item"
+        statusItem.button?.image = NSImage(
+            systemSymbolName: "circle.hexagongrid.fill",
+            accessibilityDescription: "Spinnet"
+        )
+        statusItem.button?.setAccessibilityLabel("Spinnet Status Item")
+        statusItem.button?.setAccessibilityHelp("Open Settings, stop ongoing activities, or Quit Spinnet.")
+        statusItem.button?.toolTip = "Spinnet Status Item"
+        statusItem.menu = makeMenu()
+        self.statusItem = statusItem
         reconcileVisibility()
     }
 
@@ -47,25 +58,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         reconcileVisibility()
     }
 
-    /// Adds or removes the Status Item. An open menu is never pulled away;
-    /// the Status Item goes once the menu closes.
+    /// Shows or hides the Status Item. An open menu is never pulled away;
+    /// the Status Item hides once the menu closes.
     private func reconcileVisibility() {
-        let shown = installed && (showsStatusItem || !ongoingActivities.isEmpty)
-        if shown, statusItem == nil {
-            let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-            statusItem.button?.image = NSImage(
-                systemSymbolName: "circle.hexagongrid.fill",
-                accessibilityDescription: "Spinnet"
-            )
-            statusItem.button?.setAccessibilityLabel("Spinnet Status Item")
-            statusItem.button?.setAccessibilityHelp("Open Settings, stop ongoing activities, or Quit Spinnet.")
-            statusItem.button?.toolTip = "Spinnet Status Item"
-            statusItem.menu = makeMenu()
-            self.statusItem = statusItem
-        } else if !shown, openMenu == nil, let statusItem {
-            NSStatusBar.system.removeStatusItem(statusItem)
-            self.statusItem = nil
-        }
+        guard let statusItem else { return }
+        let shown = showsStatusItem || !ongoingActivities.isEmpty
+        if shown { statusItem.isVisible = true }
+        else if openMenu == nil { statusItem.isVisible = false }
     }
 
     /// Host Activities the Status Item lists: an ended Task is history, not

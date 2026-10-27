@@ -146,7 +146,7 @@ final class SettingsWindowController: NSWindowController {
         capabilityGrantStore: PluginCapabilityGrantStore = PluginCapabilityGrantStore(),
         defaults: UserDefaults = .standard,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
-        loginItems: LoginItemService = MainAppLoginItemService(),
+        loginItem: LoginItemService = AppBundleLoginItemService(),
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
         credentialStore: PluginCredentialStore? = nil,
         pluginSettingsStore: PluginSettingsStore? = nil,
@@ -158,7 +158,7 @@ final class SettingsWindowController: NSWindowController {
             capabilityGrantStore: capabilityGrantStore,
             defaults: defaults,
             clipboardHistoryStore: clipboardHistoryStore,
-            loginItems: loginItems
+            loginItem: loginItem
         )
         model.credentialStore = credentialStore
         model.pluginSettingsStore = pluginSettingsStore
@@ -270,9 +270,9 @@ final class SettingsWindowController: NSWindowController {
 
         return SettingsWindowSnapshot(
             page: currentPage,
-            navigationPages: model.navigationPages,
+            navigationPages: SettingsPage.allCases,
             visibleRegions: visibleRegions,
-            focusOrder: model.navigationPages.map { .navigation($0) } + [.pageContent],
+            focusOrder: SettingsPage.allCases.map { .navigation($0) } + [.pageContent],
             initialFocus: .navigation(currentPage),
             editorModeIsNonExecuting: true,
             accessibleNames: model.accessibleNames

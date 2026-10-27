@@ -22,7 +22,7 @@ struct GeneralSettingsView: View {
                     )
                 }
                 .padding(.horizontal, 18)
-                .background(groupBackground)
+                .settingsCard()
 
                 #if DEBUG
                 if let tools = model.developerTools {
@@ -42,7 +42,6 @@ struct GeneralSettingsView: View {
                 isOn: Binding(get: { launchAtLogin.isOn }, set: { launchAtLogin.setEnabled($0) }),
                 detail: launchAtLogin.note ?? "Open Spinnet when you log in, so the Menu is ready."
             )
-            .disabled(!launchAtLogin.isAvailable)
             if launchAtLogin.needsApproval {
                 Button("Open Login Items Settings…", action: launchAtLogin.openLoginItemsSettings)
                     .controlSize(.small)
@@ -78,14 +77,5 @@ struct GeneralSettingsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 12)
-    }
-
-    private var groupBackground: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-            }
     }
 }

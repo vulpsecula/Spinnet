@@ -143,6 +143,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         // Never shown, but it is how editing shortcuts reach text fields.
         NSApp.mainMenu = HostEditMenu.make()
+        StoredDataMigration.removeRetiredDefaults(from: .standard)
 
         do {
             pluginSettings = try PluginSettingsStore(
@@ -535,6 +536,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationDidBecomeActive(_ notification: Notification) {
         triggers?.retryMouseInterceptionIfAuthorized()
         settings?.refreshSystemPermissionStatus()
+        // Coming back from Login Items settings after approving Spinnet.
+        settings?.launchAtLogin.refresh()
         if let configuration = currentConfiguration { menu?.reload(items: makeMenuSlots(from: configuration)) }
     }
 

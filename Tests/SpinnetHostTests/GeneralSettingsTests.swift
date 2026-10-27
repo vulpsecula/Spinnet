@@ -34,7 +34,7 @@ final class GeneralSettingsTests: XCTestCase {
 
     func testLaunchAtLoginReflectsTheSystemStateIncludingApprovalRequired() throws {
         let service = RecordedLoginItemService(status: .notRegistered)
-        let controller = try makeGeneralController(loginItems: service)
+        let controller = try makeGeneralController(loginItem: service)
         XCTAssertFalse(controller.launchAtLogin.isOn)
 
         service.status = .requiresApproval
@@ -54,7 +54,7 @@ final class GeneralSettingsTests: XCTestCase {
 
     func testTurningLaunchAtLoginOnAndOffRegistersWithTheSystem() throws {
         let service = RecordedLoginItemService(status: .notRegistered)
-        let controller = try makeGeneralController(loginItems: service)
+        let controller = try makeGeneralController(loginItem: service)
 
         controller.launchAtLogin.setEnabled(true)
         XCTAssertEqual(service.calls, ["register"])
@@ -69,7 +69,7 @@ final class GeneralSettingsTests: XCTestCase {
     func testLaunchAtLoginReportsAFailureAndKeepsTheRealState() throws {
         let service = RecordedLoginItemService(status: .notRegistered)
         service.failure = RecordedLoginItemService.Failure(message: "The operation couldn't be completed.")
-        let controller = try makeGeneralController(loginItems: service)
+        let controller = try makeGeneralController(loginItem: service)
 
         controller.launchAtLogin.setEnabled(true)
 
@@ -83,13 +83,41 @@ final class GeneralSettingsTests: XCTestCase {
         XCTAssertNil(controller.launchAtLogin.failure, "A later success clears the failure")
     }
 
-    func testLaunchAtLoginIsUnavailableOutsideAnAppBundle() throws {
+    func testLaunchAtLoginStaysAvailableWhenTheSystemReportsNotFound() throws {
+        // Some macOS versions report a never-registered bundled app as not
+        // found, so the toggle still tries and reports what the system says.
         let service = RecordedLoginItemService(status: .notFound)
-        let controller = try makeGeneralController(loginItems: service)
+        service.failure = RecordedLoginItemService.Failure(message: "Not found.")
+        let controller = try makeGeneralController(loginItem: service)
+        XCTAssertFalse(controller.launchAtLogin.isOn)
 
-        XCTAssertFalse(controller.launchAtLogin.isAvailable)
-        XCTAssertTrue(controller.presentationSnapshot.accessibleNames
-            .contains("Only Spinnet running from its app bundle can launch at login"))
+        controller.launchAtLogin.setEnabled(true)
+
+        XCTAssertEqual(service.calls, ["register"])
+        let failure = try XCTUnwrap(controller.launchAtLogin.failure)
+        XCTAssertEqual(failure, "Spinnet could not turn on Launch at Login: Not found.")
+        XCTAssertTrue(controller.presentationSnapshot.accessibleNames.contains(failure))
+
+        service.failure = nil
+        controller.launchAtLogin.setEnabled(true)
+        XCTAssertTrue(controller.launchAtLogin.isOn)
+        XCTAssertNil(controller.launchAtLogin.failure)
+    }
+
+    func testReturningToSpinnetRefreshesLaunchAtLogin() throws {
+        let service = RecordedLoginItemService(status: .requiresApproval)
+        let controller = try makeGeneralController(loginItem: service)
+        defer { controller.close() }
+        let delegate = ApplicationDelegate()
+        delegate.settings = controller
+        XCTAssertTrue(controller.launchAtLogin.needsApproval)
+
+        // The user approves Spinnet in Login Items settings and comes back.
+        service.status = .enabled
+        delegate.applicationDidBecomeActive(Notification(name: NSApplication.didBecomeActiveNotification))
+
+        XCTAssertFalse(controller.launchAtLogin.needsApproval)
+        XCTAssertTrue(controller.launchAtLogin.isOn)
     }
 
     // MARK: Show Status Item
@@ -100,7 +128,7 @@ final class GeneralSettingsTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         func make() throws -> SettingsWindowController {
             SettingsWindowController(editor: try makeEditor(), defaults: defaults,
-                                     loginItems: RecordedLoginItemService(status: .notRegistered))
+                                     loginItem: RecordedLoginItemService(status: .notRegistered))
         }
         let controller = try make()
         XCTAssertTrue(controller.showsStatusItem)
@@ -119,22 +147,25 @@ final class GeneralSettingsTests: XCTestCase {
         let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
         controller.install()
         defer { controller.setShowsStatusItem(true) }
-        XCTAssertNotNil(controller.statusItem)
+        let item = try XCTUnwrap(controller.statusItem)
+        XCTAssertTrue(item.isVisible)
 
         controller.setShowsStatusItem(false)
-        XCTAssertNil(controller.statusItem)
+        XCTAssertFalse(item.isVisible)
 
         let effect = try activities.register(owner: PluginID("clock"), pluginName: "Clock",
                                              kind: "keep_awake", status: "On", stop: {})
         drainMainQueue()
-        XCTAssertNotNil(controller.statusItem, "An ongoing Effect keeps its Stop control reachable")
+        XCTAssertTrue(item.isVisible, "An ongoing Effect keeps its Stop control reachable")
 
         XCTAssertTrue(activities.stop(effect.id))
         drainMainQueue()
-        XCTAssertNil(controller.statusItem)
+        XCTAssertFalse(item.isVisible)
 
         controller.setShowsStatusItem(true)
-        XCTAssertNotNil(controller.statusItem)
+        XCTAssertTrue(item.isVisible)
+        XCTAssertTrue(controller.statusItem === item,
+                      "The same Status Item returns, keeping the place the user dragged it to")
     }
 
     func testAnEndedTaskDoesNotKeepAHiddenStatusItem() throws {
@@ -144,16 +175,49 @@ final class GeneralSettingsTests: XCTestCase {
         controller.install()
         defer { controller.setShowsStatusItem(true) }
         controller.setShowsStatusItem(false)
+        let item = try XCTUnwrap(controller.statusItem)
 
         let task = try activities.register(owner: PluginID("packages"), pluginName: "Packages",
                                            kind: "task", status: "Running", stop: {})
         drainMainQueue()
-        XCTAssertNotNil(controller.statusItem, "A running Task is ongoing")
+        XCTAssertTrue(item.isVisible, "A running Task is ongoing")
 
         activities.updateTask(task.id, status: "Completed", detail: .object([
             "id": .string(task.id), "status": .string("ended")]))
         drainMainQueue()
-        XCTAssertNil(controller.statusItem)
+        XCTAssertFalse(item.isVisible)
+    }
+
+    func testAHiddenStatusItemStaysWhileItsMenuIsOpenAndGoesWhenItCloses() throws {
+        _ = NSApplication.shared
+        let activities = HostActivities()
+        let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
+        controller.install()
+        defer { controller.setShowsStatusItem(true) }
+        let item = try XCTUnwrap(controller.statusItem)
+        let menu = try XCTUnwrap(item.menu)
+
+        controller.menuWillOpen(menu)
+        controller.setShowsStatusItem(false)
+        XCTAssertTrue(item.isVisible, "An open menu is never pulled away")
+
+        controller.menuDidClose(menu)
+        XCTAssertFalse(item.isVisible)
+    }
+
+    // MARK: Retired values
+
+    func testLaunchRemovesTheRetiredDeveloperPageRevealValue() throws {
+        let suite = "GeneralSettingsTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "settings.developer-page-revealed")
+        defaults.set(false, forKey: SettingsWindowModel.showsStatusItemKey)
+
+        StoredDataMigration.removeRetiredDefaults(from: defaults)
+
+        XCTAssertNil(defaults.object(forKey: "settings.developer-page-revealed"))
+        XCTAssertEqual(defaults.object(forKey: SettingsWindowModel.showsStatusItemKey) as? Bool, false)
     }
 
     // MARK: Reopen
@@ -168,11 +232,11 @@ final class GeneralSettingsTests: XCTestCase {
         XCTAssertEqual(controller.window?.isVisible, true)
     }
 
-    private func makeGeneralController(loginItems: LoginItemService) throws -> SettingsWindowController {
+    private func makeGeneralController(loginItem: LoginItemService) throws -> SettingsWindowController {
         let suite = "GeneralSettingsTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
-        let controller = SettingsWindowController(editor: try makeEditor(), defaults: defaults, loginItems: loginItems)
+        let controller = SettingsWindowController(editor: try makeEditor(), defaults: defaults, loginItem: loginItem)
         controller.select(page: .general)
         return controller
     }

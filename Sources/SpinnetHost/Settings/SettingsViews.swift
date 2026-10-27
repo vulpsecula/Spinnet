@@ -199,8 +199,6 @@ final class SettingsWindowModel: ObservableObject {
     @Published var developerTools: DeveloperTools?
     #endif
 
-    /// The pages the navigation lists, in order.
-    var navigationPages: [SettingsPage] { SettingsPage.allCases }
     /// Launch at Login reads and changes the system's login item.
     let launchAtLogin: LaunchAtLoginModel
     /// Whether the Status Item shows while no Host Activity is ongoing.
@@ -255,7 +253,7 @@ final class SettingsWindowModel: ObservableObject {
         capabilityGrantStore: PluginCapabilityGrantStore = PluginCapabilityGrantStore(),
         defaults: UserDefaults = .standard,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
-        loginItems: LoginItemService = MainAppLoginItemService(),
+        loginItem: LoginItemService = AppBundleLoginItemService(),
         accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() },
         mouseInputConflictCheck: @escaping (Int) -> [MouseInputConflict] = {
             MouseInputConflictDetector().detect(mouseButton: $0)
@@ -264,7 +262,7 @@ final class SettingsWindowModel: ObservableObject {
         self.editor = editor
         self.metadata = metadata
         self.defaults = defaults
-        launchAtLogin = LaunchAtLoginModel(service: loginItems)
+        launchAtLogin = LaunchAtLoginModel(service: loginItem)
         showsStatusItem = defaults.object(forKey: Self.showsStatusItemKey) as? Bool ?? true
         menuEditor = MenuEditorModel(editor: editor)
         privacy = PrivacyPermissionsModel(
@@ -405,7 +403,7 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     func selectPage(_ page: SettingsPage) {
-        guard menuEditor.editingMenuIndex == nil, navigationPages.contains(page) else { return }
+        guard menuEditor.editingMenuIndex == nil, SettingsPage.allCases.contains(page) else { return }
         if page.showsEditorMode {
             menuEditor.refreshMenuSlots()
         }
@@ -415,7 +413,7 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     var accessibleNames: [String] {
-        var names = navigationPages.map(\.title)
+        var names = SettingsPage.allCases.map(\.title)
         if page.showsEditorMode { names.append("Editor Mode") }
         names.append(contentsOf: page.contentAccessibilityNames(metadata: metadata))
         if page == .menu {
@@ -595,7 +593,7 @@ struct SettingsRootView: View {
                 .padding(.bottom, 12)
                 .accessibilityAddTraits(.isHeader)
 
-            ForEach(model.navigationPages, id: \.self) { page in
+            ForEach(SettingsPage.allCases, id: \.self) { page in
                 navigationButton(page)
             }
 
@@ -795,14 +793,7 @@ struct SettingsRootView: View {
             }
         }
         .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                }
-        }
+        .settingsCard()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Menu Trigger")
     }
@@ -2571,14 +2562,7 @@ private struct PrivacySettingsView: View {
                     )
                 }
                 .padding(.horizontal, 18)
-                .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                        }
-                }
+                .settingsCard()
 
                 pluginCapabilityControls
             }
@@ -2745,14 +2729,7 @@ private struct AboutSettingsView: View {
                     aboutRow(title: "Copyright", value: metadata.copyright)
                 }
                 .padding(.horizontal, 18)
-                .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                        }
-                }
+                .settingsCard()
             }
             .frame(maxWidth: 680, alignment: .leading)
         }
@@ -2778,10 +2755,27 @@ private struct AboutSettingsView: View {
     }
 }
 
-func pageHeader(title: String, description: String) -> some View {
+/// A page's title and what it is for. A section that heads part of a page,
+/// such as Developer on General, passes a smaller title font.
+func pageHeader(title: String, description: String,
+                titleFont: Font = .title.weight(.semibold)) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-        Text(title).font(.title.weight(.semibold)).accessibilityAddTraits(.isHeader)
+        Text(title).font(titleFont).accessibilityAddTraits(.isHeader)
         Text(description).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).accessibilityLabel(description)
+    }
+}
+
+extension View {
+    /// The rounded card that groups a Settings page's rows.
+    func settingsCard() -> some View {
+        background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                }
+        }
     }
 }
 

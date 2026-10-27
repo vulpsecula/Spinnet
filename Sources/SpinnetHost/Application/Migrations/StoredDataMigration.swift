@@ -43,6 +43,14 @@ enum StoredDataMigration {
         return configuration
     }
 
+    /// Values an earlier Spinnet saved and nothing reads any more, removed
+    /// once at launch.
+    static func removeRetiredDefaults(from defaults: UserDefaults) {
+        // The separate Developer page, revealed from About, is gone; its
+        // section is always last on General in a development build.
+        defaults.removeObject(forKey: "settings.developer-page-revealed")
+    }
+
     /// The configuration with one Plugin's manifest `migrations` applied, and
     /// its stored Plugin Settings renamed as they declare, with any `list`
     /// saved as text rewritten as rows. It runs whenever the Host registers or

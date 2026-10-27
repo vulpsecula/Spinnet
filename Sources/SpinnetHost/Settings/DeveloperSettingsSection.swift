@@ -20,12 +20,9 @@ struct DeveloperSettingsSection: View {
 
     var body: some View {
             VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Developer").font(.title2.weight(.semibold)).accessibilityAddTraits(.isHeader)
-                    Text("Shortcuts for developing and testing Spinnet. Only development builds have this section.")
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                pageHeader(title: "Developer",
+                           description: "Shortcuts for developing and testing Spinnet. Only development builds have this section.",
+                           titleFont: .title2.weight(.semibold))
 
                 section("Host") {
                     actionRow(
@@ -102,14 +99,7 @@ struct DeveloperSettingsSection: View {
             Text(title).font(.headline).accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) { content() }
                 .padding(.horizontal, 18)
-                .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                        }
-                }
+                .settingsCard()
         }
     }
 

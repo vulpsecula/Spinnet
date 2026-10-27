@@ -8,12 +8,13 @@ enum LoginItemStatus: Equatable {
     /// Registered, but macOS still waits for the user to allow it in
     /// System Settings → General → Login Items.
     case requiresApproval
-    /// macOS cannot find the app to register, as for a Host run outside its
-    /// app bundle.
+    /// macOS reports no such login item. Some macOS versions say so for a
+    /// bundled app that never registered, so registering is still tried and
+    /// any refusal reported.
     case notFound
 }
 
-/// The system's main-app login item service.
+/// The system's login item service for Spinnet's own app bundle.
 protocol LoginItemService: AnyObject {
     var status: LoginItemStatus { get }
     func register() throws
@@ -22,7 +23,7 @@ protocol LoginItemService: AnyObject {
 }
 
 /// `SMAppService.mainApp`: the login item for this app bundle itself.
-final class MainAppLoginItemService: LoginItemService {
+final class AppBundleLoginItemService: LoginItemService {
     var status: LoginItemStatus {
         switch SMAppService.mainApp.status {
         case .enabled: return .enabled
@@ -53,14 +54,11 @@ final class LaunchAtLoginModel: ObservableObject {
 
     /// A login item awaiting approval is registered, so the toggle is on.
     var isOn: Bool { status == .enabled || status == .requiresApproval }
-    var isAvailable: Bool { status != .notFound }
-
     /// What the page says under the toggle, if anything.
     var note: String? {
         switch status {
         case .requiresApproval: return "Launch at Login needs your approval in System Settings"
-        case .notFound: return "Only Spinnet running from its app bundle can launch at login"
-        case .enabled, .notRegistered: return nil
+        case .enabled, .notRegistered, .notFound: return nil
         }
     }
 
