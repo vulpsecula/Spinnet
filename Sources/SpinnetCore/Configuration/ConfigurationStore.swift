@@ -89,6 +89,191 @@ public final class HostConfigurationEditor {
         self.configuration = configuration
     }
 
+    // MARK: - App Overrides
+
+    /// The App whose App Overrides Menu Item edits change, or nil for the
+    /// default Menu. Slots are arranged only in the default Menu.
+    public private(set) var editedApp: AppBundleIdentifier?
+
+    /// Directs Menu Item edits to `app`'s App Overrides, or to the default
+    /// Menu for nil.
+    public func editApp(_ app: AppBundleIdentifier?) {
+        editedApp = app
+    }
+
+    /// The Slots as the edited App sees them: its overrides, and the default
+    /// Menu's Menu Items elsewhere.
+    public var editedSlots: [MenuSlotConfiguration] {
+        configuration.menu.slots(for: editedApp)
+    }
+
+    /// Whether the edited App overrides the Slot at `index`, with a Menu
+    /// Item or empty. Nothing is overridden in the default Menu.
+    public func isOverridden(slotAt index: Int) -> Bool {
+        guard let app = editedApp, configuration.menu.slots.indices.contains(index) else { return false }
+        return configuration.menu.slots[index].appOverrides[app] != nil
+    }
+
+    /// Empties the Slot at `index` for the edited App, forgetting the
+    /// Actions of the Menu Item it overrode the Slot with.
+    public func emptySlot(at index: Int) throws {
+        let app = try requireEditedApp()
+        let slot = try arrangedSlot(at: index)
+        configuration = try configuration(
+            settingOverride: .empty, for: app, at: index, forgetting: slot.appOverrides[app]?.item
+        )
+    }
+
+    /// Returns the Slot at `index` to the default Menu's Menu Item for the
+    /// edited App, forgetting the Actions of its override.
+    public func resetSlotToDefault(at index: Int) throws {
+        let app = try requireEditedApp()
+        let slot = try arrangedSlot(at: index)
+        guard let override = slot.appOverrides[app] else {
+            throw ConfigurationError.invalidMenu("Menu Slot is not overridden for this App")
+        }
+        configuration = try configuration(settingOverride: nil, for: app, at: index, forgetting: override.item)
+    }
+
+    /// Removes every App Override of `app` and forgets their Actions. The
+    /// default Menu is edited afterwards when `app` was the edited App.
+    public func removeApp(_ app: AppBundleIdentifier) throws {
+        let forgotten = Set(configuration.menu.slots.compactMap { $0.appOverrides[app]?.item }.flatMap(\.boundActionIDs))
+        let slots = configuration.menu.slots.map { $0.withOverride(nil, for: app) }
+        configuration = try HostConfiguration(
+            actions: configuration.actions.filter { !forgotten.contains($0.id) },
+            menu: MenuConfiguration(slots: slots)
+        )
+        if editedApp == app { editedApp = nil }
+    }
+
+    /// `base` with the Menu Item the edited App sees at `index` given
+    /// `alias`. A Configuration Sheet names its candidate this way.
+    public func configuration(
+        _ base: HostConfiguration,
+        aliasingMenuItemAt index: Int,
+        to alias: String?
+    ) throws -> HostConfiguration {
+        let base = try materialized(base, at: index)
+        var slots = base.menu.slots(for: editedApp)
+        guard slots.indices.contains(index) else {
+            throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+        }
+        guard let item = slots[index].item else {
+            throw ConfigurationError.invalidMenu("Cannot rename an empty Menu Slot")
+        }
+        slots[index] = .occupied(item.withAlias(alias))
+        return try HostConfiguration(actions: base.actions, menu: menu(applying: slots, to: base.menu))
+    }
+
+    private func requireEditedApp() throws -> AppBundleIdentifier {
+        guard let editedApp else {
+            throw ConfigurationError.invalidMenu("Only an App's Menu Slots can be emptied or reset")
+        }
+        return editedApp
+    }
+
+    private func requireDefaultMenu() throws {
+        guard editedApp == nil else {
+            throw ConfigurationError.invalidMenu("Slots are arranged in the default Menu")
+        }
+    }
+
+    private func arrangedSlot(at index: Int) throws -> MenuSlotConfiguration {
+        guard configuration.menu.slots.indices.contains(index) else {
+            throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
+        }
+        return configuration.menu.slots[index]
+    }
+
+    private func configuration(
+        settingOverride override: AppSlotOverride?,
+        for app: AppBundleIdentifier,
+        at index: Int,
+        forgetting item: MenuItemConfiguration?
+    ) throws -> HostConfiguration {
+        let forgotten = Set(item?.boundActionIDs ?? [])
+        var slots = configuration.menu.slots
+        slots[index] = slots[index].withOverride(override, for: app)
+        return try HostConfiguration(
+            actions: configuration.actions.filter { !forgotten.contains($0.id) },
+            menu: MenuConfiguration(slots: slots)
+        )
+    }
+
+    /// Folds Slots edited as the edited App sees them back into `base`: in
+    /// the default Menu each Slot's Menu Item is replaced and its overrides
+    /// kept; for an App each changed Slot becomes, or stays, its override.
+    private func menu(
+        applying edited: [MenuSlotConfiguration],
+        to base: MenuConfiguration
+    ) throws -> MenuConfiguration {
+        let resolved = base.slots(for: editedApp)
+        guard edited.count == base.slots.count else {
+            throw ConfigurationError.invalidMenu("Slots are arranged in the default Menu")
+        }
+        var slots: [MenuSlotConfiguration] = []
+        for (index, slot) in base.slots.enumerated() {
+            let item = edited[index].item
+            guard let app = editedApp else {
+                slots.append(slot.withItem(item))
+                continue
+            }
+            slots.append(item == resolved[index].item ? slot : slot.withOverride(AppSlotOverride(item: item), for: app))
+        }
+        return try MenuConfiguration(slots: slots)
+    }
+
+    /// `base` where the edited App's inherited Menu Item at `index` has
+    /// become its own override, a copy with its own Actions, so editing it
+    /// never changes the default Menu's.
+    private func materialized(_ base: HostConfiguration, at index: Int) throws -> HostConfiguration {
+        guard let app = editedApp, base.menu.slots.indices.contains(index) else { return base }
+        let slot = base.menu.slots[index]
+        guard slot.appOverrides[app] == nil, let item = slot.item else { return base }
+        let actions = Dictionary(uniqueKeysWithValues: base.actions.map { ($0.id, $0) })
+        var copiedIDs: [ActionID: ActionID] = [:]
+        var copies: [ActionConfiguration] = []
+        for actionID in item.boundActionIDs {
+            guard let action = actions[actionID] else { continue }
+            let copy = try ActionConfiguration(
+                id: ActionID(UUID().uuidString),
+                pluginID: action.pluginID,
+                command: action.declaredCommand,
+                input: action.input
+            )
+            copiedIDs[actionID] = copy.id
+            copies.append(copy)
+        }
+        let copied: (ActionID) -> ActionID = { copiedIDs[$0] ?? $0 }
+        let override = try MenuItemConfiguration(
+            primaryActionID: copied(item.primaryActionID),
+            alternateActionIDs: item.alternateActionIDs.map(copied),
+            disabledAlternateActionIDs: item.disabledAlternateActionIDs.map(copied),
+            alternateActionOrder: item.alternateActionOrder.map(copied),
+            alias: item.alias
+        )
+        var slots = base.menu.slots
+        slots[index] = slot.withOverride(.item(override), for: app)
+        return try HostConfiguration(actions: base.actions + copies, menu: MenuConfiguration(slots: slots))
+    }
+
+    /// Runs an edit of the Menu Item at `index` on a configuration where an
+    /// inherited one is already the edited App's own. The materialized copy
+    /// is kept only by an edit that succeeds and keeps its changes.
+    private func editingMenuItem<T>(at index: Int, keepsChanges: Bool, _ edit: () throws -> T) throws -> T {
+        let original = configuration
+        configuration = try materialized(original, at: index)
+        do {
+            let result = try edit()
+            if !keepsChanges { configuration = original }
+            return result
+        } catch {
+            configuration = original
+            throw error
+        }
+    }
+
     @discardableResult
     public func createAction(
         id: ActionID? = nil,
@@ -108,7 +293,7 @@ public final class HostConfigurationEditor {
         )
         try replaceConfiguration(
             actions: configuration.actions + [action],
-            slots: configuration.menu.slots
+            arrangedSlots: configuration.menu.slots
         )
         return action
     }
@@ -131,7 +316,7 @@ public final class HostConfigurationEditor {
         )
         var actions = configuration.actions
         actions[index] = action
-        try replaceConfiguration(actions: actions, slots: configuration.menu.slots)
+        try replaceConfiguration(actions: actions, arrangedSlots: configuration.menu.slots)
         return action
     }
 
@@ -153,46 +338,49 @@ public final class HostConfigurationEditor {
             throw ConfigurationError.invalidAction("Action \(id.rawValue) is not configured")
         }
 
-        var slots: [MenuSlotConfiguration] = []
-        for slot in configuration.menu.slots {
-            guard let item = slot.item else {
-                slots.append(slot)
-                continue
+        // Every Menu Item that binds the Action loses it: the default Menu's
+        // and every App Override's.
+        let slots = try configuration.menu.slots.map { slot -> MenuSlotConfiguration in
+            var overrides: [AppBundleIdentifier: AppSlotOverride] = [:]
+            for (app, override) in slot.appOverrides {
+                overrides[app] = AppSlotOverride(item: try override.item.flatMap { try Self.removing(id, from: $0) })
             }
-            let remainingEnabled = item.alternateActionIDs.filter { $0 != id }
-            let remainingDisabled = item.disabledAlternateActionIDs.filter { $0 != id }
-            let remainingOrder = item.alternateActionOrder.filter { $0 != id }
-            if item.primaryActionID == id {
-                // Promote the first visible Alternate when possible. If all
-                // remaining Alternates are hidden, promote the first retained
-                // one so deleting a Primary does not discard saved setup.
-                let promotedPrimary = remainingEnabled.first ?? remainingDisabled.first
-                if let promotedPrimary {
-                    let enabled = remainingEnabled.filter { $0 != promotedPrimary }
-                    let disabled = remainingDisabled.filter { $0 != promotedPrimary }
-                    slots.append(.occupied(try MenuItemConfiguration(
-                        primaryActionID: promotedPrimary,
-                        alternateActionIDs: enabled,
-                        disabledAlternateActionIDs: disabled,
-                        alternateActionOrder: remainingOrder.filter { $0 != promotedPrimary },
-                        alias: item.alias
-                    )))
-                } else {
-                    slots.append(.empty)
-                }
-            } else {
-                slots.append(.occupied(try MenuItemConfiguration(
-                    primaryActionID: item.primaryActionID,
-                    alternateActionIDs: remainingEnabled,
-                    disabledAlternateActionIDs: remainingDisabled,
-                    alternateActionOrder: remainingOrder,
-                    alias: item.alias
-                )))
-            }
+            return MenuSlotConfiguration(
+                item: try slot.item.flatMap { try Self.removing(id, from: $0) },
+                appOverrides: overrides
+            )
         }
 
         let actions = configuration.actions.filter { $0.id != id }
-        try replaceConfiguration(actions: actions, slots: slots)
+        configuration = try HostConfiguration(actions: actions, menu: MenuConfiguration(slots: slots))
+    }
+
+    /// `item` without Action `id`, or nil when nothing is left to be its
+    /// Primary Action.
+    private static func removing(_ id: ActionID, from item: MenuItemConfiguration) throws -> MenuItemConfiguration? {
+        let remainingEnabled = item.alternateActionIDs.filter { $0 != id }
+        let remainingDisabled = item.disabledAlternateActionIDs.filter { $0 != id }
+        let remainingOrder = item.alternateActionOrder.filter { $0 != id }
+        guard item.primaryActionID == id else {
+            return try MenuItemConfiguration(
+                primaryActionID: item.primaryActionID,
+                alternateActionIDs: remainingEnabled,
+                disabledAlternateActionIDs: remainingDisabled,
+                alternateActionOrder: remainingOrder,
+                alias: item.alias
+            )
+        }
+        // Promote the first visible Alternate when possible. If all
+        // remaining Alternates are hidden, promote the first retained
+        // one so deleting a Primary does not discard saved setup.
+        guard let promotedPrimary = remainingEnabled.first ?? remainingDisabled.first else { return nil }
+        return try MenuItemConfiguration(
+            primaryActionID: promotedPrimary,
+            alternateActionIDs: remainingEnabled.filter { $0 != promotedPrimary },
+            disabledAlternateActionIDs: remainingDisabled.filter { $0 != promotedPrimary },
+            alternateActionOrder: remainingOrder.filter { $0 != promotedPrimary },
+            alias: item.alias
+        )
     }
 
     public func updateMenuItem(
@@ -203,14 +391,16 @@ public final class HostConfigurationEditor {
         guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Item index is out of range")
         }
-        let item = try MenuItemConfiguration(
-            primaryActionID: primaryActionID,
-            alternateActionIDs: alternateActionIDs,
-            alias: configuration.menu.slots[index].item?.alias
-        )
-        var slots = configuration.menu.slots
-        slots[index] = .occupied(item)
-        try replaceConfiguration(actions: configuration.actions, slots: slots)
+        try editingMenuItem(at: index, keepsChanges: true) {
+            let item = try MenuItemConfiguration(
+                primaryActionID: primaryActionID,
+                alternateActionIDs: alternateActionIDs,
+                alias: editedSlots[index].item?.alias
+            )
+            var slots = editedSlots
+            slots[index] = .occupied(item)
+            try replaceConfiguration(actions: configuration.actions, editedSlots: slots)
+        }
     }
 
     /// Sets or clears the user override for a Menu Item's displayed name. A
@@ -219,13 +409,7 @@ public final class HostConfigurationEditor {
         guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
         }
-        let slot = configuration.menu.slots[index]
-        guard let item = slot.item else {
-            throw ConfigurationError.invalidMenu("Cannot rename an empty Menu Slot")
-        }
-        var slots = configuration.menu.slots
-        slots[index] = .occupied(item.withAlias(name))
-        try replaceConfiguration(actions: configuration.actions, slots: slots)
+        configuration = try configuration(configuration, aliasingMenuItemAt: index, to: name)
     }
 
     /// Rebuilds one Menu Slot from a single Plugin's selected Commands. The
@@ -273,7 +457,33 @@ public final class HostConfigurationEditor {
         guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Item index is out of range")
         }
-        guard let existingItem = configuration.menu.slots[index].item else {
+        return try editingMenuItem(at: index, keepsChanges: false) {
+            try configuredEditableMenuItem(
+                at: index,
+                pluginID: pluginID,
+                primaryCommandID: primaryCommandID,
+                alternateCommandIDs: alternateCommandIDs,
+                inputs: inputs,
+                alternateCommandOrder: requestedAlternateOrder,
+                replacingEmptySlot: replacingEmptySlot,
+                validateInputs: validateInputs,
+                preserveUnselectedAlternates: preserveUnselectedAlternates
+            )
+        }
+    }
+
+    private func configuredEditableMenuItem(
+        at index: Int,
+        pluginID: PluginID,
+        primaryCommandID: CommandID,
+        alternateCommandIDs: [CommandID],
+        inputs: [CommandID: JSONValue],
+        alternateCommandOrder requestedAlternateOrder: [CommandID],
+        replacingEmptySlot: Bool,
+        validateInputs: Bool,
+        preserveUnselectedAlternates: Bool
+    ) throws -> HostConfiguration {
+        guard let existingItem = editedSlots[index].item else {
             guard replacingEmptySlot else {
                 throw ConfigurationError.invalidMenu("Menu Slot is empty")
             }
@@ -395,13 +605,13 @@ public final class HostConfigurationEditor {
             alternateActionOrder: alternateActionOrder,
             alias: existingItem.alias
         )
-        var slots = configuration.menu.slots
+        var slots = editedSlots
         slots[index] = .occupied(item)
         return try HostConfiguration(
             actions: configuration.actions.filter { !oldActionIDs.contains($0.id) }
                 + newActions
                 + retainedActions,
-            menu: MenuConfiguration(slots: slots)
+            menu: menu(applying: slots, to: configuration.menu)
         )
     }
 
@@ -444,11 +654,11 @@ public final class HostConfigurationEditor {
             primaryActionID: primary.id,
             alternateActionIDs: newActions.dropFirst().map(\.id)
         )
-        var slots = configuration.menu.slots
+        var slots = editedSlots
         slots[index] = .occupied(item)
         return try HostConfiguration(
             actions: configuration.actions + newActions,
-            menu: MenuConfiguration(slots: slots)
+            menu: menu(applying: slots, to: configuration.menu)
         )
     }
 
@@ -492,13 +702,14 @@ public final class HostConfigurationEditor {
         primaryActionID: ActionID,
         alternateActionIDs: [ActionID] = []
     ) throws {
+        try requireDefaultMenu()
         let item = try MenuItemConfiguration(
             primaryActionID: primaryActionID,
             alternateActionIDs: alternateActionIDs
         )
         try replaceConfiguration(
             actions: configuration.actions,
-            slots: configuration.menu.slots + [.occupied(item)]
+            arrangedSlots: configuration.menu.slots + [.occupied(item)]
         )
     }
 
@@ -507,15 +718,17 @@ public final class HostConfigurationEditor {
     }
 
     public func insertSlot(_ slot: MenuSlotConfiguration, at index: Int) throws {
+        try requireDefaultMenu()
         guard (0...configuration.menu.slots.count).contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
         }
         var slots = configuration.menu.slots
         slots.insert(slot, at: index)
-        try replaceConfiguration(actions: configuration.actions, slots: slots)
+        try replaceConfiguration(actions: configuration.actions, arrangedSlots: slots)
     }
 
     public func removeSlot(at index: Int) throws {
+        try requireDefaultMenu()
         guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Item index is out of range")
         }
@@ -524,7 +737,7 @@ public final class HostConfigurationEditor {
         }
         var slots = configuration.menu.slots
         slots.remove(at: index)
-        try replaceConfiguration(actions: configuration.actions, slots: slots)
+        try replaceConfiguration(actions: configuration.actions, arrangedSlots: slots)
     }
 
     @discardableResult
@@ -538,7 +751,7 @@ public final class HostConfigurationEditor {
         guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
         }
-        guard configuration.menu.slots[index].item == nil else {
+        guard editedSlots[index].item == nil else {
             throw ConfigurationError.invalidMenu("Menu Slot is already occupied")
         }
         let actionID = id ?? ActionID(UUID().uuidString)
@@ -549,11 +762,11 @@ public final class HostConfigurationEditor {
             input: input
         )
         let item = try MenuItemConfiguration(primaryActionID: action.id)
-        var slots = configuration.menu.slots
+        var slots = editedSlots
         slots[index] = .occupied(item)
         try replaceConfiguration(
             actions: configuration.actions + [action],
-            slots: slots
+            editedSlots: slots
         )
         return action
     }
@@ -567,7 +780,19 @@ public final class HostConfigurationEditor {
         guard configuration.menu.slots.indices.contains(index) else {
             throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
         }
-        guard configuration.menu.slots[index].item == nil || replacing else {
+        // Replacing an App's inherited Menu Item replaces a copy of it, so
+        // the default Menu keeps its Actions.
+        return try editingMenuItem(at: index, keepsChanges: true) {
+            try placeEditablePreset(pluginID: pluginID, inSlotAt: index, replacing: replacing)
+        }
+    }
+
+    private func placeEditablePreset(
+        pluginID: PluginID,
+        inSlotAt index: Int,
+        replacing: Bool
+    ) throws -> MenuItemConfiguration {
+        guard editedSlots[index].item == nil || replacing else {
             throw ConfigurationError.invalidMenu("Menu Slot is already occupied")
         }
         guard let preset = registry.menuItemPreset(for: pluginID), preset.isAvailable else {
@@ -607,21 +832,22 @@ public final class HostConfigurationEditor {
             alternateActionIDs: newActions.dropFirst().map(\.id)
         )
         let replacedActionIDs = Set(
-            configuration.menu.slots[index].item.map {
+            editedSlots[index].item.map {
                 $0.boundActionIDs
             } ?? []
         )
-        var slots = configuration.menu.slots
+        var slots = editedSlots
         slots[index] = .occupied(item)
         try replaceConfiguration(
             actions: configuration.actions.filter { !replacedActionIDs.contains($0.id) } + newActions,
-            slots: slots
+            editedSlots: slots
         )
         return item
     }
 
     /// Reorders complete Slots along the shorter circular arc.
     public func moveSlot(from sourceIndex: Int, to targetIndex: Int) throws {
+        try requireDefaultMenu()
         guard configuration.menu.slots.indices.contains(sourceIndex),
               configuration.menu.slots.indices.contains(targetIndex) else {
             throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
@@ -632,11 +858,12 @@ public final class HostConfigurationEditor {
     }
 
     public func reorderSlots(order: [Int]) throws {
+        try requireDefaultMenu()
         let slots = configuration.menu.slots
         guard order.count == slots.count, Set(order) == Set(slots.indices) else {
             throw ConfigurationError.invalidMenu("Slot order must contain each existing Slot exactly once")
         }
-        try replaceConfiguration(actions: configuration.actions, slots: order.map { slots[$0] })
+        try replaceConfiguration(actions: configuration.actions, arrangedSlots: order.map { slots[$0] })
     }
 
     private func action(with id: ActionID) -> ActionConfiguration? {
@@ -663,11 +890,23 @@ public final class HostConfigurationEditor {
         )
     }
 
+    /// Replaces the Slots as the edited App sees them, folding them back
+    /// into the default Menu or the App's overrides.
     private func replaceConfiguration(
         actions: [ActionConfiguration],
-        slots: [MenuSlotConfiguration]
+        editedSlots: [MenuSlotConfiguration]
     ) throws {
-        let menu = try MenuConfiguration(slots: slots)
+        let menu = try menu(applying: editedSlots, to: configuration.menu)
+        configuration = try HostConfiguration(actions: actions, menu: menu)
+    }
+
+    /// Replaces the arrangement of the default Menu's Slots, each carrying
+    /// its App Overrides.
+    private func replaceConfiguration(
+        actions: [ActionConfiguration],
+        arrangedSlots: [MenuSlotConfiguration]
+    ) throws {
+        let menu = try MenuConfiguration(slots: arrangedSlots)
         configuration = try HostConfiguration(actions: actions, menu: menu)
     }
 }
