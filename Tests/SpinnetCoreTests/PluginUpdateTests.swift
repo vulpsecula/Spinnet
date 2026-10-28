@@ -185,6 +185,17 @@ final class PluginUpdateTests: XCTestCase {
         XCTAssertEqual(try updater().check(PluginReleaseFixture.pluginID).update?.manifest.version, "2.0.0-beta.10")
     }
 
+    func testNumericPrereleaseIdentifiersCompareExactlyAtAnySize() throws {
+        let huge = "2.0.0-beta.18446744073709551616"
+        let larger = "2.0.0-beta.18446744073709551617"
+        XCTAssertLessThan(try PluginVersion(huge), try PluginVersion(larger))
+        XCTAssertLessThan(try PluginVersion("2.0.0-beta.99"), try PluginVersion(huge))
+        XCTAssertLessThan(try PluginVersion("2.0.0-beta.99999999999999999999"),
+                          try PluginVersion("2.0.0-beta.100000000000000000000"), "Longer digits are the larger number")
+        XCTAssertLessThan(try PluginVersion("2.0.0-beta.99999999999999999999"), try PluginVersion("2.0.0-beta.1-a"),
+                          "A numeric identifier sorts below an alphanumeric one however large it is")
+    }
+
     private func failedCheck() -> PluginUpdateError? {
         do {
             _ = try updater().check(PluginReleaseFixture.pluginID)

@@ -141,11 +141,16 @@ public struct PluginVersion: Comparable, Hashable, Sendable, CustomStringConvert
         case (false, false): break
         }
         for (left, right) in zip(lhs.prerelease, rhs.prerelease) where left != right {
-            switch (UInt64(left), UInt64(right)) {
-            case let (l?, r?): return l < r
-            case (.some, nil): return true
-            case (nil, .some): return false
-            case (nil, nil): return left < right
+            // Digit-only identifiers have no leading zeros, so the longer is
+            // the larger number and equal lengths compare digit by digit,
+            // exactly at any size.
+            switch (isNumeric(Substring(left)), isNumeric(Substring(right))) {
+            case (true, true):
+                return left.utf8.count != right.utf8.count ? left.utf8.count < right.utf8.count
+                    : left.utf8.lexicographicallyPrecedes(right.utf8)
+            case (true, false): return true
+            case (false, true): return false
+            case (false, false): return left.utf8.lexicographicallyPrecedes(right.utf8)
             }
         }
         return lhs.prerelease.count < rhs.prerelease.count
