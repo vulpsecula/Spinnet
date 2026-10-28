@@ -10,6 +10,8 @@ import SpinnetCore
 struct PendingPluginInstallation: Identifiable, Equatable {
     let source: URL
     let review: PluginInstallationReview
+    /// Set when this is a Plugin Update found at the Plugin's Update Source.
+    var update: PluginUpdateCandidate? = nil
 
     var id: URL { source }
 }
@@ -72,6 +74,8 @@ final class MenuEditorModel: ObservableObject {
     @Published var installationResult: PluginInstallationResult?
     var reviewPluginInstallation: ((URL) throws -> PluginInstallationReview)?
     var installPlugin: ((URL) throws -> PluginManifest)?
+    /// Applies a Plugin Update through the same install-and-replace path.
+    var applyPluginUpdate: ((PluginUpdateCandidate) throws -> PluginManifest)?
     /// Grants reviewed requests after registration; an empty list refreshes
     /// inherited decisions for the newly installed version without granting access.
     var grantRequestedAccess: ((PluginManifest, [PluginCapability]) -> Void)?
@@ -265,10 +269,25 @@ final class MenuEditorModel: ObservableObject {
         do {
             let review = try reviewPluginInstallation(url)
             if review.requestedAccess.isEmpty {
-                try install(url, as: review)
+                try install(PendingPluginInstallation(source: url, review: review))
             } else {
                 pendingInstallation = PendingPluginInstallation(source: url, review: review)
             }
+        } catch {
+            reportInstallationFailure(error)
+        }
+    }
+
+    /// A Plugin Update found at the Update Source takes the same review as a
+    /// package the user chose.
+    func installPluginUpdate(_ update: PluginUpdateCandidate) {
+        let pending = PendingPluginInstallation(source: update.packageURL, review: update.review, update: update)
+        guard update.review.requestedAccess.isEmpty else {
+            pendingInstallation = pending
+            return
+        }
+        do {
+            try install(pending)
         } catch {
             reportInstallationFailure(error)
         }
@@ -278,7 +297,7 @@ final class MenuEditorModel: ObservableObject {
         guard let pending = pendingInstallation else { return }
         pendingInstallation = nil
         do {
-            try install(pending.source, as: pending.review)
+            try install(pending)
         } catch {
             reportInstallationFailure(error)
         }
@@ -293,12 +312,20 @@ final class MenuEditorModel: ObservableObject {
         pendingInstallation = nil
     }
 
-    private func install(_ url: URL, as review: PluginInstallationReview) throws {
-        guard let installPlugin else { return }
+    private func install(_ pending: PendingPluginInstallation) throws {
+        let review = pending.review
+        let perform: () throws -> PluginManifest
+        if let update = pending.update {
+            guard let applyPluginUpdate else { return }
+            perform = { try applyPluginUpdate(update) }
+        } else {
+            guard let installPlugin else { return }
+            perform = { try installPlugin(pending.source) }
+        }
         let refused = editor.refusedPlugins.first { $0.id == review.manifest.id }
         let previous = editor.pluginManifests.first { $0.id == review.manifest.id }?.version
             ?? refused?.manifest?.version
-        let manifest = try installPlugin(url)
+        let manifest = try perform()
         let requested = review.requestedAccess
         // Inheritance notifications precede registration. Even an update
         // needing no consent must refresh Access against the new manifest.

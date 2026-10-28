@@ -1,0 +1,42 @@
+{
+  "description": "Which version a check offers: the installed version, the release tags of the Update Source (every listed tag publishes a package that passes the other acceptance rules) and the version offered, or null for none. Releases marked draft or prerelease are never offered.",
+  "plugin_id": "com.example.updatable",
+  "cases": [
+    {
+      "name": "highest-newer-version-wins",
+      "installed": "1.0.0",
+      "tags": ["com.example.updatable/v1.1.0", "com.example.updatable/v1.2.0", "com.example.updatable/v0.9.0"],
+      "offered": "1.2.0"
+    },
+    {
+      "name": "other-plugins-in-the-repository-are-ignored",
+      "installed": "1.0.0",
+      "tags": ["com.example.other/v9.0.0", "com.example.updatable.extra/v9.0.0", "com.example.updatable/v1.0.1"],
+      "offered": "1.0.1"
+    },
+    {
+      "name": "numeric-not-lexical-order",
+      "installed": "1.9.0",
+      "tags": ["com.example.updatable/v1.10.0", "com.example.updatable/v1.9.1"],
+      "offered": "1.10.0"
+    },
+    {
+      "name": "prerelease-precedence",
+      "installed": "2.0.0-beta.2",
+      "tags": ["com.example.updatable/v2.0.0-beta.10", "com.example.updatable/v2.0.0-beta.1"],
+      "offered": "2.0.0-beta.10"
+    },
+    {
+      "name": "release-after-its-prerelease",
+      "installed": "2.0.0-rc.1",
+      "tags": ["com.example.updatable/v2.0.0"],
+      "offered": "2.0.0"
+    },
+    {
+      "name": "nothing-newer",
+      "installed": "1.2.0",
+      "tags": ["com.example.updatable/v1.2.0", "com.example.updatable/v1.2.0-rc.1", "com.example.updatable/v1.1.9"],
+      "offered": null
+    }
+  ]
+}

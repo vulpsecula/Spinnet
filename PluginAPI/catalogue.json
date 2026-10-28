@@ -2364,6 +2364,11 @@
       "area": "A separate HUD",
       "raycast": "showHUD",
       "reason": "Merged into host.toast: a toast without a view already shows near the pointer, and close with a toast closes the view first (decision N2)"
+    },
+    {
+      "area": "A script that checks for or installs its own Plugin's updates",
+      "raycast": "Store extension updates",
+      "reason": "A Plugin declares only its manifest update_source; the Host checks the GitHub releases and the user applies a Plugin Update after reviewing new Capabilities (reference/update-source.md), so no operation offers it to a script"
     }
   ],
   "host_version": "1.0.0"

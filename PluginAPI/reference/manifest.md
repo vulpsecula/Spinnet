@@ -193,6 +193,11 @@ empty, and an update keeps both. Menu Items made from it stay in their Menu Slot
 unavailable. Every Plugin follows the same rules, whoever publishes it; the
 app itself contains no Plugins.
 
+A Plugin that declares an `update_source` also offers Check for Update on its
+Library entry. A newer version found there is applied through the same update
+path, with the same review; see [Update Source](update-source.md) for the
+declaration, the release format and how a version is chosen.
+
 ## The Preset
 
 Every Plugin appears once in the Library through its single `preset`.

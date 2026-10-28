@@ -226,6 +226,8 @@ final class SettingsWindowModel: ObservableObject {
     let appearance: MenuAppearanceModel
     /// What the Host does after every screenshot.
     let screenshots: ScreenshotSettingsModel
+    /// The Library's Check for Update and Update per Plugin.
+    let pluginUpdates: PluginUpdatesModel
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onScreenshotSettingsChanged: (() -> Void)?
@@ -275,6 +277,10 @@ final class SettingsWindowModel: ObservableObject {
         appearance = MenuAppearanceModel(defaults: defaults)
         clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
         screenshots = ScreenshotSettingsModel(defaults: defaults)
+        pluginUpdates = PluginUpdatesModel(manifest: { [editor] pluginID in
+            editor.pluginManifests.first { $0.id == pluginID }
+        })
+        pluginUpdates.startUpdate = { [weak menuEditor] in menuEditor?.installPluginUpdate($0) }
         // Authority decides Menu Item availability, so a grant or permission
         // change has to recompute the Slots.
         privacy.onAuthorityChanged = { [weak menuEditor] in menuEditor?.refreshMenuSlots() }
@@ -926,7 +932,8 @@ struct SettingsRootView: View {
                     onPluginSettings: privacy.showPluginSettings,
                     onRemovePlugin: menuEditor.requestPluginRemoval,
                     refusedPluginsForQuery: menuEditor.libraryRefusedPlugins(matching:),
-                    onRemoveRefusedPlugin: menuEditor.requestPluginRemoval
+                    onRemoveRefusedPlugin: menuEditor.requestPluginRemoval,
+                    pluginUpdates: model.pluginUpdates
                 )
                 }
                 .id(menuEditor.refreshToken)

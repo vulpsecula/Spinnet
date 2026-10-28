@@ -5,6 +5,7 @@ boundary cases; they do not execute native effects or prove device acceptance.
 
 - [Conformance matrix](conformance/index.json): current schemas and Host parsers, real SDK answers and Host-version admission cases. `migration` records how each former check was retained.
 - [Pages](pages/index.json), [operations](host-operations/index.json), [App Targets](apps/index.json), [sources](sources/index.json), [keep awake](keep-awake/index.json): feature-specific boundaries.
+- [Update Source version selection](update-source/index.json): which version a check offers for given release tags.
 - [Adaptive cards](adaptive-cards/index.json), [viewport fit](adaptive-layout/index.json), [Spotify controls](spotify-controls/index.json), [unused dependencies](homebrew-autoremove/index.json): domain-specific accepted/refused payloads.
 - [Current SDK](sdk/current.ts), [activity sources](sdk/activity-source.ts), [Terminal](sdk/terminal-homebrew.ts), [command output](sdk/command-output.ts), [catalog refresh](sdk/catalog-refresh.ts): compile-time samples, including intentional `@ts-expect-error` assertions.
 

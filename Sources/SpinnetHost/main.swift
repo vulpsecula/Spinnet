@@ -36,6 +36,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             self.pluginViewPins.forget(pluginID)
         }
     )
+    /// Checks Update Sources and applies Plugin Updates through the same
+    /// install store. Unpacked candidates wait in a temporary directory.
+    private lazy var pluginUpdater = PluginUpdater(
+        store: pluginInstallation, registry: registry, transport: URLSessionHTTPSTransport(),
+        downloads: FileManager.default.temporaryDirectory.appendingPathComponent("Spinnet Plugin Updates", isDirectory: true)
+    )
     /// Each Plugin's Pin (ADR 0016), kept across launches and updates and
     /// forgotten when the Plugin is removed.
     private lazy var pluginViewPins = PluginViewPins(defaults: .standard)
@@ -406,29 +412,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 try self.pluginInstallation.review(url)
             }
             settings.installPlugin = { [unowned self] url in
-                let manifest = try self.pluginInstallation.install(from: url)
-                if let configuration = self.currentConfiguration {
-                    // An update's migrations move the data its earlier
-                    // version left, as they would at the next launch. The
-                    // Plugin is installed either way.
-                    let migrated: HostConfiguration
-                    do {
-                        let declared = try StoredDataMigration.applyMigrations(
-                            declaredBy: manifest, to: configuration, pluginSettings: self.pluginSettings
-                        )
-                        migrated = try DeepLinkMigration.migrate(declared, registry: self.registry) ?? declared
-                    } catch {
-                        migrated = configuration
-                        self.showConfigurationError(error)
-                    }
-                    if migrated != configuration {
-                        editor.restore(migrated)
-                        self.configurationDidChange(migrated)
-                    } else {
-                        self.menu.reload(items: self.makeMenuSlots(from: configuration))
-                    }
-                }
-                return manifest
+                try self.finishInstallation(of: self.pluginInstallation.install(from: url), editor: editor)
+            }
+            settings.applyPluginUpdate = { [unowned self] update in
+                try self.finishInstallation(of: self.pluginUpdater.apply(update), editor: editor)
+            }
+            settings.checkPluginUpdate = { [unowned self] pluginID in
+                try self.pluginUpdater.check(pluginID)
             }
             settings.removePlugin = { [unowned self] pluginID in
                 try self.pluginInstallation.uninstall(pluginID)
@@ -609,6 +599,30 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             for: action,
             resourceAvailability: HostResourceAvailability.missingReason
         )
+    }
+
+    /// After a Library install or a Plugin Update: an update's migrations
+    /// move the data its earlier version left, as they would at the next
+    /// launch. The Plugin is installed either way.
+    private func finishInstallation(of manifest: PluginManifest, editor: HostConfigurationEditor) -> PluginManifest {
+        guard let configuration = currentConfiguration else { return manifest }
+        let migrated: HostConfiguration
+        do {
+            let declared = try StoredDataMigration.applyMigrations(
+                declaredBy: manifest, to: configuration, pluginSettings: pluginSettings
+            )
+            migrated = try DeepLinkMigration.migrate(declared, registry: registry) ?? declared
+        } catch {
+            migrated = configuration
+            showConfigurationError(error)
+        }
+        if migrated != configuration {
+            editor.restore(migrated)
+            configurationDidChange(migrated)
+        } else {
+            menu.reload(items: makeMenuSlots(from: configuration))
+        }
+        return manifest
     }
 
     private func installStatusItem() {

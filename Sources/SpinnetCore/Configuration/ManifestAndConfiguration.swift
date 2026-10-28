@@ -455,6 +455,9 @@ public struct PluginManifest: Codable, Equatable {
     public let defaultSettings: [String: JSONValue]
     /// How data an earlier version left behind maps onto this one.
     public let migrations: PluginMigrations
+    /// Where newer versions are published, written `update_source`. Absent,
+    /// the Plugin offers no Plugin Update.
+    public let updateSource: PluginUpdateSource?
 
     public init(
         protocolVersion: String = Self.supportedProtocolVersion,
@@ -470,7 +473,8 @@ public struct PluginManifest: Codable, Equatable {
         preset: MenuItemPresetDeclaration = MenuItemPresetDeclaration(),
         settingsFields: [CommandConfigurationField] = [],
         defaultSettings: [String: JSONValue] = [:],
-        migrations: PluginMigrations = PluginMigrations()
+        migrations: PluginMigrations = PluginMigrations(),
+        updateSource: PluginUpdateSource? = nil
     ) throws {
         self.protocolVersion = protocolVersion
         self.hostCompatibility = hostCompatibility
@@ -486,6 +490,7 @@ public struct PluginManifest: Codable, Equatable {
         self.settingsFields = settingsFields
         self.defaultSettings = defaultSettings
         self.migrations = migrations
+        self.updateSource = updateSource
         try validate()
     }
 
@@ -506,6 +511,7 @@ public struct PluginManifest: Codable, Equatable {
         case settingsFields = "settings_fields"
         case defaultSettings = "default_settings"
         case migrations
+        case updateSource = "update_source"
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -524,6 +530,7 @@ public struct PluginManifest: Codable, Equatable {
         if !settingsFields.isEmpty { try container.encode(settingsFields, forKey: .settingsFields) }
         if !defaultSettings.isEmpty { try container.encode(defaultSettings, forKey: .defaultSettings) }
         if !migrations.isEmpty { try container.encode(migrations, forKey: .migrations) }
+        try container.encodeIfPresent(updateSource, forKey: .updateSource)
     }
 
     public init(from decoder: Decoder) throws {
@@ -562,6 +569,7 @@ public struct PluginManifest: Codable, Equatable {
         self.settingsFields = try container.decodeIfPresent([CommandConfigurationField].self, forKey: .settingsFields) ?? []
         self.defaultSettings = try container.decodeIfPresent([String: JSONValue].self, forKey: .defaultSettings) ?? [:]
         self.migrations = try container.decodeIfPresent(PluginMigrations.self, forKey: .migrations) ?? PluginMigrations()
+        self.updateSource = try container.decodeIfPresent(PluginUpdateSource.self, forKey: .updateSource)
         try validate()
     }
 
@@ -574,6 +582,14 @@ public struct PluginManifest: Codable, Equatable {
         try validateText(id.rawValue, name: "Plugin ID")
         try validateText(name, name: "Plugin name")
         try validateText(version, name: "Plugin version")
+        if updateSource != nil {
+            // Releases are tagged <id>/v<version> and compared by SemVer.
+            guard PluginUpdateSource.isTagSafe(id) else {
+                throw ConfigurationError.invalidManifest(
+                    "A Plugin with an Update Source needs an ID of ASCII letters, digits, '.', '_' and '-' that can name a release tag")
+            }
+            _ = try PluginVersion(version)
+        }
         guard Set(capabilities).count == capabilities.count else {
             throw ConfigurationError.invalidManifest("Plugin declares a Capability more than once")
         }
