@@ -114,9 +114,45 @@
           "$ref": "#/$defs/hostVersionRange"
         }
       }
+    },
+    "update_source": {
+      "description": "Where newer versions of this Plugin are published: a GitHub repository whose releases are tagged <id>/v<version>. It grants no authority. See reference/update-source.md.",
+      "type": "object",
+      "required": [
+        "github"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "github": {
+          "description": "The repository as owner/repo on github.com.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/(?!\\.\\.?$)[A-Za-z0-9._-]{1,100}$"
+        }
+      }
+    }
+  },
+  "if": {
+    "required": [
+      "update_source"
+    ]
+  },
+  "then": {
+    "properties": {
+      "id": {
+        "description": "With an Update Source, the identity must be usable in a release tag.",
+        "pattern": "^(?!.*\\.\\.)(?!.*\\.lock$)[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$"
+      },
+      "version": {
+        "$ref": "#/$defs/updateVersion"
+      }
     }
   },
   "$defs": {
+    "updateVersion": {
+      "description": "A SemVer 2.0.0 version without build metadata, compared by SemVer precedence.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$"
+    },
     "text": {
       "description": "Display or identity text: not blank, at most 256 characters.",
       "type": "string",

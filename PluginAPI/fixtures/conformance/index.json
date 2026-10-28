@@ -2084,6 +2084,294 @@
           "valid": false
         }
       ]
+    },
+    {
+      "name": "update-source",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.2.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": {
+          "github": "vulpsecula/SpinnetPlugins"
+        }
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "update-source-prerelease-version",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "2.0.0-beta.1",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": {
+          "github": "example-org/plugins.repo_1"
+        }
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "update-source-not-semver",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": {
+          "github": "vulpsecula/SpinnetPlugins"
+        }
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "update-source-build-metadata",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0.0+build.5",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": {
+          "github": "vulpsecula/SpinnetPlugins"
+        }
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "update-source-not-github",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.2.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": {
+          "url": "https://example.com/plugin.zip"
+        }
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "update-source-missing-repository",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.2.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": {
+          "github": "vulpsecula"
+        }
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "update-source-repository-path",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.2.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": {
+          "github": "vulpsecula/SpinnetPlugins/releases"
+        }
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "update-source-dot-repository",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.2.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": {
+          "github": "vulpsecula/.."
+        }
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "update-source-plain-string",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.2.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": "vulpsecula/SpinnetPlugins"
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "update-source-tag-unsafe-id",
+      "value": {
+        "protocol_version": "1.0",
+        "id": "com.example/schema composition",
+        "name": "Schema composition",
+        "version": "1.2.0",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ],
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "update_source": {
+          "github": "vulpsecula/SpinnetPlugins"
+        }
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
     }
   ]
 }
