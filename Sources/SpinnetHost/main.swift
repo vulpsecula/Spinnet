@@ -21,14 +21,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// is computed. Set first thing at launch.
     private var pluginSettings: PluginSettingsStore?
     /// Each Plugin's Plugin Storage, one directory per Plugin (ADR 0015).
-    private lazy var pluginStorage = PluginStorage(
-        directory: configurationFileURL().deletingLastPathComponent().appendingPathComponent("PluginStorage")
-    )
-    private lazy var pluginInstallation = PluginInstallationStore(
-        directory: configurationFileURL().deletingLastPathComponent().appendingPathComponent("Plugins"),
+    private lazy var pluginStorage = PluginStorage(directory: pluginFiles.pluginStorageDirectory)
+    private let pluginFiles = HostPluginFiles(dataDirectory: HostDataDirectory.url)
+    private lazy var pluginInstallation = pluginFiles.installationStore(
         registry: registry, grants: capabilityGrants,
-        persistGrants: { [unowned self] in try self.saveCapabilityGrants() },
         storage: pluginStorage,
+        persistGrants: { [unowned self] in try self.saveCapabilityGrants() },
         forgetHostPreferences: { [unowned self] pluginID in
             if self.clipboardWindow?.pluginID == pluginID {
                 self.clipboardWindow?.close()
@@ -81,7 +79,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let currentAppIcons = CurrentAppIcons()
     private let activities = HostActivities()
     private lazy var reviewedTasks = HostReviewedToolTasks(activities: activities,
-        journal: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Spinnet/ReviewedTasks"),
+        journal: HostDataDirectory.url.appendingPathComponent("ReviewedTasks"),
         runnerURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner"),
         targetResolver: HomebrewManagementTargets.shared.resolveTask, recoveryPower: DesktopPowerAssertions())
     private let reviewedServicesWindow = ReviewedServicesWindowController()
@@ -1014,17 +1012,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         HostDataDirectory.url.appendingPathComponent("configuration.json")
     }
 
-    private func capabilityGrantsFileURL() -> URL {
-        configurationFileURL()
-            .deletingLastPathComponent()
-            .appendingPathComponent("capability-grants.json")
-    }
-
     private func loadCapabilityGrants() throws {
-        let fileURL = capabilityGrantsFileURL()
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
         do {
-            try StoredDataMigration.restoreCapabilityGrants(from: Data(contentsOf: fileURL), into: capabilityGrants)
+            try pluginFiles.restoreCapabilityGrants(into: capabilityGrants)
         } catch {
             throw ConfigurationError.persistence(
                 "Capability grants could not be loaded: \(error.localizedDescription)"
@@ -1034,17 +1024,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
     private func saveCapabilityGrants(_ proposed: [PluginCapabilityGrant]? = nil) throws {
         do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(proposed ?? capabilityGrants.allGrants)
-            let fileURL = capabilityGrantsFileURL()
-            try FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try data.write(to: fileURL, options: .atomic)
-        } catch let error as ConfigurationError {
-            throw error
+            try pluginFiles.saveCapabilityGrants(proposed ?? capabilityGrants.allGrants)
         } catch {
             throw ConfigurationError.persistence(
                 "Capability grants could not be saved: \(error.localizedDescription)"
@@ -1095,8 +1075,9 @@ if CommandLine.arguments.contains("--refresh-existing-background-operations") {
 }
 
 #if DEBUG
-// The launcher's development install and its verification report. They run
-// while no Host is running and never open the app.
+// The launcher's development commands; neither opens the app. It installs
+// only after quitting any running Host. Its report, which `--verify` runs
+// beside the running Host, reads the installed Plugins as saved on disk.
 if let status = DevelopmentPluginInstall.runIfRequested(arguments: CommandLine.arguments,
                                                         dataDirectory: HostDataDirectory.url) {
     exit(status)

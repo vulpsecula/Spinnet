@@ -63,6 +63,9 @@ final class ArchitectureGuardTests: XCTestCase {
         }
     }
 
+    /// The literals come from the frozen official Plugin fixtures, not the
+    /// live SpinnetPlugins packages: refresh `Tests/Fixtures/OfficialPlugins`
+    /// whenever SpinnetPlugins' pins move, or the guard checks stale manifests.
     private func declaredLiterals() throws -> [ArchitectureGuard.DeclaredLiteral] {
         try OfficialPluginFixtures.all().flatMap { package in
             try ArchitectureGuard.declaredLiterals(inManifest: Data(contentsOf:

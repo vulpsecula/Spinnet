@@ -55,8 +55,8 @@ struct DeveloperDiagnostics: Equatable {
     static func plugins(in registry: PluginRegistry) -> [Plugin] {
         registry.manifests().map { manifest in
             Plugin(id: manifest.id.rawValue, name: manifest.name, version: manifest.version,
-                          hostCompatibility: manifest.hostCompatibility.rawValue,
-                          isEnabled: registry.isEnabled(for: manifest.id))
+                   hostCompatibility: manifest.hostCompatibility.rawValue,
+                   isEnabled: registry.isEnabled(for: manifest.id))
         }
     }
 }

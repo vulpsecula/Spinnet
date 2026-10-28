@@ -7,7 +7,10 @@ import SpinnetCore
 /// install-and-update path the Library takes, so an official Plugin from a
 /// SpinnetPlugins checkout is installed exactly as a user would install it:
 /// an update keeps Plugin Storage and Capability decisions, a new Plugin
-/// starts empty, and nothing is granted. It runs while no Host is running.
+/// starts empty, and nothing is granted. The launcher installs only after it
+/// has quit any running Host, since a running Host would not see the change.
+/// The report of installed Plugins also runs beside a running Host: it reads
+/// the Plugins as saved on disk, not what that Host has registered.
 struct DevelopmentPluginInstall {
     struct Report: Equatable {
         var lines: [String] = []
@@ -17,14 +20,12 @@ struct DevelopmentPluginInstall {
     let dataDirectory: URL
     let defaults: UserDefaults
 
-    private var grantsURL: URL { dataDirectory.appendingPathComponent("capability-grants.json") }
-
     /// Installs or updates every `.spinnetplugin` package in `directory`, or
     /// in its `Plugins` folder when it is a checkout of Plugins. A package
     /// that cannot be installed is reported and the rest still install.
     func installPackages(in directory: URL) throws -> Report {
         let packages = try Self.packages(in: directory)
-        let (registry, _, store) = try restore()
+        let (registry, store) = try restore()
         var report = Report()
         for package in packages {
             do {
@@ -52,7 +53,7 @@ struct DevelopmentPluginInstall {
     /// The Plugins a launch would register from the saved data, with their
     /// versions, and any it would refuse.
     func installedPlugins() throws -> Report {
-        let (registry, _, _) = try restore()
+        let (registry, _) = try restore()
         var report = Report()
         report.lines = registry.manifests().sorted { $0.id.rawValue < $1.id.rawValue }
             .map { "\($0.id.rawValue) \($0.version) \($0.name)" }
@@ -63,25 +64,16 @@ struct DevelopmentPluginInstall {
         return report
     }
 
-    private func restore() throws -> (PluginRegistry, PluginCapabilityGrantStore, PluginInstallationStore) {
+    private func restore() throws -> (PluginRegistry, PluginInstallationStore) {
+        let files = HostPluginFiles(dataDirectory: dataDirectory)
         let grants = PluginCapabilityGrantStore()
-        if FileManager.default.fileExists(atPath: grantsURL.path) {
-            try StoredDataMigration.restoreCapabilityGrants(from: Data(contentsOf: grantsURL), into: grants)
-        }
+        try files.restoreCapabilityGrants(into: grants)
         let registry = PluginRegistry(grantStore: grants)
         let pins = PluginViewPins(defaults: defaults)
-        let store = PluginInstallationStore(
-            directory: dataDirectory.appendingPathComponent("Plugins"), registry: registry, grants: grants,
-            persistGrants: { [grantsURL] in
-                try FileManager.default.createDirectory(at: grantsURL.deletingLastPathComponent(),
-                                                        withIntermediateDirectories: true)
-                try StoredDataMigration.encodeCapabilityGrants(grants).write(to: grantsURL, options: .atomic)
-            },
-            storage: PluginStorage(directory: dataDirectory.appendingPathComponent("PluginStorage")),
-            forgetHostPreferences: { pins.forget($0) }
-        )
+        let store = files.installationStore(registry: registry, grants: grants,
+                                            forgetHostPreferences: { pins.forget($0) })
         try store.restore()
-        return (registry, grants, store)
+        return (registry, store)
     }
 
     private static func packages(in directory: URL) throws -> [URL] {
