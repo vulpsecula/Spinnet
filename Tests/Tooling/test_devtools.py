@@ -16,7 +16,7 @@ class DeveloperToolEntryTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         (self.root / "script").mkdir()
-        for name in ("check_background_lifecycle.sh", "ax_insertion_matrix.sh", "emoji_e1_host_checks.sh"):
+        for name in ("check_background_lifecycle.sh", "ax_insertion_matrix.sh"):
             shutil.copy2(REPOSITORY / "script" / name, self.root / "script" / name)
         self.bin = self.root / "bin"
         self.bin.mkdir()

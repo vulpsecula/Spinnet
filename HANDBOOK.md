@@ -128,11 +128,8 @@ is reused by the callers.
 | [`script/check_background_lifecycle.sh`](script/check_background_lifecycle.sh) | [`Tools/BackgroundLifecycleProbe/`](Tools/BackgroundLifecycleProbe/) | Isolated background-service lifecycle integration checks. |
 | [`script/measure_view_sessions.sh`](script/measure_view_sessions.sh) | [`Tools/ViewSessionMeasurement/`](Tools/ViewSessionMeasurement/) | Current View Session latency, memory and authority measurements using the real helper. |
 
-[`script/emoji_e1_host_checks.sh`](script/emoji_e1_host_checks.sh) reproduces
-frozen Host A2 and Emoji proof workloads using an external probe repository.
-The insertion matrix's explicit `--host a2` mode also reproduces historical
-Host A2. These modes establish historical results, not acceptance of the
-current Host.
+The insertion matrix's explicit `--host a2` mode reproduces historical Host A2.
+It establishes historical results, not acceptance of the current Host.
 
 The lifecycle tool's `--status` reads test registration state. `--clean`
 removes unregistered test state and rebuildable caches; only the explicit
