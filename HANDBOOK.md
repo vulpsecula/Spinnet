@@ -240,7 +240,7 @@ for open-source Plugins.
 
 ### Third-party material
 
-Third-party dependencies, converted Plugins, and separately licensed assets
+Third-party dependencies, third-party Plugins, and separately licensed assets
 stay under their own licences. Spinnet claims no copyright over them.
 
 ### Contributions

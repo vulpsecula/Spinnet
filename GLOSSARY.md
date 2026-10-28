@@ -306,33 +306,14 @@ _Avoid_: Plugin API Level, SDK version, protocol version
 The domain area forming the first segment of a catalogue Host Service ID, such as `clipboard` in `clipboard.write`. It organizes operations and grants no authority itself.
 _Avoid_: SDK area, module, Capability
 
-### PopClip compatibility and licensing
-
-PopClip import and the Conversion Portal below are planned concepts, not
-implemented Spinnet features. The licensing terms also apply to current Plugins.
-
-**PopClip Extension**:
-An extension package authored for PopClip, which a planned compatibility adapter would import rather than treat as a native Plugin.
-_Avoid_: PopClip Plugin, native Plugin
-
-**Compatibility Level**:
-A planned named tier describing which categories of PopClip Extension behavior Spinnet would support, without implying complete PopClip equivalence.
-_Avoid_: Compatibility percentage, full compatibility
-
-**Compatibility Report**:
-A planned per-extension account of supported, degraded, and unsupported behavior at import time.
-_Avoid_: Validation result, support badge
-
-**Conversion Portal**:
-A planned, independently deployed online service to analyze a PopClip Extension and, when policy permits, produce an installable offline Spinnet Plugin. It would be separate from the Host and Plugin runtime.
-_Avoid_: Compatibility runtime, URL importer, marketplace
+### Licensing
 
 **Spinnet-Owned Code**:
-Source and other material in Spinnet's own repositories that Spinnet has the right to license. It excludes third-party Plugins, converted Plugins, dependencies, and separately licensed assets.
+Source and other material in Spinnet's own repositories that Spinnet has the right to license. It excludes third-party Plugins, dependencies, and separately licensed assets.
 _Avoid_: Entire repository, all bundled code, open-source code
 
 **Upstream Licence**:
-The licence supplied by the rights holder of a third-party Plugin, PopClip Extension, dependency, or asset. It continues to govern that material when Spinnet processes or distributes it.
+The licence supplied by the rights holder of a third-party Plugin, dependency, or asset. It continues to govern that material when Spinnet processes or distributes it.
 _Avoid_: Spinnet License, marketplace licence
 
 **Independent Plugin**:
