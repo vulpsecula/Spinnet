@@ -12,6 +12,8 @@ struct MenuEditorView: View {
     var onRemovePlugin: (MenuItemPreset) -> Void = { _ in }
     var refusedPluginsForQuery: (String) -> [RefusedPlugin] = { _ in [] }
     var onRemoveRefusedPlugin: (RefusedPlugin) -> Void = { _ in }
+    /// Check for Update and Update for Plugins with an Update Source.
+    var pluginUpdates: PluginUpdatesModel?
 
     @State private var searchText = ""
 
@@ -143,6 +145,9 @@ struct MenuEditorView: View {
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                if let pluginUpdates {
+                    PluginUpdateControls(updates: pluginUpdates, pluginID: preset.pluginID, pluginName: preset.name)
+                }
             }
 
             Spacer()
