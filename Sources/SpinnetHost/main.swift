@@ -74,8 +74,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// thread, since the App may be slow to answer.
     private let appTargets = AppTargets()
     private let runningApps = DesktopRunningApps()
-    /// The Current App's icon for the Menu's centre (#111), read when an
-    /// App comes to the front so the Menu finds it cached.
+    /// The Current App's icon for the Menu's centre (#111), read the first
+    /// time the Menu is invoked over an App.
     private let currentAppIcons = CurrentAppIcons()
     private let activities = HostActivities()
     private lazy var reviewedTasks = HostReviewedToolTasks(activities: activities,
@@ -327,10 +327,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 appearance: MenuAppearanceConfiguration(defaults: .standard),
                 icons: currentAppIcons
             )
-            runningApps.observeCurrentApp { [currentAppIcons] app in
-                if let app { currentAppIcons.prefetch(app) }
-            }
-            if let app = runningApps.currentApp() { currentAppIcons.prefetch(app) }
             menu.onRefresh = { [weak self] in
                 guard let self, let configuration = self.currentConfiguration else { return [] }
                 return self.makeMenuSlots(from: configuration)

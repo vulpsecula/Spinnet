@@ -43,7 +43,7 @@ final class MenuCurrentAppHubTests: XCTestCase {
     }
 
     /// Icons answered at once, as when cached.
-    private static func immediateIcons(_ loads: @escaping (CurrentApp) -> NSImage? = { _ in redIcon() }) -> CurrentAppIcons {
+    private static func immediateIcons(_ loads: @escaping (CurrentApp, Int) -> NSImage? = { _, _ in redIcon() }) -> CurrentAppIcons {
         CurrentAppIcons(environment: .init(load: loads, background: { $0() }, main: { $0() }))
     }
 
@@ -123,7 +123,7 @@ final class MenuCurrentAppHubTests: XCTestCase {
     /// another App.
     func testAnUncachedIconNeverDelaysTheMenuAndALateOneGoesOnlyToItsApp() throws {
         var background: [() -> Void] = []
-        let icons = CurrentAppIcons(environment: .init(load: { _ in Self.redIcon() },
+        let icons = CurrentAppIcons(environment: .init(load: { _, _ in Self.redIcon() },
                                                        background: { background.append($0) }, main: { $0() }))
         let menu = MenuPresentationController(items: [.empty, .empty], icons: icons)
         defer { menu.dismiss() }
@@ -132,7 +132,8 @@ final class MenuCurrentAppHubTests: XCTestCase {
 
         menu.open(at: point, currentApp: Self.safari)
         XCTAssertTrue(menu.isOpen)
-        XCTAssertEqual(menu.hubSnapshot, .init(appName: "Safari", showsIcon: false, label: nil))
+        XCTAssertEqual(menu.hubSnapshot, .init(appName: "Safari", showsIcon: false, label: "Spinnet"),
+                       "The centre is never blank while the icon is read")
         background.removeFirst()()
         XCTAssertEqual(menu.hubSnapshot, .init(appName: "Safari", showsIcon: true, label: nil))
 
@@ -142,6 +143,74 @@ final class MenuCurrentAppHubTests: XCTestCase {
         menu.open(at: point, currentApp: nil)
         background.removeFirst()()
         XCTAssertEqual(menu.hubSnapshot, .init(appName: nil, showsIcon: false, label: "Spinnet"))
+    }
+
+    /// An App without an icon keeps "Spinnet" in the centre, and its icon
+    /// is not read again at the next invocation.
+    func testAnAppWithoutAnIconKeepsSpinnetInTheCentre() throws {
+        var reads = 0
+        let menu = MenuPresentationController(items: [.empty, .empty], icons: Self.immediateIcons { _, _ in
+            reads += 1
+            return nil
+        })
+        defer { menu.dismiss() }
+        let screen = try XCTUnwrap(NSScreen.main)
+        let point = CGPoint(x: screen.frame.midX, y: screen.frame.midY)
+
+        menu.open(at: point, currentApp: Self.safari)
+        XCTAssertEqual(menu.hubSnapshot, .init(appName: "Safari", showsIcon: false, label: "Spinnet"))
+        menu.dismiss()
+        menu.open(at: point, currentApp: Self.safari)
+        XCTAssertEqual(menu.hubSnapshot, .init(appName: "Safari", showsIcon: false, label: "Spinnet"))
+        XCTAssertEqual(reads, 1)
+    }
+
+    /// The icon is read at the size the centre draws it on the Menu's
+    /// screen, so drawing it scales nothing.
+    func testTheIconIsReadAtTheCentresPixelSize() throws {
+        var sides: [Int] = []
+        let menu = MenuPresentationController(items: [.empty, .empty], icons: Self.immediateIcons { _, side in
+            sides.append(side)
+            return Self.redIcon()
+        })
+        defer { menu.dismiss() }
+        let screen = try XCTUnwrap(NSScreen.main)
+        menu.open(at: CGPoint(x: screen.frame.midX, y: screen.frame.midY), currentApp: Self.safari)
+        let view = RadialMenuView(slots: [.empty, .empty])
+        let side = try XCTUnwrap(view.hubIconSide)
+        XCTAssertEqual(sides, [Int((side * screen.backingScaleFactor).rounded(.up))])
+    }
+
+    /// The centre is its own element to VoiceOver, named after the Current
+    /// App whether its icon or "Spinnet" is drawn, and placed over the centre.
+    func testTheCentreIsAnAccessibilityElementNamingTheCurrentApp() throws {
+        let view = RadialMenuView(slots: [.empty, .empty, .empty])
+        func centre() throws -> NSAccessibilityElement {
+            let elements = (view.accessibilityChildren() ?? []).compactMap { $0 as? NSAccessibilityElement }
+            XCTAssertEqual(elements.count, 1)
+            return try XCTUnwrap(elements.first)
+        }
+        XCTAssertEqual(try centre().accessibilityLabel(), "Spinnet")
+
+        view.showCurrentApp(Self.safari, icon: nil)
+        XCTAssertEqual(try centre().accessibilityLabel(), "Safari")
+        XCTAssertEqual(try centre().accessibilityRole(), .staticText)
+
+        view.showCurrentApp(Self.safari, icon: Self.redIcon())
+        XCTAssertEqual(try centre().accessibilityLabel(), "Safari")
+        XCTAssertEqual(try centre().accessibilityRole(), .image)
+        let frame = try centre().accessibilityFrameInParentSpace()
+        let icon = try XCTUnwrap(view.hubIconRect)
+        XCTAssertTrue(frame.contains(icon), "\(frame) covers the drawn icon \(icon)")
+        XCTAssertEqual(frame.midX, view.bounds.midX, accuracy: 0.5)
+        XCTAssertEqual(frame.midY, view.bounds.midY, accuracy: 0.5)
+        XCTAssertEqual(view.accessibilityLabel(), "Spinnet Menu for Safari")
+
+        view.showCurrentApp(nil, icon: nil)
+        XCTAssertEqual(try centre().accessibilityLabel(), "Spinnet")
+
+        let editor = RadialMenuView(slots: [.empty, .empty, .empty], mode: .editor)
+        XCTAssertFalse((editor.accessibilityChildren() ?? []).contains { $0 is NSAccessibilityElement })
     }
 
     private func press(at point: NSPoint, in window: NSWindow) throws {

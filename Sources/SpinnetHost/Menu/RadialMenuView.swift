@@ -1466,21 +1466,25 @@ final class RadialMenuView: NSView {
     }
 
     /// Shows `app`, the Current App of this invocation, in the centre of a
-    /// Runtime Mode Menu: its icon once `icon` is known, and its name to
-    /// VoiceOver. Nil keeps "Spinnet". Editor Mode keeps "MENU".
+    /// Runtime Mode Menu: its icon once `icon` is known, "Spinnet" until
+    /// then, and its name to VoiceOver throughout. Nil keeps "Spinnet".
+    /// Editor Mode keeps "MENU".
     func showCurrentApp(_ app: CurrentApp?, icon: NSImage?) {
         guard presentationMode == .runtime else { return }
         currentApp = app
         currentAppIcon = app == nil ? nil : icon
         setAccessibilityLabel(app.map { "Spinnet Menu for \($0.name)" } ?? "Spinnet Menu")
+        hubAccessibilityElement.setAccessibilityLabel(app?.name ?? "Spinnet")
+        hubAccessibilityElement.setAccessibilityRole(currentAppIcon == nil ? .staticText : .image)
         needsDisplay = true
     }
 
-    /// The text drawn in the centre, nil while it shows the Current App.
+    /// The text drawn in the centre, nil while it shows the Current App's
+    /// icon.
     var hubLabel: String? {
         switch presentationMode {
         case .editor: return "MENU"
-        case .runtime: return currentApp == nil ? "Spinnet" : nil
+        case .runtime: return currentAppIcon == nil ? "Spinnet" : nil
         }
     }
 
@@ -1490,13 +1494,45 @@ final class RadialMenuView: NSView {
         hubIconRect(using: layout, in: bounds)
     }
 
+    /// The side, in points, of the square a Current App's icon is drawn in
+    /// at the present Menu Size; nil in Editor Mode.
+    var hubIconSide: CGFloat? {
+        presentationMode == .runtime ? Self.hubIconSquare(using: layout, in: bounds).width : nil
+    }
+
     private func hubIconRect(using menuLayout: RadialMenuLayout, in canvas: NSRect) -> NSRect? {
         guard presentationMode == .runtime, currentApp != nil, currentAppIcon != nil else { return nil }
+        return Self.hubIconSquare(using: menuLayout, in: canvas)
+    }
+
+    /// The centre's visible circle.
+    private static func hubCircle(using menuLayout: RadialMenuLayout, in canvas: NSRect) -> NSRect {
         let scale = menuLayout.outerRadius / 142
         let radius = max(menuLayout.innerRadius - 5 * scale, 4)
+        return NSRect(x: canvas.midX - radius, y: canvas.midY - radius, width: radius * 2, height: radius * 2)
+    }
+
+    private static func hubIconSquare(using menuLayout: RadialMenuLayout, in canvas: NSRect) -> NSRect {
         // App icons carry their own margin, so the square just fits the circle.
-        let side = (radius * 1.4).rounded(.down)
+        let side = (hubCircle(using: menuLayout, in: canvas).width / 2 * 1.4).rounded(.down)
         return NSRect(x: canvas.midX - side / 2, y: canvas.midY - side / 2, width: side, height: side)
+    }
+
+    /// The Menu's centre to VoiceOver: an element of its own, named after
+    /// the Current App, or "Spinnet" without one. Runtime Mode only.
+    private lazy var hubAccessibilityElement: NSAccessibilityElement = {
+        let element = NSAccessibilityElement()
+        element.setAccessibilityParent(self)
+        element.setAccessibilityRole(.staticText)
+        element.setAccessibilityLabel("Spinnet")
+        return element
+    }()
+
+    override func accessibilityChildren() -> [Any]? {
+        let children = super.accessibilityChildren() ?? []
+        guard presentationMode == .runtime else { return children }
+        hubAccessibilityElement.setAccessibilityFrameInParentSpace(Self.hubCircle(using: layout, in: bounds))
+        return children + [hubAccessibilityElement]
     }
 
     /// Returns the actual title frame used by the virtual Menu renderer. It

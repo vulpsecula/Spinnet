@@ -190,16 +190,16 @@ final class MenuPresentationController {
     }
 
     /// Opens the Menu at `pointer` for `currentApp`, the App in front at
-    /// this invocation. Its icon is drawn in the centre when cached; an
-    /// uncached icon is read without delaying the Menu and joins it when it
-    /// arrives, unless the Menu has since been opened for another App.
+    /// this invocation. Its icon is drawn in the centre when cached; until an
+    /// uncached icon has been read, without delaying the Menu, the centre
+    /// shows "Spinnet", and the icon joins the Menu when it arrives, unless
+    /// the Menu has since been opened for another App.
     func open(at pointer: CGPoint, currentApp: CurrentApp? = nil) {
         syncMenuViewAppearanceIfNeeded()
         refreshItemsIfNeeded()
-        showCurrentApp(currentApp)
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else {
-            return
-        }
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main
+        showCurrentApp(currentApp, backingScale: screen?.backingScaleFactor ?? 2)
+        guard let screen else { return }
         let frame = layout.overlayFrame(for: pointer, in: screen.visibleFrame)
         menuView.clearSelection()
         panel.setFrame(frame, display: false)
@@ -212,17 +212,18 @@ final class MenuPresentationController {
         installDismissalMonitors()
     }
 
-    private func showCurrentApp(_ app: CurrentApp?) {
+    private func showCurrentApp(_ app: CurrentApp?, backingScale: CGFloat) {
         currentApp = app
         currentAppIcon = nil
         menuView.showCurrentApp(app, icon: nil)
-        guard let app else { return }
+        guard let app, let side = menuView.hubIconSide else { return }
+        let pixelSide = Int((side * backingScale).rounded(.up))
         let show: (NSImage) -> Void = { [weak self] icon in
             guard let self, self.currentApp == app else { return }
             self.currentAppIcon = icon
             self.menuView.showCurrentApp(app, icon: icon)
         }
-        if let cached = icons.icon(for: app, loaded: show) { show(cached) }
+        if let cached = icons.icon(for: app, pixelSide: pixelSide, loaded: show) { show(cached) }
     }
 
     private func syncMenuViewAppearanceIfNeeded() {

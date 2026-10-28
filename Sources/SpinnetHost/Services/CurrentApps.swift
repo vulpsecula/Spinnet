@@ -64,8 +64,8 @@ extension DesktopRunningApps {
 
 /// The Current App: the App in front when the user invokes a Menu, which
 /// stays in front behind the non-activating Menu panel. It is resolved once
-/// per invocation and used only for the Menu's presentation; App Overrides
-/// select by its bundle identifier.
+/// per invocation, from the desktop at that moment; the Menu's centre shows
+/// it, and App Overrides select by its bundle identifier.
 struct CurrentApp: Equatable {
     let identity: RunningAppIdentity
     /// Where its bundle is, from which its icon is read; nil for an App
@@ -118,14 +118,13 @@ final class DesktopRunningApps: RunningApps {
     private let lock = NSLock()
     private var front: RunningApplication?
     private var terminationObservers: [(RunningAppIdentity) -> Void] = []
-    private var currentAppObservers: [(CurrentApp?) -> Void] = []
     private var observation: AnyObject?
 
     /// Made on the main thread.
     init(environment: Environment = .live) {
         self.environment = environment
         front = environment.frontmost()
-        observation = environment.observe({ [weak self] in self?.activated() },
+        observation = environment.observe({ [weak self] in self?.refreshFront() },
                                           { [weak self] in self?.terminated($0) })
     }
 
@@ -142,11 +141,14 @@ final class DesktopRunningApps: RunningApps {
         running(app).flatMap(Self.facts)
     }
 
-    /// The Current App: the App in front as the desktop last reported it,
-    /// read once when the Menu is invoked, never the App under the pointer.
-    /// Nil when Spinnet itself or no App is in front, by the same rule
-    /// `apps.frontmost` identifies the App in front.
+    /// The Current App: the App in front now, read from the desktop when
+    /// the Menu is invoked rather than from the last activation notice, which
+    /// may still be on its way; never the App under the pointer. Nil when
+    /// Spinnet itself or no App is in front, by the same rule `apps.frontmost`
+    /// identifies the App in front. Called on the main thread, where it also
+    /// brings the App in front that Host Services read up to date.
     func currentApp() -> CurrentApp? {
+        refreshFront()
         guard let facts = appInFront() else { return nil }
         return CurrentApp(identity: facts.identity, bundleURL: running(facts.identity)?.bundleURL)
     }
@@ -169,14 +171,6 @@ final class DesktopRunningApps: RunningApps {
         case .pressed, .noReply: return .delivered
         case .failed: return .failed
         }
-    }
-
-    /// Tells `changed`, on the main thread, the Current App each time
-    /// another App comes to the front.
-    func observeCurrentApp(_ changed: @escaping (CurrentApp?) -> Void) {
-        lock.lock()
-        currentAppObservers.append(changed)
-        lock.unlock()
     }
 
     func observeTerminations(_ terminated: @escaping (RunningAppIdentity) -> Void) {
@@ -203,16 +197,6 @@ final class DesktopRunningApps: RunningApps {
         lock.lock()
         front = now
         lock.unlock()
-    }
-
-    private func activated() {
-        refreshFront()
-        lock.lock()
-        let observers = currentAppObservers
-        lock.unlock()
-        guard !observers.isEmpty else { return }
-        let current = currentApp()
-        observers.forEach { $0(current) }
     }
 
     private func terminated(_ application: RunningApplication) {
