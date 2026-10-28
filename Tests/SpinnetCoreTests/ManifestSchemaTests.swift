@@ -3,8 +3,8 @@ import Foundation
 import XCTest
 @testable import SpinnetCore
 
-/// Every shipped Plugin satisfies the current manifest schema and Host
-/// Compatibility policy; invalid declarations identify their failing member.
+/// Every official Plugin fixture satisfies the current manifest schema and
+/// Host Compatibility policy; invalid declarations identify their failing member.
 final class ManifestSchemaTests: XCTestCase {
     private static let repositoryRoot = TestRepository.root
 
@@ -12,20 +12,20 @@ final class ManifestSchemaTests: XCTestCase {
         try JSONSchemaSubsetValidator(schemaAt: Self.repositoryRoot.appendingPathComponent("PluginAPI/schemas/manifest.schema.json"))
     }
 
-    private func bundledManifestURLs() throws -> [URL] {
-        try ShippedPluginPackages.all().map { $0.rootURL.appendingPathComponent("manifest.json") }
+    private func officialManifestURLs() throws -> [URL] {
+        try OfficialPluginFixtures.all().map { $0.rootURL.appendingPathComponent("manifest.json") }
             .sorted { $0.path < $1.path }
     }
 
-    func testEveryBundledManifestValidatesAndDeclaresHostCompatibility() throws {
-        let urls = try bundledManifestURLs()
-        XCTAssertEqual(urls.count, 22, "Twenty-two Bundled Plugins ship with Spinnet")
+    func testEveryOfficialManifestValidatesAndDeclaresHostCompatibility() throws {
+        let urls = try officialManifestURLs()
+        XCTAssertEqual(urls.count, 22, "Twenty-two official Plugin fixtures")
         for url in urls {
             let manifest = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
             XCTAssertEqual(try validator().errors(for: manifest), [], url.lastPathComponent)
             XCTAssertEqual(manifest.value(atPointer: "/engines/spinnet"), .string("^1.0.0"))
             let decoded = try PluginManifestLoader.decode(JSONEncoder().encode(manifest))
-            XCTAssertNoThrow(try PluginInterfaceContracts.host.check(decoded, origin: .bundled))
+            XCTAssertNoThrow(try PluginInterfaceContracts.host.check(decoded))
         }
     }
 

@@ -47,8 +47,6 @@ struct DeveloperSettingsSection: View {
                         Divider()
                         valueRow("Version", "\(diagnostics.version) · \(diagnostics.sourceRevision)")
                         Divider()
-                        valueRow("Bundled Plugins", diagnostics.bundledPluginSource)
-                        Divider()
                         valueRow("Plugins", pluginSummary(diagnostics))
                         Divider()
                     }

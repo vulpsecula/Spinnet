@@ -1,0 +1,36 @@
+{
+  "protocol_version": "1.0",
+  "engines": {"spinnet": "^1.0.0"},
+  "id": "com.spinnet.probe.current-app",
+  "name": "Current App",
+  "version": "2.0.0",
+  "capabilities": ["read_frontmost_app", "quit_frontmost_app"],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "current.close",
+    "default_alternate_command_ids": ["current.quit", "current.inspect"]
+  },
+  "commands": [{
+    "id": "current.close",
+    "title": "Close Current Window",
+    "description": "Review the working App with Close Window offered first, then choose an exit.",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "current.js"
+  }, {
+    "id": "current.quit",
+    "title": "Quit Current App",
+    "description": "Review the working App with Quit offered first, then choose an exit.",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "current.js"
+  }, {
+    "id": "current.inspect",
+    "title": "Current App",
+    "description": "Review the App in front, then choose Close Window, Quit or Force Quit.",
+    "execution": "javascript",
+    "is_configurable": false,
+    "script": "current.js"
+  }]
+}

@@ -14,9 +14,10 @@ public struct PluginInstallationReview: Equatable {
     }
 }
 
-/// Owns installed package copies and an atomic index, plus the record of which
-/// shipped Plugins the user removed. Importing never starts a helper or grants
-/// access. Old copies remain available if writing fails.
+/// Owns installed package copies and an atomic index. Every Plugin, whoever
+/// publishes it, is installed, updated and removed here the same way.
+/// Importing never starts a helper or grants access. Old copies remain
+/// available if writing fails.
 ///
 /// It also decides the fate of each Plugin's Plugin Storage and of the
 /// Host's own preferences about it, such as its Pin: removing a Plugin
@@ -44,30 +45,9 @@ public final class PluginInstallationStore {
     }
 
     private var indexURL: URL { directory.appendingPathComponent("installed.json") }
-    /// A Bundled Plugin ships with the app, so removing its files is not an
-    /// option and deleting it would only last until the next launch. The user's
-    /// decision is recorded here instead, and discovery skips what it names.
-    private var removedIndexURL: URL { directory.appendingPathComponent("removed.json") }
-    /// The last shipped declarations, before an app update replaces its
-    /// resources. They identify the actual predecessor, rather than choosing
-    /// an arbitrary historical version from the user's access decisions.
-    private var bundledManifestsURL: URL { directory.appendingPathComponent("bundled-manifests.json") }
-
     private func readIndex() throws -> [String: String] {
         guard FileManager.default.fileExists(atPath: indexURL.path) else { return [:] }
         return try JSONDecoder().decode([String: String].self, from: Data(contentsOf: indexURL))
-    }
-
-    public func removedPluginIDs() throws -> Set<PluginID> {
-        guard FileManager.default.fileExists(atPath: removedIndexURL.path) else { return [] }
-        let raw = try JSONDecoder().decode([String].self, from: Data(contentsOf: removedIndexURL))
-        return Set(raw.map { PluginID($0) })
-    }
-
-    private func writeRemoved(_ pluginIDs: Set<PluginID>) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let raw = pluginIDs.map(\.rawValue).sorted()
-        try JSONEncoder().encode(raw).write(to: removedIndexURL, options: .atomic)
     }
 
     /// Removes a Plugin the user no longer wants. Menu Items that referenced it
@@ -83,11 +63,6 @@ public final class PluginInstallationStore {
         // A Refused Plugin has no package registered, but is removed the same
         // way, from what is on disk.
         guard package != nil || registry.refusedPlugin(pluginID) != nil else { return }
-        if package?.origin == .bundled {
-            try writeRemoved(try removedPluginIDs().union([pluginID]))
-        }
-        // A user copy left underneath a shipped one by an older Host is the
-        // same Plugin, so it goes too rather than coming back.
         try discardInstalledCopy(of: pluginID)
         registry.unregister(pluginID)
         grants.removeGrants(for: pluginID)
@@ -117,12 +92,8 @@ public final class PluginInstallationStore {
     /// indexes or failed persistence stop the restore.
     public func restore() throws {
         let installed = try readIndex()
-        try restoreBundledDecisions(installed: installed)
         for (rawID, name) in installed.sorted(by: { $0.key < $1.key }) {
             let pluginID = PluginID(rawID)
-            // Shipped packages own their identities even if an older Host
-            // installed a package with that ID before it became bundled.
-            if registry.package(for: pluginID)?.canBeReplacedByInstall == false { continue }
             var manifest: PluginManifest?
             do {
                 guard name == URL(fileURLWithPath: name).lastPathComponent else {
@@ -141,7 +112,7 @@ public final class PluginInstallationStore {
                 if manifest == nil, name == URL(fileURLWithPath: name).lastPathComponent,
                    let data = try? Data(contentsOf: directory.appendingPathComponent(name).appendingPathComponent("manifest.json")),
                    let value = try? JSONDecoder().decode(JSONValue.self, from: data),
-                   let previous = try? historicalManifestForAccessComparison(value).manifest,
+                   let previous = try? historicalManifestForAccessComparison(value),
                    previous.id == pluginID {
                     manifest = previous
                 }
@@ -151,67 +122,21 @@ public final class PluginInstallationStore {
         }
     }
 
-    private func restoreBundledDecisions(installed: [String: String]) throws {
-        let current = Dictionary(uniqueKeysWithValues: registry.manifests().compactMap { manifest in
-            registry.package(for: manifest.id)?.origin == .bundled ? (manifest.id.rawValue, manifest) : nil
-        })
-        var recorded: [String: PluginManifest] = [:]
-        var migratedSnapshots = false
-        if FileManager.default.fileExists(atPath: bundledManifestsURL.path) {
-            let snapshots = try JSONDecoder().decode([String: JSONValue].self, from: Data(contentsOf: bundledManifestsURL))
-            for (id, value) in snapshots {
-                let snapshot = try historicalManifestForAccessComparison(value)
-                recorded[id] = snapshot.manifest
-                migratedSnapshots = migratedSnapshots || snapshot.migrated
-            }
-        }
-        var changed = false
-        for (rawID, manifest) in current.sorted(by: { $0.key < $1.key }) {
-            var previous = recorded[rawID]
-            // On first onboarding the predecessor may still be installed.
-            // Its historical declaration is read only to compare access scopes;
-            // this private adapter never registers or runs the package.
-            if previous == nil, let name = installed[rawID],
-               name == URL(fileURLWithPath: name).lastPathComponent {
-                previous = try? historicalManifestForAccessComparison(JSONDecoder().decode(
-                    JSONValue.self, from: Data(contentsOf: directory.appendingPathComponent(name).appendingPathComponent("manifest.json"))
-                )).manifest
-            }
-            if let previous, previous.id == manifest.id {
-                let inherited = grants.restoreDecisions(for: manifest, replacing: previous,
-                                                        requiringConsistentHistory: recorded[rawID] == nil)
-                changed = changed || inherited
-            }
-        }
-        // Decisions must reach disk before advancing the predecessor. If a
-        // write fails or the Host crashes, the next launch can retry safely.
-        if changed { try persistGrants() }
-        // A development run may discover only part of the shipped set. Keep
-        // the last declaration of anything it did not load; Plugin Removal
-        // still clears all of that Plugin's decisions separately.
-        let updated = recorded.merging(current) { _, replacement in replacement }
-        if updated != recorded || migratedSnapshots {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try JSONEncoder().encode(updated).write(to: bundledManifestsURL, options: .atomic)
-        }
-    }
-
-    /// The Host's own predecessor snapshots predate engines.spinnet. Their
-    /// version selector is irrelevant to equal-scope grant inheritance. Adapt
-    /// only this stored metadata; public package decoding still refuses every
-    /// old declaration, including one also containing engines.
-    private func historicalManifestForAccessComparison(_ value: JSONValue) throws -> (manifest: PluginManifest, migrated: Bool) {
+    /// A refused legacy declaration predates engines.spinnet. Its version
+    /// selector is irrelevant to equal-scope grant inheritance. Adapt only
+    /// this read; public package decoding still refuses every old
+    /// declaration, including one also containing engines.
+    private func historicalManifestForAccessComparison(_ value: JSONValue) throws -> PluginManifest {
         guard case .object(var fields) = value else {
             throw ConfigurationError.invalidManifest("Invalid recorded Plugin manifest")
         }
-        let migrated = fields["engines"] == nil || fields["api_level"] != nil || fields["candidate_contracts"] != nil
         fields.removeValue(forKey: "api_level")
         fields.removeValue(forKey: "candidate_contracts")
         if fields["engines"] == nil {
             fields["engines"] = .object(["spinnet": .string(HostCompatibility.current.rawValue)])
         }
         let data = try JSONEncoder().encode(JSONValue.object(fields))
-        return (try JSONDecoder().decode(PluginManifest.self, from: data), migrated)
+        return try JSONDecoder().decode(PluginManifest.self, from: data)
     }
 
     /// The manifest an install of `pluginID` replaces: the registered one, or
@@ -256,17 +181,12 @@ public final class PluginInstallationStore {
 
     private func check(_ source: URL) throws -> PluginPackage {
         let candidate = try PluginManifestLoader.load(packageAt: source)
-        try registry.contracts.check(candidate.manifest, origin: .installed)
-        if let existing = registry.package(for: candidate.manifest.id),
-           !existing.canBeReplacedByInstall {
-            throw ConfigurationError.invalidManifest("Cannot replace a Host-provided Plugin")
-        }
+        try registry.contracts.check(candidate.manifest)
         return candidate
     }
 
-    /// Installs the package the user chose, whatever its identity. A copy of
-    /// a removed Bundled Plugin is installed like any other Plugin, and the
-    /// shipped one stays removed underneath it.
+    /// Installs the package the user chose, whatever its identity: a new
+    /// Plugin, a Plugin Update, or a Plugin the user removed earlier.
     @discardableResult
     public func install(from package: URL) throws -> PluginManifest {
         // Copying follows no links, so a symlinked package would be installed

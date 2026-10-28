@@ -1358,7 +1358,7 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             throw PluginRuntimeError.invalidAction("Action Command is not declared by the Plugin")
         }
         do {
-            try contracts.check(package.manifest, origin: package.origin)
+            try contracts.check(package.manifest)
         } catch {
             throw PluginRuntimeError.invalidAction(error.localizedDescription)
         }

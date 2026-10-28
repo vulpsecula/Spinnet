@@ -81,9 +81,9 @@ public struct PluginInterfaceContracts: Equatable {
 
     public static let host = PluginInterfaceContracts()
 
-    /// Admission is the same for shipped and user-added packages. Origin never
-    /// grants permission or selects different interface vocabulary.
-    public func check(_ manifest: PluginManifest, origin: PluginOrigin) throws {
+    /// Admission is the same for every package, whoever publishes it, and
+    /// never grants permission or selects different interface vocabulary.
+    public func check(_ manifest: PluginManifest) throws {
         guard manifest.hostCompatibility.contains(hostVersion) else {
             throw UnsupportedPluginHostVersion(requiredBy: manifest, hostVersion: hostVersion)
         }

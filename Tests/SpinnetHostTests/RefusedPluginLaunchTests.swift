@@ -75,8 +75,7 @@ final class RefusedPluginLaunchTests: XCTestCase {
         }
 
         StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests(),
-                                                      keeping: registry.refusedPlugins().map(\.id),
-                                                      discardingOthers: true)
+                                                      keeping: registry.refusedPlugins().map(\.id))
 
         XCTAssertEqual(registry.refusedPlugins().map(\.id), [Self.probeID])
         XCTAssertEqual(grants.decision(for: Self.probeID, pluginVersion: "1.0.0", capability: .readSelectedText),

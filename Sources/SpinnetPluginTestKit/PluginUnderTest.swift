@@ -8,25 +8,22 @@ public struct PluginUnderTest {
 
     public var manifest: PluginManifest { package.manifest }
 
-    /// Loads the package at `url`. `origin` is where the Host would have found
-    /// it: `.bundled` for a Plugin that ships inside the app, `.installed` for
-    /// any other.
-    public init(packageAt url: URL, origin: PluginOrigin = .installed) throws {
-        let loaded = try PluginManifestLoader.load(packageAt: url)
-        package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: origin)
+    /// Loads the package at `url`, as the Host loads an installed Plugin.
+    public init(packageAt url: URL) throws {
+        package = try PluginManifestLoader.load(packageAt: url)
     }
 
     /// Loads the package called `name`, such as `Translator.spinnetplugin`,
     /// from the nearest parent directory of `path` that holds it, either
     /// directly or in a `Plugins` directory. The default `path` is the calling
     /// test file, so an independent Plugin repository can keep packages under `Plugins/`.
-    /// Host-owned fixtures should use `init(packageAt:origin:)` explicitly.
-    public init(named name: String, origin: PluginOrigin = .installed, searchingFrom path: String = #filePath) throws {
+    /// Host-owned fixtures should use `init(packageAt:)` explicitly.
+    public init(named name: String, searchingFrom path: String = #filePath) throws {
         var directory = URL(fileURLWithPath: path).deletingLastPathComponent()
         while true {
             for candidate in [directory.appendingPathComponent(name), directory.appendingPathComponent("Plugins/\(name)")]
             where FileManager.default.fileExists(atPath: candidate.appendingPathComponent("manifest.json").path) {
-                try self.init(packageAt: candidate, origin: origin)
+                try self.init(packageAt: candidate)
                 return
             }
             guard directory.pathComponents.count > 1 else { throw PluginTestKitError.packageNotFound(name) }

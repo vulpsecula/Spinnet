@@ -137,10 +137,10 @@ final class PluginStorageLifecycleTests: XCTestCase {
         XCTAssertEqual(try storage.value(forKey: "runs", of: other), .number(1))
     }
 
-    func testRemovingABundledPluginDeletesItsStorage() throws {
+    func testRemovingARegisteredPluginDeletesItsStorage() throws {
         let (registry, storage, installation) = makeInstallation()
         let loaded = try PluginManifestLoader.load(packageAt: Self.fixture)
-        try registry.register(PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled))
+        try registry.register(PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest))
         try storage.setValue(.number(3), forKey: "runs", of: counterID)
 
         try installation.uninstall(counterID)
@@ -181,12 +181,15 @@ final class PluginStorageLifecycleTests: XCTestCase {
     /// A refused install leaves what the registered Plugin keeps alone.
     func testARefusedInstallLeavesTheStorageAlone() throws {
         let (registry, storage, installation) = makeInstallation()
-        let loaded = try PluginManifestLoader.load(packageAt: Self.fixture)
-        try registry.register(PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled))
+        try installation.install(from: Self.fixture)
         try storage.setValue(.number(3), forKey: "runs", of: counterID)
+        let refused = try fixture(version: "1.1.0")
+        try FileManager.default.createSymbolicLink(at: refused.appendingPathComponent("escape.js"),
+                                                   withDestinationURL: URL(fileURLWithPath: "/etc/passwd"))
 
-        XCTAssertThrowsError(try installation.install(from: Self.fixture))
+        XCTAssertThrowsError(try installation.install(from: refused))
 
+        XCTAssertEqual(registry.package(for: counterID)?.manifest.version, "1.0.0")
         XCTAssertEqual(try storage.value(forKey: "runs", of: counterID), .number(3))
     }
 }

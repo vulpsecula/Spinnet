@@ -282,7 +282,7 @@ final class GeneralSettingsTests: XCTestCase {
 
     private static let diagnostics = DeveloperDiagnostics(
         appPath: "/A.app", bundleIdentifier: "b", version: "1", sourceRevision: "r", processIdentifier: 1,
-        arguments: [], bundledPluginSource: "none", dataDirectory: "/d", plugins: [], refused: []
+        arguments: [], dataDirectory: "/d", plugins: [], refused: []
     )
     #endif
 }

@@ -11,12 +11,11 @@ private func removePackageDirectory(_ package: PluginPackage) {
 
 final class PluginRuntimeTests: XCTestCase {
 
-    func testBundledClipboardHistoryUsesPublicServiceWithoutBackgroundSubscription() throws {
+    func testClipboardHistoryUsesPublicServiceWithoutBackgroundSubscription() throws {
         let root = TestRepository.root
         let loaded = try PluginManifestLoader.load(packageAt: root.appendingPathComponent("Tests/Fixtures/HostPlugins/ClipboardHistory.spinnetplugin"))
-        // Registered the way the Host registers a Bundled Plugin. The origin
-        // grants nothing: ClipboardHistoryTests presents from an installed copy.
-        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+        // Registered the way the Host registers an installed Plugin.
+        let package = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))

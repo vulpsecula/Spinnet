@@ -13,7 +13,7 @@ final class TranslatorMigrationsTests: XCTestCase {
     private static let pluginID = PluginID("com.spinnet.translator")
 
     private func manifest() throws -> PluginManifest {
-        try ShippedPluginPackages.named("Translator").manifest
+        try OfficialPluginFixtures.named("Translator").manifest
     }
 
     private func retired(_ id: String, _ command: String, title: String, input: JSONValue = .object([:])) throws -> ActionConfiguration {
@@ -74,7 +74,7 @@ final class TranslatorMigrationsTests: XCTestCase {
             menu: MenuConfiguration(slots: [.occupied(try MenuItemConfiguration(primaryActionID: ActionID("copy")))])
         )
         let registry = PluginRegistry()
-        for package in try ShippedPluginPackages.all() where package.manifest.id != Self.pluginID {
+        for package in try OfficialPluginFixtures.all() where package.manifest.id != Self.pluginID {
             try registry.register(package)
         }
         let defaults = try XCTUnwrap(UserDefaults(suiteName: "TranslatorMigrationsTests-\(UUID().uuidString)"))

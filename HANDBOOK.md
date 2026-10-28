@@ -17,16 +17,18 @@ Slots and can be repaired in Settings.
 Mouse Side Button 1 opens the Menu by default. Change the mouse trigger or
 record or enter a keyboard shortcut under Settings → Menu. The Library
 contains Plugins, including those whose Commands directly call Host Services.
-Bundled Plugins can be removed like user-added Plugins.
+Spinnet itself contains no Plugins: install a package from the Library. Official
+Plugins from [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins)
+are installed, updated and removed like any other Plugin.
 
 ### Privacy and ongoing work
 
 Privacy & Permissions separates macOS System Permissions, Sensitive Data
 Collection and each Plugin's Capability grants. The Host stores Capability
 decisions per Plugin version. Removing a Plugin forgets its grants.
-Startup preserves Refused Plugins' decisions; other undiscovered owners are
-dropped only when discovery accounts for the Bundled set. A direct development
-launch without Bundled packages preserves those decisions.
+Startup preserves Refused Plugins' decisions and drops those of Plugins that
+are no longer installed. Menu Items of a Plugin that is not installed stay in
+their Slots as unavailable until a Plugin with the same identity is installed.
 
 Clipboard History collection defaults off. When enabled, the Host retains
 copies locally in owner-only storage. A Plugin needs a type-scoped
@@ -61,23 +63,27 @@ Accessibility consent. Launcher modes are listed by
 Reserve `swift run SpinnetHost` for targeted debugging. Quit existing Hosts
 before switching entrypoints because they share saved user data. Confirm the
 running app path and Plugin versions when reporting packaged-app acceptance.
-Launch can write Plugin discovery and Capability-grant records and migrate
-existing settings, even before the user edits a Menu.
+Launch can write Capability-grant records and migrate existing settings, even
+before the user edits a Menu.
 
-### Bundled Plugins
+### Plugins for development
 
-Official packages live in the independent MIT repository
-[SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins). The Host has no
-submodule or SwiftPM dependency on that repository. Packaging reads
-[`bundled-plugins.lock.json`](bundled-plugins.lock.json), fetches its full
-commit into a cache and copies `Plugins/` into
-`SpinnetHost.app/Contents/Resources/Plugins`. It follows the pinned commit.
+The packaged app contains no Plugins. Official packages live in the
+independent MIT repository
+[SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins); the Host has no
+submodule, SwiftPM or packaging dependency on it. To try local packages,
+install them through the path a user takes:
 
-For a joint local change, set `SPINNET_BUNDLED_PLUGINS_DIR` to the directory
-containing `.spinnetplugin` packages. The
-[resolver](script/resolve_bundled_plugins.sh) defines this override and cache
-checks. User-added Plugins live in Application Support; the same public
-manifest loader discovers both origins by reading their package directories.
+```sh
+./script/build_and_run.sh --install-plugins ../SpinnetPlugins --verify
+```
+
+`--install-plugins DIR` installs or updates every `.spinnetplugin` package in
+`DIR`, or in `DIR/Plugins` for a SpinnetPlugins checkout, into the user's saved
+data before the app opens. An update keeps Plugin Storage and Capability
+decisions; newly requested Capabilities stay undecided, as after a Library
+install. `--verify` reports the installed Plugin versions once the app has
+stayed up. Both modes write or read your real saved data.
 
 ## Verification
 
@@ -101,8 +107,8 @@ and fails on mismatches or incomplete checks. Optional `format` annotations
 are not asserted: Python's regex-format checker cannot validate the published
 ICU Unicode properties. Payload `pattern` constraints still execute; an
 unsupported pattern fails the check rather than counting as an expected
-refusal. The Python suite also covers packaging, Plugin resolution and
-developer-tool entry points.
+refusal. The Python suite also covers packaging, the development install
+option and developer-tool entry points.
 
 For scripted Action progress, timeout, cancellation and explicit retry checks,
 `./script/build_and_run.sh --lifecycle-check` opens the Debug-only lifecycle
@@ -144,7 +150,7 @@ so use this flow when cleaning it. Raw results remain in `tmp/`.
 | `script/` | Build, validation and measurement command entry points. |
 | `Tools/` | Developer-only probe and measurement sources. |
 | `dist/` | The packaged Host app. |
-| `.build/` | Rebuildable compiler, Plugin snapshot and verification caches. |
+| `.build/` | Rebuildable compiler and verification caches. |
 | `Tools/.state/` | Local test service registration state, managed by its explicit cleanup command. |
 | `tmp/` | Local task and verification working outputs, grouped by task or run. |
 | `.audit-archive/` | Local retained audit evidence and removal archives. |
@@ -230,7 +236,7 @@ through the Documented Plugin Interface in [`PluginAPI/`](PluginAPI/) keeps
 its own licence;
 running inside Spinnet does not place it under the GPL. Community Plugins may
 use any OSI-approved open-source licence, and their authors keep their
-copyright. Official Plugins bundled with Spinnet are maintained separately in
+copyright. Official Plugins are maintained separately in
 [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins) under MIT; their
 exact third-party notices remain applicable. The official Plugin registry is
 for open-source Plugins.

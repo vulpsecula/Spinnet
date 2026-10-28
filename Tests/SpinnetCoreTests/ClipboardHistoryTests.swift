@@ -356,22 +356,4 @@ final class ClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(try store.query(dataTypes: ["text"]).entries, [])
     }
 
-    func testBundledHistoryCannotBeOverwrittenAndWinsOverAnOlderInstalledCopyAtStartup() throws {
-        let root = TestRepository.root
-        let source = root.appendingPathComponent("Tests/Fixtures/HostPlugins/ClipboardHistory.spinnetplugin")
-        let loaded = try PluginManifestLoader.load(packageAt: source)
-        let bundled = PluginPackage(rootURL: source, manifest: loaded.manifest, origin: .bundled)
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let grants = PluginCapabilityGrantStore()
-        let oldRegistry = PluginRegistry()
-        try PluginInstallationStore(directory: directory, registry: oldRegistry, grants: grants, persistGrants: {}).install(from: source)
-        let registry = PluginRegistry()
-        try registry.register(bundled)
-        let installer = PluginInstallationStore(directory: directory, registry: registry, grants: grants, persistGrants: {})
-        XCTAssertThrowsError(try installer.install(from: source))
-        try installer.restore()
-        XCTAssertEqual(registry.package(for: loaded.manifest.id)?.rootURL, source)
-    }
-
 }

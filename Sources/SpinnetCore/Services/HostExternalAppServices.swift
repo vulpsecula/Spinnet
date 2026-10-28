@@ -55,14 +55,14 @@ public struct HostExternalAppServices {
             )
         }
         if bundleID == TerminalHomebrew.bundleID {
-            do { try PluginInterfaceContracts.host.check(manifest, origin: package.origin) }
+            do { try PluginInterfaceContracts.host.check(manifest) }
             catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
             guard PluginInterfaceContracts.host.permits(TerminalHomebrew.member, declaredBy: manifest) else {
                 throw PluginHostServiceError.unavailable("Terminal Homebrew is not provided by this Host")
             }
         }
         if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation) {
-            do { try PluginInterfaceContracts.host.check(manifest, origin: package.origin) }
+            do { try PluginInterfaceContracts.host.check(manifest) }
             catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
         }
         if bundleID == SpotifyPlayback.bundleID, SpotifyControls.operationNames.contains(operation),

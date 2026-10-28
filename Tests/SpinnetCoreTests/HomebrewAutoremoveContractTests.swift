@@ -28,10 +28,10 @@ final class HomebrewAutoremoveContractTests: XCTestCase {
 extension HomebrewAutoremoveContractTests {
     func testCurrentContractSupportsEveryEntryAndRefusesAnIncompatibleHost() throws {
         let exact = try manifest(), contracts = PluginInterfaceContracts.host, permits = contracts.permitting(exact)
-        try contracts.check(exact, origin: .installed)
+        try contracts.check(exact)
         let registry = PluginRegistry(); try registry.register(.init(rootURL: URL(fileURLWithPath: "/tmp/autoremove"), manifest: exact))
-        XCTAssertThrowsError(try PluginInterfaceContracts(hostVersion: try HostVersion("0.9.0")).check(exact, origin: .installed))
-        XCTAssertNoThrow(try contracts.check(exact, origin: .bundled))
+        XCTAssertThrowsError(try PluginInterfaceContracts(hostVersion: try HostVersion("0.9.0")).check(exact))
+        XCTAssertNoThrow(try contracts.check(exact))
         _ = try PluginPageSource(parsing: .object(["id": .string("preview"), "perform": .string("tools.read"), "input": preview]), permits: permits)
         _ = try RequestedHostOperation(parsing: .object(["perform": .string("tools.startTask"), "input": task]), permits: permits)
         let call = PluginRuntimeHostServiceCall(invocationID: "run", actionID: ActionID("open"), name: "tools.read", input: preview)
@@ -120,16 +120,14 @@ extension HomebrewAutoremoveContractTests {
 }
 
 extension HomebrewAutoremoveContractTests {
-    func testCurrentScopesRegisterForBothOrigins() throws {
+    func testCurrentScopesRegister() throws {
         let command = CommandDeclaration(id: .init("open"), title: "Open", execution: .javascript, script: "open.js")
         for (capability, operation) in [(PluginCapability.readReviewedTools, "previewAutoremove"), (.runReviewedToolTasks, "autoremove")] {
             let scope = PluginCapabilityScope(capability: capability, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: [operation], kinds: ["formula"])])
-            for origin in [PluginOrigin.installed, .bundled] {
-                let manifest = try PluginManifest(id: .init("test.scoped.autoremove"), name: "Scoped Autoremove", version: "1.0", capabilities: [capability], capabilityScopes: [scope], commands: [command])
-                let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/scoped-autoremove"), manifest: manifest, origin: origin)
-                let registry = PluginRegistry()
-                try registry.register(package)
-            }
+            let manifest = try PluginManifest(id: .init("test.scoped.autoremove"), name: "Scoped Autoremove", version: "1.0", capabilities: [capability], capabilityScopes: [scope], commands: [command])
+            let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/scoped-autoremove"), manifest: manifest)
+            let registry = PluginRegistry()
+            try registry.register(package)
         }
     }
 }

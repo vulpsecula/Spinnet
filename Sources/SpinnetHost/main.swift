@@ -153,18 +153,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("PluginSettings.json")
             )
             clipboardStore = try ClipboardHistoryStore(fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("ClipboardHistory/history.json"))
-            let bundledPlugins = try registerBundledPlugins()
             try loadCapabilityGrants()
             try pluginInstallation.restore()
-            // Discovery has finished, so anything still holding a decision is
-            // a Plugin that is gone. A launch that read no Bundled Plugin
-            // cannot tell those apart from the ones it never read, and its
-            // decisions belong to the packaged Host that does read them.
+            // Every Plugin is an installed one, so anything still holding a
+            // decision after the restore is a Plugin that is gone.
             StoredDataMigration.reconcileCapabilityGrants(
                 capabilityGrants,
                 with: registry.manifests(),
-                keeping: registry.refusedPlugins().map(\.id),
-                discardingOthers: bundledPlugins.accountsForBundledPlugins
+                keeping: registry.refusedPlugins().map(\.id)
             )
             try saveCapabilityGrants()
             externalAppConnections.observeAuthority(registry: registry, grants: capabilityGrants)
@@ -634,7 +630,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             sourceRevision: info["SpinnetSourceRevision"] as? String ?? "(unknown)",
             processIdentifier: ProcessInfo.processInfo.processIdentifier,
             arguments: Array(CommandLine.arguments.dropFirst()),
-            bundledPluginSource: DeveloperDiagnostics.describe(try? bundledPluginSource()),
             dataDirectory: configurationFileURL().deletingLastPathComponent().path,
             plugins: DeveloperDiagnostics.plugins(in: registry),
             refused: registry.refusedPlugins().map { .init(id: $0.id.rawValue, reason: $0.reason) }
@@ -983,54 +978,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         clipboardWindow?.present()
     }
 
-    /// Bundled Plugins ship inside the app bundle, in the same shape an
-    /// installed Plugin has on disk. The Host discovers them by reading a
-    /// directory rather than by naming each one, so shipping another Plugin is
-    /// a packaging change and not a code change.
-    private func registerBundledPlugins() throws -> BundledPluginSource {
-        let source = try bundledPluginSource()
-        let removed = try pluginInstallation.removedPluginIDs()
-        for package in try shippedPackages(in: source) {
-            // A shipped Plugin the user removed stays removed across launches,
-            // and across the app updates that replace these files.
-            guard !removed.contains(package.manifest.id),
-                  registry.package(for: package.manifest.id) == nil else { continue }
-            try registry.register(package)
-        }
-        return source
-    }
-
-    /// Every Plugin this launch ships, removed ones included; the caller skips
-    /// those the user removed.
-    private func shippedPackages(in source: BundledPluginSource) throws -> [PluginPackage] {
-        guard let directory = source.directory else { return [] }
-        let contents = try FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: nil
-        )
-        // Sorted so registration order does not depend on the file system.
-        return try contents.filter { $0.pathExtension == "spinnetplugin" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .map { packageURL in
-                let package = try PluginManifestLoader.load(packageAt: packageURL)
-                return PluginPackage(
-                    rootURL: packageURL,
-                    manifest: package.manifest,
-                    origin: .bundled
-                )
-            }
-    }
-
-    private func bundledPluginSource() throws -> BundledPluginSource {
-        try BundledPluginSource.resolve(
-            bundleURL: Bundle.main.bundleURL,
-            resourceURL: Bundle.main.resourceURL,
-            environmentOverride: ProcessInfo.processInfo
-                .environment["SPINNET_BUNDLED_PLUGINS_DIR"],
-            directoryExists: { FileManager.default.fileExists(atPath: $0.path) }
-        )
-    }
-
     private func pluginHelperURL() -> URL? {
         // The app bundle first, then the build directory the Host itself was
         // launched from. Both are relative to this executable, so neither
@@ -1064,13 +1011,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func configurationFileURL() -> URL {
-        let supportDirectory = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? FileManager.default.temporaryDirectory
-        return supportDirectory
-            .appendingPathComponent("Spinnet", isDirectory: true)
-            .appendingPathComponent("configuration.json")
+        HostDataDirectory.url.appendingPathComponent("configuration.json")
     }
 
     private func capabilityGrantsFileURL() -> URL {
@@ -1112,6 +1053,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// Where the Host keeps the user's saved data.
+enum HostDataDirectory {
+    static var url: URL {
+        let supportDirectory = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? FileManager.default.temporaryDirectory
+        return supportDirectory.appendingPathComponent("Spinnet", isDirectory: true)
+    }
+}
+
 // Read-only signed transport check. No user configuration, password UI,
 // background registration, sudo or Homebrew command is opened by this path.
 if CommandLine.arguments.contains("--verify-homebrew-transport") {
@@ -1141,6 +1093,15 @@ if CommandLine.arguments.contains("--refresh-existing-background-operations") {
         exit(1)
     }
 }
+
+#if DEBUG
+// The launcher's development install and its verification report. They run
+// while no Host is running and never open the app.
+if let status = DevelopmentPluginInstall.runIfRequested(arguments: CommandLine.arguments,
+                                                        dataDirectory: HostDataDirectory.url) {
+    exit(status)
+}
+#endif
 
 let application = NSApplication.shared
 let delegate = ApplicationDelegate()

@@ -9,9 +9,9 @@ final class CurrentFeatureCompositionTests: XCTestCase {
         try PluginManifest(id: .init("com.example.current-proof"), name: "Current proof", version: "1.0.0", commands: [
             .init(id: .init("show"), title: "Show", execution: .javascript, script: "show.js")])
     }
-    func testBundledPackageCanPresentTheCurrentAdaptiveViewport() throws {
+    func testAPackageCanPresentTheCurrentAdaptiveViewport() throws {
         let manifest = try manifest()
-        try PluginInterfaceContracts.host.check(manifest, origin: .bundled)
+        try PluginInterfaceContracts.host.check(manifest)
         let page = try PluginPage(parsing: AdaptiveViewportContractTests.page(), permits: PluginInterfaceContracts.host.permitting(manifest))
         XCTAssertEqual(page.inputs.map(\.id), ["note"])
         XCTAssertThrowsError(try PluginPage(parsing: AdaptiveViewportContractTests.page(), permits: { _ in false }),

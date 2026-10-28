@@ -3,14 +3,14 @@ import XCTest
 
 /// The architecture guard (#49): the Host's modules under `Sources/` do not
 /// name the Plugin IDs, Command IDs or External App bundle IDs that the
-/// manifests in the locked shipped revision declare. Plugin behaviour belongs in the Plugin
+/// official Plugin fixtures declare. Plugin behaviour belongs in the Plugin
 /// (ADR 0009).
 ///
 /// Every occurrence the Host still has is listed below, per file and literal,
 /// with the reason it may stay or the W ticket under #47 that removes it. The
 /// Plugin-behaviour exceptions may only shrink: a new occurrence fails, and
-/// so does an exception that no longer matches what it excuses. Adding a
-/// Bundled Plugin can expose an existing Reviewed App Interface for the first
+/// so does an exception that no longer matches what it excuses. Adding an
+/// official Plugin can expose an existing Reviewed App Interface for the first
 /// time; list that reviewed authority with its exact count, as for Bob. The Clipboard History window, the
 /// one Host Surface, needs none: the Host presents it for whichever Plugin
 /// asks and names no Plugin to do so.
@@ -64,7 +64,7 @@ final class ArchitectureGuardTests: XCTestCase {
     }
 
     private func declaredLiterals() throws -> [ArchitectureGuard.DeclaredLiteral] {
-        try ShippedPluginPackages.all().flatMap { package in
+        try OfficialPluginFixtures.all().flatMap { package in
             try ArchitectureGuard.declaredLiterals(inManifest: Data(contentsOf:
                 package.rootURL.appendingPathComponent("manifest.json")))
         }

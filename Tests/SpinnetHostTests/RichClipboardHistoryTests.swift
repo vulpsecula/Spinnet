@@ -1080,7 +1080,7 @@ final class RichClipboardHistoryTests: XCTestCase {
         XCTAssertEqual(try h.query(text).entries, [])
     }
 
-    func testBundledHistoryDisclosesAllTypesAndExpansionNeedsFreshMasterConsent() throws {
+    func testHistoryPluginDisclosesAllTypesAndExpansionNeedsFreshMasterConsent() throws {
         let h = try Harness()
         h.board.clearContents(); h.board.setData(Data([9, 8, 7]), forType: .png)
         try h.collector.poll()

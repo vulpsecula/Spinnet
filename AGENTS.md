@@ -44,8 +44,11 @@ commands for tight package-level checks.
 - Quit existing Hosts before switching entrypoints; they share saved user data.
   Confirm the running app path and Plugin versions before reporting acceptance.
 
-For launch options, signing and Plugin source overrides, read
-[the launcher](script/build_and_run.sh) and [the Plugin resolver](script/resolve_bundled_plugins.sh).
+The app contains no Plugins. To install or update local Plugin packages, such
+as a SpinnetPlugins checkout, use the launcher's `--install-plugins DIR`; it
+uses the same install-and-update path as the Library and writes the user's
+saved data. For launch options and signing, read
+[the launcher](script/build_and_run.sh).
 
 ### Sub-agent Rules
 

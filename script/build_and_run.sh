@@ -2,15 +2,31 @@
 set -euo pipefail
 
 usage() {
-    printf 'usage: %s [run|--package|--debug|--logs|--telemetry|--verify|--lifecycle-check|--background-lifecycle-check [--prepare|--run|--status|--clean [--unregister]]]\n' "$0"
+    printf 'usage: %s [--install-plugins DIR] [run|--debug|--logs|--telemetry|--verify|--lifecycle-check]\n' "$0"
+    printf '       %s --package\n' "$0"
+    printf '       %s --background-lifecycle-check [--prepare|--run|--status|--clean [--unregister]]\n' "$0"
+    printf '\n--install-plugins installs or updates every .spinnetplugin package in DIR,\n'
+    printf 'or in DIR/Plugins for a SpinnetPlugins checkout, into your saved data through\n'
+    printf 'the install-and-update path the Library uses, before the app opens.\n'
+    printf '%s\n' '--verify reports the installed Plugin versions once the app has stayed up.'
 }
 reject_arguments() {
     usage >&2
     exit 2
 }
 
-# Validate before consulting signing identities, resolving Plugins or touching
-# the running app. In particular, help and spelling errors must be inert.
+# Validate before consulting signing identities, building or touching the
+# running app. In particular, help and spelling errors must be inert.
+INSTALL_PLUGINS_DIR=""
+if [[ "${1-}" == --install-plugins ]]; then
+    [[ $# -ge 2 && -n "$2" ]] || reject_arguments
+    INSTALL_PLUGINS_DIR="$2"
+    shift 2
+    case "${1-run}" in
+        run|--lifecycle-check|--debug|debug|--logs|logs|--telemetry|telemetry|--verify|verify) ;;
+        *) reject_arguments ;;
+    esac
+fi
 MODE="${1-run}"
 case "$MODE" in
     -h|--help)
@@ -39,6 +55,13 @@ APP_NAME="SpinnetHost"
 BUNDLE_ID="com.vulpsecula.SpinnetHost.preview"
 MIN_SYSTEM_VERSION="13.0"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -n "$INSTALL_PLUGINS_DIR" ]]; then
+    if [[ ! -d "$INSTALL_PLUGINS_DIR" ]]; then
+        echo "error: missing Plugin package directory: $INSTALL_PLUGINS_DIR" >&2
+        exit 1
+    fi
+    INSTALL_PLUGINS_DIR="$(cd "$INSTALL_PLUGINS_DIR" && pwd)"
+fi
 if [[ "$MODE" == --background-lifecycle-check ]]; then
     if [[ $# -eq 3 ]]; then
         exec bash "$ROOT_DIR/script/check_background_lifecycle.sh" "$BACKGROUND_MODE" "$3"
@@ -57,7 +80,6 @@ APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
-APP_PLUGINS="$APP_RESOURCES/Plugins"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 HOST_ENTITLEMENTS="$ROOT_DIR/Resources/SpinnetHost.entitlements"
@@ -97,8 +119,6 @@ if [[ -z "$SIGNING_IDENTITY" && "$ALLOW_ADHOC_SIGNING" != "1" ]]; then
     exit 1
 fi
 
-BUNDLED_PLUGINS_DIR="$("$ROOT_DIR/script/resolve_bundled_plugins.sh")"
-
 # The commit a DEBUG Host reports in Developer > Copy Diagnostics.
 SOURCE_REVISION="$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 if [[ "$SOURCE_REVISION" != unknown ]] && ! git -C "$ROOT_DIR" diff --quiet HEAD -- 2>/dev/null; then
@@ -132,21 +152,8 @@ cp "$ROOT_DIR/Resources/LaunchDaemons/com.vulpsecula.SpinnetHost.privileged-tool
 # Core no longer has runtime resources. Do not package its obsolete SwiftPM
 # bundle if an incremental build left the retired Ruby adapters behind.
 
-# Bundled Plugins ship as Plugin packages so the Host reads them the same way
-# it reads an installed Plugin. They live under Resources rather than PlugIns
-# because they carry no loadable code; codesign seals them as resources.
-mkdir -p "$APP_PLUGINS"
-bundled_count=0
-for package in "$BUNDLED_PLUGINS_DIR"/*.spinnetplugin; do
-    [[ -d "$package" ]] || continue
-    ditto "$package" "$APP_PLUGINS/$(basename "$package")"
-    bundled_count=$((bundled_count + 1))
-done
-if [[ "$bundled_count" -eq 0 ]]; then
-    echo "error: no Plugin packages found in $BUNDLED_PLUGINS_DIR" >&2
-    exit 1
-fi
-echo "Bundled $bundled_count Plugin package(s)"
+# The app contains no Plugins: every Plugin, official or not, is installed
+# into the user's saved data the way the Library installs one.
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -214,6 +221,12 @@ if [[ "$MODE" != "--package" ]]; then
     fi
 fi
 
+if [[ -n "$INSTALL_PLUGINS_DIR" ]]; then
+    # No Host is running: the launcher quit it before building.
+    echo "Installing Plugin packages from $INSTALL_PLUGINS_DIR"
+    "$APP_BINARY" --install-plugins "$INSTALL_PLUGINS_DIR"
+fi
+
 open_app() {
     /usr/bin/open -n "$APP_BUNDLE"
 }
@@ -249,6 +262,11 @@ case "$MODE" in
                 exit 1
             fi
         done
+        echo "Running $APP_BUNDLE"
+        echo "Installed Plugins:"
+        if ! "$APP_BINARY" --report-installed-plugins; then
+            echo "warning: the running Host refuses an installed Plugin; see Settings → Menu" >&2
+        fi
         ;;
     *)
         reject_arguments

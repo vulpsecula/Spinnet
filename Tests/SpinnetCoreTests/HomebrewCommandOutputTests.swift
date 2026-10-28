@@ -86,7 +86,7 @@ final class HomebrewCommandOutputTests: XCTestCase {
         let command = CommandDeclaration(id: .init("run"), title: "Run", execution: .javascript, script: "run.js")
         let scope = PluginCapabilityScope(capability: .readReviewedTools, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["commandOutput"], kinds: ["formula", "cask"])])
         let current = try PluginManifest(id: .init("probe"), name: "Probe", version: "1", capabilities: [.readReviewedTools], capabilityScopes: [scope], commands: [command])
-        try PluginInterfaceContracts.host.check(current, origin: .installed)
+        try PluginInterfaceContracts.host.check(current)
         let package = PluginPackage(rootURL: FileManager.default.temporaryDirectory, manifest: current)
         let action = try ActionConfiguration(id: .init("run"), pluginID: current.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore(); var launches = 0

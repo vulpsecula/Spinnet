@@ -30,11 +30,11 @@ final class AdaptivePageContractTests: XCTestCase {
         XCTAssertEqual(field.value, "initial")
     }
     func testCurrentAdaptiveMembershipAndHostVersionAreCheckedIndependently() throws {
-        for origin in [PluginOrigin.installed, .bundled] { try PluginInterfaceContracts.host.check(Self.manifest, origin: origin) }
+        try PluginInterfaceContracts.host.check(Self.manifest)
         XCTAssertTrue(PluginInterfaceContracts.currentMembers.contains(.viewComponent("adaptive")))
         XCTAssertThrowsError(try PluginScriptAnswer(parsing: Self.answer, permits: { $0 != .viewComponent("adaptive") }))
         let older = PluginInterfaceContracts(hostVersion: try HostVersion("0.9.0"))
-        XCTAssertThrowsError(try older.check(Self.manifest, origin: .installed))
+        XCTAssertThrowsError(try older.check(Self.manifest))
     }
 
     func testAdaptiveChildrenCannotBypassSharedIdentityAndDepthBudgets() throws {

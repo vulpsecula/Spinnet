@@ -3,7 +3,7 @@
 `tools.showServices` shows a controlled native Host Surface for Homebrew's
 current user-owned services. Any installed Plugin declaring and granted
 `read_reviewed_tools` for Homebrew operation `services`, kind `formula`, may
-request it. Origin grants nothing. No System Permission is needed.
+request it. No System Permission is needed.
 
 Input is `{tool:"homebrew", presentation?:"surface"|"menu"}`. The default
 `surface` is a nonactivating native panel. `menu` registers a Host-generated

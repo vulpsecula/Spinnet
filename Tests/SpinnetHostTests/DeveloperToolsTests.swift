@@ -12,13 +12,12 @@ final class DeveloperToolsTests: XCTestCase {
             sourceRevision: "503b354-dirty",
             processIdentifier: 4242,
             arguments: [],
-            bundledPluginSource: DeveloperDiagnostics.describe(.packaged(URL(fileURLWithPath: "/App/Plugins"))),
             dataDirectory: "/Users/dev/Library/Application Support/Spinnet",
             plugins: [
                 .init(id: "com.spinnet.homebrew", name: "Homebrew", version: "2.5.5",
-                      origin: "bundled", hostCompatibility: "^1.0.0", isEnabled: true),
+                      hostCompatibility: "^1.0.0", isEnabled: true),
                 .init(id: "com.example.probe", name: "Probe", version: "0.3.0",
-                      origin: "installed", hostCompatibility: "^1.0.0", isEnabled: false)
+                      hostCompatibility: "^1.0.0", isEnabled: false)
             ],
             refused: [.init(id: "com.example.old", reason: "Needs Plugin API Level 9")]
         )
@@ -31,24 +30,16 @@ final class DeveloperToolsTests: XCTestCase {
         Source revision: 503b354-dirty
         PID: 4242
         Arguments: (none)
-        Bundled Plugins: packaged /App/Plugins
         Data: /Users/dev/Library/Application Support/Spinnet
 
         Plugins (2):
-        - com.spinnet.homebrew 2.5.5 [bundled, Host ^1.0.0] Homebrew
-        - com.example.probe 0.3.0 [installed, Host ^1.0.0, disabled] Probe
+        - com.spinnet.homebrew 2.5.5 [Host ^1.0.0] Homebrew
+        - com.example.probe 0.3.0 [Host ^1.0.0, disabled] Probe
 
         Refused Plugins (1):
         - com.example.old: Needs Plugin API Level 9
 
         """)
-    }
-
-    func testDiagnosticsSayWhichBundledPluginSourceTheLaunchRead() {
-        XCTAssertEqual(DeveloperDiagnostics.describe(.development(URL(fileURLWithPath: "/repo/Plugins"))),
-                       "SPINNET_BUNDLED_PLUGINS_DIR /repo/Plugins")
-        XCTAssertEqual(DeveloperDiagnostics.describe(BundledPluginSource.none), "none")
-        XCTAssertEqual(DeveloperDiagnostics.describe(nil), "unresolved")
     }
 
     func testDeveloperToolsRunTheirActions() {
@@ -83,7 +74,7 @@ final class DeveloperToolsTests: XCTestCase {
 
     private static let minimalDiagnostics = DeveloperDiagnostics(
         appPath: "/A.app", bundleIdentifier: "b", version: "1", sourceRevision: "r", processIdentifier: 1,
-        arguments: ["--lifecycle-check"], bundledPluginSource: "none", dataDirectory: "/d", plugins: [], refused: []
+        arguments: ["--lifecycle-check"], dataDirectory: "/d", plugins: [], refused: []
     )
 }
 #endif

@@ -16,7 +16,7 @@ final class TerminalHomebrewTests: XCTestCase {
         let command = CommandDeclaration(id: .init("run"), title: "Run", execution: .javascript, script: "run.js")
         let scope = PluginCapabilityScope(capability: .controlExternalApp, commandIDs: [command.id], externalApps: [.init(bundleID: TerminalHomebrew.bundleID, operationFamilies: [TerminalHomebrew.family])])
         let manifest = try PluginManifest(id: .init("terminal"), name: "Terminal", version: "1", capabilities: [.controlExternalApp], capabilityScopes: [scope], commands: [command])
-        for origin in [PluginOrigin.installed, .bundled] { try PluginInterfaceContracts.host.check(manifest, origin: origin) }
+        try PluginInterfaceContracts.host.check(manifest)
         let interface = try XCTUnwrap(ReviewedAppInterface.interface(for: TerminalHomebrew.bundleID))
         let executable = URL(fileURLWithPath: "/opt/homebrew/bin/brew")
         XCTAssertEqual(try interface.request(operation: "homebrew", arguments: ["command": .string("version")], homebrewExecutable: executable).handler, "do script")
@@ -51,7 +51,7 @@ extension TerminalHomebrewTests {
             .init(bundleID: TerminalHomebrew.bundleID, operationFamilies: [TerminalHomebrew.family])])
         let manifest = try PluginManifest(id: .init("com.example.terminal-test"),
             name: "Terminal probe", version: "1", capabilities: [.controlExternalApp], capabilityScopes: [scope], commands: [command])
-        let package = PluginPackage(rootURL: FileManager.default.temporaryDirectory, manifest: manifest, origin: .installed)
+        let package = PluginPackage(rootURL: FileManager.default.temporaryDirectory, manifest: manifest)
         let action = try ActionConfiguration(id: .init("run"), pluginID: manifest.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore(), activities = HostActivities()
         var sent: [AppleEventRequest] = []

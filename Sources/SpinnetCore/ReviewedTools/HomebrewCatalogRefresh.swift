@@ -15,7 +15,7 @@ public enum HomebrewCatalogRefresh {
         guard permits(member) else { throw PluginHostServiceError.unavailable("Automatic catalog refresh is not provided by this Host") }
     }
     public static func check(_ input: JSONValue, manifest: PluginManifest) throws {
-        try PluginInterfaceContracts.host.check(manifest, origin: .installed)
+        try PluginInterfaceContracts.host.check(manifest)
         try check(input, permits: PluginInterfaceContracts.host.permitting(manifest))
     }
     public static func permitsStart(_ event: PluginViewEvent?) -> Bool {

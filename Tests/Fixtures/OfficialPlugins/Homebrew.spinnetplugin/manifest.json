@@ -1,0 +1,191 @@
+{
+  "protocol_version": "1.0",
+  "engines": {"spinnet": "^1.0.0"},
+  "id": "com.spinnet.homebrew",
+  "name": "Homebrew",
+  "version": "2.5.6",
+  "capabilities": [
+    "read_reviewed_tools",
+    "run_reviewed_tool_tasks"
+  ],
+  "optional_capabilities": [
+    "run_reviewed_tool_tasks"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "read_reviewed_tools",
+      "command_ids": [
+        "brew.installed",
+        "brew.search",
+        "brew.outdated",
+        "brew.update",
+        "brew.adopt",
+        "brew.services",
+        "brew.taps",
+        "brew.doctor",
+        "brew.cleanup"
+      ],
+      "reviewed_tools": [
+        {
+          "tool": "homebrew",
+          "operations": [
+            "commandOutput",
+            "adoptionCandidates",
+            "adoptionPreview",
+            "installed",
+            "outdated",
+            "search",
+            "info",
+            "services",
+            "taps",
+            "previewInstall",
+            "previewUpgrade",
+            "previewAutoremove"
+          ],
+          "kinds": [
+            "formula",
+            "cask"
+          ]
+        }
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    },
+    {
+      "capability": "run_reviewed_tool_tasks",
+      "command_ids": [
+        "brew.installed",
+        "brew.search",
+        "brew.outdated",
+        "brew.update",
+        "brew.adopt",
+        "brew.services",
+        "brew.taps",
+        "brew.doctor",
+        "brew.cleanup"
+      ],
+      "reviewed_tools": [
+        {
+          "tool": "homebrew",
+          "operations": [
+            "install",
+            "upgrade",
+            "uninstall",
+            "adopt",
+            "tap",
+            "untap",
+            "serviceStart",
+            "serviceStop",
+            "serviceRestart",
+            "cleanup",
+            "autoremove",
+            "update",
+            "upgradeSelected",
+            "pin",
+            "unpin",
+            "trust",
+            "untrust",
+            "refreshCatalog"
+          ],
+          "kinds": [
+            "formula",
+            "cask"
+          ]
+        }
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "brew.installed",
+    "default_alternate_command_ids": []
+  },
+  "commands": [
+    {
+      "id": "brew.installed",
+      "title": "Show Installed",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-installed.js"
+    },
+    {
+      "id": "brew.search",
+      "title": "Search Packages",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-search.js"
+    },
+    {
+      "id": "brew.outdated",
+      "title": "Available Updates",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-outdated.js"
+    },
+    {
+      "id": "brew.update",
+      "title": "Update Catalog",
+      "execution": "javascript",
+      "script": "brew-update.js",
+      "is_configurable": false
+    },
+    {
+      "id": "brew.adopt",
+      "title": "Adopt Apps",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-adopt.js"
+    },
+    {
+      "id": "brew.services",
+      "title": "Manage Services",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-services.js"
+    },
+    {
+      "id": "brew.taps",
+      "title": "Manage Package Sources",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-taps.js"
+    },
+    {
+      "id": "brew.doctor",
+      "title": "Run Doctor",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-doctor.js"
+    },
+    {
+      "id": "brew.cleanup",
+      "title": "Clean Up",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "brew-cleanup.js"
+    }
+  ],
+  "migrations": {
+    "rename_commands": {
+      "brew.open": "brew.installed",
+      "brew.vulnerabilities": "brew.doctor",
+      "brew.services-menu": "brew.services",
+      "brew.clear-cache": "brew.cleanup",
+      "brew.autoremove": "brew.cleanup",
+      "brew.install": "brew.search",
+      "brew.uninstall": "brew.installed",
+      "brew.info": "brew.installed",
+      "brew.config": "brew.doctor",
+      "brew.version": "brew.doctor",
+      "brew.untap": "brew.taps",
+      "brew.upgrade": "brew.outdated"
+    }
+  }
+}

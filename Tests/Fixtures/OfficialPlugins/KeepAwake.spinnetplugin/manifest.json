@@ -1,0 +1,89 @@
+{
+  "protocol_version": "1.0",
+  "engines": {"spinnet": "^1.0.0"},
+  "id": "com.spinnet.coffee",
+  "name": "Keep Awake",
+  "version": "1.0.3",
+  "capabilities": [
+    "keep_awake",
+    "read_frontmost_app"
+  ],
+  "optional_capabilities": [
+    "read_frontmost_app"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "keep_awake",
+      "command_ids": [
+        "coffee.open",
+        "coffee.manual",
+        "coffee.timed",
+        "coffee.app"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    },
+    {
+      "capability": "read_frontmost_app",
+      "command_ids": [
+        "coffee.open",
+        "coffee.app"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": []
+    }
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "coffee.open",
+    "default_alternate_command_ids": [
+      "coffee.manual",
+      "coffee.timed",
+      "coffee.app",
+      "coffee.activities"
+    ]
+  },
+  "commands": [
+    {
+      "id": "coffee.open",
+      "title": "Keep Awake",
+      "description": "Choose how long to keep the Mac and display awake while idle.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "coffee.js"
+    },
+    {
+      "id": "coffee.manual",
+      "title": "Keep Awake Until Stopped",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "coffee.js"
+    },
+    {
+      "id": "coffee.timed",
+      "title": "Keep Awake for 30 Minutes",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "coffee.js"
+    },
+    {
+      "id": "coffee.app",
+      "title": "Keep Awake While Current App Runs",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "coffee.js"
+    },
+    {
+      "id": "coffee.activities",
+      "title": "Keep Awake Activities",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "coffee.js"
+    }
+  ]
+}

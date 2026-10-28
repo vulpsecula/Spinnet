@@ -139,13 +139,13 @@ final class PluginHostCompatibilityTests: XCTestCase {
         let current = PluginInterfaceContracts(hostVersion: try HostVersion("1.0.0"))
         let newer = PluginInterfaceContracts(hostVersion: try HostVersion("1.99.0"))
         let accepted = try manifest()
-        try current.check(accepted, origin: .installed)
-        try newer.check(accepted, origin: .bundled)
+        try current.check(accepted)
+        try newer.check(accepted)
         XCTAssertEqual(current.members, newer.members)
         for member in current.members {
             XCTAssertEqual(current.permits(member, declaredBy: accepted), newer.permits(member, declaredBy: accepted))
         }
-        XCTAssertThrowsError(try PluginInterfaceContracts(hostVersion: HostVersion("2.0.0")).check(accepted, origin: .installed))
+        XCTAssertThrowsError(try PluginInterfaceContracts(hostVersion: HostVersion("2.0.0")).check(accepted))
     }
 
     func testIncompatibleReviewAndInstallFailBeforeCopyingOrRegistering() throws {
@@ -209,27 +209,6 @@ final class PluginHostCompatibilityTests: XCTestCase {
         XCTAssertEqual(try storage.value(forKey: "runs", of: pluginID), .number(3))
         XCTAssertEqual(relaunched.availability(for: action), .available)
         XCTAssertNil(relaunched.refusedPlugin(pluginID))
-    }
-
-    func testHistoricalBundledSnapshotsMigrateOnlyForEqualScopeGrantComparison() throws {
-        let directory = try temporaryDirectory()
-        let old = try manifest(version: "0.9.0"), current = try manifest(version: "1.0.0")
-        var fields = try json(old); fields.removeValue(forKey: "engines"); fields["api_level"] = .number(1)
-        fields["candidate_contracts"] = .array([])
-        try data([pluginID.rawValue: .object(fields)]).write(to: directory.appendingPathComponent("bundled-manifests.json"))
-        let grants = PluginCapabilityGrantStore()
-        grants.setDecision(.granted, for: pluginID, pluginVersion: old.version, capability: .writeClipboard, scope: old.scope(for: .writeClipboard))
-        let registry = PluginRegistry()
-        try registry.register(PluginPackage(rootURL: directory, manifest: current, origin: .bundled))
-        var persisted = 0
-        let store = PluginInstallationStore(directory: directory, registry: registry, grants: grants, persistGrants: { persisted += 1 })
-        try store.restore()
-        XCTAssertEqual(grants.decision(for: pluginID, pluginVersion: current.version, capability: .writeClipboard, scope: current.scope(for: .writeClipboard)), .granted)
-        XCTAssertEqual(persisted, 1)
-        let snapshots = try JSONDecoder().decode([String: JSONValue].self, from: Data(contentsOf: directory.appendingPathComponent("bundled-manifests.json")))
-        XCTAssertNil(snapshots[pluginID.rawValue]?.value(atPointer: "/api_level"))
-        XCTAssertEqual(snapshots[pluginID.rawValue]?.value(atPointer: "/engines/spinnet"), .string("^1.0.0"))
-        XCTAssertThrowsError(try PluginManifestLoader.decode(data(fields)), "The same old declaration remains forbidden as an executable package")
     }
 }
 

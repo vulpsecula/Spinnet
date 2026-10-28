@@ -123,16 +123,16 @@ extension SpotifyControlsTests {
         XCTAssertEqual(try XCTUnwrap(ReviewedAppInterface.interface(for: SpotifyPlayback.bundleID)).request(operation: "next", arguments: [:]).handler, "next")
     }
 
-    func testLegacyDeclarationsAreRefusedAndCurrentBundledPackageIsAccepted() throws {
+    func testLegacyDeclarationsAreRefusedAndCurrentPackageIsAccepted() throws {
         let package = try package()
         let data = try JSONEncoder().encode(package.manifest)
         var retired = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         retired["candidate_contracts"] = [["name": "spotify_controls", "revision": 1]]
         XCTAssertThrowsError(try PluginManifestLoader.decode(JSONSerialization.data(withJSONObject: retired)))
         let registry = PluginRegistry()
-        XCTAssertNoThrow(try registry.register(.init(rootURL: package.rootURL, manifest: package.manifest, origin: .bundled)))
+        XCTAssertNoThrow(try registry.register(.init(rootURL: package.rootURL, manifest: package.manifest)))
         let oldContracts = PluginInterfaceContracts(hostVersion: try HostVersion("0.9.0"))
-        XCTAssertThrowsError(try oldContracts.check(package.manifest, origin: .installed))
+        XCTAssertThrowsError(try oldContracts.check(package.manifest))
         XCTAssertNotNil(registry.package(for: package.manifest.id))
     }
 }
