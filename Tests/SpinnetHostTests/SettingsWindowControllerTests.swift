@@ -332,7 +332,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         }
 
         let controller = MenuPresentationController(items: makeSlots())
-        controller.onRefresh = makeSlots
+        controller.onRefresh = { _ in makeSlots() }
 
         let availableMenu = try XCTUnwrap(controller.makeActionMenu(for: 0))
         XCTAssertTrue(try XCTUnwrap(availableMenu.items.first).isEnabled)

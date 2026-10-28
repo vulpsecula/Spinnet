@@ -1,14 +1,17 @@
 import SpinnetCore
 
 enum MenuPresentationFactory {
+    /// The Slots presented while `app` is the Current App, nil for the
+    /// default Menu; the saved configuration resolves its App Overrides.
     static func makeSlots(
         configuration: HostConfiguration,
+        app: AppBundleIdentifier? = nil,
         availability: (ActionConfiguration) -> ActionAvailability,
         presetName: (PluginID) -> String? = { _ in nil },
         explanation: (ActionConfiguration) -> String? = { _ in nil }
     ) -> [MenuSlotPresentation] {
         let actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
-        return configuration.menu.slots.map { slot in
+        return configuration.menu.slots(for: app).map { slot in
             guard let item = slot.item else {
                 return MenuSlotPresentation(configuration: slot, item: nil)
             }

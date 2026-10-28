@@ -418,14 +418,15 @@ final class SettingsWindowModel: ObservableObject {
         names.append(contentsOf: page.contentAccessibilityNames(metadata: metadata))
         if page == .menu {
             names.append(contentsOf: editor.menuItemPresets.map(\.accessibilityLabel))
-            let selectedSlotIsEmpty = editor.configuration.menu.slots.indices.contains(menuEditor.selectedMenuIndex)
-                && editor.configuration.menu.slots[menuEditor.selectedMenuIndex].item == nil
+            let slots = editor.editedSlots
+            let selectedSlotIsEmpty = slots.indices.contains(menuEditor.selectedMenuIndex)
+                && slots[menuEditor.selectedMenuIndex].item == nil
             if selectedSlotIsEmpty {
                 for preset in editor.menuItemPresets {
                     names.append("Add \(preset.name) to selected Slot")
                 }
             }
-            for (index, slot) in editor.configuration.menu.slots.enumerated()
+            for (index, slot) in slots.enumerated()
                 where slot.item != nil {
                 names.append("Edit Menu Item in Slot \(index + 1)")
             }
@@ -648,6 +649,12 @@ struct SettingsRootView: View {
             .padding(.horizontal, 22)
             .padding(.top, 20)
 
+            if model.page == .menu {
+                appSwitcher
+                    .padding(.horizontal, 22)
+                    .padding(.top, 10)
+            }
+
             Spacer(minLength: 8)
             ZStack {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -669,6 +676,8 @@ struct SettingsRootView: View {
                     onSelection: menuEditor.selectMenuItem,
                     onEdit: menuEditor.requestEdit,
                     onSlotDelete: { _ = menuEditor.requestSlotDeletion(at: $0) },
+                    onSlotEmpty: menuEditor.emptySlot,
+                    onSlotReset: menuEditor.resetSlotToDefault,
                     onPresetDrop: menuEditor.placePreset,
                     onPresetInsert: menuEditor.insertPreset,
                     onSlotDrop: { menuEditor.reorderSlots(ids: $0, selectedID: $1) }
@@ -690,7 +699,7 @@ struct SettingsRootView: View {
                     Button(action: menuEditor.addEmptySlot) {
                         Image(systemName: "plus")
                     }
-                    .disabled(menuSlots.count >= 12)
+                    .disabled(menuSlots.count >= 12 || !menuEditor.canArrangeSlots)
                     .accessibilityLabel("Add empty Slot")
                     .help("Add empty Slot")
                     Button(action: menuEditor.undoSlotEdit) {
@@ -723,6 +732,51 @@ struct SettingsRootView: View {
             } else {
                 Spacer()
             }
+        }
+    }
+
+    /// Chooses whether the Menu Editor edits the default Menu or one App's
+    /// App Overrides: Default, each App with overrides, and Add App….
+    private var appSwitcher: some View {
+        HStack(spacing: 8) {
+            Menu {
+                Button("Default") { menuEditor.editApp(nil) }
+                let apps = menuEditor.switcherApps
+                if !apps.isEmpty {
+                    Divider()
+                    ForEach(apps) { app in
+                        Button(app.name) { menuEditor.editApp(app.bundleIdentifier) }
+                    }
+                }
+                Divider()
+                Menu("Add App") {
+                    let running = menuEditor.runningAppsToAdd
+                    ForEach(running) { app in
+                        Button(app.name) {
+                            menuEditor.addApp(bundleIdentifier: app.bundleIdentifier.rawValue, name: app.name)
+                        }
+                    }
+                    if !running.isEmpty { Divider() }
+                    Button("Choose from Applications…", action: menuEditor.chooseAppToAdd)
+                }
+            } label: {
+                Text(menuEditor.editedApp?.name ?? "Default")
+            }
+            .fixedSize()
+            .disabled(menuEditor.editingMenuIndex != nil)
+            .accessibilityLabel("App")
+            .help("Edit the default Menu, or what one App shows in its Slots")
+
+            if let app = menuEditor.editedApp {
+                Button("Remove App", action: menuEditor.removeEditedApp)
+                    .help("Remove \(app.name) and all its overrides")
+                    .accessibilityLabel("Remove App \(app.name)")
+                Text("Right-click a Slot to empty it or reset it to the default.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -983,6 +1037,8 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let onSelection: (Int) -> Void
     let onEdit: (Int) -> Void
     let onSlotDelete: (Int) -> Void
+    var onSlotEmpty: (Int) -> Void = { _ in }
+    var onSlotReset: (Int) -> Void = { _ in }
     let onPresetDrop: (String, Int) -> Bool
     let onPresetInsert: (String, Int) -> Bool
     let onSlotDrop: ([UUID], UUID) -> Bool
@@ -1013,6 +1069,8 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
             view.onEditorSelection = nil
             view.onEditorEditRequested = nil
             view.onEditorSlotDeleteRequested = nil
+            view.onEditorSlotEmptyRequested = nil
+            view.onEditorSlotResetRequested = nil
             view.onPresetDrop = nil
             view.onPresetInsert = nil
             view.onSlotDrop = nil
@@ -1021,6 +1079,8 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
         view.onEditorSelection = onSelection
         view.onEditorEditRequested = onEdit
         view.onEditorSlotDeleteRequested = onSlotDelete
+        view.onEditorSlotEmptyRequested = onSlotEmpty
+        view.onEditorSlotResetRequested = onSlotReset
         view.onPresetDrop = onPresetDrop
         view.onPresetInsert = onPresetInsert
         view.onSlotDrop = onSlotDrop
@@ -1587,18 +1647,13 @@ private struct SlotConfigurationSheet: View {
                     alternateCommandIDs: alternateCommandIDs,
                     inputs: inputs,
                     alternateCommandOrder: alternateCommandOrder,
-                    replacingEmptySlot: editor.configuration.menu.slots[slotIndex].item == nil,
+                    replacingEmptySlot: editor.editedSlots[slotIndex].item == nil,
                     validateInputs: true,
                     preserveUnselectedAlternates: true
                 )
-                var slots = candidate.menu.slots
-                guard let item = slots[slotIndex].item else {
-                    throw ConfigurationError.invalidMenu("Cannot save an empty Menu Slot")
-                }
-                slots[slotIndex] = .occupied(item.withAlias(normalizedItemAlias))
-                let finalConfiguration = try HostConfiguration(
-                    actions: candidate.actions,
-                    menu: MenuConfiguration(slots: slots)
+                // For an App, the candidate holds its override of this Slot.
+                let finalConfiguration = try editor.configuration(
+                    candidate, aliasingMenuItemAt: slotIndex, to: normalizedItemAlias
                 )
                 let secrets = CredentialFieldSecrets.typed(
                     for: selectedCommands, inputs: inputs, secrets: credentialSecrets
@@ -1608,18 +1663,8 @@ private struct SlotConfigurationSheet: View {
                 dismiss()
                 return
             }
-            guard editor.configuration.menu.slots.indices.contains(slotIndex) else {
-                throw ConfigurationError.invalidMenu("Menu Slot index is out of range")
-            }
-            let slot = editor.configuration.menu.slots[slotIndex]
-            var slots = editor.configuration.menu.slots
-            guard let item = slot.item else {
-                throw ConfigurationError.invalidMenu("Cannot rename an empty Menu Slot")
-            }
-            slots[slotIndex] = .occupied(item.withAlias(normalizedItemAlias))
-            let finalConfiguration = try HostConfiguration(
-                actions: editor.configuration.actions,
-                menu: MenuConfiguration(slots: slots)
+            let finalConfiguration = try editor.configuration(
+                editor.configuration, aliasingMenuItemAt: slotIndex, to: normalizedItemAlias
             )
             try onSaved(MenuItemSaveDraft(configuration: finalConfiguration))
             dismiss()
@@ -1825,11 +1870,13 @@ private struct SlotConfigurationSheet: View {
         slotIndex: Int,
         presetPluginID: PluginID?
     ) -> InitialState {
-        let itemAlias = editor.configuration.menu.slots.indices.contains(slotIndex)
-            ? editor.configuration.menu.slots[slotIndex].item?.alias ?? ""
+        // The Menu Item the edited App sees: its override or the default's.
+        let slots = editor.editedSlots
+        let itemAlias = slots.indices.contains(slotIndex)
+            ? slots[slotIndex].item?.alias ?? ""
             : ""
 
-        guard editor.configuration.menu.slots.indices.contains(slotIndex) else {
+        guard slots.indices.contains(slotIndex) else {
             return InitialState(
                 pluginManifest: nil,
                 pluginID: nil,
@@ -1842,7 +1889,7 @@ private struct SlotConfigurationSheet: View {
             )
         }
 
-        let item = editor.configuration.menu.slots[slotIndex].item
+        let item = slots[slotIndex].item
         let primaryAction = item.flatMap { item in
             editor.configuration.actions.first(where: { $0.id == item.primaryActionID })
         }
