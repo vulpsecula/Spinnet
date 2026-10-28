@@ -14,6 +14,7 @@ protocol RunningApplication: AnyObject {
     /// that Launch Services did not launch, such as Finder.
     var processStartDate: Date? { get }
     var localizedName: String? { get }
+    var bundleURL: URL? { get }
     var activationPolicy: NSApplication.ActivationPolicy { get }
     var isTerminated: Bool { get }
     func forceTerminate() -> Bool
@@ -61,6 +62,20 @@ extension DesktopRunningApps {
     }
 }
 
+/// The Current App: the App in front when the user invokes a Menu, which
+/// stays in front behind the non-activating Menu panel. It is resolved once
+/// per invocation and used only for the Menu's presentation; App Overrides
+/// select by its bundle identifier.
+struct CurrentApp: Equatable {
+    let identity: RunningAppIdentity
+    /// Where its bundle is, from which its icon is read; nil for an App
+    /// without one.
+    let bundleURL: URL?
+
+    var bundleIdentifier: String? { identity.bundleIdentifier }
+    var name: String { identity.name }
+}
+
 /// The Apps running on this Mac, for `apps.frontmost`, `apps.quit` and
 /// `apps.close` (#83): the App in front, never a list of Apps, and an exit
 /// performed on exactly the App the Host resolved, checked by process ID,
@@ -103,13 +118,14 @@ final class DesktopRunningApps: RunningApps {
     private let lock = NSLock()
     private var front: RunningApplication?
     private var terminationObservers: [(RunningAppIdentity) -> Void] = []
+    private var currentAppObservers: [(CurrentApp?) -> Void] = []
     private var observation: AnyObject?
 
     /// Made on the main thread.
     init(environment: Environment = .live) {
         self.environment = environment
         front = environment.frontmost()
-        observation = environment.observe({ [weak self] in self?.refreshFront() },
+        observation = environment.observe({ [weak self] in self?.activated() },
                                           { [weak self] in self?.terminated($0) })
     }
 
@@ -124,6 +140,15 @@ final class DesktopRunningApps: RunningApps {
 
     func facts(of app: RunningAppIdentity) -> RunningAppFacts? {
         running(app).flatMap(Self.facts)
+    }
+
+    /// The Current App: the App in front as the desktop last reported it,
+    /// read once when the Menu is invoked, never the App under the pointer.
+    /// Nil when Spinnet itself or no App is in front, by the same rule
+    /// `apps.frontmost` identifies the App in front.
+    func currentApp() -> CurrentApp? {
+        guard let facts = appInFront() else { return nil }
+        return CurrentApp(identity: facts.identity, bundleURL: running(facts.identity)?.bundleURL)
     }
 
     func menuExits(of app: RunningAppIdentity) throws -> Set<AppExit> {
@@ -144,6 +169,14 @@ final class DesktopRunningApps: RunningApps {
         case .pressed, .noReply: return .delivered
         case .failed: return .failed
         }
+    }
+
+    /// Tells `changed`, on the main thread, the Current App each time
+    /// another App comes to the front.
+    func observeCurrentApp(_ changed: @escaping (CurrentApp?) -> Void) {
+        lock.lock()
+        currentAppObservers.append(changed)
+        lock.unlock()
     }
 
     func observeTerminations(_ terminated: @escaping (RunningAppIdentity) -> Void) {
@@ -170,6 +203,16 @@ final class DesktopRunningApps: RunningApps {
         lock.lock()
         front = now
         lock.unlock()
+    }
+
+    private func activated() {
+        refreshFront()
+        lock.lock()
+        let observers = currentAppObservers
+        lock.unlock()
+        guard !observers.isEmpty else { return }
+        let current = currentApp()
+        observers.forEach { $0(current) }
     }
 
     private func terminated(_ application: RunningApplication) {

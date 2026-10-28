@@ -76,6 +76,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// thread, since the App may be slow to answer.
     private let appTargets = AppTargets()
     private let runningApps = DesktopRunningApps()
+    /// The Current App's icon for the Menu's centre (#111), read when an
+    /// App comes to the front so the Menu finds it cached.
+    private let currentAppIcons = CurrentAppIcons()
     private let activities = HostActivities()
     private lazy var reviewedTasks = HostReviewedToolTasks(activities: activities,
         journal: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Spinnet/ReviewedTasks"),
@@ -327,8 +330,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             let menuSlots = makeMenuSlots(from: configuration)
             menu = MenuPresentationController(
                 items: menuSlots,
-                appearance: MenuAppearanceConfiguration(defaults: .standard)
+                appearance: MenuAppearanceConfiguration(defaults: .standard),
+                icons: currentAppIcons
             )
+            runningApps.observeCurrentApp { [currentAppIcons] app in
+                if let app { currentAppIcons.prefetch(app) }
+            }
+            if let app = runningApps.currentApp() { currentAppIcons.prefetch(app) }
             menu.onRefresh = { [weak self] in
                 guard let self, let configuration = self.currentConfiguration else { return [] }
                 return self.makeMenuSlots(from: configuration)
@@ -699,7 +707,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             if triggers?.registerEscape() != true {
                 HostLog.trigger.notice("Global Escape registration unavailable; using panel-local fallback")
             }
-            menu.open(at: NSEvent.mouseLocation)
+            menu.open(at: NSEvent.mouseLocation, currentApp: runningApps.currentApp())
         }
     }
 

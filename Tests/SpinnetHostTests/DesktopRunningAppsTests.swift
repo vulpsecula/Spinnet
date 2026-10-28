@@ -20,6 +20,7 @@ final class DesktopRunningAppsTests: XCTestCase {
         let launchDate: Date?
         let processStartDate: Date?
         let localizedName: String?
+        var bundleURL: URL?
         var activationPolicy: NSApplication.ActivationPolicy = .regular
         var isTerminated = false
         var accepts = true
@@ -319,6 +320,67 @@ final class DesktopRunningAppsTests: XCTestCase {
         run(spinnet)
         front = spinnet
         XCTAssertEqual(AppTargets().identifyFrontmost(of: desktop(), for: PluginID("p")), .null)
+    }
+
+    // MARK: The Current App
+
+    /// The Current App is the App in front when the Menu is invoked, as
+    /// the desktop last reported it: the pointer plays no part, and a later
+    /// activation changes the next invocation's Current App.
+    func testTheCurrentAppIsTheAppInFront() throws {
+        let safari = FakeApplication(43, "com.apple.Safari", launched: 2, name: "Safari")
+        safari.bundleURL = URL(fileURLWithPath: "/Applications/Safari.app")
+        let finder = FakeApplication(45, "com.apple.finder", launched: nil, started: 100, name: "Finder")
+        run(safari)
+        run(finder)
+        front = safari
+        let desktop = desktop()
+
+        let current = try XCTUnwrap(desktop.currentApp())
+        XCTAssertEqual(current.bundleIdentifier, "com.apple.Safari")
+        XCTAssertEqual(current.name, "Safari")
+        XCTAssertEqual(current.bundleURL, URL(fileURLWithPath: "/Applications/Safari.app"))
+
+        front = finder
+        activated()
+        XCTAssertEqual(desktop.currentApp()?.bundleIdentifier, "com.apple.finder")
+        XCTAssertEqual(desktop.currentApp()?.name, "Finder")
+    }
+
+    /// Each App that comes to the front is told as the new Current App, so
+    /// its icon can be read before the Menu is invoked over it.
+    func testEachAppComingToTheFrontIsToldAsTheCurrentApp() {
+        let safari = FakeApplication(43, "com.apple.Safari", launched: 2, name: "Safari")
+        let spinnet = FakeApplication(7, "com.vulpsecula.Spinnet", launched: 1, name: "Spinnet")
+        run(safari)
+        run(spinnet)
+        let desktop = desktop()
+        var told: [String?] = []
+        desktop.observeCurrentApp { told.append($0?.name) }
+
+        front = safari
+        activated()
+        front = spinnet
+        activated()
+        XCTAssertEqual(told, ["Safari", nil])
+    }
+
+    /// With Spinnet itself in front, as with its Settings window, with no
+    /// App in front, or with an App in front that has quit, there is no
+    /// Current App, and the Menu keeps its "Spinnet" centre.
+    func testThereIsNoCurrentAppWithSpinnetOrNoAppInFront() {
+        let spinnet = FakeApplication(7, "com.vulpsecula.Spinnet", launched: 1, name: "Spinnet")
+        run(spinnet)
+        front = spinnet
+        XCTAssertNil(desktop().currentApp())
+
+        front = nil
+        XCTAssertNil(desktop().currentApp())
+
+        let textEdit = FakeApplication(42, "com.apple.TextEdit", launched: 1, name: "TextEdit")
+        textEdit.isTerminated = true
+        front = textEdit
+        XCTAssertNil(desktop().currentApp())
     }
 
     // MARK: The live menus

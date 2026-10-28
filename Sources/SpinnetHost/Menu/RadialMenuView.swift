@@ -74,6 +74,8 @@ final class RadialMenuView: NSView {
     private var cachedPathLayout: RadialMenuLayout?
     private var cachedPathCanvas: NSRect?
     private let presentationMode: RadialMenuPresentationMode
+    private var currentApp: CurrentApp?
+    private var currentAppIcon: NSImage?
     private let allowsEditing: Bool
     private let previewScale: CGFloat
     private let previewCanvasDiameter: CGFloat?
@@ -1189,7 +1191,7 @@ final class RadialMenuView: NSView {
         }
 
         drawHub(using: menuLayout, in: canvas)
-        drawHubLabel(in: canvas)
+        drawHubLabel(using: menuLayout, in: canvas)
     }
 
     /// The focused Slot rises out of the disc: the Slot under the pointer in
@@ -1443,9 +1445,15 @@ final class RadialMenuView: NSView {
         }
     }
 
-    private func drawHubLabel(in canvas: NSRect) {
+    private func drawHubLabel(using menuLayout: RadialMenuLayout, in canvas: NSRect) {
+        if let icon = currentAppIcon, let rect = hubIconRect(using: menuLayout, in: canvas) {
+            icon.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true,
+                      hints: [.interpolation: NSImageInterpolation.high.rawValue])
+            return
+        }
+        guard let hubLabel else { return }
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
-        let centerLabel = presentationMode == .editor ? "MENU" as NSString : "Spinnet" as NSString
+        let centerLabel = hubLabel as NSString
         let centerAttributes: [NSAttributedString.Key: Any] = [
             .font: appearanceConfiguration.titleFont(ofSize: 10, weight: .semibold),
             .foregroundColor: palette.secondaryLabel
@@ -1455,6 +1463,40 @@ final class RadialMenuView: NSView {
             at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
             withAttributes: centerAttributes
         )
+    }
+
+    /// Shows `app`, the Current App of this invocation, in the centre of a
+    /// Runtime Mode Menu: its icon once `icon` is known, and its name to
+    /// VoiceOver. Nil keeps "Spinnet". Editor Mode keeps "MENU".
+    func showCurrentApp(_ app: CurrentApp?, icon: NSImage?) {
+        guard presentationMode == .runtime else { return }
+        currentApp = app
+        currentAppIcon = app == nil ? nil : icon
+        setAccessibilityLabel(app.map { "Spinnet Menu for \($0.name)" } ?? "Spinnet Menu")
+        needsDisplay = true
+    }
+
+    /// The text drawn in the centre, nil while it shows the Current App.
+    var hubLabel: String? {
+        switch presentationMode {
+        case .editor: return "MENU"
+        case .runtime: return currentApp == nil ? "Spinnet" : nil
+        }
+    }
+
+    /// Where the Current App's icon is drawn, nil while none is: a square
+    /// within the centre's visible circle, so it fits every Menu Size.
+    var hubIconRect: NSRect? {
+        hubIconRect(using: layout, in: bounds)
+    }
+
+    private func hubIconRect(using menuLayout: RadialMenuLayout, in canvas: NSRect) -> NSRect? {
+        guard presentationMode == .runtime, currentApp != nil, currentAppIcon != nil else { return nil }
+        let scale = menuLayout.outerRadius / 142
+        let radius = max(menuLayout.innerRadius - 5 * scale, 4)
+        // App icons carry their own margin, so the square just fits the circle.
+        let side = (radius * 1.4).rounded(.down)
+        return NSRect(x: canvas.midX - side / 2, y: canvas.midY - side / 2, width: side, height: side)
     }
 
     /// Returns the actual title frame used by the virtual Menu renderer. It

@@ -2,6 +2,14 @@ import AppKit
 import Carbon
 import SpinnetCore
 
+/// What the Menu's centre shows: the Current App's name, whether its icon
+/// is drawn, and the text drawn instead of an icon.
+struct MenuHubSnapshot: Equatable {
+    let appName: String?
+    let showsIcon: Bool
+    let label: String?
+}
+
 struct MenuPresentationGeometrySnapshot: Equatable {
     let layout: RadialMenuLayout
     let overlayFrame: CGRect
@@ -61,6 +69,10 @@ final class MenuPresentationController {
     private var globalKeyMonitor: Any?
     private var spaceChangeObserver: NSObjectProtocol?
     private var actionMenu: NSMenu?
+    private let icons: CurrentAppIcons
+    /// The Current App of this invocation, resolved when the Menu opens.
+    private var currentApp: CurrentApp?
+    private var currentAppIcon: NSImage?
 
     private(set) var isOpen = false
     var onPrimaryAction: ((ActionID) -> Void)?
@@ -73,8 +85,10 @@ final class MenuPresentationController {
 
     init(
         items: [MenuSlotPresentation],
-        appearance: MenuAppearanceConfiguration = MenuAppearanceConfiguration()
+        appearance: MenuAppearanceConfiguration = MenuAppearanceConfiguration(),
+        icons: CurrentAppIcons = CurrentAppIcons()
     ) {
+        self.icons = icons
         self.slots = items
         self.appearanceConfiguration = appearance
         self.layout = appearance.layout(slotCount: items.count)
@@ -111,6 +125,7 @@ final class MenuPresentationController {
         panel.appearance = appearanceConfiguration.appearance
         panel.contentView = MenuBackdropView(menuView: menuView)
         configureMenuView()
+        menuView.showCurrentApp(currentApp, icon: currentAppIcon)
     }
 
     /// Passive availability updates must not end the user's Menu interaction.
@@ -170,9 +185,18 @@ final class MenuPresentationController {
         menuView.onCancel = { [weak self] in self?.dismiss() }
     }
 
-    func open(at pointer: CGPoint) {
+    var hubSnapshot: MenuHubSnapshot {
+        MenuHubSnapshot(appName: currentApp?.name, showsIcon: menuView.hubIconRect != nil, label: menuView.hubLabel)
+    }
+
+    /// Opens the Menu at `pointer` for `currentApp`, the App in front at
+    /// this invocation. Its icon is drawn in the centre when cached; an
+    /// uncached icon is read without delaying the Menu and joins it when it
+    /// arrives, unless the Menu has since been opened for another App.
+    func open(at pointer: CGPoint, currentApp: CurrentApp? = nil) {
         syncMenuViewAppearanceIfNeeded()
         refreshItemsIfNeeded()
+        showCurrentApp(currentApp)
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main else {
             return
         }
@@ -186,6 +210,19 @@ final class MenuPresentationController {
         panel.makeFirstResponder(menuView)
         isOpen = true
         installDismissalMonitors()
+    }
+
+    private func showCurrentApp(_ app: CurrentApp?) {
+        currentApp = app
+        currentAppIcon = nil
+        menuView.showCurrentApp(app, icon: nil)
+        guard let app else { return }
+        let show: (NSImage) -> Void = { [weak self] icon in
+            guard let self, self.currentApp == app else { return }
+            self.currentAppIcon = icon
+            self.menuView.showCurrentApp(app, icon: icon)
+        }
+        if let cached = icons.icon(for: app, loaded: show) { show(cached) }
     }
 
     private func syncMenuViewAppearanceIfNeeded() {
