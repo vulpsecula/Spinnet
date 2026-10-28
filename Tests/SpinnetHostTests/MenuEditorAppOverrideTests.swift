@@ -6,8 +6,8 @@ import SpinnetCore
 /// overriding, emptying and resetting its Slots, and removing it, observed
 /// as what the editor shows and what is saved.
 final class MenuEditorAppOverrideTests: XCTestCase {
-    private let safari = AppBundleIdentifier("com.apple.Safari")
-    private let finder = AppBundleIdentifier("com.apple.finder")
+    private let safari = AppBundleIdentifier(validating: "com.apple.Safari")!
+    private let finder = AppBundleIdentifier(validating: "com.apple.finder")!
     private let fixture = "com.spinnet.fixture"
 
     func testTheSwitcherStartsAtTheDefaultMenuAndAddsOnlyAppsWithABundleIdentifier() throws {
@@ -105,9 +105,7 @@ final class MenuEditorAppOverrideTests: XCTestCase {
 
     func testAppsWithSavedOverridesAreListedByName() throws {
         let editor = try makeEditor()
-        editor.editApp(safari)
-        try editor.emptySlot(at: 2)
-        editor.editApp(nil)
+        try editor.emptySlot(at: 2, for: safari)
 
         let model = MenuEditorModel(editor: editor, appName: { $0 == self.safari ? "Safari" : nil })
 

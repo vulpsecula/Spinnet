@@ -6,8 +6,8 @@ import XCTest
 /// configuration and a Current App bundle identifier, the Slots presented,
 /// what is saved, and how older saved configuration loads.
 final class AppOverrideTests: XCTestCase {
-    private let safari = AppBundleIdentifier("com.apple.Safari")
-    private let finder = AppBundleIdentifier("com.apple.finder")
+    private let safari = AppBundleIdentifier(validating: "com.apple.Safari")!
+    private let finder = AppBundleIdentifier(validating: "com.apple.finder")!
 
     func testCurrentAppOverridesReplaceOrEmptyTheirSlotsAndOtherAppsGetTheDefaultMenu() throws {
         let configuration = try HostConfiguration(
@@ -24,7 +24,7 @@ final class AppOverrideTests: XCTestCase {
 
         XCTAssertEqual(presented(configuration, for: safari), ["safari-copy", "copy", nil])
         XCTAssertEqual(presented(configuration, for: finder), ["open", nil, nil])
-        XCTAssertEqual(presented(configuration, for: AppBundleIdentifier("com.example.other")), ["open", "copy", nil])
+        XCTAssertEqual(presented(configuration, for: AppBundleIdentifier(validating: "com.example.other")!), ["open", "copy", nil])
         XCTAssertEqual(presented(configuration, for: nil), ["open", "copy", nil])
     }
 
@@ -88,17 +88,15 @@ final class AppOverrideTests: XCTestCase {
                 MenuSlotConfiguration(item: item("open"), appOverrides: [safari: .item(item("missing"))])
             ])
         ))
-        XCTAssertThrowsError(try MenuConfiguration(slots: [
-            MenuSlotConfiguration(item: nil, appOverrides: [AppBundleIdentifier(" "): .empty])
-        ]))
+        XCTAssertNil(AppBundleIdentifier(validating: " "))
+        XCTAssertNil(AppBundleIdentifier(rawValue: ""))
     }
 
     func testAddingALibraryPresetWhileAnAppIsEditedOverridesOnlyThatAppsSlot() throws {
         let editor = try makeEditor()
 
-        editor.editApp(safari)
-        try editor.placePreset(pluginID: other, inSlotAt: 1)
-        try editor.placePreset(pluginID: other, inSlotAt: 0, replacing: true)
+        try editor.placePreset(pluginID: other, inSlotAt: 1, for: safari)
+        try editor.placePreset(pluginID: other, inSlotAt: 0, replacing: true, for: safari)
 
         let configuration = editor.configuration
         XCTAssertEqual(presented(configuration, for: nil), ["open", nil])
@@ -106,9 +104,9 @@ final class AppOverrideTests: XCTestCase {
         let safariSlots = configuration.menu.slots(for: safari)
         XCTAssertEqual(safariSlots.compactMap(\.item).count, 2)
         XCTAssertEqual(pluginIDs(of: safariSlots, in: configuration), [other, other])
-        XCTAssertEqual(editor.editedSlots, safariSlots)
-        XCTAssertTrue(editor.isOverridden(slotAt: 0))
-        XCTAssertTrue(editor.isOverridden(slotAt: 1))
+        XCTAssertTrue(editor.isOverridden(slotAt: 0, for: safari))
+        XCTAssertTrue(editor.isOverridden(slotAt: 1, for: safari))
+        XCTAssertFalse(editor.isOverridden(slotAt: 0, for: finder))
         // The default Menu Item replaced for Safari keeps its Action.
         XCTAssertNotNil(configuration.actions.first { $0.id == ActionID("open") })
     }
@@ -116,16 +114,15 @@ final class AppOverrideTests: XCTestCase {
     func testEditingAnInheritedMenuItemForAnAppGivesItsOverrideItsOwnActions() throws {
         let editor = try makeEditor()
 
-        editor.editApp(safari)
-        XCTAssertFalse(editor.isOverridden(slotAt: 0))
+        XCTAssertFalse(editor.isOverridden(slotAt: 0, for: safari))
         try editor.configureMenuItem(
             at: 0, pluginID: fixture, primaryCommandID: CommandID("fixture.copy"),
-            inputs: [CommandID("fixture.copy"): .string("https://safari.example")]
+            inputs: [CommandID("fixture.copy"): .string("https://safari.example")], for: safari
         )
-        try editor.renameMenuItem(at: 0, name: "Safari Copy")
+        try editor.renameMenuItem(at: 0, name: "Safari Copy", for: safari)
 
         let configuration = editor.configuration
-        XCTAssertTrue(editor.isOverridden(slotAt: 0))
+        XCTAssertTrue(editor.isOverridden(slotAt: 0, for: safari))
         let override = try XCTUnwrap(configuration.menu.slots(for: safari)[0].item)
         XCTAssertNotEqual(override.primaryActionID, ActionID("open"))
         XCTAssertEqual(override.alias, "Safari Copy")
@@ -138,14 +135,13 @@ final class AppOverrideTests: XCTestCase {
 
     func testAConfigurationSheetCandidateForAnAppLeavesTheEditorUnchanged() throws {
         let editor = try makeEditor()
-        editor.editApp(safari)
         let before = editor.configuration
 
         let candidate = try editor.configuredMenuItem(
             at: 0, pluginID: fixture, primaryCommandID: CommandID("fixture.copy"),
-            inputs: [CommandID("fixture.copy"): .string("https://safari.example")]
+            inputs: [CommandID("fixture.copy"): .string("https://safari.example")], for: safari
         )
-        let named = try editor.configuration(candidate, aliasingMenuItemAt: 0, to: "Named")
+        let named = try editor.aliasedMenuItem(in: candidate, at: 0, to: "Named", for: safari)
 
         XCTAssertEqual(editor.configuration, before)
         XCTAssertEqual(named.menu.slots(for: safari)[0].item?.alias, "Named")
@@ -156,31 +152,29 @@ final class AppOverrideTests: XCTestCase {
 
     func testAnAppCanEmptyASlotAndResetItToTheDefault() throws {
         let editor = try makeEditor()
-        editor.editApp(safari)
         try editor.configureMenuItem(
             at: 0, pluginID: fixture, primaryCommandID: CommandID("fixture.copy"),
-            inputs: [CommandID("fixture.copy"): .string("https://safari.example")]
+            inputs: [CommandID("fixture.copy"): .string("https://safari.example")], for: safari
         )
-        let overrideActionID = try XCTUnwrap(editor.editedSlots[0].item?.primaryActionID)
+        let overrideActionID = try XCTUnwrap(editor.configuration.menu.slots(for: safari)[0].item?.primaryActionID)
 
-        try editor.emptySlot(at: 0)
+        try editor.emptySlot(at: 0, for: safari)
         XCTAssertEqual(presented(editor.configuration, for: safari), [nil, nil])
-        XCTAssertTrue(editor.isOverridden(slotAt: 0))
+        XCTAssertTrue(editor.isOverridden(slotAt: 0, for: safari))
         XCTAssertFalse(editor.configuration.actions.contains { $0.id == overrideActionID })
 
-        try editor.resetSlotToDefault(at: 0)
+        try editor.resetSlotToDefault(at: 0, for: safari)
         XCTAssertEqual(presented(editor.configuration, for: safari), ["open", nil])
-        XCTAssertFalse(editor.isOverridden(slotAt: 0))
+        XCTAssertFalse(editor.isOverridden(slotAt: 0, for: safari))
         XCTAssertEqual(editor.configuration.menu.overriddenApps, [])
     }
 
     func testResettingAnOverriddenMenuItemForgetsItsActions() throws {
         let editor = try makeEditor()
-        editor.editApp(safari)
-        try editor.placePreset(pluginID: other, inSlotAt: 1)
-        let overrideActionIDs = try XCTUnwrap(editor.editedSlots[1].item?.boundActionIDs)
+        try editor.placePreset(pluginID: other, inSlotAt: 1, for: safari)
+        let overrideActionIDs = try XCTUnwrap(editor.configuration.menu.slots(for: safari)[1].item?.boundActionIDs)
 
-        try editor.resetSlotToDefault(at: 1)
+        try editor.resetSlotToDefault(at: 1, for: safari)
 
         XCTAssertEqual(editor.configuration.actions.map(\.id), [ActionID("open")])
         XCTAssertFalse(overrideActionIDs.isEmpty)
@@ -188,11 +182,9 @@ final class AppOverrideTests: XCTestCase {
 
     func testRemovingAnAppRemovesAllItsOverridesAndKeepsOtherApps() throws {
         let editor = try makeEditor()
-        editor.editApp(safari)
-        try editor.placePreset(pluginID: other, inSlotAt: 1)
-        try editor.emptySlot(at: 0)
-        editor.editApp(finder)
-        try editor.emptySlot(at: 0)
+        try editor.placePreset(pluginID: other, inSlotAt: 1, for: safari)
+        try editor.emptySlot(at: 0, for: safari)
+        try editor.emptySlot(at: 0, for: finder)
 
         try editor.removeApp(safari)
 
@@ -202,25 +194,28 @@ final class AppOverrideTests: XCTestCase {
         XCTAssertEqual(editor.configuration.actions.map(\.id), [ActionID("open")])
     }
 
-    func testSlotsAreArrangedOnlyInTheDefaultMenu() throws {
+    func testOnlyAnOverriddenSlotCanBeResetToTheDefault() throws {
         let editor = try makeEditor()
-        editor.editApp(safari)
 
-        XCTAssertThrowsError(try editor.addEmptySlot())
-        XCTAssertThrowsError(try editor.removeSlot(at: 1))
-        XCTAssertThrowsError(try editor.moveSlot(from: 0, to: 1))
-        XCTAssertThrowsError(try editor.resetSlotToDefault(at: 0))
-        editor.editApp(nil)
-        XCTAssertThrowsError(try editor.emptySlot(at: 0))
-        XCTAssertThrowsError(try editor.resetSlotToDefault(at: 0))
+        XCTAssertThrowsError(try editor.resetSlotToDefault(at: 0, for: safari))
+        XCTAssertThrowsError(try editor.emptySlot(at: 5, for: safari))
+    }
+
+    func testArrangingSlotsCarriesTheirAppOverrides() throws {
+        let editor = try makeEditor()
+        try editor.emptySlot(at: 0, for: safari)
+
+        try editor.moveSlot(from: 0, to: 1)
+
+        XCTAssertEqual(presented(editor.configuration, for: nil), [nil, "open"])
+        XCTAssertEqual(presented(editor.configuration, for: safari), [nil, nil])
+        XCTAssertTrue(editor.isOverridden(slotAt: 1, for: safari))
     }
 
     func testDefaultMenuEditsKeepAppOverrides() throws {
         let editor = try makeEditor()
-        editor.editApp(safari)
-        try editor.emptySlot(at: 1)
+        try editor.emptySlot(at: 1, for: safari)
 
-        editor.editApp(nil)
         try editor.placePreset(pluginID: other, inSlotAt: 1)
         try editor.renameMenuItem(at: 0, name: "Everywhere")
 
@@ -231,14 +226,65 @@ final class AppOverrideTests: XCTestCase {
 
     func testRemovingAnActionAlsoRemovesItFromOverrideMenuItems() throws {
         let editor = try makeEditor()
-        editor.editApp(safari)
-        try editor.placePreset(pluginID: other, inSlotAt: 1)
-        let overrideActionID = try XCTUnwrap(editor.editedSlots[1].item?.primaryActionID)
+        try editor.placePreset(pluginID: other, inSlotAt: 1, for: safari)
+        let overrideActionID = try XCTUnwrap(editor.configuration.menu.slots(for: safari)[1].item?.primaryActionID)
 
         try editor.removeAction(overrideActionID)
 
         XCTAssertEqual(presented(editor.configuration, for: safari), ["open", nil])
-        XCTAssertTrue(editor.isOverridden(slotAt: 1))
+        XCTAssertTrue(editor.isOverridden(slotAt: 1, for: safari))
+    }
+
+    func testSavingAnInheritedMenuItemUnchangedCreatesNoOverride() throws {
+        let editor = try makeEditor()
+        let before = editor.configuration
+
+        // What a Configuration Sheet saves when nothing was changed.
+        let candidate = try editor.configuredMenuItem(
+            at: 0, pluginID: fixture, primaryCommandID: CommandID("fixture.copy"),
+            inputs: [CommandID("fixture.copy"): .string("")], validateInputs: false,
+            preserveUnselectedAlternates: true, for: safari
+        )
+        let saved = try editor.aliasedMenuItem(in: candidate, at: 0, to: nil, for: safari)
+
+        XCTAssertEqual(saved, before)
+        try editor.renameMenuItem(at: 0, name: nil, for: safari)
+        XCTAssertEqual(editor.configuration, before)
+        XCTAssertFalse(editor.isOverridden(slotAt: 0, for: safari))
+    }
+
+    func testUpdatingAnInheritedMenuItemWithItsOwnActionsLeavesNoOrphanActions() throws {
+        let editor = try makeEditor()
+        let before = editor.configuration
+
+        try editor.updateMenuItem(at: 0, primaryActionID: ActionID("open"), for: safari)
+
+        XCTAssertEqual(editor.configuration, before)
+    }
+
+    func testUpdatingAnInheritedMenuItemKeepsOnlyTheActionsTheOverrideBinds() throws {
+        let editor = try makeEditor()
+        try editor.createAction(id: ActionID("extra"), pluginID: other, commandID: CommandID("other.copy"), input: .null)
+
+        try editor.updateMenuItem(at: 0, primaryActionID: ActionID("extra"), for: safari)
+
+        let configuration = editor.configuration
+        XCTAssertEqual(presented(configuration, for: safari), ["extra", nil])
+        XCTAssertEqual(presented(configuration, for: nil), ["open", nil])
+        XCTAssertEqual(Set(configuration.actions.map(\.id)), [ActionID("open"), ActionID("extra")])
+    }
+
+    func testASavedAppOverrideMustSayWhichMenuItemItHolds() throws {
+        func decode(_ override: String) throws -> AppSlotOverride {
+            try JSONDecoder().decode(AppSlotOverride.self, from: Data(override.utf8))
+        }
+        XCTAssertEqual(try decode(#"{"item": null}"#), .empty)
+        XCTAssertEqual(try decode(#"{"item": {"primary_action_id": "open", "alternate_action_ids": []}}"#),
+                       .item(item("open")))
+        XCTAssertThrowsError(try decode("{}"))
+        XCTAssertThrowsError(try decode(#"{"empty": true}"#))
+        XCTAssertThrowsError(try decode(#"{"item": null, "extra": 1}"#))
+        XCTAssertThrowsError(try decode(#"{"item": 3}"#))
     }
 
     // MARK: - Helpers

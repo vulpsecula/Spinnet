@@ -120,7 +120,6 @@ final class MenuEditorModel: ObservableObject {
     ) {
         self.editor = editor
         self.appName = appName
-        editor.editApp(nil)
         slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
         menuSlots = []
         menuSlots = makeMenuSlots()
@@ -301,7 +300,7 @@ final class MenuEditorModel: ObservableObject {
         let manifests = Dictionary(editor.pluginManifests.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let slots = MenuPresentationFactory.makeSlots(
             configuration: editor.configuration,
-            app: editor.editedApp,
+            app: editedAppID,
             availability: {
                 editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
             },
@@ -312,10 +311,10 @@ final class MenuEditorModel: ObservableObject {
                 manifests[action.pluginID]?.commands.first { $0.id == action.commandID }?.explanation
             }
         )
-        guard editor.editedApp != nil else { return slots }
+        guard let app = editedAppID else { return slots }
         return slots.enumerated().map { index, slot in
             var slot = slot
-            slot.appOverride = editor.isOverridden(slotAt: index) ? .overridden : .inherited
+            slot.appOverride = editor.isOverridden(slotAt: index, for: app) ? .overridden : .inherited
             return slot
         }
     }
@@ -364,8 +363,8 @@ final class MenuEditorModel: ObservableObject {
     }
 
     func requestEdit(at index: Int) {
-        guard editor.editedSlots.indices.contains(index),
-              editor.editedSlots[index].item != nil else { return }
+        guard editedSlots.indices.contains(index),
+              editedSlots[index].item != nil else { return }
         selectedMenuIndex = index
         editingMenuIndex = index
     }
@@ -564,9 +563,10 @@ final class MenuEditorModel: ObservableObject {
     }
 
     private func placePreset(pluginID: String, at index: Int, connectionsPrepared: Bool) -> Bool {
-        guard editor.editedSlots.indices.contains(index) else { return false }
+        let slots = editedSlots
+        guard slots.indices.contains(index) else { return false }
         selectedMenuIndex = index
-        guard editor.editedSlots[index].item == nil else {
+        guard slots[index].item == nil else {
             presetPendingReplacement = PendingPresetReplacement(
                 pluginID: pluginID,
                 slotIndex: index
@@ -800,6 +800,14 @@ final class MenuEditorModel: ObservableObject {
     /// changes only what its Slots contain.
     var canArrangeSlots: Bool { editedApp == nil }
 
+    /// The bundle identifier of the App being edited, or nil for the
+    /// default Menu.
+    var editedAppID: AppBundleIdentifier? { editedApp?.bundleIdentifier }
+
+    /// The Slots as the edited App sees them: its overrides, and the default
+    /// Menu's Menu Items elsewhere.
+    var editedSlots: [MenuSlotConfiguration] { editor.configuration.menu.slots(for: editedAppID) }
+
     /// The switcher's Apps after Default: each App with App Overrides and
     /// each App added this session, by name.
     var switcherApps: [MenuEditorApp] {
@@ -815,7 +823,6 @@ final class MenuEditorModel: ObservableObject {
     /// Edits `app`'s App Overrides, or the default Menu for nil.
     func editApp(_ app: AppBundleIdentifier?) {
         guard editingMenuIndex == nil else { return }
-        editor.editApp(app)
         editedApp = app.map(self.app(for:))
         placementMessage = nil
         refreshMenuSlots()
@@ -877,7 +884,7 @@ final class MenuEditorModel: ObservableObject {
     /// Empties the Slot at `index` for the edited App.
     func emptySlot(at index: Int) {
         editOverride(at: index, message: "Slot \(index + 1) emptied for \(editedApp?.name ?? "this App").") {
-            try editor.emptySlot(at: index)
+            try editor.emptySlot(at: index, for: $0)
         }
     }
 
@@ -885,7 +892,7 @@ final class MenuEditorModel: ObservableObject {
     /// edited App.
     func resetSlotToDefault(at index: Int) {
         editOverride(at: index, message: "Slot \(index + 1) reset to the default.") {
-            try editor.resetSlotToDefault(at: index)
+            try editor.resetSlotToDefault(at: index, for: $0)
         }
     }
 
@@ -907,13 +914,13 @@ final class MenuEditorModel: ObservableObject {
         recordComposition(before: before, selectedIndexBefore: selectedMenuIndex)
     }
 
-    private func editOverride(at index: Int, message: String, _ edit: () throws -> Void) {
-        guard acceptsEdits, editingMenuIndex == nil, editedApp != nil,
+    private func editOverride(at index: Int, message: String, _ edit: (AppBundleIdentifier) throws -> Void) {
+        guard acceptsEdits, editingMenuIndex == nil, let app = editedAppID,
               slotIDs.indices.contains(index) else { return }
         let before = editor.configuration
         let selectedIndexBefore = selectedMenuIndex
         do {
-            try edit()
+            try edit(app)
         } catch {
             placementMessage = error.localizedDescription
             return
@@ -975,7 +982,8 @@ final class MenuEditorModel: ObservableObject {
             _ = try editor.placePreset(
                 pluginID: PluginID(pluginID),
                 inSlotAt: index,
-                replacing: replacing
+                replacing: replacing,
+                for: editedAppID
             )
             selectedMenuIndex = index
             placementMessage = replacing

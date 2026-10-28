@@ -418,7 +418,7 @@ final class SettingsWindowModel: ObservableObject {
         names.append(contentsOf: page.contentAccessibilityNames(metadata: metadata))
         if page == .menu {
             names.append(contentsOf: editor.menuItemPresets.map(\.accessibilityLabel))
-            let slots = editor.editedSlots
+            let slots = menuEditor.editedSlots
             let selectedSlotIsEmpty = slots.indices.contains(menuEditor.selectedMenuIndex)
                 && slots[menuEditor.selectedMenuIndex].item == nil
             if selectedSlotIsEmpty {
@@ -916,6 +916,7 @@ struct SettingsRootView: View {
                     Divider()
                 MenuEditorView(
                     editor: model.editor,
+                    app: menuEditor.editedAppID,
                     selectedMenuIndex: $menuEditor.selectedMenuIndex,
                     placementMessage: menuEditor.placementMessage,
                     libraryPresetsForQuery: menuEditor.libraryPresets(matching:),
@@ -982,6 +983,7 @@ struct SettingsRootView: View {
             if let index = menuEditor.editingMenuIndex {
                 SlotConfigurationSheet(
                     editor: model.editor,
+                    app: menuEditor.editedAppID,
                     slotIndex: index,
                     presetPluginID: menuEditor.pendingPresetSetup.map { PluginID($0.pluginID) },
                     permissionModel: privacy,
@@ -1102,6 +1104,8 @@ private struct SlotConfigurationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let editor: HostConfigurationEditor
+    /// The App whose Menu Item is edited, or nil for the default Menu.
+    let app: AppBundleIdentifier?
     let slotIndex: Int
     let presetPluginID: PluginID?
     let onSaved: (MenuItemSaveDraft) throws -> Void
@@ -1130,6 +1134,7 @@ private struct SlotConfigurationSheet: View {
 
     init(
         editor: HostConfigurationEditor,
+        app: AppBundleIdentifier? = nil,
         slotIndex: Int,
         presetPluginID: PluginID? = nil,
         permissionModel: PrivacyPermissionsModel? = nil,
@@ -1138,6 +1143,7 @@ private struct SlotConfigurationSheet: View {
         pluginSettings: (PluginManifest) -> [String: JSONValue] = { _ in [:] }
     ) {
         self.editor = editor
+        self.app = app
         self.slotIndex = slotIndex
         self.presetPluginID = presetPluginID
         self.onSaved = onSaved
@@ -1145,6 +1151,7 @@ private struct SlotConfigurationSheet: View {
         self.credentialStore = credentialStore
         let initialState = Self.initialState(
             in: editor,
+            app: app,
             slotIndex: slotIndex,
             presetPluginID: presetPluginID
         )
@@ -1647,13 +1654,14 @@ private struct SlotConfigurationSheet: View {
                     alternateCommandIDs: alternateCommandIDs,
                     inputs: inputs,
                     alternateCommandOrder: alternateCommandOrder,
-                    replacingEmptySlot: editor.editedSlots[slotIndex].item == nil,
+                    replacingEmptySlot: editor.configuration.menu.slots(for: app)[slotIndex].item == nil,
                     validateInputs: true,
-                    preserveUnselectedAlternates: true
+                    preserveUnselectedAlternates: true,
+                    for: app
                 )
                 // For an App, the candidate holds its override of this Slot.
-                let finalConfiguration = try editor.configuration(
-                    candidate, aliasingMenuItemAt: slotIndex, to: normalizedItemAlias
+                let finalConfiguration = try editor.aliasedMenuItem(
+                    in: candidate, at: slotIndex, to: normalizedItemAlias, for: app
                 )
                 let secrets = CredentialFieldSecrets.typed(
                     for: selectedCommands, inputs: inputs, secrets: credentialSecrets
@@ -1663,8 +1671,8 @@ private struct SlotConfigurationSheet: View {
                 dismiss()
                 return
             }
-            let finalConfiguration = try editor.configuration(
-                editor.configuration, aliasingMenuItemAt: slotIndex, to: normalizedItemAlias
+            let finalConfiguration = try editor.aliasedMenuItem(
+                in: editor.configuration, at: slotIndex, to: normalizedItemAlias, for: app
             )
             try onSaved(MenuItemSaveDraft(configuration: finalConfiguration))
             dismiss()
@@ -1867,11 +1875,12 @@ private struct SlotConfigurationSheet: View {
 
     private static func initialState(
         in editor: HostConfigurationEditor,
+        app: AppBundleIdentifier?,
         slotIndex: Int,
         presetPluginID: PluginID?
     ) -> InitialState {
         // The Menu Item the edited App sees: its override or the default's.
-        let slots = editor.editedSlots
+        let slots = editor.configuration.menu.slots(for: app)
         let itemAlias = slots.indices.contains(slotIndex)
             ? slots[slotIndex].item?.alias ?? ""
             : ""

@@ -26,10 +26,10 @@ final class MenuAppOverridePresentationTests: XCTestCase {
         let configuration = try HostConfiguration(actions: actions, menu: MenuConfiguration(slots: [
             MenuSlotConfiguration(
                 item: try MenuItemConfiguration(primaryActionID: ActionID("open")),
-                appOverrides: [AppBundleIdentifier("com.apple.Safari"): .item(
+                appOverrides: [AppBundleIdentifier(validating: "com.apple.Safari")!: .item(
                     try MenuItemConfiguration(primaryActionID: ActionID("safari")))]
             ),
-            MenuSlotConfiguration(item: nil, appOverrides: [AppBundleIdentifier("com.apple.finder"): .empty])
+            MenuSlotConfiguration(item: nil, appOverrides: [AppBundleIdentifier(validating: "com.apple.finder")!: .empty])
         ]))
         let menu = MenuPresentationController(
             items: MenuPresentationFactory.makeSlots(configuration: configuration) { _ in .available }
