@@ -6,19 +6,22 @@ import Foundation
 public struct AppBundleIdentifier: RawRepresentable, Codable, Hashable, Comparable {
     public let rawValue: String
 
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public init(rawValue: String) { self.init(rawValue) }
-
     /// The identifier of an App that has one, or nil for a missing or blank
-    /// one.
+    /// one. Every identifier is checked here, so none is ever blank.
     public init?(validating rawValue: String?) {
         guard let rawValue,
               !rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        self.init(rawValue)
+        self.rawValue = rawValue
     }
 
+    public init?(rawValue: String) { self.init(validating: rawValue) }
+
     public init(from decoder: Decoder) throws {
-        self.init(try decoder.singleValueContainer().decode(String.self))
+        let container = try decoder.singleValueContainer()
+        guard let identifier = Self(validating: try container.decode(String.self)) else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "An App has no bundle identifier")
+        }
+        self = identifier
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -49,9 +52,25 @@ public enum AppSlotOverride: Codable, Equatable, Hashable {
         case item
     }
 
+    private struct AnyKey: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+
+    /// A saved override is exactly `{"item": ...}`, null for an empty Slot.
+    /// Any other shape is refused rather than read as an empty Slot.
     public init(from decoder: Decoder) throws {
+        let keys = try decoder.container(keyedBy: AnyKey.self).allKeys.map(\.stringValue)
+        guard keys == [CodingKeys.item.stringValue] else {
+            throw DecodingError.dataCorrupted(DecodingError.Context(
+                codingPath: decoder.codingPath,
+                debugDescription: "An App Override must hold exactly one Menu Item or null"
+            ))
+        }
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(item: try container.decodeIfPresent(MenuItemConfiguration.self, forKey: .item))
+        self.init(item: try container.decode(MenuItemConfiguration?.self, forKey: .item))
     }
 
     public func encode(to encoder: Encoder) throws {

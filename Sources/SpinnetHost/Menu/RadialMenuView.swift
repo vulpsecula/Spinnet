@@ -178,9 +178,18 @@ final class RadialMenuView: NSView {
         invalidateSlotPaths()
     }
 
-    func updateEditorSlots(_ slots: [EditorMenuSlot], appearance: MenuAppearanceConfiguration) {
+    /// Whether Slots may be added, moved and deleted here: only in the
+    /// default Menu, never while an App's App Overrides are edited.
+    private var allowsSlotArrangement = true
+
+    func updateEditorSlots(
+        _ slots: [EditorMenuSlot],
+        appearance: MenuAppearanceConfiguration,
+        allowsArrangement: Bool = true
+    ) {
+        allowsSlotArrangement = allowsArrangement
         if let original = dragOriginalSlots {
-            if slots == original, appearance == appearanceConfiguration { return }
+            if slots == original, appearance == appearanceConfiguration, allowsArrangement { return }
             cancelSlotMovePreview()
         }
         editorSlots = slots
@@ -727,7 +736,7 @@ final class RadialMenuView: NSView {
             return []
         }
         if Self.libraryPresetID(from: sender.draggingPasteboard) != nil {
-            if slots[target].isEmpty || slots[target].appOverride != nil {
+            if slots[target].isEmpty || !allowsSlotArrangement {
                 libraryInsertionIndex = nil
             } else {
                 libraryInsertionIndex = insertionIndex(beside: target, at: convert(sender.draggingLocation, from: nil))
@@ -752,7 +761,7 @@ final class RadialMenuView: NSView {
               !editorDragStarted,
               let sourceIndex = editorMouseDownIndex,
               slots.indices.contains(sourceIndex),
-              slots[sourceIndex].appOverride == nil,
+              allowsSlotArrangement,
               editorSlots.indices.contains(sourceIndex) else { return }
         editorDragStarted = true
         dragOriginalSlots = editorSlots
@@ -896,8 +905,8 @@ final class RadialMenuView: NSView {
             keyEquivalent: ""
         )
         slotAction.target = self
-        slotAction.isEnabled = slots.count > 1 && slot.appOverride == nil
-        slotAction.toolTip = slot.appOverride != nil
+        slotAction.isEnabled = slots.count > 1 && allowsSlotArrangement
+        slotAction.toolTip = !allowsSlotArrangement
             ? "Slots are deleted in the default Menu"
             : slotAction.isEnabled
             ? "Delete this Slot after confirmation"

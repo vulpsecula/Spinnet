@@ -3,6 +3,8 @@ import SpinnetCore
 
 struct MenuEditorView: View {
     let editor: HostConfigurationEditor
+    /// The App whose App Overrides are edited, or nil for the default Menu.
+    var app: AppBundleIdentifier? = nil
     @Binding var selectedMenuIndex: Int
     let placementMessage: String?
     let libraryPresetsForQuery: (String) -> [MenuItemPreset]
@@ -26,7 +28,7 @@ struct MenuEditorView: View {
     }
 
     private var selectedSlotIsOccupied: Bool {
-        let slots = editor.editedSlots
+        let slots = editor.configuration.menu.slots(for: app)
         guard slots.indices.contains(selectedMenuIndex) else { return false }
         return slots[selectedMenuIndex].item != nil
     }

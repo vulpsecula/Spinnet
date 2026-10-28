@@ -26,10 +26,10 @@ final class MenuAppOverridePresentationTests: XCTestCase {
         let configuration = try HostConfiguration(actions: actions, menu: MenuConfiguration(slots: [
             MenuSlotConfiguration(
                 item: try MenuItemConfiguration(primaryActionID: ActionID("open")),
-                appOverrides: [AppBundleIdentifier("com.apple.Safari"): .item(
+                appOverrides: [AppBundleIdentifier(validating: "com.apple.Safari")!: .item(
                     try MenuItemConfiguration(primaryActionID: ActionID("safari")))]
             ),
-            MenuSlotConfiguration(item: nil, appOverrides: [AppBundleIdentifier("com.apple.finder"): .empty])
+            MenuSlotConfiguration(item: nil, appOverrides: [AppBundleIdentifier(validating: "com.apple.finder")!: .empty])
         ]))
         let menu = MenuPresentationController(
             items: MenuPresentationFactory.makeSlots(configuration: configuration) { _ in .available }
@@ -53,5 +53,25 @@ final class MenuAppOverridePresentationTests: XCTestCase {
             XCTAssertEqual(primaryAction(inSlot: 0), "open")
             menu.dismiss()
         }
+    }
+
+    func testAnOverrideMenuItemWhosePluginIsMissingIsUnavailable() throws {
+        let safari = try XCTUnwrap(AppBundleIdentifier(validating: "com.apple.Safari"))
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostServiceID: "open.url")
+        let gone = try ActionConfiguration(id: ActionID("gone"), pluginID: PluginID("com.spinnet.gone"),
+                                           command: command, input: .null)
+        let configuration = try HostConfiguration(actions: [gone], menu: MenuConfiguration(slots: [
+            MenuSlotConfiguration(item: nil, appOverrides: [safari: .item(
+                try MenuItemConfiguration(primaryActionID: gone.id))])
+        ]))
+        let editor = HostConfigurationEditor(registry: PluginRegistry(), configuration: configuration)
+
+        let slots = MenuPresentationFactory.makeSlots(configuration: configuration, app: safari) {
+            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+        }
+
+        let action = try XCTUnwrap(slots[0].item?.primaryAction)
+        XCTAssertEqual(action.actionID, gone.id)
+        XCTAssertFalse(action.isAvailable)
     }
 }

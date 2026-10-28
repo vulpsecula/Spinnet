@@ -1134,6 +1134,17 @@ public struct ActionConfiguration: Codable, Equatable, Hashable {
 
     public var scriptPath: String? { script }
 
+
+    /// Whether `other` runs the same Command of the same Plugin with the same
+    /// input, whatever its ID.
+    public func doesTheSame(as other: ActionConfiguration) -> Bool {
+        pluginID == other.pluginID && commandID == other.commandID && title == other.title
+            && execution == other.execution && isConfigurable == other.isConfigurable
+            && hostCommand == other.hostCommand && script == other.script
+            && deepLinkTemplate == other.deepLinkTemplate && hostServiceID == other.hostServiceID
+            && input == other.input
+    }
+
     public var declaredCommand: CommandDeclaration {
         CommandDeclaration(
             id: commandID,
@@ -1430,11 +1441,6 @@ public struct MenuConfiguration: Codable, Equatable {
                     throw ConfigurationError.invalidMenu("An Action is bound more than once")
                 }
             }
-        }
-        guard slots.allSatisfy({
-            $0.appOverrides.keys.allSatisfy { AppBundleIdentifier(validating: $0.rawValue) != nil }
-        }) else {
-            throw ConfigurationError.invalidMenu("An App Override has no bundle identifier")
         }
         self.slots = slots
     }
