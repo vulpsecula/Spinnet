@@ -18,13 +18,12 @@ Historical `Tests/RegressionBaseline/` files are unchanged.
 | `SpinnetHostTests/RichClipboardHistoryTests` | Clipboard History fixture: master collection consent and data disclosure belong to the Host. |
 | `SpinnetHostTests/DeepLinkMigrationTests` | Shottr fixture: a historical reviewed grant must migrate only onto equivalent templates. |
 | `SpinnetHostTests/PluginSettingsModelTests` | Translator and Smart Jump fixtures: ordered settings and editable rows belong to the Host. |
-| `Tests/Support/ShippedPluginPackages` | Packaging resolver and lock: checks and integrations explicitly describing what ships must use the actual shipped revision. |
-| `SpinnetHostTests/ArchitectureGuardTests` | `ShippedPluginPackages`: forbidden literals must come from the manifests that actually ship. |
+| `Tests/Support/OfficialPluginFixtures` | `Tests/Fixtures/OfficialPlugins`: frozen copies of the official packages; see that directory's README. |
+| `SpinnetHostTests/ArchitectureGuardTests` | `OfficialPluginFixtures`: forbidden literals come from the official manifests. |
 | `UIPreviewRenderer` | Separate `PluginSettingsPreview.spinnetplugin` Host fixture: rendering a settings form should not depend on a live official Plugin. |
 | `PluginUnderTest` named lookup | Host readers now use explicit fixture paths. Generic parent/`Plugins` lookup remains available for independent Plugin repositories; it has no Host-repository default. |
 | `Tests/BundledPluginTests` | Moved with history to SpinnetPlugins: official package behaviour evolves with its packages, against the commit-pinned public kit and real helper. Private imports are removed. |
 
-`ManifestSchemaTests` validates the actual shipped manifests against the Host's
-published schema. `RegressionBaselineTests` migrates historical user data against
-the actual shipped registry. Both now share the locked-source resolver; neither
-changes the historical baseline or substitutes a fixture for what ships.
+`ManifestSchemaTests` validates the official Plugin fixtures against the
+Host's published schema. `RegressionBaselineTests` migrates historical user data
+against a registry holding them. Neither changes the historical baseline.

@@ -18,7 +18,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
 
     func testSetupRequiredPresetStaysEmptyUntilValidConfigurationIsSaved() throws {
         let registry = PluginRegistry()
-        let packages = try ShippedPluginPackages.hostCommandPlugins()
+        let packages = try OfficialPluginFixtures.hostCommandPlugins()
         for package in packages { try registry.register(package) }
         let configuration = try HostConfiguration(
             actions: [],
@@ -75,7 +75,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
 
     func testCancellingSetupRequiredPresetLeavesItsSlotEmpty() throws {
         let registry = PluginRegistry()
-        let packages = try ShippedPluginPackages.hostCommandPlugins()
+        let packages = try OfficialPluginFixtures.hostCommandPlugins()
         for package in packages { try registry.register(package) }
         let model = SettingsWindowModel(
             editor: HostConfigurationEditor(
@@ -135,7 +135,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
     /// cancelling the setup leaves the Menu as it was.
     func testDroppingASetupRequiredPresetKeepsItsNewSlotOnlyIfTheSetupIsSaved() throws {
         let registry = PluginRegistry()
-        let packages = try ShippedPluginPackages.hostCommandPlugins()
+        let packages = try OfficialPluginFixtures.hostCommandPlugins()
         for package in packages { try registry.register(package) }
         let configuration = try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))
         let model = SettingsWindowModel(
@@ -192,7 +192,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
     /// Open URL runs a Host Command, and is still a Plugin the user may remove.
     func testThePluginsThatRunHostCommandsCanBeRemovedLikeAnyOther() throws {
         let registry = PluginRegistry()
-        for package in try ShippedPluginPackages.hostCommandPlugins() { try registry.register(package) }
+        for package in try OfficialPluginFixtures.hostCommandPlugins() { try registry.register(package) }
         let model = SettingsWindowModel(
             editor: HostConfigurationEditor(
                 registry: registry,
@@ -395,8 +395,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         )
         try registry.register(PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"),
-            manifest: builtIn,
-            origin: .bundled
+            manifest: builtIn
         ))
         try registry.register(PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/search.spinnetplugin"),

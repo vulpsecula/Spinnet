@@ -322,7 +322,7 @@ public final class PluginRegistry {
 
     public func register(_ package: PluginPackage) throws {
         try package.manifest.validate()
-        try contracts.check(package.manifest, origin: package.origin)
+        try contracts.check(package.manifest)
 
         lock.lock()
         defer { lock.unlock() }
@@ -363,7 +363,7 @@ public final class PluginRegistry {
 
     public func replace(_ package: PluginPackage) throws {
         try package.manifest.validate()
-        try contracts.check(package.manifest, origin: package.origin)
+        try contracts.check(package.manifest)
 
         // Installation owns migration and persistence. Scope-bound decisions
         // prevent a replacement from broadening a grant, including when its
@@ -601,7 +601,7 @@ extension PluginRegistry {
     public func externalAppConnectionAuthorization(for check: ExternalAppConnectionCheck) -> ActionAvailability {
         guard isCurrent(check.admission, for: check.package),
               check.package.manifest.externalAppConnections.contains(check.declaration),
-              (try? contracts.check(check.package.manifest, origin: check.package.origin)) != nil else {
+              (try? contracts.check(check.package.manifest)) != nil else {
             return .unavailable(.pluginDisabled)
         }
         let manifest = check.package.manifest

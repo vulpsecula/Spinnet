@@ -67,7 +67,6 @@ final class PluginHostServiceTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(package.origin, .installed)
         XCTAssertEqual(
             try broker.execute(request: request(.presentClipboardHistory, .null), for: package, action: action),
             .null, "Presenting returns nothing to the Plugin"

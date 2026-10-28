@@ -10,7 +10,6 @@ struct DeveloperDiagnostics: Equatable {
         let id: String
         let name: String
         let version: String
-        let origin: String
         let hostCompatibility: String
         let isEnabled: Bool
     }
@@ -26,7 +25,6 @@ struct DeveloperDiagnostics: Equatable {
     let sourceRevision: String
     let processIdentifier: Int32
     let arguments: [String]
-    let bundledPluginSource: String
     let dataDirectory: String
     let plugins: [Plugin]
     let refused: [Refused]
@@ -40,13 +38,12 @@ struct DeveloperDiagnostics: Equatable {
             "Source revision: \(sourceRevision)",
             "PID: \(processIdentifier)",
             "Arguments: \(arguments.isEmpty ? "(none)" : arguments.joined(separator: " "))",
-            "Bundled Plugins: \(bundledPluginSource)",
             "Data: \(dataDirectory)",
             "",
             "Plugins (\(plugins.count)):"
         ]
         lines += plugins.map {
-            "- \($0.id) \($0.version) [\($0.origin), Host \($0.hostCompatibility)\($0.isEnabled ? "" : ", disabled")] \($0.name)"
+            "- \($0.id) \($0.version) [Host \($0.hostCompatibility)\($0.isEnabled ? "" : ", disabled")] \($0.name)"
         }
         if !refused.isEmpty {
             lines += ["", "Refused Plugins (\(refused.count)):"]
@@ -55,20 +52,10 @@ struct DeveloperDiagnostics: Equatable {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    static func describe(_ source: BundledPluginSource?) -> String {
-        switch source {
-        case let .packaged(url)?: return "packaged \(url.path)"
-        case let .development(url)?: return "SPINNET_BUNDLED_PLUGINS_DIR \(url.path)"
-        case .none?: return "none"
-        case nil: return "unresolved"
-        }
-    }
-
     static func plugins(in registry: PluginRegistry) -> [Plugin] {
-        registry.manifests().compactMap { manifest in
-            guard let package = registry.package(for: manifest.id) else { return nil }
-            return Plugin(id: manifest.id.rawValue, name: manifest.name, version: manifest.version,
-                          origin: package.origin.rawValue, hostCompatibility: manifest.hostCompatibility.rawValue,
+        registry.manifests().map { manifest in
+            Plugin(id: manifest.id.rawValue, name: manifest.name, version: manifest.version,
+                          hostCompatibility: manifest.hostCompatibility.rawValue,
                           isEnabled: registry.isEnabled(for: manifest.id))
         }
     }

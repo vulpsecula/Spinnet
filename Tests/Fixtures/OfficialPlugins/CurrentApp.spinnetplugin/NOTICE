@@ -1,0 +1,8 @@
+Current App is original Plugin code written against Spinnet's published
+Documented Plugin Interface. No Host source, SDK implementation, third-party data,
+icons, fonts or App-specific rules are included in this package.
+
+The development harness depends on the Spinnet public test kit and helper
+at the exact commit in Package.swift; Spinnet is GPL-3.0. That dependency
+is not redistributed in this MIT Plugin package. The harness does not
+change the Host's licence.

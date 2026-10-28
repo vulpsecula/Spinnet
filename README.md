@@ -25,7 +25,10 @@ identity. From the repository root:
 ./script/build_and_run.sh
 ```
 
-Open Settings → Menu and add a Plugin's Preset to an empty Slot. Mouse Side
+The app contains no Plugins. Install packages from
+[SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins) in Settings →
+Menu, or with `./script/build_and_run.sh --install-plugins ../SpinnetPlugins`,
+then add a Plugin's Preset to an empty Slot. Mouse Side
 Button 1 opens the Menu by default; you can change the trigger in Settings.
 See the [handbook](HANDBOOK.md#build-and-run) for signing and development options.
 

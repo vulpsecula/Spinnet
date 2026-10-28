@@ -1,0 +1,11 @@
+Spotify Plugin 1.2.0
+Copyright (c) 2026 Spinnet contributors
+
+Imported from independent Spotify proof source commit
+0aa11e8b01739a77338bfcc16049d000f6ebfce7 (Spinnet #91), under MIT.
+The JavaScript is preserved byte for byte. The manifest declares
+compatibility with Spinnet ^1.0.0 and uses the current Documented Plugin Interface.
+
+This package contains only first-party JSON and JavaScript; it bundles no
+Spotify data, artwork, logos, fonts, SDK or other third-party assets.
+Spotify is the name of the external application this adapter controls.

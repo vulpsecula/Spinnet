@@ -7,7 +7,7 @@ import XCTest
 final class PluginCommandOutputViewTests: XCTestCase {
     func testTerminalProgressFitsDefaultPanelWithoutHorizontalScrolling() throws {
         let scroll = PluginCommandOutputView.makeOutputView()
-        // The shipped Homebrew page declares minWidth 720; the generic 440pt
+        // The official Homebrew page declares minWidth 720; the generic 440pt
         // Plugin panel is not its actual default output viewport.
         scroll.frame = NSRect(x: 0, y: 0, width: 720 - 28, height: 100)
         scroll.tile()

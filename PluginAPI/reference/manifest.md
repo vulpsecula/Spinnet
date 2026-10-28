@@ -190,14 +190,13 @@ Grant Access repair route; it also retires a running helper at once.
 Removing a Plugin forgets its access decisions and deletes its
 [Plugin Storage](host-services.md#plugin-storage); installing it again starts
 empty, and an update keeps both. Menu Items made from it stay in their Menu Slots,
-unavailable. A Bundled Plugin follows the same rules and may do nothing an
-installed one cannot.
+unavailable. Every Plugin follows the same rules, whoever publishes it; the
+app itself contains no Plugins.
 
 ## The Preset
 
-Every Plugin appears once in the Library through its single `preset`. The Host
-decides where a Plugin came from; a manifest cannot claim to be a Bundled
-Plugin. `readiness`
+Every Plugin appears once in the Library through its single `preset`.
+`readiness`
 is `ready_to_use` when every configurable default Primary and Alternate Command
 has a valid, immediately executable value in `default_inputs`; a
 non-configurable Command does not need an input. Otherwise use

@@ -1,7 +1,7 @@
 import Foundation
 import SpinnetCore
 
-/// Screenshots were a scripted Bundled Plugin, `com.spinnet.screenshot`,
+/// Screenshots were a scripted official Plugin, `com.spinnet.screenshot`,
 /// before the Screenshot Plugin that runs the capture Host Commands replaced
 /// it. Its Actions move onto that Plugin with their IDs unchanged, so every
 /// Menu Slot, alias and Alternate Action stays as the user arranged it. The

@@ -1,0 +1,152 @@
+{
+  "protocol_version": "1.0",
+  "engines": {"spinnet": "^1.0.0"},
+  "id": "com.spinnet.external.spotify",
+  "name": "Spotify",
+  "version": "1.2.0",
+  "capabilities": [
+    "control_external_app"
+  ],
+  "optional_capabilities": [
+    "control_external_app"
+  ],
+  "capability_scopes": [
+    {
+      "capability": "control_external_app",
+      "command_ids": [
+        "spotify.toggle",
+        "spotify.play",
+        "spotify.pause",
+        "spotify.previous",
+        "spotify.next",
+        "spotify.volume-up",
+        "spotify.volume-down",
+        "spotify.volume",
+        "spotify.mute"
+      ],
+      "data_types": [],
+      "includes_existing_host_data": false,
+      "https_hosts": [],
+      "external_apps": [
+        {
+          "bundle_id": "com.spotify.client",
+          "name": "Spotify",
+          "operation_families": [
+            "playback_read",
+            "playback_control"
+          ]
+        }
+      ]
+    }
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": true,
+    "default_primary_command_id": "spotify.toggle",
+    "default_alternate_command_ids": [
+      "spotify.next",
+      "spotify.previous",
+      "spotify.volume-up",
+      "spotify.volume-down",
+      "spotify.mute"
+    ],
+    "default_inputs": {
+      "spotify.volume": "50"
+    }
+  },
+  "commands": [
+    {
+      "id": "spotify.toggle",
+      "title": "Play / Pause",
+      "description": "Toggle local Spotify playback without opening a panel.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "actions.js"
+    },
+    {
+      "id": "spotify.play",
+      "title": "Play",
+      "description": "Resume local Spotify playback.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "actions.js"
+    },
+    {
+      "id": "spotify.pause",
+      "title": "Pause",
+      "description": "Pause local Spotify playback.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "actions.js"
+    },
+    {
+      "id": "spotify.previous",
+      "title": "Previous Song",
+      "description": "Ask Spotify to go to the previous song.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "actions.js"
+    },
+    {
+      "id": "spotify.next",
+      "title": "Next Song",
+      "description": "Ask Spotify to advance once and report whether a different track was observed.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "actions.js"
+    },
+    {
+      "id": "spotify.volume-up",
+      "title": "Volume Up",
+      "description": "Increase Spotify volume by 5 percentage points, up to 100%.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "actions.js"
+    },
+    {
+      "id": "spotify.volume-down",
+      "title": "Volume Down",
+      "description": "Decrease Spotify volume by 5 percentage points, down to 0%.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "actions.js"
+    },
+    {
+      "id": "spotify.volume",
+      "title": "Set Volume",
+      "description": "Set Spotify volume to a whole percentage from 0 to 100.",
+      "execution": "javascript",
+      "is_configurable": true,
+      "script": "actions.js",
+      "configuration_field": {
+        "kind": "text",
+        "title": "Volume (0\u2013100)",
+        "placeholder": "50"
+      }
+    },
+    {
+      "id": "spotify.mute",
+      "title": "Mute / Unmute",
+      "description": "Toggle Spotify mute and restore the last nonzero volume, or 50% when none is remembered.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "actions.js"
+    }
+  ],
+  "external_app_connections": [
+    {
+      "bundle_id": "com.spotify.client",
+      "command_ids": [
+        "spotify.toggle",
+        "spotify.play",
+        "spotify.pause",
+        "spotify.previous",
+        "spotify.next",
+        "spotify.volume-up",
+        "spotify.volume-down",
+        "spotify.volume",
+        "spotify.mute"
+      ]
+    }
+  ]
+}

@@ -3,7 +3,7 @@ import SpinnetCore
 import XCTest
 @testable import SpinnetHost
 
-/// The regression baseline for the six Bundled Plugins (#48). The fixtures in
+/// The regression baseline for six official Plugins (#48). The fixtures in
 /// `Tests/RegressionBaseline` are user data in the formats the Host writes;
 /// they go through the steps a launch takes and must come out as they went
 /// in, and the checklist beside them must name every Command and Plugin
@@ -130,13 +130,13 @@ final class RegressionBaselineTests: XCTestCase {
         })
         // As a launch does: decisions line up with the Plugins, then the
         // stored Actions are brought up to date.
-        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests(), discardingOthers: true)
+        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests())
         let configuration = try StoredDataMigration.migrate(
             XCTUnwrap(HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json")).load()),
             registry: registry, pluginSettings: settings, defaults: XCTUnwrap(UserDefaults(suiteName: defaultsSuite))
         )
 
-        let declared = Set(bundledManifests(in: registry).flatMap { manifest in
+        let declared = Set(historicalManifests(in: registry).flatMap { manifest in
             manifest.commands.map { "\(manifest.id.rawValue) \($0.id.rawValue)" }
         })
         XCTAssertEqual(Set(configuration.actions.map { "\($0.pluginID.rawValue) \($0.commandID.rawValue)" }), declared)
@@ -148,7 +148,7 @@ final class RegressionBaselineTests: XCTestCase {
     func testPluginSettingsAreAllInUseAndWriteBackUnchanged() throws {
         let registry = try registry()
         let settings = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
-        for manifest in bundledManifests(in: registry) where manifest.hasSettings {
+        for manifest in historicalManifests(in: registry) where manifest.hasSettings {
             let stored = settings.values(for: manifest.id)
             // A stored value a field no longer accepts would be silently
             // replaced by its default. A `list` saved as text before that
@@ -188,7 +188,7 @@ final class RegressionBaselineTests: XCTestCase {
         let grants = try restoredGrants()
         let registry = try registry(grantStore: grants)
 
-        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests(), discardingOthers: true)
+        StoredDataMigration.reconcileCapabilityGrants(grants, with: registry.manifests())
 
         let written = directory.appendingPathComponent("capability-grants.json")
         try StoredDataMigration.encodeCapabilityGrants(grants).write(to: written)
@@ -211,7 +211,7 @@ final class RegressionBaselineTests: XCTestCase {
         XCTAssertEqual(historical as NSArray, expected as NSArray,
                        "historical capability grants did not write back as expected")
         for grant in grants.allGrants where Self.addedPluginIDs.contains(grant.pluginID) {
-            XCTAssertEqual(grant.decision, .notDetermined, "new Bundled distribution grants no authority")
+            XCTAssertEqual(grant.decision, .notDetermined, "a newly installed Plugin has no decisions yet")
         }
         let translator = try XCTUnwrap(registry.package(for: PluginID("com.spinnet.translator"))?.manifest)
         let contact = try XCTUnwrap(translator.scope(for: .contactHTTPS))
@@ -226,7 +226,7 @@ final class RegressionBaselineTests: XCTestCase {
             contentsOf: Self.baseline.appendingPathComponent("keychain-items.json")
         ))
         var accounts: [String] = []
-        for manifest in bundledManifests(in: registry) {
+        for manifest in historicalManifests(in: registry) {
             let values = manifest.resolvedSettings(stored: settings.values(for: manifest.id))
             for field in manifest.settingsFields where field.kind == .credential {
                 guard let key = field.key, case .string(let reference)? = values[key] else { continue }
@@ -279,15 +279,15 @@ final class RegressionBaselineTests: XCTestCase {
         )).accounts)
     }
 
-    /// What a launch registers: every shipped Plugin, read from the
-    /// locked revision consumed by packaging.
+    /// What a launch registers once the user has installed every official
+    /// Plugin fixture.
     private func registry(
         grantStore: PluginCapabilityGrantStore? = nil,
         pluginSettingsComplete: @escaping (PluginManifest) -> Bool = { _ in true }
     ) throws -> PluginRegistry {
         let registry = PluginRegistry(grantStore: grantStore, externalAppExists: { _ in true },
                                       pluginSettingsComplete: pluginSettingsComplete)
-        for package in try ShippedPluginPackages.all() {
+        for package in try OfficialPluginFixtures.all() {
             try registry.register(package)
         }
         return registry
@@ -306,7 +306,7 @@ final class RegressionBaselineTests: XCTestCase {
         }, menu: stored.menu)
     }
 
-    private func bundledManifests(in registry: PluginRegistry) -> [PluginManifest] {
+    private func historicalManifests(in registry: PluginRegistry) -> [PluginManifest] {
         registry.manifests().filter { Self.pluginIDs.contains($0.id) }
     }
 

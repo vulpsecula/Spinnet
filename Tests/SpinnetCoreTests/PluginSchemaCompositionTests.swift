@@ -45,10 +45,10 @@ final class PluginSchemaCompositionTests: XCTestCase {
                         if let admissions = fixture.host_versions {
                             for admission in admissions {
                                 let contracts = PluginInterfaceContracts(hostVersion: try HostVersion(admission.version))
-                                if admission.compatible { XCTAssertNoThrow(try contracts.check(manifest, origin: .installed), context) }
-                                else { XCTAssertThrowsError(try contracts.check(manifest, origin: .installed), context) }
+                                if admission.compatible { XCTAssertNoThrow(try contracts.check(manifest), context) }
+                                else { XCTAssertThrowsError(try contracts.check(manifest), context) }
                             }
-                        } else { try PluginInterfaceContracts.host.check(manifest, origin: .installed) }
+                        } else { try PluginInterfaceContracts.host.check(manifest) }
                     } else {
                         let manifest = try PluginManifest(id: .init("com.example.schema-composition"),
                             name: "Schema composition", version: "1.0", commands: [

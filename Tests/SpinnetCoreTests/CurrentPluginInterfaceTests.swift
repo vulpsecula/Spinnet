@@ -11,7 +11,7 @@ final class CurrentPluginInterfaceTests: XCTestCase {
     }
     func testCompatibleOriginsReceiveTheSameCurrentMembers() throws {
         let manifest = try manifest()
-        for origin in [PluginOrigin.installed, .bundled] { try host.check(manifest, origin: origin) }
+        try host.check(manifest)
         let required: [PluginInterfaceMember] = [
             HostServiceCatalogue.catalogueIDsOnly, .hostService("clipboard.write"), .hostCommand("open.url"),
             HostOperationsContract.answerOperation, .request("selection.replace"), HostOperationsContract.operationFinished,

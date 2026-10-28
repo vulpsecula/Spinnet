@@ -147,7 +147,7 @@ final class ManifestAndConfigurationTests: XCTestCase {
         }
         """#.utf8)
 
-        XCTAssertThrowsError(try PluginInterfaceContracts.host.check(PluginManifestLoader.decode(data), origin: .installed))
+        XCTAssertThrowsError(try PluginInterfaceContracts.host.check(PluginManifestLoader.decode(data)))
     }
 
     func testReadyPresetRejectsUnknownKeyboardKeyAndModifier() {

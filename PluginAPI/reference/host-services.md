@@ -108,7 +108,7 @@ retained before it. Adding a type requires new consent.
 `clipboardHistory.show` accepts `null`, opens the Clipboard History window,
 and returns `null`. It is the one Host Surface: the user reads their own
 history there and the Plugin learns nothing, so the granted Capability is all
-it needs, whether the Plugin is Bundled or installed.
+it needs.
 
 The window offers Pin as a Host preference for the requesting Plugin. A
 pinned history floats above other Apps and stays open after pasting; Paste

@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/catalogue.schema.json",
-  "description": "Current Spinnet 1.0.0 Host Service catalogue. IDs, entry points and authority are independent of package origin.",
+  "description": "Current Spinnet 1.0.0 Host Service catalogue. IDs, entry points and authority are the same for every Plugin.",
   "entry_points": {
     "call": "A script calls the operation inside its invocation: spinnet.<id>(input), or requestHostService(\"<id>\", input). Returns the result.",
     "command": "A manifest Command with execution host names it in host_command; its input is the Action's configured input and the Command's fixed input. No helper starts.",

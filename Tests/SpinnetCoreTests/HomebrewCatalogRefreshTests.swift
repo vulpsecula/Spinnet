@@ -55,7 +55,7 @@ final class HomebrewCatalogRefreshTests: XCTestCase {
             let owner = PluginID("catalog.fixture"), command = CommandDeclaration(id: .init("show"), title: "Show", execution: .javascript, script: "show.js")
             let scope = PluginCapabilityScope(capability: .runReviewedToolTasks, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: [operation], kinds: ["formula", "cask"])])
             let manifest = try PluginManifest(id: owner, name: "Catalog", version: "1", capabilities: [.runReviewedToolTasks], capabilityScopes: [scope], commands: [command])
-            let registry = PluginRegistry(); try registry.register(.init(rootURL: root, manifest: manifest, origin: .installed))
+            let registry = PluginRegistry(); try registry.register(.init(rootURL: root, manifest: manifest))
             let action = try ActionConfiguration(id: .init("show"), pluginID: owner, command: command, input: .null)
             var reviews = 0, authorizations = 0
             let tasks = HostReviewedToolTasks(activities: HostActivities(), journal: root.appendingPathComponent("tasks"), runnerURL: URL(fileURLWithPath: "/usr/bin/true"),

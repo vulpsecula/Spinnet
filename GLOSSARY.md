@@ -14,20 +14,16 @@ _Avoid_: Core, main app
 An installable provider of Commands that extends Spinnet without becoming part of the Host.
 _Avoid_: Extension, add-on
 
-**Bundled Plugin**:
-A first-party Plugin distributed with Spinnet, with the same authority and interface boundary as a user-added Plugin. Removing it suppresses the shipped copy; reinstalling a copy gives that copy a user-added Plugin Origin.
-_Avoid_: Built-in Command, trusted Host code
-
-**Plugin Origin**:
-The source of a Plugin package: shipped with the app or added by the user. It affects replacement and removal, and grants no authority.
-_Avoid_: Plugin type, plugin kind, trust level, installed Plugin
+**Official Plugin**:
+A Plugin maintained in SpinnetPlugins and offered by the Welcome Guide, with no other standing. Once installed, it is updated and removed like any other Plugin.
+_Avoid_: Bundled Plugin, built-in Plugin, first-party Plugin, shipped Plugin
 
 **Refused Plugin**:
-A user-added Plugin whose package or interface declaration the Host cannot load. Its configuration and data remain available for replacement or removal, and its Menu Items report why it is unavailable.
+An installed Plugin whose package or interface declaration the Host cannot load. Its configuration and data remain available for replacement or removal, and its Menu Items report why it is unavailable.
 _Avoid_: Unavailable Plugin, broken Plugin, disabled Plugin
 
 **Plugin Removal**:
-Removing a Plugin from the Library and forgetting its data, grants and Host view preferences, while retaining its Menu Items as unavailable. A removed Bundled Plugin remains suppressed across launches and app updates.
+Removing a Plugin from the Library and forgetting its data, grants and Host view preferences, while retaining its Menu Items as unavailable. It stays removed until the user installs a Plugin with the same identity again.
 _Avoid_: Delete Plugin, uninstall preset, clear Plugin
 
 **Plugin Update**:

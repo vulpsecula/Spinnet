@@ -131,9 +131,8 @@ final class PluginTestKitTests: XCTestCase {
         try writePackage(at: repository.appendingPathComponent("Plugins/Nested.spinnetplugin"), id: "com.example.nested")
         try writePackage(at: repository.appendingPathComponent("Beside.spinnetplugin"), id: "com.example.beside")
 
-        let nested = try PluginUnderTest(named: "Nested.spinnetplugin", origin: .bundled, searchingFrom: testFile)
+        let nested = try PluginUnderTest(named: "Nested.spinnetplugin", searchingFrom: testFile)
         XCTAssertEqual(nested.manifest.id.rawValue, "com.example.nested")
-        XCTAssertEqual(nested.package.origin, .bundled)
         XCTAssertEqual(try PluginUnderTest(named: "Beside.spinnetplugin", searchingFrom: testFile).manifest.id.rawValue,
                        "com.example.beside")
         XCTAssertThrowsError(try PluginUnderTest(named: "Missing.spinnetplugin", searchingFrom: testFile)) {

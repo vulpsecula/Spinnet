@@ -280,8 +280,8 @@ Host's own text, which may name the App and never reaches the Plugin.
 
 `run(_:of:answering:)` accepts any `PluginHostServiceBroker`, and
 `PluginTestHelper` is also a `ScriptedActionExecutor`. Tests inside the Spinnet
-repository use this to run a Bundled Plugin through the Host's broker and
-Action runner while part of its behaviour still lives in the Host. A Plugin in
+repository use this to run a Plugin through the Host's broker and Action
+runner while part of its behaviour still lives in the Host. A Plugin in
 its own repository should use recorded answers.
 
 ## Pages and collections

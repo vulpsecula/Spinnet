@@ -14,7 +14,7 @@ final class ScreenshotHostCommandTests: XCTestCase {
 
     func testScreenshotIsOnePluginWithSiblingCaptureCommands() throws {
         let registry = PluginRegistry()
-        for package in try ShippedPluginPackages.hostCommandPlugins() { try registry.register(package) }
+        for package in try OfficialPluginFixtures.hostCommandPlugins() { try registry.register(package) }
 
         let presets = registry.menuItemPresets().filter { $0.name == "Screenshot" }
         XCTAssertEqual(presets.count, 1)
@@ -143,7 +143,7 @@ final class ScreenshotHostCommandTests: XCTestCase {
         XCTAssertEqual(migrated.actions[3], url)
 
         let registry = PluginRegistry()
-        for package in try ShippedPluginPackages.hostCommandPlugins() { try registry.register(package) }
+        for package in try OfficialPluginFixtures.hostCommandPlugins() { try registry.register(package) }
         for action in captures {
             XCTAssertEqual(registry.availability(for: action), .available, "\(action.commandID) matches its Host Command")
         }
@@ -256,7 +256,7 @@ final class ScreenshotHostCommandTests: XCTestCase {
     // MARK: - Support
 
     private func screenshotPackage() throws -> (PluginPackage, PluginRegistry, PluginCapabilityGrantStore) {
-        let package = try XCTUnwrap(try ShippedPluginPackages.hostCommandPlugins().first {
+        let package = try XCTUnwrap(try OfficialPluginFixtures.hostCommandPlugins().first {
             $0.manifest.id == PluginID("com.spinnet.builtin.screenshot")
         })
         let registry = PluginRegistry()

@@ -1,0 +1,8 @@
+System Monitor 1.3.0, imported for Spinnet #97 from the independently proved
+SystemMonitor source commit dd12f91314c4a0d74eb7c3db3e4f954050cfa361
+(Spinnet #92). Copyright (c) 2026 System Monitor contributors; MIT, preserved
+in LICENSE. monitor.js is byte-for-byte that accepted source. The manifest
+declares compatibility with Spinnet ^1.0.0 and version 1.3.0; identity,
+Command, grant scope and UX are retained.
+The package includes no third-party data or asset files. Metric values come
+from Host-provided system.metrics; icons name Host-rendered system symbols.

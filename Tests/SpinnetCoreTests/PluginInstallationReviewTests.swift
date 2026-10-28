@@ -71,20 +71,18 @@ final class PluginInstallationReviewTests: XCTestCase {
         }
     }
 
-    /// Removing a Bundled Plugin forgot its access, so installing a copy of
-    /// it asks for all of it again.
-    func testACopyOfARemovedBundledPluginAsksForEverythingAgain() throws {
-        let loaded = try ScriptedPackageFixture.load()
-        let shipped = PluginPackage(rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled)
+    /// Removing a Plugin forgot its access, so installing it again asks for
+    /// all of it again.
+    func testAPluginInstalledAgainAfterRemovalAsksForEverythingAgain() throws {
         let (_, registry, grants, store) = makeStore()
-        try registry.register(shipped)
-        grants.setDecision(.granted, for: shipped.manifest.id, pluginVersion: shipped.manifest.version,
+        let installed = try XCTUnwrap(registry.package(for: try store.install(from: ScriptedPackageFixture.write()).id))
+        grants.setDecision(.granted, for: installed.manifest.id, pluginVersion: installed.manifest.version,
                            capability: .readSelectedText)
-        try store.uninstall(shipped.manifest.id)
+        try store.uninstall(installed.manifest.id)
 
         let review = try store.review(ScriptedPackageFixture.write())
 
         XCTAssertEqual(review.requestedAccess, [.readSelectedText, .writeClipboard])
-        XCTAssertNil(registry.package(for: shipped.manifest.id), "Reviewing changes nothing")
+        XCTAssertNil(registry.package(for: installed.manifest.id), "Reviewing changes nothing")
     }
 }

@@ -26,7 +26,7 @@ public enum HomebrewCommandOutput {
 
     public static func check(_ input: JSONValue, manifest: PluginManifest, contracts: PluginInterfaceContracts = .host) throws {
         guard input.value(atPointer: "/operation") == .string("commandOutput") else { return }
-        try contracts.check(manifest, origin: .installed)
+        try contracts.check(manifest)
         guard contracts.permits(member, declaredBy: manifest) else {
             throw PluginHostServiceError.unavailable("Homebrew command output is not provided by this Host")
         }

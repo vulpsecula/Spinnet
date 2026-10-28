@@ -19,7 +19,7 @@ final class AdaptiveViewportContractTests: XCTestCase {
     }
     func testCurrentViewportProfilesPreserveCanonicalComponents() throws {
         let manifest = try PluginManifestLoader.load(packageAt: Self.fixture).manifest
-        try PluginInterfaceContracts.host.check(manifest, origin: .installed)
+        try PluginInterfaceContracts.host.check(manifest)
         let page = try PluginPage(parsing: Self.page(), permits: Self.permits)
         XCTAssertEqual(page.components.map(\.id), ["cards", "cpu", "value", "note"])
         XCTAssertEqual(page.inputs.map(\.id), ["note"])
@@ -55,7 +55,7 @@ final class AdaptiveViewportContractTests: XCTestCase {
         }
         XCTAssertTrue(PluginInterfaceContracts.currentMembers.contains(AdaptiveViewportLayout.viewportFit))
         let manifest = try PluginManifestLoader.load(packageAt: Self.fixture).manifest
-        XCTAssertThrowsError(try PluginInterfaceContracts(hostVersion: HostVersion("0.9.0")).check(manifest, origin: .installed))
+        XCTAssertThrowsError(try PluginInterfaceContracts(hostVersion: HostVersion("0.9.0")).check(manifest))
     }
 
 }

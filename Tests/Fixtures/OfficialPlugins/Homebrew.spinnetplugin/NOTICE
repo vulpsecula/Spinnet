@@ -1,0 +1,15 @@
+Homebrew Plugin initial source: accepted independent proof #93, commit
+f6a9d91c96f12e0d23697f9802f3d29228483978, version 1.5.0, imported at f022673.
+The import preserved generated JavaScript and promoted retired Candidate
+Contracts to stable Plugin API Level 3. Later SpinnetPlugins commits changed
+the runtime and tests; the maintained package declares Host compatibility
+`^1.0.0` and uses the current Documented Plugin Interface.
+See Sources/Homebrew/PROVENANCE.md in the source repository for the history
+and deterministic entry-script generation.
+Copyright (c) 2026 Spinnet contributors. MIT; see LICENSE.
+
+Homebrew package metadata is supplied at runtime by Homebrew; vulnerability
+information is supplied by OSV and popularity data by formulae.brew.sh.
+No Homebrew/OSV catalogue, security database, logos or third-party assets
+are redistributed in this package. Upstream data and links keep their
+respective upstream notices and terms; this MIT licence covers Plugin code.

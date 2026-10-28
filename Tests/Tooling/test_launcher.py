@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -52,6 +53,8 @@ elif name == "git":
         print("fixture")
 elif name == "ditto":
     shutil.copytree(args[0], args[1], dirs_exist_ok=True)
+elif name == "SpinnetHost" and "--report-installed-plugins" in args:
+    print("com.example.fixture 1.2.3 Fixture")
 '''
 
 
@@ -69,17 +72,18 @@ class LauncherTests(unittest.TestCase):
         self.log = self.root / "commands.jsonl"
         self.stubs = self.root / "commands"
         self.stubs.mkdir()
-        for name in ["swift", "security", "git", "pkill", "codesign", "ditto"]:
+        for name in ["swift", "security", "git", "pkill", "codesign", "ditto", "open", "pgrep", "sleep", "lldb"]:
             self.executable(self.stubs / name, STUB)
-        self.executable(self.script.parent / "resolve_bundled_plugins.sh",
-                        'import os\nfrom pathlib import Path\n'
-                        'with open(os.environ["LAUNCHER_TEST_LOG"], "a") as stream:\n'
-                        '    stream.write(\'{"tool":"resolver","args":[]}\\n\')\n'
-                        'print(Path(__file__).parents[1] / "Plugins")\n')
+        # Opening an app is the one absolute command; point it at the stub so
+        # no test can open a real app.
+        launcher = self.script.read_text()
+        self.assertEqual(launcher.count("/usr/bin/open "), 2)
+        self.script.write_text(launcher.replace("/usr/bin/open ", shlex.quote(str(self.stubs / "open")) + " "))
         for name in ["check_background_helper.sh", "check_background_lifecycle.sh"]:
             (self.script.parent / name).write_text(
                 '#!/bin/bash\nprintf \'{"tool":"' + name + '","args":["%s"]}\\n\' "$*" >> "$LAUNCHER_TEST_LOG"\n')
-        package = self.root / "Plugins/Example.spinnetplugin"
+        self.packages = self.root / "SpinnetPlugins checkout"
+        package = self.packages / "Plugins/Example.spinnetplugin"
         package.mkdir(parents=True)
         (package / "manifest.json").write_text('{}')
         resources = self.root / "Resources/LaunchDaemons"
@@ -117,6 +121,12 @@ class LauncherTests(unittest.TestCase):
 
     def test_bad_or_extra_arguments_are_rejected_before_any_side_effect(self):
         cases = [("--typo",), ("",), ("--package", "ignored"), ("--help", "ignored"),
+                 ("--install-plugins",), ("--install-plugins", ""),
+                 ("--install-plugins", str(self.packages), "--package"),
+                 ("--install-plugins", str(self.packages), "--help"),
+                 ("--install-plugins", str(self.packages), "--background-lifecycle-check"),
+                 ("--install-plugins", str(self.packages), "--verify", "ignored"),
+                 ("--verify", "--install-plugins", str(self.packages)),
                  ("--background-lifecycle-check", "--typo"),
                  ("--background-lifecycle-check", ""),
                  ("--background-lifecycle-check", "--prepare", "ignored"),
@@ -167,7 +177,7 @@ class LauncherTests(unittest.TestCase):
                 self.assertEqual({path.name for path in (contents / "Helpers").iterdir()}, set(HELPERS))
                 self.assertFalse((contents / "Resources/Spinnet_SpinnetCore.bundle").exists(),
                                  "An obsolete incremental-build bundle must not ship retired Ruby adapters")
-                self.assertTrue((contents / "Resources/Plugins/Example.spinnetplugin/manifest.json").is_file())
+                self.assertFalse((contents / "Resources/Plugins").exists(), "The app contains no Plugins")
                 signed = [call["args"] for call in commands if call["tool"] == "codesign" and "--sign" in call["args"]]
                 self.assertEqual(len(signed), len(HELPERS) + 1)
                 for name, suffix in HELPERS.items():
@@ -183,7 +193,40 @@ class LauncherTests(unittest.TestCase):
                 self.assertNotIn("pkill", [call["tool"] for call in commands])
                 self.assertFalse(any("--refresh-existing-background-operations" in call["args"] for call in commands))
 
-    def test_ad_hoc_signing_requires_optin_before_resolving_or_building(self):
+    def test_install_option_installs_every_package_through_the_host_before_opening(self):
+        result, commands = self.launch("--install-plugins", str(self.packages), "--verify",
+                                       SPINNET_CODESIGN_IDENTITY="FIXTURE_ID")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        tools = [call["tool"] for call in commands]
+        install = next(index for index, call in enumerate(commands)
+                       if call["tool"] == "SpinnetHost" and call["args"][:1] == ["--install-plugins"])
+        self.assertEqual(commands[install]["args"], ["--install-plugins", str(self.packages)])
+        self.assertEqual([call["args"][:1] for call in commands if call["tool"] == "SpinnetHost"].count(["--install-plugins"]), 1)
+        self.assertLess(tools.index("pkill"), install, "The running Host quits before its data changes")
+        self.assertLess(max(index for index, tool in enumerate(tools) if tool == "codesign"), install)
+        self.assertLess(install, tools.index("open"), "Packages install before the app opens")
+        report = next(index for index, call in enumerate(commands)
+                      if call["tool"] == "SpinnetHost" and call["args"] == ["--report-installed-plugins"])
+        self.assertLess(tools.index("open"), report)
+        self.assertIn("Running " + str(self.root / "dist/SpinnetHost.app"), result.stdout)
+        self.assertIn("Installed Plugins:\ncom.example.fixture 1.2.3 Fixture", result.stdout)
+
+    def test_verify_reports_installed_plugin_versions_without_installing(self):
+        result, commands = self.launch("--verify", SPINNET_CODESIGN_IDENTITY="FIXTURE_ID")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        host_calls = [call["args"] for call in commands if call["tool"] == "SpinnetHost"]
+        self.assertNotIn("--install-plugins", [args[0] for args in host_calls if args])
+        self.assertIn(["--report-installed-plugins"], host_calls)
+        self.assertIn("com.example.fixture 1.2.3 Fixture", result.stdout)
+
+    def test_missing_install_directory_is_rejected_before_building(self):
+        result, commands = self.launch("--install-plugins", str(self.root / "missing"), "--verify")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing Plugin package directory", result.stderr)
+        self.assertEqual(commands, [])
+        self.assertEqual(self.sentinel.read_text(), "existing app")
+
+    def test_ad_hoc_signing_requires_optin_before_building(self):
         result, commands = self.launch("--package", SPINNET_CODESIGN_IDENTITY="-")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("ad-hoc signing is disabled", result.stderr)

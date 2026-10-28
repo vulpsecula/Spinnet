@@ -472,8 +472,7 @@ final class HostServicesTests: XCTestCase {
         )
         let package = PluginPackage(
             rootURL: URL(fileURLWithPath: "/System/Library/CoreServices/SpinnetBuiltInPresets"),
-            manifest: manifest,
-            origin: .bundled
+            manifest: manifest
         )
         let registry = PluginRegistry()
         try registry.register(package)
@@ -527,8 +526,7 @@ final class HostServicesTests: XCTestCase {
         )
         let package = PluginPackage(
             rootURL: URL(fileURLWithPath: "/tmp/copy.spinnetplugin"),
-            manifest: manifest,
-            origin: .bundled
+            manifest: manifest
         )
         let registry = PluginRegistry()
         try registry.register(package)
@@ -619,7 +617,7 @@ final class HostServicesTests: XCTestCase {
     }
 
     func testTheHostCommandPluginsExposeIndependentHostOperations() throws {
-        let packages = try ShippedPluginPackages.hostCommandPlugins()
+        let packages = try OfficialPluginFixtures.hostCommandPlugins()
         let registry = PluginRegistry()
         for package in packages { try registry.register(package) }
 
@@ -638,7 +636,7 @@ final class HostServicesTests: XCTestCase {
     }
 
     func testPasteAndCutPresetsRequireAccessibilityBeforeSendingTheEdit() throws {
-        let packages = try ShippedPluginPackages.hostCommandPlugins()
+        let packages = try OfficialPluginFixtures.hostCommandPlugins()
         let registry = PluginRegistry()
         for package in packages { try registry.register(package) }
         let adapter = RecordingHostCommandAdapter()

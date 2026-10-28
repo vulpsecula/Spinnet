@@ -17,7 +17,7 @@ public enum HomebrewAutoremove {
 
     public static func check(_ input: JSONValue, service: String, manifest: PluginManifest,
                              contracts: PluginInterfaceContracts = .host) throws {
-        do { try contracts.check(manifest, origin: .installed) }
+        do { try contracts.check(manifest) }
         catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
         try check(input, service: service, permits: contracts.permitting(manifest))
     }

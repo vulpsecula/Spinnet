@@ -84,15 +84,14 @@ enum StoredDataMigration {
     }
 
     /// Lines decisions up with the Plugins this launch registered: each
-    /// declared Capability gets an entry, and, when `discardingOthers`, the
-    /// decisions of Plugins that are gone are dropped. The Refused Plugins
+    /// declared Capability gets an entry, and the decisions of Plugins that
+    /// are gone are dropped. The Refused Plugins
     /// in `refused` are not gone: their decisions stay for a Host that can
     /// run them.
     static func reconcileCapabilityGrants(
         _ grants: PluginCapabilityGrantStore,
         with manifests: [PluginManifest],
-        keeping refused: [PluginID] = [],
-        discardingOthers: Bool
+        keeping refused: [PluginID] = []
     ) {
         // Before decisions for Plugins that are gone are discarded below.
         ScreenshotPluginMigration.carryGrant(in: grants)
@@ -102,9 +101,7 @@ enum StoredDataMigration {
         for manifest in manifests {
             grants.register(pluginID: manifest.id, pluginVersion: manifest.version, capabilities: manifest.capabilities)
         }
-        if discardingOthers {
-            grants.discardGrants(outside: Set(manifests.map(\.id) + refused))
-        }
+        grants.discardGrants(outside: Set(manifests.map(\.id) + refused))
     }
 
     static func encodeCapabilityGrants(_ grants: PluginCapabilityGrantStore) throws -> Data {

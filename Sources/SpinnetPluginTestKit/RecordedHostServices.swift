@@ -53,7 +53,7 @@ public final class RecordedHostServices: PluginHostServiceBroker {
     }
 
     static func validateTerminalHandoff(input: JSONValue, package: PluginPackage, action: ActionConfiguration) throws {
-        try PluginInterfaceContracts.host.check(package.manifest, origin: package.origin)
+        try PluginInterfaceContracts.host.check(package.manifest)
         guard package.manifest.declares(.controlExternalApp, for: action.commandID),
               PluginInterfaceContracts.host.permits(TerminalHomebrew.member, declaredBy: package.manifest),
               package.manifest.scope(for: .controlExternalApp)?.externalApps.contains(where: { $0.bundleID == TerminalHomebrew.bundleID && $0.operationFamilies.contains(TerminalHomebrew.family) }) == true,
@@ -89,7 +89,7 @@ public final class RecordedHostServices: PluginHostServiceBroker {
                 arguments = values
             }
             if SpotifyControls.operationNames.contains(operation) {
-                do { try PluginInterfaceContracts.host.check(package.manifest, origin: package.origin) }
+                do { try PluginInterfaceContracts.host.check(package.manifest) }
                 catch { throw PluginHostServiceError.unavailable(error.localizedDescription) }
                 guard PluginInterfaceContracts.host.permits(SpotifyControls.member, declaredBy: package.manifest) else {
                     throw PluginHostServiceError.unavailable("Spotify \(operation) is not provided by this Host")

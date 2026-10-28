@@ -17,14 +17,6 @@ final class PluginRemovalTests: XCTestCase {
         ))
     }
 
-    /// The package the app ships, as discovery would hand it over.
-    private func makeShippedPackage() throws -> PluginPackage {
-        let loaded = try ScriptedPackageFixture.load()
-        return PluginPackage(
-            rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled
-        )
-    }
-
     func testRemovingAnInstalledPluginDeletesItsCopyAndDoesNotComeBack() throws {
         let (directory, registry, grants, store) = try makeStore()
         let manifest = try store.install(from: ScriptedPackageFixture.write())
@@ -62,100 +54,55 @@ final class PluginRemovalTests: XCTestCase {
         XCTAssertTrue(grants.allGrants.allSatisfy { $0.pluginID != manifest.id })
     }
 
-    func testRemovingABundledPluginIsRecordedSoItStaysRemovedAcrossLaunches() throws {
-        let (directory, registry, grants, store) = try makeStore()
-        let loaded = try ScriptedPackageFixture.load()
-        try registry.register(PluginPackage(
-            rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled
-        ))
-
-        try store.uninstall(loaded.manifest.id)
-
-        XCTAssertNil(registry.package(for: loaded.manifest.id))
-        // A second Host launch reads the record back rather than the registry.
-        let relaunched = PluginInstallationStore(
-            directory: directory, registry: PluginRegistry(), grants: grants, persistGrants: {}
-        )
-        XCTAssertTrue(try relaunched.removedPluginIDs().contains(loaded.manifest.id))
-    }
-
-    /// A Bundled Plugin is removed like any other, and comes back like any
-    /// other: installing a copy of it installs that copy. The shipped one
-    /// stays removed underneath, across launches.
-    func testInstallingACopyOfARemovedBundledPluginInstallsThatCopy() throws {
-        let shipped = try makeShippedPackage()
-        let (directory, registry, grants, store) = try makeStore()
-        try registry.register(shipped)
-        grants.setDecision(.granted, for: shipped.manifest.id,
-                           pluginVersion: shipped.manifest.version,
-                           capability: .readSelectedText)
-        try store.uninstall(shipped.manifest.id)
-
-        try store.install(from: try ScriptedPackageFixture.write())
-
-        let installed = try XCTUnwrap(registry.package(for: shipped.manifest.id))
-        XCTAssertEqual(installed.origin, .installed)
-        XCTAssertEqual(installed.rootURL.deletingLastPathComponent().standardizedFileURL,
-                       directory.standardizedFileURL, "The copy the user chose is the one installed")
-        XCTAssertEqual(
-            grants.decision(for: shipped.manifest.id,
-                            pluginVersion: shipped.manifest.version,
-                            capability: .readSelectedText),
-            .notDetermined,
-            "A Plugin coming back asks for access again"
-        )
-        XCTAssertTrue(try store.removedPluginIDs().contains(shipped.manifest.id),
-                      "The shipped copy stays removed underneath the installed one")
-
-        // A relaunch registers the installed copy, not the shipped one.
-        let relaunchedRegistry = PluginRegistry()
-        try PluginInstallationStore(
-            directory: directory, registry: relaunchedRegistry, grants: grants, persistGrants: {}
-        ).restore()
-        XCTAssertEqual(relaunchedRegistry.package(for: shipped.manifest.id)?.origin, .installed)
-    }
-
-    func testRemovingAReinstalledCopyKeepsTheBundledPluginRemoved() throws {
-        let shipped = try makeShippedPackage()
-        let (directory, registry, grants, store) = try makeStore()
-        try registry.register(shipped)
-        try store.uninstall(shipped.manifest.id)
-        try store.install(from: try ScriptedPackageFixture.write())
-
-        try store.uninstall(shipped.manifest.id)
-
-        XCTAssertTrue(try store.removedPluginIDs().contains(shipped.manifest.id))
-        let relaunchedRegistry = PluginRegistry()
-        try PluginInstallationStore(
-            directory: directory, registry: relaunchedRegistry, grants: grants, persistGrants: {}
-        ).restore()
-        XCTAssertNil(relaunchedRegistry.package(for: shipped.manifest.id))
-    }
-
-    func testRemovingABundledPluginKeepsAShadowedInstalledCopyFromBringingItBack() throws {
-        // A Plugin that shipped after an earlier version of it was installed
-        // leaves the user's own copy indexed underneath the shipped one. The
-        // removal is of the Plugin, not of whichever copy is on top.
+    /// A removed Plugin is gone, and comes back only when the user installs
+    /// it again; nothing keeps a reinstall away, whoever published it.
+    func testInstallingARemovedPluginAgainBringsItBackAcrossLaunches() throws {
         let (directory, registry, grants, store) = try makeStore()
         let manifest = try store.install(from: ScriptedPackageFixture.write())
-        registry.unregister(manifest.id)
-        let loaded = try ScriptedPackageFixture.load()
-        try registry.register(PluginPackage(
-            rootURL: loaded.rootURL, manifest: loaded.manifest, origin: .bundled
-        ))
+        grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version,
+                           capability: .readSelectedText)
+        try store.uninstall(manifest.id)
+
+        try store.install(from: ScriptedPackageFixture.write())
+
+        XCTAssertNotNil(registry.package(for: manifest.id))
+        XCTAssertEqual(grants.decision(for: manifest.id, pluginVersion: manifest.version,
+                                       capability: .readSelectedText), .notDetermined,
+                       "A Plugin coming back asks for access again")
+        let relaunched = PluginRegistry()
+        try PluginInstallationStore(
+            directory: directory, registry: relaunched, grants: grants, persistGrants: {}
+        ).restore()
+        XCTAssertNotNil(relaunched.package(for: manifest.id))
+    }
+
+    /// A Host that shipped Plugins left a suppression record and predecessor
+    /// declarations in the same folder. Nothing reads them any more: the
+    /// installed Plugins alone decide what a launch registers.
+    func testRecordsLeftByAHostThatShippedPluginsDoNotAffectALaunch() throws {
+        let (directory, _, grants, store) = try makeStore()
+        let manifest = try store.install(from: ScriptedPackageFixture.write())
+        try Data(#"["\#(manifest.id.rawValue)"]"#.utf8)
+            .write(to: directory.appendingPathComponent("removed.json"))
+        try Data("not a manifest snapshot".utf8)
+            .write(to: directory.appendingPathComponent("bundled-manifests.json"))
+
+        let relaunched = PluginRegistry()
+        try PluginInstallationStore(
+            directory: directory, registry: relaunched, grants: grants, persistGrants: {}
+        ).restore()
+
+        XCTAssertNotNil(relaunched.package(for: manifest.id))
+    }
+
+    func testRemovingAPluginWritesNoRecordBesideTheInstalledIndex() throws {
+        let (directory, _, _, store) = try makeStore()
+        let manifest = try store.install(from: ScriptedPackageFixture.write())
 
         try store.uninstall(manifest.id)
 
-        let relaunchedRegistry = PluginRegistry()
-        let relaunched = PluginInstallationStore(
-            directory: directory, registry: relaunchedRegistry, grants: grants, persistGrants: {}
-        )
-        try relaunched.restore()
-
-        XCTAssertNil(
-            relaunchedRegistry.package(for: manifest.id),
-            "A removed Plugin stays removed, whichever copy of it is on disk"
-        )
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        XCTAssertEqual(remaining, ["installed.json"])
     }
 
     func testStartupForgetsDecisionsLeftBehindByPluginsThatAreGone() throws {
@@ -220,7 +167,7 @@ final class PluginRemovalTests: XCTestCase {
 
     /// A Plugin whose Commands are Host Commands, such as Open URL, is a
     /// Plugin like any other, and the user may remove it.
-    func testABundledPluginRunningHostCommandsCanBeRemoved() throws {
+    func testAPluginRunningHostCommandsCanBeRemoved() throws {
         let (_, registry, _, store) = try makeStore()
         let command = CommandDeclaration(
             id: CommandID("builtin.open_url"), title: "Open URL", hostServiceID: "open.url"
@@ -231,13 +178,12 @@ final class PluginRemovalTests: XCTestCase {
             preset: MenuItemPresetDeclaration(readiness: .setupRequired, defaultPrimaryCommandID: command.id)
         )
         try registry.register(PluginPackage(
-            rootURL: URL(fileURLWithPath: "/tmp/OpenURL.spinnetplugin"), manifest: manifest, origin: .bundled
+            rootURL: URL(fileURLWithPath: "/tmp/OpenURL.spinnetplugin"), manifest: manifest
         ))
 
         try store.uninstall(manifest.id)
 
         XCTAssertNil(registry.package(for: manifest.id))
-        XCTAssertTrue(try store.removedPluginIDs().contains(manifest.id))
     }
 
     func testRemovingAPluginLeavesTheMenuItemsThatUsedItInPlace() throws {

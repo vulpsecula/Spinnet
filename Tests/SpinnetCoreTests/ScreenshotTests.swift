@@ -70,7 +70,7 @@ final class ScreenshotTests: XCTestCase {
     func testMissingScreenRecordingLeavesCaptureActionsUnavailableWithTheScreenRecordingRepair() throws {
         let manifest = try captureManifest()
         let package = PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/Screenshot.spinnetplugin"),
-                                    manifest: manifest, origin: .bundled)
+                                    manifest: manifest)
         let grants = PluginCapabilityGrantStore()
         grants.setDecision(.granted, for: manifest.id, pluginVersion: manifest.version, capability: .captureScreen)
         var granted: Set<PluginSystemPermission> = [.accessibility]

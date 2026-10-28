@@ -8,7 +8,7 @@ final class ActivitySourceDeliveryTests: XCTestCase {
         let manifest = try PluginManifest(id: .init("com.example.live-tasks"), name: "Tasks", version: "1", commands: [command])
         XCTAssertTrue(PluginInterfaceContracts.host.permitting(manifest)(LiveActivityDelivery.member))
         let older = PluginInterfaceContracts(hostVersion: try HostVersion("0.9.0"))
-        XCTAssertThrowsError(try older.check(manifest, origin: .bundled)) {
+        XCTAssertThrowsError(try older.check(manifest)) {
             XCTAssertEqual(($0 as? UnsupportedPluginHostVersion)?.hostVersion, try? HostVersion("0.9.0"))
         }
         let schema = try JSONSchemaSubsetValidator(schemaAt: PagesContractTests.pluginAPI.appendingPathComponent("schemas/manifest.schema.json"))
@@ -24,7 +24,7 @@ final class ActivitySourceDeliveryTests: XCTestCase {
             let manifest = try PluginManifest(id: owner, name: "Tasks", version: version, commands: [command])
             let grants = PluginCapabilityGrantStore()
             let registry = PluginRegistry(contracts: .host, grantStore: grants)
-            try registry.register(.init(rootURL: FileManager.default.temporaryDirectory, manifest: manifest, origin: .installed))
+            try registry.register(.init(rootURL: FileManager.default.temporaryDirectory, manifest: manifest))
             let action = try ActionConfiguration(id: .init("tasks"), pluginID: owner, command: command, input: .null)
             let activities = HostActivities()
             let task = try activities.register(owner: owner, pluginName: "Tasks", kind: "task", status: "Running", stop: {})

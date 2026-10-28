@@ -86,7 +86,7 @@ extension ReviewedServicesSurfaceTests {
         let command = CommandDeclaration(id: CommandID("services"), title: "Services", hostServiceID: ReviewedServicesAddition.id, fixedInput: .object(["tool": .string("homebrew")]))
         let scope = PluginCapabilityScope(capability: .readReviewedTools, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["services"], kinds: ["formula"])])
         let manifest = try PluginManifest(id: PluginID("com.example.services"), name: "Services", version: "1.0", capabilities: [.readReviewedTools], capabilityScopes: [scope], commands: [command])
-        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/private/tmp/services-fixture"), manifest: manifest, origin: .installed)
+        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/private/tmp/services-fixture"), manifest: manifest)
         let action = try ActionConfiguration(id: ActionID("services"), pluginID: manifest.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore(); var shown = 0, presentations: [ReviewedServicesAddition.Presentation] = []
         let broker = CapabilityCheckedHostServiceBroker(
@@ -123,7 +123,7 @@ extension ReviewedServicesSurfaceTests {
         let readScope = PluginCapabilityScope(capability: .readReviewedTools, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["services"], kinds: ["formula"])])
         let taskScope = PluginCapabilityScope(capability: .runReviewedToolTasks, commandIDs: [command.id], reviewedTools: [.init(tool: "homebrew", operations: ["serviceRestart"], kinds: ["formula"])])
         let manifest = try PluginManifest(id: PluginID("com.example.services"), name: "Services", version: "1.0", capabilities: [.readReviewedTools, .runReviewedToolTasks], optionalCapabilities: [.runReviewedToolTasks], capabilityScopes: [readScope,taskScope], commands: [command])
-        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/private/tmp/services-fixture"), manifest: manifest, origin: .installed)
+        let package = PluginPackage(rootURL: URL(fileURLWithPath: "/private/tmp/services-fixture"), manifest: manifest)
         let action = try ActionConfiguration(id: ActionID("services"), pluginID: manifest.id, command: command, input: .null)
         let grants = PluginCapabilityGrantStore(), registry = PluginRegistry()
         try registry.register(package)

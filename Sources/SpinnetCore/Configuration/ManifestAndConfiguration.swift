@@ -1015,40 +1015,21 @@ public struct PluginManifest: Codable, Equatable {
     }
 }
 
-/// Where a package came from, which decides whether an install may replace
-/// it and how its removal is recorded. It grants no access: every Plugin may
-/// be removed, and a shipped one may do nothing an installed one cannot.
-public enum PluginOrigin: String, Equatable, Hashable, CaseIterable {
-    /// A first-party Plugin package delivered inside the app bundle.
-    case bundled
-    /// A Plugin package the user installed into Application Support.
-    case installed
-}
-
 public struct PluginPackage {
     /// The package directory on disk.
     public let rootURL: URL
     public let manifest: PluginManifest
-    /// Set only by the Host when it loads a package, never by a manifest.
-    /// Defaults to the least privileged origin, so a caller that forgets to
-    /// say where a package came from cannot accidentally widen what it may do.
-    public let origin: PluginOrigin
     /// Compatibility packages can remain registered for persisted Actions
     /// without adding another user-facing Library entry.
     public let isVisibleInLibrary: Bool
 
-    /// Only the user's own copies may be overwritten by an install.
-    public var canBeReplacedByInstall: Bool { origin == .installed }
-
     public init(
         rootURL: URL,
         manifest: PluginManifest,
-        origin: PluginOrigin = .installed,
         isVisibleInLibrary: Bool = true
     ) {
         self.rootURL = rootURL
         self.manifest = manifest
-        self.origin = origin
         self.isVisibleInLibrary = isVisibleInLibrary
     }
 }
