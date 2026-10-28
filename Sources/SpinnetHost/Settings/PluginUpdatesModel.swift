@@ -22,7 +22,7 @@ final class PluginUpdatesModel: ObservableObject {
         let installedVersion: String?
         var status: Status
         var message: String?
-        var candidate: PluginUpdateCandidate?
+        var candidate: PluginUpdateOffer?
     }
 
     @Published private var entries: [PluginID: Entry] = [:]
@@ -30,7 +30,7 @@ final class PluginUpdatesModel: ObservableObject {
     /// Checks one Plugin's Update Source; it reaches the network.
     var checkForUpdate: ((PluginID) throws -> PluginUpdateCheck)?
     /// Starts the Library's installation review for an accepted version.
-    var startUpdate: ((PluginUpdateCandidate) -> Void)?
+    var startUpdate: ((PluginUpdateOffer) -> Void)?
     /// Where a check runs, off the main thread, and where its result lands.
     var runInBackground: (@escaping () -> Void) -> Void = { DispatchQueue.global(qos: .userInitiated).async(execute: $0) }
     var deliver: (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) }

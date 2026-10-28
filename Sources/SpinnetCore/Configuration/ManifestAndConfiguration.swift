@@ -1,6 +1,6 @@
 import Foundation
 
-public enum CommandExecution: String, Codable, Equatable, Hashable {
+public enum CommandExecution: String, Codable, Equatable, Hashable, Sendable {
     case host
     case javascript
 
@@ -23,7 +23,7 @@ public enum CommandExecution: String, Codable, Equatable, Hashable {
 /// Declarative operations performed by the trusted Host on behalf of a
 /// configured Action. Raw values identify internal adapters and historical
 /// saved Actions; current Plugin manifests use catalogue IDs.
-public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
+public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
     case openURL = "url.open"
     case openApplication = "application.open"
     case openFile = "file.open"
@@ -266,7 +266,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable {
     }
 }
 
-public struct CommandDeclaration: Codable, Equatable, Hashable {
+public struct CommandDeclaration: Codable, Equatable, Hashable, Sendable {
     public let id: CommandID
     public let title: String
     public let execution: CommandExecution
@@ -426,7 +426,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable {
     }
 }
 
-public struct PluginManifest: Codable, Equatable {
+public struct PluginManifest: Codable, Equatable, Sendable {
     public static let supportedProtocolVersion = "1.0"
     public static var compatibilityMigrationMessage: String {
         "Update this Plugin to declare engines.spinnet (for example \(HostCompatibility.current.rawValue)) "

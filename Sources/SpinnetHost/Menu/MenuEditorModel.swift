@@ -11,7 +11,7 @@ struct PendingPluginInstallation: Identifiable, Equatable {
     let source: URL
     let review: PluginInstallationReview
     /// Set when this is a Plugin Update found at the Plugin's Update Source.
-    var update: PluginUpdateCandidate? = nil
+    var update: PluginUpdateOffer? = nil
 
     var id: URL { source }
 }
@@ -75,7 +75,7 @@ final class MenuEditorModel: ObservableObject {
     var reviewPluginInstallation: ((URL) throws -> PluginInstallationReview)?
     var installPlugin: ((URL) throws -> PluginManifest)?
     /// Applies a Plugin Update through the same install-and-replace path.
-    var applyPluginUpdate: ((PluginUpdateCandidate) throws -> PluginManifest)?
+    var applyPluginUpdate: ((PluginUpdateOffer) throws -> PluginManifest)?
     /// Grants reviewed requests after registration; an empty list refreshes
     /// inherited decisions for the newly installed version without granting access.
     var grantRequestedAccess: ((PluginManifest, [PluginCapability]) -> Void)?
@@ -252,7 +252,7 @@ final class MenuEditorModel: ObservableObject {
 
     /// A Plugin Update found at the Update Source takes the same review as a
     /// package the user chose.
-    func installPluginUpdate(_ update: PluginUpdateCandidate) {
+    func installPluginUpdate(_ update: PluginUpdateOffer) {
         let pending = PendingPluginInstallation(source: update.packageURL, review: update.review, update: update)
         guard update.review.requestedAccess.isEmpty else {
             pendingInstallation = pending

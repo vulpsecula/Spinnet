@@ -3,10 +3,12 @@ import Foundation
 /// The bounds of one Plugin Update check. They are published in the Plugin
 /// API's Update Source reference.
 public enum PluginUpdateBudgets {
-    /// Releases read from one Update Source: GitHub's most recent page.
-    public static let maximumReleases = 100
-    /// Largest release listing the Host reads.
-    public static let maximumListingBytes = 4 * 1024 * 1024
+    /// Releases looked up by tag in one check, newest version first.
+    public static let maximumReleaseLookups = 10
+    /// Packages downloaded in one check, newest version first.
+    public static let maximumDownloads = 5
+    /// Largest tag list or release GitHub's API answer the Host reads.
+    public static let maximumAnswerBytes = 4 * 1024 * 1024
     /// Largest zipped package the Host downloads.
     public static let maximumPackageBytes = 16 * 1024 * 1024
     /// Largest total a package archive may unpack to.
@@ -15,11 +17,12 @@ public enum PluginUpdateBudgets {
     public static let maximumArchiveEntries = PluginPackageArchive.maximumEntries
     /// Redirects followed from a release asset to GitHub's download storage.
     public static let maximumRedirects = 3
-    public static let listingTimeout: TimeInterval = 15
+    public static let answerTimeout: TimeInterval = 15
     public static let downloadTimeout: TimeInterval = 60
-    /// Hosts a release asset download may be redirected to, all GitHub's.
+    /// GitHub's download storage, where a release asset download may be
+    /// redirected. The asset itself is always asked of github.com.
     public static let downloadHosts: Set<String> = [
-        "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"
+        "objects.githubusercontent.com", "release-assets.githubusercontent.com"
     ]
 }
 
@@ -27,32 +30,37 @@ public enum PluginUpdateBudgets {
 public struct PluginUpdateRefusal: Equatable, Sendable {
     /// The release tag it was published under.
     public let tag: String
+    /// The version the tag names, as written after `<id>/v`.
+    public let version: String
     public let reason: String
 
-    public init(tag: String, reason: String) {
+    public init(tag: String, version: String, reason: String) {
         self.tag = tag
+        self.version = version
         self.reason = reason
     }
 }
 
 /// A newer version that passed every acceptance rule, unpacked and reviewed,
 /// waiting for the user to apply it.
-public struct PluginUpdateCandidate: Equatable {
+public struct PluginUpdateOffer: Equatable, Sendable {
     public let tag: String
     public let manifest: PluginManifest
-    /// What installing it would do, including the Capabilities it newly asks for.
+    /// What installing it would have done when it was checked, including the
+    /// Capabilities it newly asks for. Review it again before applying.
     public let review: PluginInstallationReview
     /// The unpacked package the update installs.
     public let packageURL: URL
 }
 
 /// The outcome of checking one installed Plugin's Update Source.
-public struct PluginUpdateCheck: Equatable {
+public struct PluginUpdateCheck: Equatable, Sendable {
     public let pluginID: PluginID
     public let installedVersion: String
     /// The highest accepted newer version, if any.
-    public let update: PluginUpdateCandidate?
-    /// Newer versions that were refused, with why, highest first.
+    public let update: PluginUpdateOffer?
+    /// Newer versions that were refused or not tried, with why, highest
+    /// first. With an update, these are all versions above it.
     public let refusals: [PluginUpdateRefusal]
 }
 
@@ -66,7 +74,7 @@ public enum PluginUpdateError: Error, Equatable, LocalizedError {
     case rateLimited(resetsAt: Date?)
     case repositoryNotFound(PluginUpdateSource)
     case unexpectedStatus(Int)
-    case malformedReleases(String)
+    case unreadableAnswer(String)
     case changedSinceCheck(String)
 
     public var errorDescription: String? {
@@ -87,8 +95,8 @@ public enum PluginUpdateError: Error, Equatable, LocalizedError {
             return "GitHub has no public repository \(source.github)."
         case .unexpectedStatus(let status):
             return "GitHub answered with status \(status)."
-        case .malformedReleases(let detail):
-            return "GitHub's release list could not be read: \(detail)"
+        case .unreadableAnswer(let detail):
+            return "GitHub's release tags could not be read: \(detail)"
         case .changedSinceCheck(let detail):
             return "The update no longer applies: \(detail) Check again."
         }
@@ -99,26 +107,30 @@ public enum PluginUpdateError: Error, Equatable, LocalizedError {
 /// same install-and-replace path as a Library install, so Plugin Storage,
 /// Plugin Settings, Menu Items and Capability decisions are kept and newly
 /// requested Capabilities are left for the user. Nothing installs unless the
-/// caller applies a candidate.
+/// caller applies an offer.
 ///
-/// A published package is accepted only when it came over HTTPS from a
-/// release asset of the declared repository on github.com, has the same
-/// Plugin identity, declares the same Update Source, has a strictly greater
-/// SemVer version than the installed one and satisfies Host Compatibility.
-/// The highest accepted version wins.
+/// A check lists the Plugin's release tags by prefix, so other Plugins
+/// sharing the repository never hide its versions, then looks up releases
+/// newest version first. A published package is accepted only when it came
+/// over HTTPS from a release asset of the declared repository on github.com,
+/// has the same Plugin identity, declares the same Update Source, has a
+/// strictly greater SemVer version than the installed one and satisfies Host
+/// Compatibility. The highest accepted version wins.
 public final class PluginUpdater {
     private let store: PluginInstallationStore
     private let registry: PluginRegistry
     private let transport: HTTPSTransport
     private let downloads: URL
 
-    /// `downloads` holds unpacked candidates until they are applied or the
-    /// next check of the same Plugin replaces them.
+    /// `downloads` holds unpacked offers until they are applied or the next
+    /// check of the same Plugin replaces them. Whatever an earlier updater
+    /// left there is removed.
     public init(store: PluginInstallationStore, registry: PluginRegistry, transport: HTTPSTransport, downloads: URL) {
         self.store = store
         self.registry = registry
         self.transport = transport
         self.downloads = downloads
+        try? FileManager.default.removeItem(at: downloads)
     }
 
     private func installedManifest(_ pluginID: PluginID) throws -> PluginManifest {
@@ -128,57 +140,80 @@ public final class PluginUpdater {
         return manifest
     }
 
+    private func workspace(for pluginID: PluginID) -> URL {
+        downloads.appendingPathComponent(pluginID.rawValue, isDirectory: true)
+    }
+
     /// Asks the Update Source for newer versions. Each newer version is
-    /// fetched, highest first, until one is accepted.
+    /// looked up and fetched, highest first and within the published
+    /// bounds, until one is accepted.
     public func check(_ pluginID: PluginID) throws -> PluginUpdateCheck {
         let installed = try installedManifest(pluginID)
         guard let source = installed.updateSource else { throw PluginUpdateError.noUpdateSource(installed.name) }
         let current = try PluginVersion(installed.version)
-        let releases = try listReleases(of: source)
-
         let prefix = PluginUpdateSource.releaseTag(for: pluginID, version: "")
+
         var refusals: [PluginUpdateRefusal] = []
-        var newer: [(version: PluginVersion, release: Release)] = []
-        for release in releases where release.draft != true && release.prerelease != true && release.tag.hasPrefix(prefix) {
-            guard let version = try? PluginVersion(String(release.tag.dropFirst(prefix.count))) else {
-                refusals.append(.init(tag: release.tag, reason: "The release tag does not name a SemVer version."))
+        var newer: [(version: PluginVersion, tag: String)] = []
+        for tag in try listTags(of: source, prefix: prefix) {
+            let written = String(tag.dropFirst(prefix.count))
+            guard let version = try? PluginVersion(written) else {
+                refusals.append(.init(tag: tag, version: written, reason: "The release tag does not name a SemVer version."))
                 continue
             }
-            if version > current { newer.append((version, release)) }
+            if version > current { newer.append((version, tag)) }
         }
         newer.sort { $0.version > $1.version }
 
-        let workspace = downloads.appendingPathComponent(pluginID.rawValue, isDirectory: true)
+        let workspace = workspace(for: pluginID)
         try? FileManager.default.removeItem(at: workspace)
-        for (version, release) in newer {
+        var budget = Budget()
+        for (version, tag) in newer {
+            func refuse(_ reason: String) {
+                refusals.append(.init(tag: tag, version: version.description, reason: reason))
+            }
+            guard budget.lookups < PluginUpdateBudgets.maximumReleaseLookups else {
+                refuse("Not looked up: a check looks up at most \(PluginUpdateBudgets.maximumReleaseLookups) releases.")
+                continue
+            }
+            budget.lookups += 1
+            let directory = workspace.appendingPathComponent(UUID().uuidString)
             do {
-                let candidate = try accept(release, version: version, replacing: installed, source: source,
-                                           into: workspace.appendingPathComponent(UUID().uuidString))
+                // A draft, a tag without a release and a prerelease are not offered.
+                guard let release = try lookUpRelease(tag, of: source), release.draft != true, release.prerelease != true else {
+                    continue
+                }
+                let offer = try accept(release, version: version, replacing: installed, source: source,
+                                       into: directory, budget: &budget)
                 return PluginUpdateCheck(pluginID: pluginID, installedVersion: installed.version,
-                                         update: candidate, refusals: refusals)
-            } catch let error as PluginUpdateError where error == .offline || error == .timedOut {
+                                         update: offer, refusals: refusals)
+            } catch let error as PluginUpdateError {
+                try? FileManager.default.removeItem(at: workspace)
                 throw error
             } catch {
-                refusals.append(.init(tag: release.tag, reason: error.localizedDescription))
+                try? FileManager.default.removeItem(at: directory)
+                refuse(error.localizedDescription)
             }
         }
+        try? FileManager.default.removeItem(at: workspace)
         return PluginUpdateCheck(pluginID: pluginID, installedVersion: installed.version, update: nil, refusals: refusals)
     }
 
-    /// Installs a candidate from `check` in place of the installed version,
-    /// keeping what an update keeps. Returns the registered manifest.
+    /// Installs an offer from `check` in place of the installed version,
+    /// keeping what an update keeps, and removes its download. Returns the
+    /// registered manifest.
     @discardableResult
-    public func apply(_ candidate: PluginUpdateCandidate) throws -> PluginManifest {
-        let installed = try installedManifest(candidate.manifest.id)
-        guard let source = installed.updateSource, candidate.manifest.updateSource.map(source.isSame) == true,
-              try PluginVersion(candidate.manifest.version) > PluginVersion(installed.version) else {
+    public func apply(_ offer: PluginUpdateOffer) throws -> PluginManifest {
+        let installed = try installedManifest(offer.manifest.id)
+        guard let source = installed.updateSource, offer.manifest.updateSource.map(source.isSame) == true,
+              try PluginVersion(offer.manifest.version) > PluginVersion(installed.version) else {
             throw PluginUpdateError.changedSinceCheck("\(installed.name) \(installed.version) is installed now.")
         }
-        guard (try? PluginManifestLoader.load(packageAt: candidate.packageURL).manifest) == candidate.manifest else {
+        guard (try? PluginManifestLoader.load(packageAt: offer.packageURL).manifest) == offer.manifest else {
             throw PluginUpdateError.changedSinceCheck("The downloaded package changed.")
         }
-        let manifest = try store.install(from: candidate.packageURL)
-        try? FileManager.default.removeItem(at: candidate.packageURL.deletingLastPathComponent())
+        let manifest = try store.install(from: offer.packageURL)
+        try? FileManager.default.removeItem(at: workspace(for: offer.manifest.id))
         return manifest
     }
 
@@ -189,19 +224,28 @@ public final class PluginUpdater {
         var errorDescription: String? { reason }
     }
 
+    /// What one check has spent of its published bounds.
+    private struct Budget {
+        var lookups = 0
+        var downloads = 0
+    }
+
     private func accept(_ release: Release, version: PluginVersion, replacing installed: PluginManifest,
-                        source: PluginUpdateSource, into directory: URL) throws -> PluginUpdateCandidate {
+                        source: PluginUpdateSource, into directory: URL, budget: inout Budget) throws -> PluginUpdateOffer {
         let name = PluginUpdateSource.assetName(for: installed.id)
         guard let asset = release.assets.first(where: { $0.name == name }) else {
             throw Refusal(reason: "The release has no asset named \(name).")
         }
-        guard let url = URL(string: asset.downloadURL), Self.isReleaseAsset(url, of: source, named: name) else {
+        guard let url = URL(string: asset.downloadURL), Self.isReleaseAsset(url, of: source, tag: release.tag, named: name) else {
             throw Refusal(reason: "The package is not a release asset of \(source.github) on github.com over HTTPS.")
         }
-        let archive = try download(url)
+        guard budget.downloads < PluginUpdateBudgets.maximumDownloads else {
+            throw Refusal(reason: "Not downloaded: a check downloads at most \(PluginUpdateBudgets.maximumDownloads) packages.")
+        }
+        budget.downloads += 1
         let package: URL
         do {
-            package = try PluginPackageArchive.unpack(archive, into: directory)
+            package = try PluginPackageArchive.unpack(download(url), into: directory)
         } catch let refusal as PluginPackageArchive.Refusal {
             throw Refusal(reason: refusal.reason + ".")
         }
@@ -222,23 +266,34 @@ public final class PluginUpdater {
             throw Refusal(reason: "The package is version \(manifest.version), not the \(version) its release tag names.")
         }
         // The same checks as any install, Host Compatibility included.
-        let review = try store.review(package)
-        return PluginUpdateCandidate(tag: release.tag, manifest: manifest, review: review, packageURL: package)
+        let review: PluginInstallationReview
+        do {
+            review = try store.review(package)
+        } catch {
+            throw Refusal(reason: error.localizedDescription)
+        }
+        return PluginUpdateOffer(tag: release.tag, manifest: manifest, review: review, packageURL: package)
     }
 
-    /// `https://github.com/<owner>/<repo>/releases/download/<tag>/<name>`.
-    static func isReleaseAsset(_ url: URL, of source: PluginUpdateSource, named name: String) -> Bool {
+    /// `https://github.com/<owner>/<repo>/releases/download/<tag>/<name>`,
+    /// for the release's own tag.
+    static func isReleaseAsset(_ url: URL, of source: PluginUpdateSource, tag: String, named name: String) -> Bool {
         guard url.scheme == "https", url.host?.lowercased() == "github.com", url.user == nil, url.password == nil,
               url.port == nil, url.query == nil, url.fragment == nil else { return false }
         let components = url.path.split(separator: "/", omittingEmptySubsequences: false).dropFirst().map(String.init)
         guard components.count >= 6, !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
               components[0].lowercased() == source.owner.lowercased(),
               components[1].lowercased() == source.repository.lowercased(),
-              components[2] == "releases", components[3] == "download", components.last == name else { return false }
+              components[2] == "releases", components[3] == "download", components.last == name,
+              components[4..<(components.count - 1)].joined(separator: "/") == tag else { return false }
         return true
     }
 
     // MARK: - GitHub
+
+    private struct Reference: Decodable {
+        let ref: String
+    }
 
     private struct Release: Decodable {
         struct Asset: Decodable {
@@ -273,32 +328,58 @@ public final class PluginUpdater {
         }
     }
 
-    private func listReleases(of source: PluginUpdateSource) throws -> [Release] {
-        let url = URL(string: "https://api.github.com/repos/\(source.owner)/\(source.repository)/releases?per_page=\(PluginUpdateBudgets.maximumReleases)")!
+    private func askAPI(_ path: String) throws -> HTTPSTransportResponse {
+        let response = try send(URL(string: "https://api.github.com/" + path)!, accept: "application/vnd.github+json",
+                                timeout: PluginUpdateBudgets.answerTimeout, limit: PluginUpdateBudgets.maximumAnswerBytes)
+        if response.status == 429 || (response.status == 403 && response.headers["x-ratelimit-remaining"] == "0") {
+            let reset = response.headers["x-ratelimit-reset"].flatMap(TimeInterval.init).map(Date.init(timeIntervalSince1970:))
+            throw PluginUpdateError.rateLimited(resetsAt: reset)
+        }
+        return response
+    }
+
+    /// Every tag starting with `prefix`, however many releases the
+    /// repository has.
+    private func listTags(of source: PluginUpdateSource, prefix: String) throws -> [String] {
         let response: HTTPSTransportResponse
         do {
-            response = try send(url, accept: "application/vnd.github+json", timeout: PluginUpdateBudgets.listingTimeout,
-                                limit: PluginUpdateBudgets.maximumListingBytes)
+            response = try askAPI("repos/\(source.owner)/\(source.repository)/git/matching-refs/tags/\(prefix)")
         } catch let refusal as Refusal {
-            throw PluginUpdateError.malformedReleases(refusal.reason)
+            throw PluginUpdateError.unreadableAnswer(refusal.reason)
         }
-        let limited = response.status == 429 || (response.status == 403 && response.headers["x-ratelimit-remaining"] == "0")
         switch response.status {
         case 200:
             break
-        case _ where limited:
-            let reset = response.headers["x-ratelimit-reset"].flatMap(TimeInterval.init).map(Date.init(timeIntervalSince1970:))
-            throw PluginUpdateError.rateLimited(resetsAt: reset)
         case 404:
             throw PluginUpdateError.repositoryNotFound(source)
         default:
             throw PluginUpdateError.unexpectedStatus(response.status)
         }
+        let references: [Reference]
         do {
-            return try JSONDecoder().decode([Release].self, from: response.body)
+            references = try JSONDecoder().decode([Reference].self, from: response.body)
         } catch {
-            throw PluginUpdateError.malformedReleases("it is not a list of releases.")
+            throw PluginUpdateError.unreadableAnswer("it is not a list of tags.")
         }
+        let tagPrefix = "refs/tags/" + prefix
+        return references.map(\.ref).filter { $0.hasPrefix(tagPrefix) }.map { String($0.dropFirst("refs/tags/".count)) }
+    }
+
+    /// The release published under `tag`, or nil when GitHub shows none.
+    private func lookUpRelease(_ tag: String, of source: PluginUpdateSource) throws -> Release? {
+        let response = try askAPI("repos/\(source.owner)/\(source.repository)/releases/tags/\(tag)")
+        switch response.status {
+        case 200:
+            break
+        case 404:
+            return nil
+        default:
+            throw Refusal(reason: "GitHub answered the release lookup with status \(response.status).")
+        }
+        guard let release = try? JSONDecoder().decode(Release.self, from: response.body), release.tag == tag else {
+            throw Refusal(reason: "GitHub's answer is not the release \(tag).")
+        }
+        return release
     }
 
     /// Follows GitHub's redirects to its download storage, and nowhere else.

@@ -7,7 +7,7 @@ import Foundation
 /// `position` also carry a grammar the Host checks before it saves an Action,
 /// so an invalid value is rejected in the Configuration Sheet rather than when
 /// the Action runs.
-public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equatable, Hashable {
+public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
     case text
     case multilineText = "multiline_text"
     case toggle
@@ -67,7 +67,7 @@ public enum CommandConfigurationFieldKind: String, Codable, CaseIterable, Equata
 /// The choices of another field in the same set that use a field. A field
 /// whose condition is not met is not used by the Action, so the Host ignores
 /// its value, for instance when deciding whether a save folder must exist.
-public struct CommandConfigurationFieldCondition: Codable, Equatable, Hashable {
+public struct CommandConfigurationFieldCondition: Codable, Equatable, Hashable, Sendable {
     public let key: String
     public let values: [String]
 
@@ -77,7 +77,7 @@ public struct CommandConfigurationFieldCondition: Codable, Equatable, Hashable {
     }
 }
 
-public struct CommandConfigurationField: Codable, Equatable, Hashable {
+public struct CommandConfigurationField: Codable, Equatable, Hashable, Sendable {
     public let kind: CommandConfigurationFieldKind
     public let title: String?
     public let placeholder: String?

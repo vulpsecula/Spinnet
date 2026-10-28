@@ -1,7 +1,7 @@
 import Foundation
 
 /// Declarative prerequisites. This grants no authority and adds no executable Plugin hook.
-public struct ExternalAppConnectionDeclaration: Codable, Equatable {
+public struct ExternalAppConnectionDeclaration: Codable, Equatable, Sendable {
     public let bundleID: String
     public let commandIDs: [CommandID]
 

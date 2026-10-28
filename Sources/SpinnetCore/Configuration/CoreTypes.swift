@@ -2,7 +2,7 @@ import Foundation
 
 /// JSON is the value shape used by configured Host Actions. Keeping it
 /// explicit prevents Foundation objects from leaking through the public seam.
-public enum JSONValue: Codable, Equatable, Hashable {
+public enum JSONValue: Codable, Equatable, Hashable, Sendable {
     case null
     case bool(Bool)
     case number(Double)
@@ -80,7 +80,7 @@ public enum JSONValue: Codable, Equatable, Hashable {
     }
 }
 
-public struct PluginID: RawRepresentable, Codable, Equatable, Hashable {
+public struct PluginID: RawRepresentable, Codable, Equatable, Hashable, Sendable {
     public let rawValue: String
 
     public init(_ rawValue: String) { self.rawValue = rawValue }
@@ -96,7 +96,7 @@ public struct PluginID: RawRepresentable, Codable, Equatable, Hashable {
     }
 }
 
-public struct CommandID: RawRepresentable, Codable, Equatable, Hashable {
+public struct CommandID: RawRepresentable, Codable, Equatable, Hashable, Sendable {
     public let rawValue: String
 
     public init(_ rawValue: String) { self.rawValue = rawValue }

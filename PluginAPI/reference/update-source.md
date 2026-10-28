@@ -56,32 +56,36 @@ Because each tag starts with the Plugin's identity, one repository can publish
 several Plugins. Zipping the package folder with Finder's Compress or
 `ditto -c -k --keepParent Example.spinnetplugin com.example.plugin.spinnetplugin.zip`
 produces a suitable asset. The archive may hold only plain files and folders,
-stored or deflated: links, absolute or `..` paths, encryption and ZIP64 are
-refused. A `__MACOSX` folder is ignored.
+stored or deflated: links, absolute or `..` paths, two paths that differ only
+in case or Unicode normalization, encryption and ZIP64 are refused. A
+`__MACOSX` folder is ignored.
 
 Mark a release that should not be offered yet as a prerelease or keep it as a
 draft. A published version should never change; publish a new version instead.
 
 ## How a version is chosen
 
-When the user checks a Plugin, the Host:
+When the user checks a Plugin, the Host asks GitHub's public API,
+unauthenticated:
 
-1. Reads the repository's 100 most recent releases from GitHub's public API,
-   unauthenticated, and ignores drafts, releases marked as prereleases and
-   tags that do not start with `<id>/v`.
+1. Lists every tag in the repository that starts with `<id>/v`, however many
+   releases the repository has (`GET /repos/<owner>/<repo>/git/matching-refs/tags/<id>/v`).
 2. Keeps the tags whose version is strictly greater, by SemVer precedence,
    than the installed version. A tag under the prefix that is not a SemVer
    version is reported as refused.
-3. Tries those versions from highest to lowest and offers the first one it
-   accepts. The highest accepted version wins; lower ones are not downloaded.
+3. Looks up the release of each of those tags from highest version to lowest
+   (`GET /repos/<owner>/<repo>/releases/tags/<tag>`) and offers the first one
+   it accepts. A tag without a published release, a draft and a release
+   marked as a prerelease are skipped. The highest accepted version wins;
+   lower ones are neither looked up nor downloaded.
 
 A package is accepted only when all of these hold:
 
 - it was fetched over HTTPS from the release's asset named above, at
-  `https://github.com/<owner>/<repo>/releases/download/…` for the declared
-  repository; the download may be redirected only to GitHub's download
-  storage (`objects.githubusercontent.com` or
-  `release-assets.githubusercontent.com`);
+  `https://github.com/<owner>/<repo>/releases/download/<tag>/…` for the
+  declared repository and that release's own tag; the download may be
+  redirected only to GitHub's download storage
+  (`objects.githubusercontent.com` or `release-assets.githubusercontent.com`);
 - it unpacks to one readable package;
 - it has the same Plugin identity as the installed Plugin;
 - it declares the same Update Source (owner and repository compare without
@@ -92,13 +96,16 @@ A package is accepted only when all of these hold:
   passes every other check of an ordinary install.
 
 A refused version is listed with its reason, and the next lower one is tried.
-A failed check, such as being offline, GitHub's rate limit or an unreadable
-release list, is reported. Either way the installed version keeps working.
+A version past the lookup or download bound below is listed as not tried, and
+an update offered below refused versions is shown with their reasons. A failed
+check, such as being offline, GitHub's rate limit or an unreadable tag list,
+is reported. Either way the installed version keeps working.
 
 | Bound | Value |
 | --- | --- |
-| Releases read per check | 100 |
-| Release list size | 4 MiB |
+| Releases looked up per check | 10 |
+| Packages downloaded per check | 5 |
+| Tag list or release answer size | 4 MiB |
 | Package asset size | 16 MiB |
 | Unpacked package size | 64 MiB |
 | Archive entries | 2048 |
@@ -111,9 +118,11 @@ Applying replaces the package through the same path as
 Storage, Plugin Settings, Menu Items and Capability decisions for unchanged
 scopes are kept, the version's migrations run, and Capabilities the new
 version newly requests are shown for review before anything is replaced.
-Cancelling keeps the installed version.
+The review is made again when the user applies the update, so a decision or
+Host change since the check counts. Cancelling keeps the installed version.
 
-A Plugin without an Update Source offers no update controls. Downgrades,
+A Plugin without an Update Source offers no update controls; one the Host
+refused to load still offers them, so a version it can run can be found. Downgrades,
 rollback, automatic installation, signing, authenticated requests and
 sources other than GitHub Releases are not offered.
 

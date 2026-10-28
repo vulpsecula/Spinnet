@@ -2,7 +2,7 @@ import Foundation
 
 /// What installing a package would do, worked out before anything is copied
 /// so the user can allow it first.
-public struct PluginInstallationReview: Equatable {
+public struct PluginInstallationReview: Equatable, Sendable {
     /// The Plugin the install registers.
     public let manifest: PluginManifest
     /// The Capabilities nobody will have decided on once it is installed.

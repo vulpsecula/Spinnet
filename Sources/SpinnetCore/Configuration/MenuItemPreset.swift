@@ -1,6 +1,6 @@
 import Foundation
 
-public enum MenuItemPresetReadiness: String, Codable, Equatable, Hashable {
+public enum MenuItemPresetReadiness: String, Codable, Equatable, Hashable, Sendable {
     case readyToUse = "ready_to_use"
     case setupRequired = "setup_required"
 
@@ -12,7 +12,7 @@ public enum MenuItemPresetReadiness: String, Codable, Equatable, Hashable {
     }
 }
 
-public struct MenuItemPresetDeclaration: Codable, Equatable {
+public struct MenuItemPresetDeclaration: Codable, Equatable, Sendable {
     public let readiness: MenuItemPresetReadiness
     public let isConfigurable: Bool
     public let defaultPrimaryCommandID: CommandID?

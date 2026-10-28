@@ -7,13 +7,13 @@ import Foundation
 /// bounded text that is percent-encoded so it cannot change the link's
 /// structure. The template is part of the scope, so changing it asks the user
 /// again.
-public struct DeepLinkTemplate: Codable, Equatable, Hashable {
+public struct DeepLinkTemplate: Codable, Equatable, Hashable, Sendable {
     public let id: String
     public let url: String
     public let parameters: [Parameter]
 
-    public struct Parameter: Codable, Equatable, Hashable {
-        public enum Kind: String, Codable, Equatable, Hashable {
+    public struct Parameter: Codable, Equatable, Hashable, Sendable {
+        public enum Kind: String, Codable, Equatable, Hashable, Sendable {
             /// One of `choices`, each of them URL-safe as written.
             case choice
             /// Text of at most `maxLength` characters, percent-encoded.

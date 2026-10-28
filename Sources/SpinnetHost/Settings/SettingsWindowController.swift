@@ -47,7 +47,7 @@ final class SettingsWindowController: NSWindowController {
         get { model.menuEditor.installPlugin }
         set { model.menuEditor.installPlugin = newValue }
     }
-    var applyPluginUpdate: ((PluginUpdateCandidate) throws -> PluginManifest)? {
+    var applyPluginUpdate: ((PluginUpdateOffer) throws -> PluginManifest)? {
         get { model.menuEditor.applyPluginUpdate }
         set { model.menuEditor.applyPluginUpdate = newValue }
     }

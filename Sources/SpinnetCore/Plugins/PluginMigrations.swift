@@ -6,7 +6,7 @@ import Foundation
 /// nothing else, so a migration can never grant a Capability. The Host applies
 /// it whenever it registers or updates the Plugin; every step leaves data it
 /// already moved as it is, so applying it again changes nothing.
-public struct PluginMigrations: Codable, Equatable {
+public struct PluginMigrations: Codable, Equatable, Sendable {
     /// Retired Command IDs and the declared Command their Actions move onto,
     /// keeping their IDs. Written as `rename_commands`.
     public let renamedCommands: [CommandID: CommandID]

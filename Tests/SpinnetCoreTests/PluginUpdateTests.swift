@@ -12,6 +12,7 @@ final class PluginUpdateTests: XCTestCase {
     private var storage: PluginStorage!
     private var store: PluginInstallationStore!
     private var transport: RecordedGitHubTransport!
+    private var updater: PluginUpdater!
 
     override func setUpWithError() throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -21,15 +22,17 @@ final class PluginUpdateTests: XCTestCase {
         store = PluginInstallationStore(directory: directory.appendingPathComponent("Installed"), registry: registry,
                                         grants: grants, persistGrants: {}, storage: storage)
         transport = RecordedGitHubTransport()
+        updater = makeUpdater()
     }
 
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    private func updater(hostVersion: HostVersion = .current) -> PluginUpdater {
-        PluginUpdater(store: store, registry: registry, transport: transport,
-                      downloads: directory.appendingPathComponent("Downloads"))
+    private var downloads: URL { directory.appendingPathComponent("Downloads") }
+
+    private func makeUpdater() -> PluginUpdater {
+        PluginUpdater(store: store, registry: registry, transport: transport, downloads: downloads)
     }
 
     @discardableResult
@@ -39,150 +42,267 @@ final class PluginUpdateTests: XCTestCase {
     }
 
     private func publish(_ releases: [PluginReleaseFixture.Release]) throws {
-        transport.answer(PluginReleaseFixture.releasesURL, body: try PluginReleaseFixture.listing(releases))
+        try PluginReleaseFixture.publish(releases, on: transport)
     }
 
     private func publishAsset(tag: String, _ manifest: [String: Any]) throws {
         transport.answer(PluginReleaseFixture.assetURL(tag: tag), body: try PluginReleaseFixture.zipped(manifest, in: directory))
     }
 
+    private func tag(_ version: String) -> String { "com.example.updatable/v\(version)" }
+
     private var installedVersion: String? { registry.package(for: PluginReleaseFixture.pluginID)?.manifest.version }
+
+    /// Refusal reasons by the version each names.
+    private func reasons(_ check: PluginUpdateCheck) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: check.refusals.map { ($0.version, $0.reason) })
+    }
+
+    /// What is left in the Plugin's download workspace.
+    private func leftoverDownloads() -> [String] {
+        let workspace = downloads.appendingPathComponent(PluginReleaseFixture.pluginID.rawValue)
+        return (try? FileManager.default.contentsOfDirectory(atPath: workspace.path)) ?? []
+    }
 
     func testTheHighestAcceptedVersionIsOfferedAndApplyingRegistersIt() throws {
         try install(version: "1.0.0")
         try publish([
             .init(tag: "com.example.other/v9.0.0"),
-            .init(tag: "com.example.updatable/v1.2.0"),
-            .init(tag: "com.example.updatable/v1.1.0"),
-            .init(tag: "com.example.updatable/v0.9.0")
+            .init(tag: tag("1.2.0")),
+            .init(tag: tag("1.1.0")),
+            .init(tag: tag("0.9.0"))
         ])
-        try publishAsset(tag: "com.example.updatable/v1.2.0", PluginReleaseFixture.manifest(version: "1.2.0"))
-        try publishAsset(tag: "com.example.updatable/v1.1.0", PluginReleaseFixture.manifest(version: "1.1.0"))
+        try publishAsset(tag: tag("1.2.0"), PluginReleaseFixture.manifest(version: "1.2.0"))
+        try publishAsset(tag: tag("1.1.0"), PluginReleaseFixture.manifest(version: "1.1.0"))
 
-        let check = try updater().check(PluginReleaseFixture.pluginID)
+        let check = try updater.check(PluginReleaseFixture.pluginID)
 
         XCTAssertEqual(check.installedVersion, "1.0.0")
         XCTAssertEqual(check.update?.manifest.version, "1.2.0")
         XCTAssertEqual(check.refusals, [])
         XCTAssertEqual(installedVersion, "1.0.0", "Checking installs nothing")
-        XCTAssertFalse(transport.requestedURLs.contains(PluginReleaseFixture.assetURL(tag: "com.example.updatable/v1.1.0")),
-                       "A lower version is not fetched once a higher one is accepted")
+        XCTAssertEqual(transport.requestedURLs, [
+            PluginReleaseFixture.tagsURL, PluginReleaseFixture.releaseURL(tag: tag("1.2.0")),
+            PluginReleaseFixture.assetURL(tag: tag("1.2.0"))
+        ], "A lower version is neither looked up nor fetched once a higher one is accepted")
 
-        let applied = try updater().apply(XCTUnwrap(check.update))
+        let applied = try updater.apply(XCTUnwrap(check.update))
 
         XCTAssertEqual(applied.version, "1.2.0")
         XCTAssertEqual(installedVersion, "1.2.0")
+        XCTAssertEqual(leftoverDownloads(), [], "Applying removes the downloaded package")
     }
 
-    func testApplyingKeepsPluginStorageAndDecisionsAndLeavesNewCapabilitiesUndecided() throws {
+    func testApplyingKeepsPluginStorageSettingsMenuItemsAndDecisionsAndLeavesNewCapabilitiesUndecided() throws {
         let installed = try install(version: "1.0.0")
         try storage.setValue(.string("kept"), forKey: "counter", of: installed.id)
         grants.setDecision(.granted, for: installed.id, pluginVersion: "1.0.0", capability: .writeClipboard)
-        try publish([.init(tag: "com.example.updatable/v2.0.0")])
-        try publishAsset(tag: "com.example.updatable/v2.0.0", PluginReleaseFixture.manifest(
+        let settingsURL = directory.appendingPathComponent("plugin-settings.json")
+        try PluginSettingsStore(fileURL: settingsURL).setValues(["target": .string("FR")], for: installed.id)
+        let editor = HostConfigurationEditor(registry: registry, configuration: try HostConfiguration(
+            actions: [], menu: MenuConfiguration(slots: [.empty])))
+        try editor.placeCommand(pluginID: installed.id, commandID: CommandID("updatable.run"), input: .null, inSlotAt: 0)
+        let configuration = editor.configuration
+        try publish([.init(tag: tag("2.0.0"))])
+        try publishAsset(tag: tag("2.0.0"), PluginReleaseFixture.manifest(
             version: "2.0.0", capabilities: ["write_clipboard", "read_selected_text"]))
 
-        let update = try XCTUnwrap(try updater().check(installed.id).update)
+        let update = try XCTUnwrap(try updater.check(installed.id).update)
 
         XCTAssertEqual(update.review.requestedAccess, [.readSelectedText],
                        "Only the newly requested Capability is reviewed before replacement")
         XCTAssertEqual(installedVersion, "1.0.0")
 
-        try updater().apply(update)
+        try updater.apply(update)
 
         XCTAssertEqual(installedVersion, "2.0.0")
         XCTAssertEqual(try storage.value(forKey: "counter", of: installed.id), .string("kept"))
+        XCTAssertEqual(try PluginSettingsStore(fileURL: settingsURL).values(for: installed.id), ["target": .string("FR")])
+        XCTAssertEqual(editor.configuration, configuration, "The Menu Item placed for the Plugin stays")
+        XCTAssertEqual(editor.configuration.actions.map(\.pluginID), [installed.id])
+        XCTAssertNotNil(registry.menuItemPreset(for: installed.id))
         XCTAssertEqual(grants.decision(for: installed.id, pluginVersion: "2.0.0", capability: .writeClipboard), .granted)
         XCTAssertEqual(grants.decision(for: installed.id, pluginVersion: "2.0.0", capability: .readSelectedText),
                        .notDetermined)
     }
 
-    func testEachRefusalCarriesItsReasonAndTheNextLowerAcceptedVersionWins() throws {
+    func testAReleaseThatIsNotTheDeclaredRepositorysAssetIsRefusedWithoutDownloading() throws {
         try install(version: "1.0.0")
         let name = PluginReleaseFixture.assetName
-        let foreign = "https://github.com/someone-else/plugins/releases/download/com.example.updatable/v2.5.0/\(name)"
-        let plain = "http://github.com/example-org/plugins/releases/download/com.example.updatable/v2.4.0/\(name)"
+        let foreign = PluginReleaseFixture.assetURL(tag: tag("2.5.0"), repository: "someone-else/plugins")
+        let plain = "http://github.com/example-org/plugins/releases/download/\(tag("2.4.0"))/\(name)"
+        let otherTag = PluginReleaseFixture.assetURL(tag: tag("2.0.0"))
         try publish([
-            .init(tag: "com.example.updatable/v2.6.0", assets: []),
-            .init(tag: "com.example.updatable/v2.5.0", assets: [(name, foreign)]),
-            .init(tag: "com.example.updatable/v2.4.0", assets: [(name, plain)]),
-            .init(tag: "com.example.updatable/v2.3.0"),
-            .init(tag: "com.example.updatable/v2.2.0"),
-            .init(tag: "com.example.updatable/v2.1.0"),
-            .init(tag: "com.example.updatable/v2.0.0"),
-            .init(tag: "com.example.updatable/v1.9.0"),
-            .init(tag: "com.example.updatable/v1.8.0"),
-            .init(tag: "com.example.updatable/v1.7.0"),
-            .init(tag: "com.example.updatable/vnext"),
-            .init(tag: "com.example.updatable/v1.5.0")
+            .init(tag: tag("2.6.0"), assets: []),
+            .init(tag: tag("2.5.0"), assets: [(name, foreign)]),
+            .init(tag: tag("2.4.0"), assets: [(name, plain)]),
+            .init(tag: tag("2.3.0"), assets: [(name, otherTag)]),
+            .init(tag: tag("2.2.0"), draft: true),
+            .init(tag: tag("2.1.0"), prerelease: true),
+            .init(tag: tag("2.0.0")),
+            .init(tag: "com.example.updatable/vnext")
         ])
-        transport.answer(foreign, body: try PluginReleaseFixture.zipped(PluginReleaseFixture.manifest(version: "2.5.0"), in: directory))
-        transport.answer(plain, body: try PluginReleaseFixture.zipped(PluginReleaseFixture.manifest(version: "2.4.0"), in: directory))
-        try publishAsset(tag: "com.example.updatable/v2.3.0",
-                         PluginReleaseFixture.manifest(id: "com.example.impostor", version: "2.3.0"))
-        try publishAsset(tag: "com.example.updatable/v2.2.0",
-                         PluginReleaseFixture.manifest(version: "2.2.0", updateSource: "someone-else/plugins"))
-        try publishAsset(tag: "com.example.updatable/v2.1.0", PluginReleaseFixture.manifest(version: "2.1.0", updateSource: nil))
-        try publishAsset(tag: "com.example.updatable/v2.0.0", PluginReleaseFixture.manifest(version: "1.0.0"))
-        let nextMajor = HostVersion.current.major + 1
-        try publishAsset(tag: "com.example.updatable/v1.9.0",
-                         PluginReleaseFixture.manifest(version: "1.9.0", engines: "^\(nextMajor).0.0"))
-        transport.answer(PluginReleaseFixture.assetURL(tag: "com.example.updatable/v1.8.0"), body: Data("not a zip".utf8))
-        transport.answer(PluginReleaseFixture.assetURL(tag: "com.example.updatable/v1.7.0"), status: 302,
-                         headers: ["Location": "https://downloads.example.com/package.zip"])
-        let storageURL = "https://objects.githubusercontent.com/github-production-release-asset/1"
-        transport.answer(PluginReleaseFixture.assetURL(tag: "com.example.updatable/v1.5.0"), status: 302,
-                         headers: ["Location": storageURL])
-        transport.answer(storageURL, body: try PluginReleaseFixture.zipped(PluginReleaseFixture.manifest(version: "1.5.0"), in: directory))
+        try publishAsset(tag: tag("2.0.0"), PluginReleaseFixture.manifest(version: "2.0.0"))
 
-        let check = try updater().check(PluginReleaseFixture.pluginID)
+        let check = try updater.check(PluginReleaseFixture.pluginID)
 
-        XCTAssertEqual(check.update?.manifest.version, "1.5.0", "\(check.refusals)")
-        let reasons = Dictionary(uniqueKeysWithValues: check.refusals.map {
-            ($0.tag.replacingOccurrences(of: "com.example.updatable/", with: ""), $0.reason)
-        })
-        XCTAssertEqual(reasons.keys.sorted(), ["v1.7.0", "v1.8.0", "v1.9.0", "v2.0.0", "v2.1.0", "v2.2.0",
-                                               "v2.3.0", "v2.4.0", "v2.5.0", "v2.6.0", "vnext"])
-        XCTAssertEqual(reasons["v2.6.0"], "The release has no asset named com.example.updatable.spinnetplugin.zip.")
-        XCTAssertEqual(reasons["v2.5.0"], "The package is not a release asset of example-org/plugins on github.com over HTTPS.")
-        XCTAssertEqual(reasons["v2.4.0"], "The package is not a release asset of example-org/plugins on github.com over HTTPS.")
-        XCTAssertEqual(reasons["v2.3.0"], "The package is a different Plugin, com.example.impostor.")
-        XCTAssertEqual(reasons["v2.2.0"], "The package declares the Update Source someone-else/plugins, not example-org/plugins.")
-        XCTAssertEqual(reasons["v2.1.0"], "The package declares no Update Source, not example-org/plugins.")
-        XCTAssertEqual(reasons["v2.0.0"], "The package is version 1.0.0, not the 2.0.0 its release tag names.")
-        XCTAssertEqual(reasons["v1.9.0"]?.contains("requires Spinnet ^\(nextMajor).0.0"), true, reasons["v1.9.0"] ?? "")
-        XCTAssertEqual(reasons["v1.8.0"], "The package archive is not a readable ZIP file.")
-        XCTAssertEqual(reasons["v1.7.0"], "The release asset redirects away from GitHub's download storage.")
-        XCTAssertEqual(reasons["vnext"], "The release tag does not name a SemVer version.")
+        XCTAssertEqual(check.update?.manifest.version, "2.0.0", "\(check.refusals)")
+        XCTAssertEqual(reasons(check), [
+            "2.6.0": "The release has no asset named com.example.updatable.spinnetplugin.zip.",
+            "2.5.0": "The package is not a release asset of example-org/plugins on github.com over HTTPS.",
+            "2.4.0": "The package is not a release asset of example-org/plugins on github.com over HTTPS.",
+            "2.3.0": "The package is not a release asset of example-org/plugins on github.com over HTTPS.",
+            "next": "The release tag does not name a SemVer version."
+        ], "A draft, a tag without a release and a prerelease are not offered and not refused")
+        XCTAssertEqual(check.refusals.first { $0.version == "next" }?.tag, "com.example.updatable/vnext")
         XCTAssertFalse(transport.requestedURLs.contains(foreign), "A foreign repository's asset is never fetched")
         XCTAssertFalse(transport.requestedURLs.contains(plain), "Nothing is fetched without HTTPS")
-        XCTAssertFalse(transport.requestedURLs.contains("https://downloads.example.com/package.zip"))
+        XCTAssertEqual(transport.requestedURLs.filter { $0 == otherTag }.count, 1,
+                       "Another release's asset is fetched only for its own release")
+    }
+
+    func testADownloadedPackageIsRefusedWithItsReasonAndTheNextLowerAcceptedVersionWins() throws {
+        try install(version: "1.0.0")
+        try publish(["2.3.0", "2.2.0", "2.1.0", "2.0.0", "1.5.0"].map { .init(tag: tag($0)) })
+        try publishAsset(tag: tag("2.3.0"), PluginReleaseFixture.manifest(id: "com.example.impostor", version: "2.3.0"))
+        try publishAsset(tag: tag("2.2.0"), PluginReleaseFixture.manifest(version: "2.2.0", updateSource: "someone-else/plugins"))
+        try publishAsset(tag: tag("2.1.0"), PluginReleaseFixture.manifest(version: "2.1.0", updateSource: nil))
+        let nextMajor = HostVersion.current.major + 1
+        try publishAsset(tag: tag("2.0.0"), PluginReleaseFixture.manifest(version: "2.0.0", engines: "^\(nextMajor).0.0"))
+        let storageURL = "https://release-assets.githubusercontent.com/github-production-release-asset/1"
+        transport.answer(PluginReleaseFixture.assetURL(tag: tag("1.5.0")), status: 302, headers: ["Location": storageURL])
+        transport.answer(storageURL, body: try PluginReleaseFixture.zipped(PluginReleaseFixture.manifest(version: "1.5.0"), in: directory))
+
+        let check = try updater.check(PluginReleaseFixture.pluginID)
+
+        XCTAssertEqual(check.update?.manifest.version, "1.5.0", "\(check.refusals)")
+        XCTAssertEqual(check.refusals.map(\.version), ["2.3.0", "2.2.0", "2.1.0", "2.0.0"], "Highest first")
+        let reasons = reasons(check)
+        XCTAssertEqual(reasons["2.3.0"], "The package is a different Plugin, com.example.impostor.")
+        XCTAssertEqual(reasons["2.2.0"], "The package declares the Update Source someone-else/plugins, not example-org/plugins.")
+        XCTAssertEqual(reasons["2.1.0"], "The package declares no Update Source, not example-org/plugins.")
+        XCTAssertEqual(reasons["2.0.0"]?.contains("requires Spinnet ^\(nextMajor).0.0"), true, reasons["2.0.0"] ?? "")
+        XCTAssertEqual(leftoverDownloads().count, 1, "Only the accepted package stays unpacked")
         XCTAssertEqual(installedVersion, "1.0.0")
+    }
+
+    func testAPackageWhoseVersionIsNotItsTagsIsRefused() throws {
+        try install(version: "1.0.0")
+        try publish([.init(tag: tag("2.0.0"))])
+        try publishAsset(tag: tag("2.0.0"), PluginReleaseFixture.manifest(version: "1.0.0"))
+
+        let check = try updater.check(PluginReleaseFixture.pluginID)
+
+        XCTAssertNil(check.update)
+        XCTAssertEqual(reasons(check), ["2.0.0": "The package is version 1.0.0, not the 2.0.0 its release tag names."])
+        XCTAssertEqual(leftoverDownloads(), [], "A refused package does not stay unpacked")
+    }
+
+    func testACheckDownloadsAtMostItsPublishedNumberOfPackages() throws {
+        try install(version: "1.0.0")
+        let versions = (1...7).reversed().map { "1.\($0).0" }
+        try publish(versions.map { .init(tag: tag($0)) })
+        for version in versions {
+            transport.answer(PluginReleaseFixture.assetURL(tag: tag(version)), body: Data("not a zip".utf8))
+        }
+
+        let check = try updater.check(PluginReleaseFixture.pluginID)
+
+        XCTAssertNil(check.update)
+        XCTAssertEqual(check.refusals.map(\.version), versions)
+        let reasons = reasons(check)
+        for version in versions.prefix(5) {
+            XCTAssertEqual(reasons[version], "The package archive is not a readable ZIP file.")
+        }
+        for version in versions.dropFirst(5) {
+            XCTAssertEqual(reasons[version], "Not downloaded: a check downloads at most 5 packages.")
+            XCTAssertFalse(transport.requestedURLs.contains(PluginReleaseFixture.assetURL(tag: tag(version))))
+        }
+        XCTAssertEqual(leftoverDownloads(), [], "Refused packages do not stay unpacked")
+    }
+
+    func testACheckLooksUpAtMostItsPublishedNumberOfReleases() throws {
+        try install(version: "1.0.0")
+        let versions = (1...12).reversed().map { "1.\($0).0" }
+        try publish(versions.map { .init(tag: tag($0), draft: true) })
+
+        let check = try updater.check(PluginReleaseFixture.pluginID)
+
+        XCTAssertNil(check.update)
+        XCTAssertEqual(transport.requestedURLs.dropFirst(), ArraySlice(versions.prefix(10).map {
+            PluginReleaseFixture.releaseURL(tag: tag($0))
+        }))
+        XCTAssertEqual(reasons(check), [
+            "1.2.0": "Not looked up: a check looks up at most 10 releases.",
+            "1.1.0": "Not looked up: a check looks up at most 10 releases."
+        ])
+    }
+
+    func testAVersionIsFoundByItsTagHoweverManyReleasesTheRepositoryHas() throws {
+        try install(version: "1.0.0")
+        // GitHub matches the tags by prefix, so other Plugins' releases in the
+        // repository never crowd this Plugin's out.
+        transport.answer(PluginReleaseFixture.tagsURL, body: try PluginReleaseFixture.tagList([tag("1.0.1")]))
+        try publish([.init(tag: tag("1.0.1"))])
+        try publishAsset(tag: tag("1.0.1"), PluginReleaseFixture.manifest(version: "1.0.1"))
+
+        XCTAssertEqual(try updater.check(PluginReleaseFixture.pluginID).update?.manifest.version, "1.0.1")
+    }
+
+    func testARedirectGoesOnlyToGitHubsDownloadStorageAndOnlyThreeTimes() throws {
+        try install(version: "1.0.0")
+        try publish(["1.4.0", "1.3.0", "1.2.0", "1.1.0"].map { .init(tag: tag($0)) })
+        transport.answer(PluginReleaseFixture.assetURL(tag: tag("1.4.0")), status: 302,
+                         headers: ["Location": "https://downloads.example.com/package.zip"])
+        transport.answer(PluginReleaseFixture.assetURL(tag: tag("1.3.0")), status: 302,
+                         headers: ["Location": PluginReleaseFixture.assetURL(tag: tag("1.3.0"), repository: "someone-else/plugins")])
+        let hops = (1...4).map { "https://objects.githubusercontent.com/github-production-release-asset/\($0)" }
+        transport.answer(PluginReleaseFixture.assetURL(tag: tag("1.2.0")), status: 302, headers: ["Location": hops[0]])
+        for (hop, next) in zip(hops, hops.dropFirst()) {
+            transport.answer(hop, status: 302, headers: ["Location": next])
+        }
+        transport.answer(hops[3], body: try PluginReleaseFixture.zipped(PluginReleaseFixture.manifest(version: "1.2.0"), in: directory))
+        transport.answer(PluginReleaseFixture.assetURL(tag: tag("1.1.0")), body: Data(count: PluginUpdateBudgets.maximumPackageBytes + 1))
+
+        let check = try updater.check(PluginReleaseFixture.pluginID)
+
+        XCTAssertNil(check.update)
+        XCTAssertEqual(reasons(check), [
+            "1.4.0": "The release asset redirects away from GitHub's download storage.",
+            "1.3.0": "The release asset redirects away from GitHub's download storage.",
+            "1.2.0": "The release asset redirects more than 3 times.",
+            "1.1.0": "GitHub's answer is larger than Spinnet reads."
+        ])
+        XCTAssertFalse(transport.requestedURLs.contains("https://downloads.example.com/package.zip"))
+        XCTAssertFalse(transport.requestedURLs.contains(hops[3]))
     }
 
     func testOnlyStrictlyNewerPublishedReleasesAreConsidered() throws {
         try install(version: "1.2.0")
         try publish([
-            .init(tag: "com.example.updatable/v1.3.0", draft: true),
-            .init(tag: "com.example.updatable/v1.3.0-beta.1", prerelease: true),
-            .init(tag: "com.example.updatable/v1.2.0"),
-            .init(tag: "com.example.updatable/v1.2.0-rc.1"),
-            .init(tag: "com.example.updatable/v1.1.9")
+            .init(tag: tag("1.3.0"), draft: true),
+            .init(tag: tag("1.3.0-beta.1"), prerelease: true),
+            .init(tag: tag("1.2.0")),
+            .init(tag: tag("1.2.0-rc.1")),
+            .init(tag: tag("1.1.9"))
         ])
 
-        let check = try updater().check(PluginReleaseFixture.pluginID)
+        let check = try updater.check(PluginReleaseFixture.pluginID)
 
         XCTAssertNil(check.update)
         XCTAssertEqual(check.refusals, [])
-        XCTAssertEqual(transport.requestedURLs, [PluginReleaseFixture.releasesURL], "No package is downloaded")
+        XCTAssertEqual(transport.requestedURLs, [
+            PluginReleaseFixture.tagsURL, PluginReleaseFixture.releaseURL(tag: tag("1.3.0")),
+            PluginReleaseFixture.releaseURL(tag: tag("1.3.0-beta.1"))
+        ], "No package is downloaded")
     }
 
     func testAPrereleaseVersionComparesBySemVerPrecedence() throws {
         try install(version: "2.0.0-beta.2")
-        try publish([.init(tag: "com.example.updatable/v2.0.0-beta.10"), .init(tag: "com.example.updatable/v2.0.0-beta.1")])
-        try publishAsset(tag: "com.example.updatable/v2.0.0-beta.10", PluginReleaseFixture.manifest(version: "2.0.0-beta.10"))
+        try publish([.init(tag: tag("2.0.0-beta.10")), .init(tag: tag("2.0.0-beta.1"))])
+        try publishAsset(tag: tag("2.0.0-beta.10"), PluginReleaseFixture.manifest(version: "2.0.0-beta.10"))
 
-        XCTAssertEqual(try updater().check(PluginReleaseFixture.pluginID).update?.manifest.version, "2.0.0-beta.10")
+        XCTAssertEqual(try updater.check(PluginReleaseFixture.pluginID).update?.manifest.version, "2.0.0-beta.10")
     }
 
     func testNumericPrereleaseIdentifiersCompareExactlyAtAnySize() throws {
@@ -198,7 +318,7 @@ final class PluginUpdateTests: XCTestCase {
 
     private func failedCheck() -> PluginUpdateError? {
         do {
-            _ = try updater().check(PluginReleaseFixture.pluginID)
+            _ = try updater.check(PluginReleaseFixture.pluginID)
             XCTFail("The check succeeded")
             return nil
         } catch {
@@ -213,20 +333,27 @@ final class PluginUpdateTests: XCTestCase {
         XCTAssertEqual(failedCheck()?.localizedDescription,
                        "Spinnet could not reach GitHub. Check your connection and try again.")
 
-        transport.answer(PluginReleaseFixture.releasesURL, status: 403,
+        transport.answer(PluginReleaseFixture.tagsURL, status: 403,
                          headers: ["x-ratelimit-remaining": "0", "x-ratelimit-reset": "1700000000"])
         XCTAssertEqual(failedCheck(), .rateLimited(resetsAt: Date(timeIntervalSince1970: 1_700_000_000)))
         XCTAssertEqual(failedCheck()?.localizedDescription.hasPrefix(
             "GitHub's limit on update checks is reached. Try again after "), true)
 
-        transport.answer(PluginReleaseFixture.releasesURL, status: 404)
+        transport.answer(PluginReleaseFixture.tagsURL, status: 404)
         XCTAssertEqual(failedCheck(), .repositoryNotFound(try PluginUpdateSource(github: PluginReleaseFixture.repository)))
 
-        transport.answer(PluginReleaseFixture.releasesURL, status: 500)
+        transport.answer(PluginReleaseFixture.tagsURL, status: 500)
         XCTAssertEqual(failedCheck(), .unexpectedStatus(500))
 
-        transport.answer(PluginReleaseFixture.releasesURL, body: Data(#"{"message": "Moved"}"#.utf8))
-        XCTAssertEqual(failedCheck(), .malformedReleases("it is not a list of releases."))
+        transport.answer(PluginReleaseFixture.tagsURL, body: Data(#"{"message": "Moved"}"#.utf8))
+        XCTAssertEqual(failedCheck(), .unreadableAnswer("it is not a list of tags."))
+
+        transport.answer(PluginReleaseFixture.tagsURL, body: Data(count: PluginUpdateBudgets.maximumAnswerBytes + 1))
+        XCTAssertEqual(failedCheck(), .unreadableAnswer("GitHub's answer is larger than Spinnet reads."))
+
+        try publish([.init(tag: tag("1.1.0"))])
+        transport.answer(PluginReleaseFixture.releaseURL(tag: tag("1.1.0")), status: 429)
+        XCTAssertEqual(failedCheck(), .rateLimited(resetsAt: nil), "A limit reached while looking up a release fails the check")
 
         XCTAssertEqual(installedVersion, "1.0.0")
         XCTAssertTrue(registry.menuItemPreset(for: PluginReleaseFixture.pluginID)?.isAvailable == true)
@@ -240,30 +367,47 @@ final class PluginUpdateTests: XCTestCase {
         XCTAssertEqual(transport.requests, [])
     }
 
-    func testTheReleaseListingIsAskedOfGitHubsAPIForTheDeclaredRepositoryWithoutCredentials() throws {
+    func testTheTagsAndReleaseAreAskedOfGitHubsAPIForTheDeclaredRepositoryWithoutCredentials() throws {
         try install(version: "1.0.0")
-        try publish([])
+        try publish([.init(tag: tag("1.1.0"), draft: true)])
 
-        _ = try updater().check(PluginReleaseFixture.pluginID)
+        _ = try updater.check(PluginReleaseFixture.pluginID)
 
-        let request = try XCTUnwrap(transport.requests.first)
-        XCTAssertEqual(request.method, "GET")
-        XCTAssertEqual(request.url.absoluteString, "https://api.github.com/repos/example-org/plugins/releases?per_page=100")
-        XCTAssertEqual(request.headers["Accept"], "application/vnd.github+json")
-        XCTAssertNil(request.headers["Authorization"])
+        XCTAssertEqual(transport.requestedURLs, [
+            "https://api.github.com/repos/example-org/plugins/git/matching-refs/tags/com.example.updatable/v",
+            "https://api.github.com/repos/example-org/plugins/releases/tags/com.example.updatable/v1.1.0"
+        ])
+        for request in transport.requests {
+            XCTAssertEqual(request.method, "GET")
+            XCTAssertEqual(request.headers["Accept"], "application/vnd.github+json")
+            XCTAssertNil(request.headers["Authorization"])
+            XCTAssertEqual(request.maximumResponseBytes, PluginUpdateBudgets.maximumAnswerBytes)
+        }
     }
 
     func testAnUpdateThatNoLongerAppliesIsRefusedWhenApplied() throws {
         try install(version: "1.0.0")
-        try publish([.init(tag: "com.example.updatable/v1.1.0")])
-        try publishAsset(tag: "com.example.updatable/v1.1.0", PluginReleaseFixture.manifest(version: "1.1.0"))
-        let update = try XCTUnwrap(try updater().check(PluginReleaseFixture.pluginID).update)
+        try publish([.init(tag: tag("1.1.0"))])
+        try publishAsset(tag: tag("1.1.0"), PluginReleaseFixture.manifest(version: "1.1.0"))
+        let update = try XCTUnwrap(try updater.check(PluginReleaseFixture.pluginID).update)
         try install(version: "1.2.0")
 
-        XCTAssertThrowsError(try updater().apply(update)) { error in
+        XCTAssertThrowsError(try updater.apply(update)) { error in
             guard case .changedSinceCheck? = error as? PluginUpdateError else { return XCTFail("\(error)") }
         }
         XCTAssertEqual(installedVersion, "1.2.0")
+    }
+
+    func testANewUpdaterStartsWithNoDownloadsLeftOver() throws {
+        try install(version: "1.0.0")
+        try publish([.init(tag: tag("1.1.0"))])
+        try publishAsset(tag: tag("1.1.0"), PluginReleaseFixture.manifest(version: "1.1.0"))
+        let update = try XCTUnwrap(try updater.check(PluginReleaseFixture.pluginID).update)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: update.packageURL.path))
+
+        _ = makeUpdater()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: downloads.path))
     }
 
     /// The published version-selection fixtures are what the Host offers.
@@ -284,7 +428,7 @@ final class PluginUpdateTests: XCTestCase {
                 try publishAsset(tag: tag, PluginReleaseFixture.manifest(id: id, version: version))
             }
 
-            let check = try updater().check(PluginReleaseFixture.pluginID)
+            let check = try updater.check(PluginReleaseFixture.pluginID)
 
             XCTAssertEqual(check.update?.manifest.version, fixture.offered, fixture.name)
             XCTAssertEqual(check.refusals, [], fixture.name)
@@ -292,17 +436,19 @@ final class PluginUpdateTests: XCTestCase {
         }
     }
 
-    func testTheReleaseFormatAndBoundsAreThePublishedOnes() {
+    func testTheReleaseFormatAndBoundsAreThePublishedOnes() throws {
         let page = "reference/update-source.md"
         XCTAssertPublished("| Release tag | `<id>/v<version>` | `com.example.plugin/v1.2.0` |", in: page)
         XCTAssertEqual(PluginUpdateSource.releaseTag(for: PluginID("com.example.plugin"), version: "1.2.0"),
                        "com.example.plugin/v1.2.0")
         XCTAssertPublished("| Release asset name | `<id>.spinnetplugin.zip` | `com.example.plugin.spinnetplugin.zip` |", in: page)
         XCTAssertEqual(PluginUpdateSource.assetName(for: PluginID("com.example.plugin")), "com.example.plugin.spinnetplugin.zip")
-        XCTAssertPublished("| Releases read per check | 100 |", in: page)
-        XCTAssertEqual(PluginUpdateBudgets.maximumReleases, 100)
-        XCTAssertPublished("| Release list size | 4 MiB |", in: page)
-        XCTAssertEqual(PluginUpdateBudgets.maximumListingBytes, 4 * 1024 * 1024)
+        XCTAssertPublished("| Releases looked up per check | 10 |", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.maximumReleaseLookups, 10)
+        XCTAssertPublished("| Packages downloaded per check | 5 |", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.maximumDownloads, 5)
+        XCTAssertPublished("| Tag list or release answer size | 4 MiB |", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.maximumAnswerBytes, 4 * 1024 * 1024)
         XCTAssertPublished("| Package asset size | 16 MiB |", in: page)
         XCTAssertEqual(PluginUpdateBudgets.maximumPackageBytes, 16 * 1024 * 1024)
         XCTAssertPublished("| Unpacked package size | 64 MiB |", in: page)
@@ -311,9 +457,14 @@ final class PluginUpdateTests: XCTestCase {
         XCTAssertEqual(PluginUpdateBudgets.maximumArchiveEntries, 2048)
         XCTAssertPublished("| Download redirects | 3 |", in: page)
         XCTAssertEqual(PluginUpdateBudgets.maximumRedirects, 3)
-        XCTAssertPublished("(`objects.githubusercontent.com` or `release-assets.githubusercontent.com`)", in: page)
-        XCTAssertEqual(PluginUpdateBudgets.downloadHosts,
-                       ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"])
+
+        // The redirect targets the reference lists are exactly the ones followed.
+        let reference = try String(contentsOf: TestRepository.root.appendingPathComponent("PluginAPI/" + page), encoding: .utf8)
+        let sentence = try XCTUnwrap(reference.range(of: #"redirected only to GitHub's download\s+storage\s+\(([^)]*)\)"#,
+                                                     options: .regularExpression).map { String(reference[$0]) })
+        let listed = sentence.split(separator: "`").enumerated().filter { $0.offset % 2 == 1 }.map { String($0.element) }
+        XCTAssertEqual(Set(listed), PluginUpdateBudgets.downloadHosts)
+        XCTAssertEqual(listed.count, PluginUpdateBudgets.downloadHosts.count)
     }
 }
 

@@ -3,7 +3,8 @@ import SpinnetCore
 
 /// Answers recorded GitHub responses by exact URL and records what the Host
 /// asked for, so no test reaches the network. An unrecorded URL fails as if
-/// the Mac were offline.
+/// the Mac were offline, and an answer larger than the request reads fails
+/// as the real transport does.
 public final class RecordedGitHubTransport: HTTPSTransport {
     private let lock = NSLock()
     private var answers: [String: HTTPSTransportResponse] = [:]
@@ -24,15 +25,22 @@ public final class RecordedGitHubTransport: HTTPSTransport {
             return answers[request.url.absoluteString]
         }
         guard let answer else { throw HTTPSTransportError.connectionFailed }
+        guard answer.body.count <= request.maximumResponseBytes else { throw HTTPSTransportError.responseTooLarge }
         return answer
     }
 }
 
-/// Packages and release listings as SpinnetPlugins would publish them.
+/// Packages and GitHub answers as SpinnetPlugins would publish them.
 public enum PluginReleaseFixture {
     public static let pluginID = PluginID("com.example.updatable")
     public static let repository = "example-org/plugins"
-    public static let releasesURL = "https://api.github.com/repos/example-org/plugins/releases?per_page=100"
+    /// The Plugin's release tags, matched by prefix.
+    public static let tagsURL = "https://api.github.com/repos/example-org/plugins/git/matching-refs/tags/com.example.updatable/v"
+
+    /// The release published under `tag`.
+    public static func releaseURL(tag: String) -> String {
+        "https://api.github.com/repos/example-org/plugins/releases/tags/\(tag)"
+    }
 
     public static func manifest(id: String = pluginID.rawValue, version: String,
                          updateSource: String? = repository, engines: String = "^1.0.0",
@@ -80,6 +88,7 @@ public enum PluginReleaseFixture {
         public var tag: String
         public var assets: [(name: String, url: String)]
         public var prerelease = false
+        /// GitHub answers a draft, or a tag with no release, as not found.
         public var draft = false
 
         public init(tag: String, assets: [(name: String, url: String)]? = nil, prerelease: Bool = false, draft: Bool = false) {
@@ -90,15 +99,35 @@ public enum PluginReleaseFixture {
         }
     }
 
-    public static func listing(_ releases: [Release]) throws -> Data {
-        try JSONSerialization.data(withJSONObject: releases.enumerated().map { index, release in
-            [
-                "id": index + 1, "tag_name": release.tag, "name": release.tag, "body": "Notes",
-                "draft": release.draft, "prerelease": release.prerelease,
-                "assets": release.assets.enumerated().map { assetIndex, asset in
-                    ["id": index * 100 + assetIndex, "name": asset.name, "browser_download_url": asset.url,
+    /// Records the repository's answers for `releases`: the tags under the
+    /// Plugin's prefix, as GitHub matches them, and each release.
+    public static func publish(_ releases: [Release], on transport: RecordedGitHubTransport) throws {
+        let prefix = "\(pluginID.rawValue)/v"
+        transport.answer(tagsURL, body: try tagList(releases.map(\.tag).filter { $0.hasPrefix(prefix) }))
+        for release in releases {
+            guard !release.draft else {
+                transport.answer(releaseURL(tag: release.tag), status: 404, body: Data(#"{"message": "Not Found"}"#.utf8))
+                continue
+            }
+            transport.answer(releaseURL(tag: release.tag), body: try JSONSerialization.data(withJSONObject: [
+                "id": 1, "tag_name": release.tag, "name": release.tag, "body": "Notes",
+                "draft": false, "prerelease": release.prerelease,
+                "assets": release.assets.enumerated().map { index, asset in
+                    ["id": index, "name": asset.name, "browser_download_url": asset.url,
                      "content_type": "application/zip", "size": 1]
                 }
+            ] as [String: Any]))
+        }
+    }
+
+    /// GitHub's matching-refs answer listing `tags`.
+    public static func tagList(_ tags: [String]) throws -> Data {
+        try JSONSerialization.data(withJSONObject: tags.map { tag in
+            [
+                "ref": "refs/tags/\(tag)", "node_id": "REF",
+                "url": "https://api.github.com/repos/\(repository)/git/refs/tags/\(tag)",
+                "object": ["sha": String(repeating: "0", count: 40), "type": "commit",
+                           "url": "https://api.github.com/repos/\(repository)/git/commits/0"]
             ] as [String: Any]
         })
     }

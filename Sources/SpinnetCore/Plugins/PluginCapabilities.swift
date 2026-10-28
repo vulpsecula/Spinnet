@@ -2,7 +2,7 @@ import Foundation
 
 /// Authority a Plugin must receive before the Host will perform a protected
 /// operation on its behalf.
-public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable {
+public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
     case readSelectedText = "read_selected_text"
     case writeClipboard = "write_clipboard"
     case readCurrentClipboard = "read_current_clipboard"

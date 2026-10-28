@@ -3,8 +3,8 @@ import Foundation
 /// One typed column of a `list` setting. Every cell is a string the Host
 /// checks against its column before the settings save, so a Plugin receives
 /// only rows its declaration allows.
-public struct ListFieldColumn: Codable, Equatable, Hashable {
-    public enum Kind: String, Codable, CaseIterable, Equatable, Hashable {
+public struct ListFieldColumn: Codable, Equatable, Hashable, Sendable {
+    public enum Kind: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
         /// One line of text, such as a name.
         case text
         /// An https address holding `{query}` exactly once, in its path or

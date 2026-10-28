@@ -2,7 +2,7 @@ import Foundation
 
 /// Concrete scope displayed by the Host. Scope equality is part of a grant,
 /// so changing a target or data category invalidates the old decision.
-public struct PluginCapabilityScope: Codable, Equatable, Hashable {
+public struct PluginCapabilityScope: Codable, Equatable, Hashable, Sendable {
     public let capability: PluginCapability
     public let commandIDs: [CommandID]
     public let dataTypes: [String]
@@ -11,7 +11,7 @@ public struct PluginCapabilityScope: Codable, Equatable, Hashable {
     public let externalApps: [ExternalAppScope]
     public let reviewedTools: [ReviewedToolScope]
 
-    public struct ReviewedToolScope: Codable, Equatable, Hashable {
+    public struct ReviewedToolScope: Codable, Equatable, Hashable, Sendable {
         public let tool: String
         public let operations: [String]
         public let kinds: [String]
@@ -39,7 +39,7 @@ public struct PluginCapabilityScope: Codable, Equatable, Hashable {
     /// One External App a Plugin may reach: operation families from the
     /// Host's Reviewed App Interface for it, sent as Apple Events, and Deep
     /// Link Templates the Plugin declares itself (ADR 0012).
-    public struct ExternalAppScope: Codable, Equatable, Hashable {
+    public struct ExternalAppScope: Codable, Equatable, Hashable, Sendable {
         public let bundleID: String
         /// What the user knows the application as. Required with templates;
         /// a Reviewed App Interface already names its application.

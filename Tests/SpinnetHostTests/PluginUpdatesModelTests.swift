@@ -56,7 +56,7 @@ final class PluginUpdatesModelTests: XCTestCase {
 
     private func publish(version: String, capabilities: [String] = ["write_clipboard"]) throws {
         let tag = "\(pluginID.rawValue)/v\(version)"
-        transport.answer(PluginReleaseFixture.releasesURL, body: try PluginReleaseFixture.listing([.init(tag: tag)]))
+        try PluginReleaseFixture.publish([.init(tag: tag)], on: transport)
         transport.answer(PluginReleaseFixture.assetURL(tag: tag), body: try PluginReleaseFixture.zipped(
             PluginReleaseFixture.manifest(version: version, capabilities: capabilities), in: directory))
     }
@@ -127,12 +127,12 @@ final class PluginUpdatesModelTests: XCTestCase {
         XCTAssertEqual(updates.status(for: pluginID), .failed)
         XCTAssertEqual(updates.message(for: pluginID), "Spinnet could not reach GitHub. Check your connection and try again.")
 
-        transport.answer(PluginReleaseFixture.releasesURL, status: 429, headers: [:])
+        transport.answer(PluginReleaseFixture.tagsURL, status: 429, headers: [:])
         updates.checkForUpdate(pluginID)
         XCTAssertEqual(updates.message(for: pluginID), "GitHub's limit on update checks is reached. Try again later.")
 
         let tag = "\(pluginID.rawValue)/v1.1.0"
-        transport.answer(PluginReleaseFixture.releasesURL, body: try PluginReleaseFixture.listing([.init(tag: tag)]))
+        try PluginReleaseFixture.publish([.init(tag: tag)], on: transport)
         transport.answer(PluginReleaseFixture.assetURL(tag: tag), body: try PluginReleaseFixture.zipped(
             PluginReleaseFixture.manifest(id: "com.example.impostor", version: "1.1.0"), in: directory))
         updates.checkForUpdate(pluginID)
@@ -140,7 +140,7 @@ final class PluginUpdatesModelTests: XCTestCase {
         XCTAssertEqual(updates.message(for: pluginID),
                        "No acceptable update. 1.1.0: The package is a different Plugin, com.example.impostor.")
 
-        transport.answer(PluginReleaseFixture.releasesURL, body: try PluginReleaseFixture.listing([]))
+        try PluginReleaseFixture.publish([], on: transport)
         updates.checkForUpdate(pluginID)
         XCTAssertEqual(updates.status(for: pluginID), .upToDate)
         XCTAssertEqual(updates.message(for: pluginID), "1.0.0 is the latest version.")
