@@ -314,6 +314,8 @@ enum HandmadeZip {
         var contents: Data = Data()
         /// The Unix file type and permissions recorded for the entry.
         var mode: UInt32 = 0o100644
+        /// The host system recorded in "version made by": 3 is Unix, 19 is OS X.
+        var madeBy: Int = 3
     }
 
     private static func le16(_ value: Int, into data: inout Data) {
@@ -338,7 +340,7 @@ enum HandmadeZip {
             local.append(name); local.append(entry.contents)
 
             le32(0x0201_4B50, into: &central)
-            for field in [3 << 8 | 20, 20, 0x800, 0, 0, 0] { le16(field, into: &central) }
+            for field in [entry.madeBy << 8 | 20, 20, 0x800, 0, 0, 0] { le16(field, into: &central) }
             le32(crc, into: &central); le32(size, into: &central); le32(size, into: &central)
             for field in [name.count, 0, 0, 0, 0] { le16(field, into: &central) }
             le32(entry.mode << 16, into: &central); le32(offset, into: &central)
@@ -419,6 +421,25 @@ final class PluginPackageArchiveTests: XCTestCase {
             .init(name: "A.spinnetplugin/manifest.json", contents: manifest)
         ]), "The package archive lists A.spinnetplugin/manifest.json twice")
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("escape.js").path))
+    }
+
+    func testALinkRecordedByOSXIsRefusedToo() {
+        XCTAssertEqual(refusal([
+            .init(name: "A.spinnetplugin/manifest.json", contents: manifest, madeBy: 19),
+            .init(name: "A.spinnetplugin/run.js", contents: Data("/etc/passwd".utf8), mode: 0o120777, madeBy: 19)
+        ]), "The package archive contains a link or special file: A.spinnetplugin/run.js")
+    }
+
+    func testPathsThatNameOneFileOnACaseInsensitiveDiskAreListedTwice() {
+        XCTAssertEqual(refusal([
+            .init(name: "A.spinnetplugin/manifest.json", contents: manifest),
+            .init(name: "A.spinnetplugin/Manifest.JSON", contents: manifest)
+        ]), "The package archive lists A.spinnetplugin/Manifest.JSON twice")
+        XCTAssertEqual(refusal([
+            .init(name: "A.spinnetplugin/manifest.json", contents: manifest),
+            .init(name: "A.spinnetplugin/caf\u{E9}.js"),
+            .init(name: "A.spinnetplugin/cafe\u{301}.js")
+        ]), "The package archive lists A.spinnetplugin/cafe\u{301}.js twice")
     }
 
     func testADamagedEntryIsRefused() throws {
