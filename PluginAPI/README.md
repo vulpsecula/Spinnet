@@ -6,6 +6,7 @@ Plugins using it keep their own licence; the Host is GPL-3.0-only.
 - **Build your first Plugin:** [Getting started](getting-started.md), with an installable [Hello package](examples/Hello.spinnetplugin/manifest.json).
 - **Look up a contract:** [Reference by topic](reference/README.md), [catalogue](catalogue.json), [current TypeScript types](sdk/spinnet.d.ts).
 - **Declare compatibility:** set `"engines": {"spinnet": "^1.0.0"}` in the manifest. See [version rules and migration](reference/compatibility.md).
+- **Deliver new versions:** declare an [Update Source](reference/update-source.md) and publish each version as a GitHub Release.
 
 There is one current interface, organized by feature. Compatible additions ship
 with Host minor releases; breaking changes require a Host major release and an

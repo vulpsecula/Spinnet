@@ -1,4 +1,5 @@
 import Foundation
+import SpinnetTestSupport
 import XCTest
 @testable import SpinnetCore
 
@@ -353,6 +354,56 @@ final class PluginUpdateTests: XCTestCase {
             guard case .changedSinceCheck? = error as? PluginUpdateError else { return XCTFail("\(error)") }
         }
         XCTAssertEqual(installedVersion, "1.2.0")
+    }
+
+    /// The published version-selection fixtures are what the Host offers.
+    func testThePublishedVersionSelectionFixturesAreWhatACheckOffers() throws {
+        struct Case: Decodable { let name: String; let installed: String; let tags: [String]; let offered: String? }
+        struct Index: Decodable { let plugin_id: String; let cases: [Case] }
+        let index = try JSONDecoder().decode(Index.self, from: Data(contentsOf: TestRepository.root
+            .appendingPathComponent("PluginAPI/fixtures/update-source/index.json")))
+        XCTAssertEqual(index.plugin_id, PluginReleaseFixture.pluginID.rawValue)
+        XCTAssertFalse(index.cases.isEmpty)
+        for fixture in index.cases {
+            try setUpWithError()
+            try install(version: fixture.installed)
+            try publish(fixture.tags.map { .init(tag: $0) })
+            for tag in fixture.tags {
+                let version = String(tag.split(separator: "/").last!.dropFirst())
+                let id = String(tag.split(separator: "/").first!)
+                try publishAsset(tag: tag, PluginReleaseFixture.manifest(id: id, version: version))
+            }
+
+            let check = try updater().check(PluginReleaseFixture.pluginID)
+
+            XCTAssertEqual(check.update?.manifest.version, fixture.offered, fixture.name)
+            XCTAssertEqual(check.refusals, [], fixture.name)
+            try tearDownWithError()
+        }
+    }
+
+    func testTheReleaseFormatAndBoundsAreThePublishedOnes() {
+        let page = "reference/update-source.md"
+        XCTAssertPublished("| Release tag | `<id>/v<version>` | `com.example.plugin/v1.2.0` |", in: page)
+        XCTAssertEqual(PluginUpdateSource.releaseTag(for: PluginID("com.example.plugin"), version: "1.2.0"),
+                       "com.example.plugin/v1.2.0")
+        XCTAssertPublished("| Release asset name | `<id>.spinnetplugin.zip` | `com.example.plugin.spinnetplugin.zip` |", in: page)
+        XCTAssertEqual(PluginUpdateSource.assetName(for: PluginID("com.example.plugin")), "com.example.plugin.spinnetplugin.zip")
+        XCTAssertPublished("| Releases read per check | 100 |", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.maximumReleases, 100)
+        XCTAssertPublished("| Release list size | 4 MiB |", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.maximumListingBytes, 4 * 1024 * 1024)
+        XCTAssertPublished("| Package asset size | 16 MiB |", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.maximumPackageBytes, 16 * 1024 * 1024)
+        XCTAssertPublished("| Unpacked package size | 64 MiB |", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.maximumUnpackedBytes, 64 * 1024 * 1024)
+        XCTAssertPublished("| Archive entries | 2048 |", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.maximumArchiveEntries, 2048)
+        XCTAssertPublished("| Download redirects | 3 |", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.maximumRedirects, 3)
+        XCTAssertPublished("(`objects.githubusercontent.com` or `release-assets.githubusercontent.com`)", in: page)
+        XCTAssertEqual(PluginUpdateBudgets.downloadHosts,
+                       ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"])
     }
 }
 
