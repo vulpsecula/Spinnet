@@ -13,7 +13,7 @@ Historical `Tests/RegressionBaseline/` files are unchanged.
 | --- | --- |
 | `SpinnetCoreTests/ClipboardHistoryTests` | Clipboard History fixture: install precedence and replacement rules belong to the Host. |
 | `SpinnetCoreTests/PluginRuntimeTests` | Clipboard History fixture: the Host Surface and helper lifecycle need a fixed request. |
-| `SpinnetCoreTests/BundledPluginFixtures` | Window Position and Translator fixtures: historical registration, configuration and grant inputs. |
+| `SpinnetCoreTests/HistoricalPluginFixtures` | Window Position and Translator fixtures: historical registration, configuration and grant inputs. |
 | `SpinnetCoreTests/OpenTargetSetupTests` | Open File and Open URL fixtures: Host placement/input validation and update retention. |
 | `SpinnetHostTests/RichClipboardHistoryTests` | Clipboard History fixture: master collection consent and data disclosure belong to the Host. |
 | `SpinnetHostTests/DeepLinkMigrationTests` | Shottr fixture: a historical reviewed grant must migrate only onto equivalent templates. |

@@ -8,7 +8,7 @@ usage() {
     printf '\n--install-plugins installs or updates every .spinnetplugin package in DIR,\n'
     printf 'or in DIR/Plugins for a SpinnetPlugins checkout, into your saved data through\n'
     printf 'the install-and-update path the Library uses, before the app opens.\n'
-    printf '%s\n' '--verify reports the installed Plugin versions once the app has stayed up.'
+    printf '%s\n' '--verify reports the installed Plugin versions saved on disk once the app has stayed up.'
 }
 reject_arguments() {
     usage >&2
@@ -263,7 +263,7 @@ case "$MODE" in
             fi
         done
         echo "Running $APP_BUNDLE"
-        echo "Installed Plugins:"
+        echo "Installed Plugins, as saved on disk:"
         if ! "$APP_BINARY" --report-installed-plugins; then
             echo "warning: the running Host refuses an installed Plugin; see Settings → Menu" >&2
         fi

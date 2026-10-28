@@ -209,7 +209,7 @@ class LauncherTests(unittest.TestCase):
                       if call["tool"] == "SpinnetHost" and call["args"] == ["--report-installed-plugins"])
         self.assertLess(tools.index("open"), report)
         self.assertIn("Running " + str(self.root / "dist/SpinnetHost.app"), result.stdout)
-        self.assertIn("Installed Plugins:\ncom.example.fixture 1.2.3 Fixture", result.stdout)
+        self.assertIn("Installed Plugins, as saved on disk:\ncom.example.fixture 1.2.3 Fixture", result.stdout)
 
     def test_verify_reports_installed_plugin_versions_without_installing(self):
         result, commands = self.launch("--verify", SPINNET_CODESIGN_IDENTITY="FIXTURE_ID")
@@ -217,7 +217,7 @@ class LauncherTests(unittest.TestCase):
         host_calls = [call["args"] for call in commands if call["tool"] == "SpinnetHost"]
         self.assertNotIn("--install-plugins", [args[0] for args in host_calls if args])
         self.assertIn(["--report-installed-plugins"], host_calls)
-        self.assertIn("com.example.fixture 1.2.3 Fixture", result.stdout)
+        self.assertIn("Installed Plugins, as saved on disk:\ncom.example.fixture 1.2.3 Fixture", result.stdout)
 
     def test_missing_install_directory_is_rejected_before_building(self):
         result, commands = self.launch("--install-plugins", str(self.root / "missing"), "--verify")
