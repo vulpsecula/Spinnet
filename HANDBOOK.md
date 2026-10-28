@@ -82,8 +82,8 @@ install them through the path a user takes:
 `DIR`, or in `DIR/Plugins` for a SpinnetPlugins checkout, into the user's saved
 data before the app opens. An update keeps Plugin Storage and Capability
 decisions; newly requested Capabilities stay undecided, as after a Library
-install. `--verify` reports the installed Plugin versions once the app has
-stayed up. Both modes write or read your real saved data.
+install. `--verify` reports the installed Plugin versions, as saved on disk,
+once the app has stayed up. Both modes write or read your real saved data.
 
 ## Verification
 
