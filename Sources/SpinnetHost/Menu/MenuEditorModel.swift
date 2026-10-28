@@ -88,6 +88,9 @@ final class MenuEditorModel: ObservableObject {
     /// Apps added in the switcher this session that have no overrides yet.
     private var addedApps: [MenuEditorApp] = []
     private let appName: (AppBundleIdentifier) -> String?
+    /// Names already looked up, so listing the switcher does not ask
+    /// Launch Services again on every evaluation.
+    private var appNames: [AppBundleIdentifier: String] = [:]
 
     var editorSlots: [EditorMenuSlot] {
         zip(slotIDs, menuSlots).map { EditorMenuSlot(id: $0.0, presentation: $0.1) }
@@ -147,6 +150,9 @@ final class MenuEditorModel: ObservableObject {
         let after: HostConfiguration
         let selectedIndexBefore: Int
         let selectedIndexAfter: Int
+        /// The App whose App Overrides the edit changed, nil for the default
+        /// Menu. Undo and redo show it again.
+        var app: AppBundleIdentifier? = nil
         /// Set when the edit also added or removed Slots, whose identities
         /// have to follow the configuration.
         var slotIDsBefore: [UUID]? = nil
@@ -175,31 +181,54 @@ final class MenuEditorModel: ObservableObject {
         return "Remove \(plugin.name)?"
     }
 
-    /// Names the Menu Slots whose Menu Items use the Plugin, since those stay
-    /// in the Menu and stop working.
+    /// Names the Menu Slots whose Menu Items use the Plugin, in the default
+    /// Menu and in App Overrides, since those stay and stop working.
     var removalMessage: String {
         let base = "Its access is forgotten and it leaves the Library."
         guard let plugin = pluginPendingRemoval else { return base }
-        let slots = slotNumbers(usingPlugin: plugin.pluginID)
-        switch slots.count {
+        let usage = slotNumbers(usingPlugin: plugin.pluginID)
+        var message = base
+        switch usage.defaultSlots.count {
         case 0:
-            return base
+            break
         case 1:
-            return base + " The Menu Item in Slot \(slots[0]) uses it; it stays in the Menu and is marked unavailable."
+            message += " The Menu Item in Slot \(usage.defaultSlots[0]) uses it; it stays in the Menu and is marked unavailable."
         default:
-            let listed = slots.dropLast().map(String.init).joined(separator: ", ") + " and \(slots[slots.count - 1])"
-            return base + " The Menu Items in Slots \(listed) use it; they stay in the Menu and are marked unavailable."
+            message += " The Menu Items in Slots \(Self.listed(usage.defaultSlots)) use it; they stay in the Menu and are marked unavailable."
         }
+        guard !usage.overrideSlots.isEmpty else { return message }
+        let apps = usage.overrideSlots
+            .map { app, slots in (name: self.app(for: app).name, slots: slots) }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .map { "\($0.slots.count == 1 ? "Slot" : "Slots") \(Self.listed($0.slots)) for \($0.name)" }
+        return message + " App Overrides use it in \(Self.listed(apps)); they stay and are marked unavailable."
     }
 
-    private func slotNumbers(usingPlugin pluginID: PluginID) -> [Int] {
+    private static func listed<T: CustomStringConvertible>(_ items: [T]) -> String {
+        let names = items.map(\.description)
+        guard names.count > 1 else { return names.first ?? "" }
+        return names.dropLast().joined(separator: ", ") + " and \(names[names.count - 1])"
+    }
+
+    /// The Slot numbers whose default Menu Item, and whose App Override for
+    /// each App, binds an Action of the Plugin.
+    private func slotNumbers(
+        usingPlugin pluginID: PluginID
+    ) -> (defaultSlots: [Int], overrideSlots: [AppBundleIdentifier: [Int]]) {
         let configuration = editor.configuration
         let pluginActions = Set(configuration.actions.filter { $0.pluginID == pluginID }.map(\.id))
-        return configuration.menu.slots.enumerated().compactMap { index, slot in
-            guard let item = slot.item else { return nil }
-            let actions = [item.primaryActionID] + item.alternateActionIDs + item.disabledAlternateActionIDs
-            return actions.contains(where: pluginActions.contains) ? index + 1 : nil
+        func uses(_ item: MenuItemConfiguration?) -> Bool {
+            item?.boundActionIDs.contains(where: pluginActions.contains) ?? false
         }
+        var defaultSlots: [Int] = []
+        var overrideSlots: [AppBundleIdentifier: [Int]] = [:]
+        for (index, slot) in configuration.menu.slots.enumerated() {
+            if uses(slot.item) { defaultSlots.append(index + 1) }
+            for (app, override) in slot.appOverrides where uses(override.item) {
+                overrideSlots[app, default: []].append(index + 1)
+            }
+        }
+        return (defaultSlots, overrideSlots)
     }
 
     func requestPluginRemoval(_ preset: MenuItemPreset) {
@@ -384,21 +413,21 @@ final class MenuEditorModel: ObservableObject {
     }
 
     func undoSlotEdit() {
-        showDefaultMenuForArrangement(undoHistory.last)
         guard let entry = undoHistory.popLast(), apply(entry, direction: .undo) else {
             refreshUndoState()
             return
         }
+        showApp(of: entry)
         redoHistory.append(entry)
         refreshUndoState()
     }
 
     func redoSlotEdit() {
-        showDefaultMenuForArrangement(redoHistory.last)
         guard let entry = redoHistory.popLast(), apply(entry, direction: .redo) else {
             refreshUndoState()
             return
         }
+        showApp(of: entry)
         undoHistory.append(entry)
         refreshUndoState()
     }
@@ -695,17 +724,28 @@ final class MenuEditorModel: ObservableObject {
         connectionPlacementIntent = intent
         let configuration = editor.configuration
         let identities = slotIDs
+        let app = editedAppID
         let manifest = editor.pluginManifests.first { $0.id.rawValue == pluginID }
         let deferred = preparePluginConnections(PluginID(pluginID)) { [weak self] ready in
             guard let self, self.connectionPlacementIntent == intent else { return }
             self.connectionPlacementIntent = nil
             guard ready, self.editor.configuration == configuration,
-                  self.slotIDs == identities,
+                  self.slotIDs == identities, self.editedAppID == app,
                   self.editor.pluginManifests.first(where: { $0.id.rawValue == pluginID }) == manifest else { return }
             resume()
         }
         if !deferred { connectionPlacementIntent = nil }
         return deferred
+    }
+
+    /// What confirming the pending replacement changes. For an App's
+    /// inherited Slot only that App's Menu Item is replaced.
+    var replacementMessage: String {
+        if let app = editedApp, let pending = presetPendingReplacement,
+           !editor.isOverridden(slotAt: pending.slotIndex, for: app.bundleIdentifier) {
+            return "Only \(app.name)'s Menu Item in this Slot is replaced. The default Menu stays unchanged."
+        }
+        return "The current Menu Item and its Actions will be replaced by the selected Preset."
     }
 
     func cancelPresetReplacement() {
@@ -741,6 +781,7 @@ final class MenuEditorModel: ObservableObject {
             after: editor.configuration,
             selectedIndexBefore: selectedIndexBefore,
             selectedIndexAfter: selectedMenuIndex,
+            app: editedAppID,
             slotIDsBefore: setup.insertion?.slotIDsBefore,
             slotIDsAfter: setup.insertion == nil ? nil : slotIDs
         )))
@@ -812,9 +853,12 @@ final class MenuEditorModel: ObservableObject {
     /// each App added this session, by name.
     var switcherApps: [MenuEditorApp] {
         let overridden = editor.configuration.menu.overriddenApps.map(app(for:))
-        let added = addedApps.filter { added in
-            !overridden.contains { $0.bundleIdentifier == added.bundleIdentifier }
+        // The edited App stays listed after its last override is reset.
+        let others = (addedApps + [editedApp].compactMap { $0 }).filter { candidate in
+            !overridden.contains { $0.bundleIdentifier == candidate.bundleIdentifier }
         }
+        var seen = Set<AppBundleIdentifier>()
+        let added = others.filter { seen.insert($0.bundleIdentifier).inserted }
         return (overridden + added).sorted {
             $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
@@ -823,8 +867,17 @@ final class MenuEditorModel: ObservableObject {
     /// Edits `app`'s App Overrides, or the default Menu for nil.
     func editApp(_ app: AppBundleIdentifier?) {
         guard editingMenuIndex == nil else { return }
-        editedApp = app.map(self.app(for:))
         placementMessage = nil
+        switchEditedApp(to: app)
+    }
+
+    /// Shows `app`'s Slots. A replacement or a placement waiting for
+    /// connections was asked for in the App shown before, so it is dropped.
+    private func switchEditedApp(to app: AppBundleIdentifier?) {
+        guard app != editedAppID else { return }
+        presetPendingReplacement = nil
+        connectionPlacementIntent = nil
+        editedApp = app.map(self.app(for:))
         refreshMenuSlots()
         refreshToken += 1
     }
@@ -911,7 +964,7 @@ final class MenuEditorModel: ObservableObject {
         editApp(nil)
         placementMessage = "\(app.name) removed. Its Slots use the default Menu."
         configurationDidChange(editor.configuration)
-        recordComposition(before: before, selectedIndexBefore: selectedMenuIndex)
+        recordComposition(before: before, selectedIndexBefore: selectedMenuIndex, app: app.bundleIdentifier)
     }
 
     private func editOverride(at index: Int, message: String, _ edit: (AppBundleIdentifier) throws -> Void) {
@@ -931,12 +984,15 @@ final class MenuEditorModel: ObservableObject {
         recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
     }
 
-    /// Undoing or redoing how Slots are arranged happens in the default
-    /// Menu, which is shown for it.
-    private func showDefaultMenuForArrangement(_ entry: MenuHistoryEntry?) {
-        guard editedApp != nil, let entry else { return }
-        if case .composition = entry { return }
-        editApp(nil)
+    /// After an undo or redo, shows where the edit was made: the App whose
+    /// App Overrides it changed, or the default Menu, where Slots are
+    /// arranged and every other edit is made.
+    private func showApp(of entry: MenuHistoryEntry) {
+        guard case .composition(let composition) = entry else {
+            switchEditedApp(to: nil)
+            return
+        }
+        switchEditedApp(to: composition.app)
     }
 
     private func requireDefaultMenuForArrangement() -> Bool {
@@ -949,7 +1005,11 @@ final class MenuEditorModel: ObservableObject {
 
     private func app(for identifier: AppBundleIdentifier) -> MenuEditorApp {
         if let added = addedApps.first(where: { $0.bundleIdentifier == identifier }) { return added }
-        return MenuEditorApp(bundleIdentifier: identifier, name: appName(identifier) ?? identifier.rawValue)
+        if let edited = editedApp, edited.bundleIdentifier == identifier { return edited }
+        if let name = appNames[identifier] { return MenuEditorApp(bundleIdentifier: identifier, name: name) }
+        let name = appName(identifier) ?? identifier.rawValue
+        appNames[identifier] = name
+        return MenuEditorApp(bundleIdentifier: identifier, name: name)
     }
 
     /// The name of the installed App with `identifier`, read only while the
@@ -965,13 +1025,15 @@ final class MenuEditorModel: ObservableObject {
 
     private func recordComposition(
         before: HostConfiguration,
-        selectedIndexBefore: Int
+        selectedIndexBefore: Int,
+        app: AppBundleIdentifier? = nil
     ) {
         record(.composition(CompositionHistoryEntry(
             before: before,
             after: editor.configuration,
             selectedIndexBefore: selectedIndexBefore,
-            selectedIndexAfter: selectedMenuIndex
+            selectedIndexAfter: selectedMenuIndex,
+            app: app ?? editedAppID
         )))
     }
 

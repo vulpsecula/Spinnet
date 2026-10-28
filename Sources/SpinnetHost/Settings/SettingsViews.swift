@@ -566,7 +566,7 @@ struct SettingsRootView: View {
             Button("Replace", role: .destructive, action: menuEditor.confirmPresetReplacement)
                 .keyboardShortcut(.defaultAction)
         } message: {
-            Text("The current Menu Item and its Actions will be replaced by the selected Preset.")
+            Text(menuEditor.replacementMessage)
         }
         .overlay(alignment: .topTrailing) {
             if privacy.permissionGuidePresented {
@@ -671,6 +671,7 @@ struct SettingsRootView: View {
                     appearance: appearance.configuration,
                     mode: .editor,
                     allowsEditing: model.page == .menu,
+                    allowsArrangement: menuEditor.canArrangeSlots,
                     previewScale: menuPreviewScale,
                     previewCanvasDiameter: menuPreviewCanvasDiameter,
                     onSelection: menuEditor.selectMenuItem,
@@ -1034,13 +1035,16 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     let appearance: MenuAppearanceConfiguration
     let mode: RadialMenuPresentationMode
     let allowsEditing: Bool
+    /// Whether Slots may be added, moved and deleted: only in the default
+    /// Menu.
+    let allowsArrangement: Bool
     let previewScale: CGFloat
     let previewCanvasDiameter: CGFloat
     let onSelection: (Int) -> Void
     let onEdit: (Int) -> Void
     let onSlotDelete: (Int) -> Void
-    var onSlotEmpty: (Int) -> Void = { _ in }
-    var onSlotReset: (Int) -> Void = { _ in }
+    let onSlotEmpty: (Int) -> Void
+    let onSlotReset: (Int) -> Void
     let onPresetDrop: (String, Int) -> Bool
     let onPresetInsert: (String, Int) -> Bool
     let onSlotDrop: ([UUID], UUID) -> Bool
@@ -1055,14 +1059,14 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
             showsPreviewBackground: true
         )
         applyCallbacks(to: view)
-        view.updateEditorSlots(slots, appearance: appearance)
+        view.updateEditorSlots(slots, appearance: appearance, allowsArrangement: allowsArrangement)
         view.selectEditorItem(at: selectedIndex)
         return view
     }
 
     func updateNSView(_ nsView: RadialMenuView, context: Context) {
         applyCallbacks(to: nsView)
-        nsView.updateEditorSlots(slots, appearance: appearance)
+        nsView.updateEditorSlots(slots, appearance: appearance, allowsArrangement: allowsArrangement)
         nsView.selectEditorItem(at: selectedIndex)
     }
 

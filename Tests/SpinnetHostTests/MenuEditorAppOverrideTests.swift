@@ -9,6 +9,7 @@ final class MenuEditorAppOverrideTests: XCTestCase {
     private let safari = AppBundleIdentifier(validating: "com.apple.Safari")!
     private let finder = AppBundleIdentifier(validating: "com.apple.finder")!
     private let fixture = "com.spinnet.fixture"
+    private let other = "com.spinnet.other"
 
     func testTheSwitcherStartsAtTheDefaultMenuAndAddsOnlyAppsWithABundleIdentifier() throws {
         let model = try makeModel()
@@ -128,6 +129,153 @@ final class MenuEditorAppOverrideTests: XCTestCase {
         XCTAssertFalse(model.canArrangeSlots)
     }
 
+    func testSavingAnInheritedMenuItemUnchangedIsNotAnEdit() throws {
+        let model = try makeModel()
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        let before = model.editor.configuration
+        let app = model.editedAppID
+
+        // What the Configuration Sheet saves when nothing was changed.
+        let candidate = try model.editor.configuredMenuItem(
+            at: 0, pluginID: PluginID(fixture), primaryCommandID: CommandID("fixture.open"),
+            inputs: [CommandID("fixture.open"): .string("https://example.com")],
+            preserveUnselectedAlternates: true, for: app
+        )
+        model.saveMenuItemConfiguration(try model.editor.aliasedMenuItem(in: candidate, at: 0, to: nil, for: app))
+
+        XCTAssertEqual(model.editor.configuration, before)
+        XCTAssertEqual(model.menuSlots[0].appOverride, .inherited)
+        XCTAssertFalse(model.canUndoSlotEdit)
+    }
+
+    func testAPlacementWaitingForConnectionsIsDroppedWhenAnotherAppIsChosen() throws {
+        let model = try makeModel()
+        var finish: ((Bool) -> Void)?
+        model.preparePluginConnections = { _, completion in finish = completion; return true }
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        let before = model.editor.configuration
+
+        XCTAssertFalse(model.placePreset(pluginID: fixture, at: 1))
+        model.editApp(nil)
+        finish?(true)
+
+        XCTAssertEqual(model.editor.configuration, before)
+        XCTAssertFalse(model.canUndoSlotEdit)
+    }
+
+    func testAPendingReplacementIsDroppedWhenAnotherAppIsChosen() throws {
+        let model = try makeModel()
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        XCTAssertFalse(model.placePreset(pluginID: fixture, at: 0))
+        XCTAssertNotNil(model.presetPendingReplacement)
+
+        model.editApp(nil)
+
+        XCTAssertNil(model.presetPendingReplacement)
+    }
+
+    func testPluginRemovalNamesTheAppOverridesThatUseThePlugin() throws {
+        let model = try makeModel()
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        XCTAssertTrue(model.placePreset(pluginID: other, at: 2))
+        model.addApp(bundleIdentifier: "com.apple.finder", name: "Finder")
+        XCTAssertTrue(model.placePreset(pluginID: other, at: 1))
+        XCTAssertTrue(model.placePreset(pluginID: other, at: 2))
+        let preset = try XCTUnwrap(model.editor.menuItemPresets.first { $0.id == other })
+
+        model.requestPluginRemoval(preset)
+
+        XCTAssertEqual(
+            model.removalMessage,
+            "Its access is forgotten and it leaves the Library. App Overrides use it in Slots 2 and 3 for Finder"
+                + " and Slot 3 for Safari; they stay and are marked unavailable."
+        )
+    }
+
+    func testPluginRemovalNamesDefaultSlotsAndAppOverridesTogether() throws {
+        let model = try makeModel()
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        XCTAssertTrue(model.placePreset(pluginID: fixture, at: 1))
+        let preset = try XCTUnwrap(model.editor.menuItemPresets.first { $0.id == fixture })
+
+        model.requestPluginRemoval(preset)
+
+        XCTAssertEqual(
+            model.removalMessage,
+            "Its access is forgotten and it leaves the Library. The Menu Item in Slot 1 uses it; it stays in the Menu"
+                + " and is marked unavailable. App Overrides use it in Slot 2 for Safari; they stay and are marked unavailable."
+        )
+    }
+
+    func testUndoingAnOverrideEditShowsTheAppItWasMadeFor() throws {
+        let model = try makeModel()
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        model.emptySlot(at: 0)
+        model.editApp(nil)
+
+        model.undoSlotEdit()
+
+        XCTAssertEqual(model.editedAppID, safari)
+        XCTAssertEqual(model.menuSlots[0].appOverride, .inherited)
+        XCTAssertEqual(model.placementMessage, "Menu edit undone.")
+
+        model.editApp(nil)
+        model.redoSlotEdit()
+
+        XCTAssertEqual(model.editedAppID, safari)
+        XCTAssertTrue(model.menuSlots[0].isEmpty)
+        XCTAssertEqual(model.menuSlots[0].appOverride, .overridden)
+    }
+
+    func testUndoingAnArrangementShowsTheDefaultMenu() throws {
+        let model = try makeModel()
+        model.addEmptySlot()
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+
+        model.undoSlotEdit()
+
+        XCTAssertNil(model.editedAppID)
+        XCTAssertEqual(model.menuSlots.count, 3)
+    }
+
+    func testTheEditedAppStaysInTheSwitcherWhenItsLastOverrideIsReset() throws {
+        let editor = try makeEditor()
+        try editor.emptySlot(at: 2, for: safari)
+        let model = MenuEditorModel(editor: editor, appName: { $0 == self.safari ? "Safari" : nil })
+        model.editApp(safari)
+
+        model.resetSlotToDefault(at: 2)
+
+        XCTAssertEqual(model.editedAppID, safari)
+        XCTAssertEqual(model.switcherApps, [MenuEditorApp(bundleIdentifier: safari, name: "Safari")])
+    }
+
+    func testReplacingAnAppsInheritedMenuItemSaysTheDefaultMenuStaysUnchanged() throws {
+        let model = try makeModel()
+        XCTAssertFalse(model.placePreset(pluginID: fixture, at: 0))
+        XCTAssertEqual(model.replacementMessage,
+                       "The current Menu Item and its Actions will be replaced by the selected Preset.")
+        model.cancelPresetReplacement()
+
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        XCTAssertFalse(model.placePreset(pluginID: fixture, at: 0))
+
+        XCTAssertEqual(model.replacementMessage,
+                       "Only Safari's Menu Item in this Slot is replaced. The default Menu stays unchanged.")
+    }
+
+    func testAppNamesAreLookedUpOncePerApp() throws {
+        let editor = try makeEditor()
+        try editor.emptySlot(at: 2, for: safari)
+        var lookups = 0
+        let model = MenuEditorModel(editor: editor, appName: { _ in lookups += 1; return "Safari" })
+
+        _ = model.switcherApps
+        _ = model.switcherApps
+
+        XCTAssertEqual(lookups, 1)
+    }
+
     // MARK: - Helpers
 
     private func makeEditor() throws -> HostConfigurationEditor {
@@ -143,6 +291,17 @@ final class MenuEditorAppOverrideTests: XCTestCase {
         )
         try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"),
                                             manifest: manifest))
+        try registry.register(PluginPackage(
+            rootURL: URL(fileURLWithPath: "/tmp/other.spinnetplugin"),
+            manifest: PluginManifest(
+                id: PluginID(other), name: "Other", version: "1.0.0",
+                commands: [CommandDeclaration(id: CommandID("other.open"), title: "Open Other", hostServiceID: "open.url")],
+                preset: MenuItemPresetDeclaration(
+                    readiness: .readyToUse, isConfigurable: false,
+                    defaultInputs: [CommandID("other.open"): .string("https://example.org")]
+                )
+            )
+        ))
         let action = try ActionConfiguration(id: ActionID("open-url"), pluginID: manifest.id,
                                              command: manifest.commands[0], input: .string("https://example.com"))
         let configuration = try HostConfiguration(actions: [action], menu: MenuConfiguration(slots: [

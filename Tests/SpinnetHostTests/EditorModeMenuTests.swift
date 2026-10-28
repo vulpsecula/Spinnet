@@ -773,6 +773,30 @@ final class EditorModeMenuTests: XCTestCase {
         XCTAssertEqual(deletedIndex, 0)
     }
 
+    func testSlotsCannotBeDeletedWhereTheEditorDoesNotArrangeThem() throws {
+        let editor = try makeEditor()
+        try editor.addEmptySlot()
+        let slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
+            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
+        }
+        let view = RadialMenuView(slots: slots, mode: .editor)
+        view.updateEditorSlots(slots.map { EditorMenuSlot(id: UUID(), presentation: $0) },
+                               appearance: MenuAppearanceConfiguration(), allowsArrangement: false)
+        let window = NSWindow(contentRect: view.bounds, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = view
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .rightMouseDown, location: NSPoint(x: view.bounds.midX, y: view.bounds.midY + 90),
+            modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil,
+            eventNumber: 0, clickCount: 1, pressure: 1
+        ))
+
+        let menu = try XCTUnwrap(view.menu(for: event))
+
+        let deleteItem = try XCTUnwrap(menu.items.first { $0.title == "Delete Slot" })
+        XCTAssertFalse(deleteItem.isEnabled)
+        XCTAssertEqual(deleteItem.toolTip, "Slots are deleted in the default Menu")
+    }
+
     func testMenuSlotTitleFollowsPresetUntilItIsRenamed() throws {
         let editor = try makeEditor()
         let presetName: (PluginID) -> String? = { pluginID in
