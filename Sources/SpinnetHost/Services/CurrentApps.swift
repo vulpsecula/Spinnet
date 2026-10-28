@@ -74,6 +74,9 @@ struct CurrentApp: Equatable {
 
     var bundleIdentifier: String? { identity.bundleIdentifier }
     var name: String { identity.name }
+    /// What selects its App Overrides; nil for an App without a bundle
+    /// identifier, which gets the default Menu.
+    var appBundleIdentifier: AppBundleIdentifier? { AppBundleIdentifier(validating: bundleIdentifier) }
 }
 
 /// The Apps running on this Mac, for `apps.frontmost`, `apps.quit` and

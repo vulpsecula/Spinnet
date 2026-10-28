@@ -60,9 +60,23 @@ struct MenuItemPresentation: Equatable {
     }
 }
 
+/// How a Slot shown in the Menu Editor for an App relates to the default
+/// Menu: showing the default's Menu Item, or the App's own override.
+enum SlotAppOverrideState: Equatable {
+    case inherited
+    case overridden
+}
+
 struct MenuSlotPresentation: Equatable {
     let configuration: MenuSlotConfiguration
     let item: MenuItemPresentation?
+    /// Set only while the Menu Editor edits an App; nil in the default Menu
+    /// and in Runtime Mode.
+    var appOverride: SlotAppOverrideState? = nil
+
+    /// Shown in the inherited style: the default Menu's Menu Item, seen
+    /// from an App that does not override the Slot.
+    var isInherited: Bool { appOverride == .inherited }
 
     var isEmpty: Bool { item == nil }
     /// Uses the Menu Item's Alias when present; otherwise it uses its Preset

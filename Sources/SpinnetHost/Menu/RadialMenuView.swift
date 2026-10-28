@@ -104,6 +104,11 @@ final class RadialMenuView: NSView {
     var onEditorSelection: ((Int) -> Void)?
     var onEditorEditRequested: ((Int) -> Void)?
     var onEditorSlotDeleteRequested: ((Int) -> Void)?
+    /// Empties a Slot for the App being edited.
+    var onEditorSlotEmptyRequested: ((Int) -> Void)?
+    /// Returns a Slot to the default Menu's Menu Item for the App being
+    /// edited.
+    var onEditorSlotResetRequested: ((Int) -> Void)?
     /// Fills an Empty Slot with a Library Preset dropped on it.
     var onPresetDrop: ((String, Int) -> Bool)?
     /// Adds a new Slot at the index for a Library Preset dropped on an
@@ -722,7 +727,7 @@ final class RadialMenuView: NSView {
             return []
         }
         if Self.libraryPresetID(from: sender.draggingPasteboard) != nil {
-            if slots[target].isEmpty {
+            if slots[target].isEmpty || slots[target].appOverride != nil {
                 libraryInsertionIndex = nil
             } else {
                 libraryInsertionIndex = insertionIndex(beside: target, at: convert(sender.draggingLocation, from: nil))
@@ -747,6 +752,7 @@ final class RadialMenuView: NSView {
               !editorDragStarted,
               let sourceIndex = editorMouseDownIndex,
               slots.indices.contains(sourceIndex),
+              slots[sourceIndex].appOverride == nil,
               editorSlots.indices.contains(sourceIndex) else { return }
         editorDragStarted = true
         dragOriginalSlots = editorSlots
@@ -862,14 +868,38 @@ final class RadialMenuView: NSView {
             menu.addItem(.separator())
         }
 
+        if let appOverride = slot.appOverride {
+            let emptyItem = NSMenuItem(
+                title: "Empty Slot for This App",
+                action: #selector(emptyContextMenuSlot(_:)),
+                keyEquivalent: ""
+            )
+            emptyItem.target = self
+            emptyItem.isEnabled = !slot.isEmpty
+            emptyItem.toolTip = "Show no Menu Item in this Slot while this App is the Current App"
+            menu.addItem(emptyItem)
+            let resetItem = NSMenuItem(
+                title: "Reset to Default",
+                action: #selector(resetContextMenuSlot(_:)),
+                keyEquivalent: ""
+            )
+            resetItem.target = self
+            resetItem.isEnabled = appOverride == .overridden
+            resetItem.toolTip = "Use the default Menu's Menu Item in this Slot for this App"
+            menu.addItem(resetItem)
+            menu.addItem(.separator())
+        }
+
         let slotAction = NSMenuItem(
             title: "Delete Slot",
             action: #selector(deleteContextMenuSlot(_:)),
             keyEquivalent: ""
         )
         slotAction.target = self
-        slotAction.isEnabled = slots.count > 1
-        slotAction.toolTip = slotAction.isEnabled
+        slotAction.isEnabled = slots.count > 1 && slot.appOverride == nil
+        slotAction.toolTip = slot.appOverride != nil
+            ? "Slots are deleted in the default Menu"
+            : slotAction.isEnabled
             ? "Delete this Slot after confirmation"
             : "A Menu must contain at least one Slot"
         menu.addItem(slotAction)
@@ -984,6 +1014,16 @@ final class RadialMenuView: NSView {
         onEditorSlotDeleteRequested?(contextMenuIndex)
     }
 
+    @objc private func emptyContextMenuSlot(_ sender: Any?) {
+        guard let contextMenuIndex else { return }
+        onEditorSlotEmptyRequested?(contextMenuIndex)
+    }
+
+    @objc private func resetContextMenuSlot(_ sender: Any?) {
+        guard let contextMenuIndex else { return }
+        onEditorSlotResetRequested?(contextMenuIndex)
+    }
+
     private func updateSelection(at point: CGPoint) {
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
         selectedIndex = layout.hitTest(point: point, center: center)
@@ -1024,7 +1064,8 @@ final class RadialMenuView: NSView {
 
     private func updateAccessibilityValue() {
         if let selectedIndex, slots.indices.contains(selectedIndex) {
-            setAccessibilityValue(slots[selectedIndex].title)
+            let slot = slots[selectedIndex]
+            setAccessibilityValue(slot.isInherited ? "\(slot.title), from the default Menu" : slot.title)
         } else {
             setAccessibilityValue(noSelectionAccessibilityValue)
         }
@@ -1419,7 +1460,9 @@ final class RadialMenuView: NSView {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: titleLayout.font,
             .paragraphStyle: paragraphStyle,
-            .foregroundColor: slot.isEmpty || slot.item?.primaryAction.isAvailable == false
+            .foregroundColor: slot.isInherited
+                ? palette.secondaryLabel.withAlphaComponent(palette.secondaryLabel.alphaComponent * 0.7)
+                : slot.isEmpty || slot.item?.primaryAction.isAvailable == false
                 ? palette.secondaryLabel
                 : palette.label
         ]

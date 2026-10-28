@@ -333,9 +333,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 appearance: MenuAppearanceConfiguration(defaults: .standard),
                 icons: currentAppIcons
             )
-            menu.onRefresh = { [weak self] in
+            menu.onRefresh = { [weak self] currentApp in
                 guard let self, let configuration = self.currentConfiguration else { return [] }
-                return self.makeMenuSlots(from: configuration)
+                return self.makeMenuSlots(from: configuration, for: currentApp)
             }
             menu.onPrimaryAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onActionMenuSelection = { [weak self] actionID in self?.invoke(actionID: actionID) }
@@ -568,9 +568,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         menu?.reload(items: makeMenuSlots(from: configuration))
     }
 
+    /// The Slots presented for the Menu's Current App, the App in front at
+    /// its last invocation.
     private func makeMenuSlots(from configuration: HostConfiguration) -> [MenuSlotPresentation] {
+        makeMenuSlots(from: configuration, for: menu?.currentApp)
+    }
+
+    private func makeMenuSlots(from configuration: HostConfiguration, for currentApp: CurrentApp?) -> [MenuSlotPresentation] {
         MenuPresentationFactory.makeSlots(
             configuration: configuration,
+            app: currentApp?.appBundleIdentifier,
             availability: { actionAvailability(for: $0) },
             presetName: { [weak self] pluginID in
                 self?.registry.package(for: pluginID)?.manifest.name

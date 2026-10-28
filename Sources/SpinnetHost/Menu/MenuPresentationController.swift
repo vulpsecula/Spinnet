@@ -71,7 +71,7 @@ final class MenuPresentationController {
     private var actionMenu: NSMenu?
     private let icons: CurrentAppIcons
     /// The Current App of this invocation, resolved when the Menu opens.
-    private var currentApp: CurrentApp?
+    private(set) var currentApp: CurrentApp?
     private var currentAppIcon: NSImage?
 
     private(set) var isOpen = false
@@ -79,9 +79,10 @@ final class MenuPresentationController {
     var onActionMenuSelection: ((ActionID) -> Void)?
     var onEmptySlotActivated: ((Int) -> Void)?
     var onDismiss: (() -> Void)?
-    /// Rebuilds runtime item availability immediately before a menu interaction.
-    /// Resource-backed Actions can become stale while the menu is open.
-    var onRefresh: (() -> [MenuSlotPresentation])?
+    /// Rebuilds runtime item availability immediately before a menu interaction,
+    /// for the Current App, whose App Overrides it presents. Resource-backed
+    /// Actions can become stale while the menu is open.
+    var onRefresh: ((CurrentApp?) -> [MenuSlotPresentation])?
 
     init(
         items: [MenuSlotPresentation],
@@ -131,7 +132,7 @@ final class MenuPresentationController {
     /// Passive availability updates must not end the user's Menu interaction.
     func refreshAvailability() {
         guard let onRefresh else { return }
-        let refreshedSlots = onRefresh()
+        let refreshedSlots = onRefresh(currentApp)
         guard slots.map({ $0.item?.configuration }) == refreshedSlots.map({ $0.item?.configuration }) else {
             // A changed composition must not retarget a gesture already in progress.
             reload(items: refreshedSlots)
@@ -196,6 +197,8 @@ final class MenuPresentationController {
     /// the Menu has since been opened for another App.
     func open(at pointer: CGPoint, currentApp: CurrentApp? = nil) {
         syncMenuViewAppearanceIfNeeded()
+        // The Current App's App Overrides are presented from this refresh.
+        self.currentApp = currentApp
         refreshItemsIfNeeded()
         let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main
         showCurrentApp(currentApp, backingScale: screen?.backingScaleFactor ?? 2)
@@ -319,7 +322,7 @@ final class MenuPresentationController {
 
     private func refreshItemsIfNeeded() {
         guard let onRefresh else { return }
-        let refreshedSlots = onRefresh()
+        let refreshedSlots = onRefresh(currentApp)
         slots = refreshedSlots
         layout = appearanceConfiguration.layout(slotCount: refreshedSlots.count)
         menuView.reload(slots: refreshedSlots)

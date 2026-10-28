@@ -26,8 +26,9 @@ struct MenuEditorView: View {
     }
 
     private var selectedSlotIsOccupied: Bool {
-        guard editor.configuration.menu.slots.indices.contains(selectedMenuIndex) else { return false }
-        return editor.configuration.menu.slots[selectedMenuIndex].item != nil
+        let slots = editor.editedSlots
+        guard slots.indices.contains(selectedMenuIndex) else { return false }
+        return slots[selectedMenuIndex].item != nil
     }
 
     var body: some View {

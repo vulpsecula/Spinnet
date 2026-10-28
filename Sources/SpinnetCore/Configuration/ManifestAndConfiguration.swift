@@ -1315,18 +1315,28 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
 }
 
 public struct MenuSlotConfiguration: Codable, Equatable, Hashable {
+    /// The default Menu's Menu Item in this Slot.
     public let item: MenuItemConfiguration?
+    /// The App Overrides attached to this Slot, by App. They belong to the
+    /// Slot, so they move, stay or go with it.
+    public let appOverrides: [AppBundleIdentifier: AppSlotOverride]
     public static var empty: Self { Self(item: nil) }
 
     public static func occupied(_ item: MenuItemConfiguration) -> Self {
         Self(item: item)
     }
 
-    public init(item: MenuItemConfiguration?) {
+    public init(item: MenuItemConfiguration?, appOverrides: [AppBundleIdentifier: AppSlotOverride] = [:]) {
         self.item = item
+        self.appOverrides = appOverrides
     }
 
-    private init(item: MenuItemConfiguration?, legacyName: String?) {
+    private init(
+        item: MenuItemConfiguration?,
+        legacyName: String?,
+        appOverrides: [AppBundleIdentifier: AppSlotOverride]
+    ) {
+        self.appOverrides = appOverrides
         guard let item, item.alias == nil, legacyName != nil else {
             self.item = item
             return
@@ -1334,9 +1344,35 @@ public struct MenuSlotConfiguration: Codable, Equatable, Hashable {
         self.item = item.withAlias(legacyName)
     }
 
+    /// The Menu Item presented in this Slot while `app` is the Current App:
+    /// its override when it has one, otherwise the default Menu's.
+    public func item(for app: AppBundleIdentifier?) -> MenuItemConfiguration? {
+        guard let app, let override = appOverrides[app] else { return item }
+        return override.item
+    }
+
+    /// Every Menu Item this Slot holds: the default's, then each App's.
+    public var allItems: [MenuItemConfiguration] {
+        [item].compactMap { $0 } + appOverrides.keys.sorted().compactMap { appOverrides[$0]?.item }
+    }
+
+    /// The same Slot with its default Menu Item replaced and its App
+    /// Overrides kept.
+    public func withItem(_ item: MenuItemConfiguration?) -> Self {
+        Self(item: item, appOverrides: appOverrides)
+    }
+
+    /// The same Slot with `app`'s override set, or removed by nil.
+    public func withOverride(_ override: AppSlotOverride?, for app: AppBundleIdentifier) -> Self {
+        var overrides = appOverrides
+        overrides[app] = override
+        return Self(item: item, appOverrides: overrides)
+    }
+
     private enum CodingKeys: String, CodingKey {
         case item
         case name
+        case appOverrides = "app_overrides"
     }
 
     public init(from decoder: Decoder) throws {
@@ -1345,12 +1381,30 @@ public struct MenuSlotConfiguration: Codable, Equatable, Hashable {
         // Older configurations stored the alias on the Slot as `name`. Move
         // that value onto the decoded Menu Item exactly once at the boundary.
         let legacyName = try container.decodeIfPresent(String.self, forKey: .name)
-        self.init(item: item, legacyName: legacyName)
+        // Configurations saved before App Overrides have none.
+        let overrides = try container.decodeIfPresent(
+            [String: AppSlotOverride].self,
+            forKey: .appOverrides
+        ) ?? [:]
+        var appOverrides: [AppBundleIdentifier: AppSlotOverride] = [:]
+        for (rawApp, override) in overrides {
+            guard let app = AppBundleIdentifier(validating: rawApp) else {
+                throw ConfigurationError.invalidMenu("An App Override has no bundle identifier")
+            }
+            appOverrides[app] = override
+        }
+        self.init(item: item, legacyName: legacyName, appOverrides: appOverrides)
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(item, forKey: .item)
+        if !appOverrides.isEmpty {
+            try container.encode(
+                Dictionary(uniqueKeysWithValues: appOverrides.map { ($0.key.rawValue, $0.value) }),
+                forKey: .appOverrides
+            )
+        }
     }
 }
 
@@ -1370,14 +1424,38 @@ public struct MenuConfiguration: Codable, Equatable {
             throw ConfigurationError.invalidMenu("Menu must contain between 1 and 12 Slots")
         }
         var actionIDs = Set<ActionID>()
-        for item in slots.compactMap(\.item) {
+        for item in slots.flatMap(\.allItems) {
             for actionID in item.boundActionIDs {
                 guard actionIDs.insert(actionID).inserted else {
                     throw ConfigurationError.invalidMenu("An Action is bound more than once")
                 }
             }
         }
+        guard slots.allSatisfy({
+            $0.appOverrides.keys.allSatisfy { AppBundleIdentifier(validating: $0.rawValue) != nil }
+        }) else {
+            throw ConfigurationError.invalidMenu("An App Override has no bundle identifier")
+        }
         self.slots = slots
+    }
+
+    /// The Slots presented while `app` is the Current App: each Slot's App
+    /// Override for it, or the default Menu's Menu Item. This is the one
+    /// place App Overrides are applied; nil, or an App without overrides,
+    /// gets the default Menu. The resolved Slots carry no overrides.
+    public func slots(for app: AppBundleIdentifier?) -> [MenuSlotConfiguration] {
+        slots.map { MenuSlotConfiguration(item: $0.item(for: app)) }
+    }
+
+    /// The Apps with at least one App Override, in bundle identifier order.
+    public var overriddenApps: [AppBundleIdentifier] {
+        Set(slots.flatMap(\.appOverrides.keys)).sorted()
+    }
+
+    /// Every Menu Item in the Menu: the default Menu's and every App
+    /// Override's.
+    public var allItems: [MenuItemConfiguration] {
+        slots.flatMap(\.allItems)
     }
 
     public init(from decoder: Decoder) throws {
@@ -1411,7 +1489,7 @@ public struct HostConfiguration: Codable, Equatable {
                 throw ConfigurationError.invalidAction("Duplicate Action ID \(action.id.rawValue)")
             }
         }
-        for item in menu.slots.compactMap(\.item) {
+        for item in menu.allItems {
             for actionID in item.boundActionIDs {
                 guard actionIDs.contains(actionID) else {
                     throw ConfigurationError.invalidMenu("Menu Item references an unknown Action")

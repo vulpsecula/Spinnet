@@ -29,7 +29,7 @@ final class MenuAvailabilityRefreshTests: XCTestCase {
                 alternateActions: []))]
         }
         let menu = MenuPresentationController(items: makeSlots())
-        menu.onRefresh = makeSlots
+        menu.onRefresh = { _ in makeSlots() }
         defer { menu.dismiss() }
         let screen = try XCTUnwrap(NSScreen.main)
         let pointer = CGPoint(x: screen.frame.midX, y: screen.frame.midY)
@@ -89,7 +89,7 @@ final class MenuAvailabilityRefreshTests: XCTestCase {
         }
         let screen = try XCTUnwrap(NSScreen.main)
         let point = CGPoint(x: screen.frame.midX, y: screen.frame.midY)
-        menu.onRefresh = { _ = service.status(check); return slots }
+        menu.onRefresh = { _ in _ = service.status(check); return slots }
         // Exercise the passive refresh entry used by ApplicationDelegate.
         let refreshed = expectation(description: "Passive connection refresh completes")
         var didFulfill = false

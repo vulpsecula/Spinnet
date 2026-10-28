@@ -14,6 +14,14 @@ Its Configuration Sheet saves or cancels edits together; Menu arrangement,
 appearance and triggers save automatically. Unavailable Actions keep their
 Slots and can be repaired in Settings.
 
+App Overrides change what some Slots contain for one App. Choose the App in
+the Menu Editor's App switcher, or add it from running Apps or Applications;
+an App needs a bundle identifier. Adding a Preset to a Slot or editing its
+Menu Item then overrides that Slot, and right-clicking a Slot empties it or
+resets it to the default. They apply while that App is the Current App;
+every other App gets the default Menu. Slots are arranged in the default
+Menu only.
+
 Mouse Side Button 1 opens the Menu by default. Change the mouse trigger or
 record or enter a keyboard shortcut under Settings → Menu. The Library
 contains Plugins, including those whose Commands directly call Host Services.
