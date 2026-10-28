@@ -22,13 +22,13 @@ final class PluginUpdatesModel: ObservableObject {
         let installedVersion: String?
         var status: Status
         var message: String?
-        var candidate: PluginUpdateOffer?
+        var offer: PluginUpdateOffer?
     }
 
     @Published private var entries: [PluginID: Entry] = [:]
 
     /// Checks one Plugin's Update Source; it reaches the network.
-    var checkForUpdate: ((PluginID) throws -> PluginUpdateCheck)?
+    var checkPluginUpdate: ((PluginID) throws -> PluginUpdateCheck)?
     /// Starts the Library's installation review for an accepted version.
     var startUpdate: ((PluginUpdateOffer) -> Void)?
     /// Where a check runs, off the main thread, and where its result lands.
@@ -55,14 +55,14 @@ final class PluginUpdatesModel: ObservableObject {
 
     func status(for pluginID: PluginID) -> Status { entry(for: pluginID)?.status ?? .notChecked }
     func message(for pluginID: PluginID) -> String? { entry(for: pluginID)?.message }
-    func availableVersion(for pluginID: PluginID) -> String? { entry(for: pluginID)?.candidate?.manifest.version }
+    func availableVersion(for pluginID: PluginID) -> String? { entry(for: pluginID)?.offer?.manifest.version }
 
     func checkForUpdate(_ pluginID: PluginID) {
-        guard offersUpdates(for: pluginID), status(for: pluginID) != .checking, let checkForUpdate else { return }
+        guard offersUpdates(for: pluginID), status(for: pluginID) != .checking, let checkPluginUpdate else { return }
         let installed = manifest(pluginID)?.version
         entries[pluginID] = Entry(installedVersion: installed, status: .checking)
         runInBackground { [weak self] in
-            let result = Result { try checkForUpdate(pluginID) }
+            let result = Result { try checkPluginUpdate(pluginID) }
             self?.deliver {
                 self?.entries[pluginID] = Self.entry(for: result, installedVersion: installed)
             }
@@ -74,14 +74,15 @@ final class PluginUpdatesModel: ObservableObject {
         case .failure(let error):
             return Entry(installedVersion: installedVersion, status: .failed, message: error.localizedDescription)
         case .success(let check):
+            // Refusals carry the version their tag names, highest first.
+            let refused = check.refusals.map { "\($0.version) was refused: \($0.reason)" }
             if let update = check.update {
-                return Entry(installedVersion: installedVersion, status: .available,
-                             message: "Version \(update.manifest.version) is available.", candidate: update)
+                let message = (["Version \(update.manifest.version) is available."] + refused.prefix(1)).joined(separator: " ")
+                return Entry(installedVersion: installedVersion, status: .available, message: message, offer: update)
             }
             if let refusal = check.refusals.first {
-                let version = refusal.tag.split(separator: "/").last.map { $0.hasPrefix("v") ? String($0.dropFirst()) : String($0) }
                 return Entry(installedVersion: installedVersion, status: .refused,
-                             message: "No acceptable update. \(version ?? refusal.tag): \(refusal.reason)")
+                             message: "No acceptable update. \(refusal.version): \(refusal.reason)")
             }
             return Entry(installedVersion: installedVersion, status: .upToDate,
                          message: "\(check.installedVersion) is the latest version.")
@@ -90,7 +91,7 @@ final class PluginUpdatesModel: ObservableObject {
 
     /// Applies the version the last check accepted, after the Library's review.
     func update(_ pluginID: PluginID) {
-        guard let candidate = entry(for: pluginID)?.candidate else { return }
-        startUpdate?(candidate)
+        guard let offer = entry(for: pluginID)?.offer else { return }
+        startUpdate?(offer)
     }
 }

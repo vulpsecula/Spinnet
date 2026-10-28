@@ -281,13 +281,17 @@ final class MenuEditorModel: ObservableObject {
     /// A Plugin Update found at the Update Source takes the same review as a
     /// package the user chose.
     func installPluginUpdate(_ update: PluginUpdateOffer) {
-        let pending = PendingPluginInstallation(source: update.packageURL, review: update.review, update: update)
-        guard update.review.requestedAccess.isEmpty else {
-            pendingInstallation = pending
-            return
-        }
+        guard let reviewPluginInstallation else { return }
         do {
-            try install(pending)
+            // Reviewed again now: decisions, Plugins or the Host may have
+            // changed since the check.
+            let review = try reviewPluginInstallation(update.packageURL)
+            let pending = PendingPluginInstallation(source: update.packageURL, review: review, update: update)
+            if review.requestedAccess.isEmpty {
+                try install(pending)
+            } else {
+                pendingInstallation = pending
+            }
         } catch {
             reportInstallationFailure(error)
         }

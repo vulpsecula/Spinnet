@@ -234,6 +234,9 @@ struct MenuEditorView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let pluginUpdates {
+                    PluginUpdateControls(updates: pluginUpdates, pluginID: plugin.id, pluginName: plugin.libraryName)
+                }
             }
 
             Spacer()

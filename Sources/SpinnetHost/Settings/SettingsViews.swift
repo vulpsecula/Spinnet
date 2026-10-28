@@ -277,8 +277,10 @@ final class SettingsWindowModel: ObservableObject {
         appearance = MenuAppearanceModel(defaults: defaults)
         clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
         screenshots = ScreenshotSettingsModel(defaults: defaults)
+        // A refused Plugin can be updated too, to a version this Host runs.
         pluginUpdates = PluginUpdatesModel(manifest: { [editor] pluginID in
             editor.pluginManifests.first { $0.id == pluginID }
+                ?? editor.refusedPlugins.first { $0.id == pluginID }?.manifest
         })
         pluginUpdates.startUpdate = { [weak menuEditor] in menuEditor?.installPluginUpdate($0) }
         // Authority decides Menu Item availability, so a grant or permission

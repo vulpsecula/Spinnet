@@ -35,7 +35,7 @@ final class PluginUpdatesModelTests: XCTestCase {
         settings.menuEditor.reviewPluginInstallation = { [store] in try store!.review($0) }
         settings.menuEditor.installPlugin = { [store] in try store!.install(from: $0) }
         settings.menuEditor.applyPluginUpdate = { try updater.apply($0) }
-        settings.pluginUpdates.checkForUpdate = { try updater.check($0) }
+        settings.pluginUpdates.checkPluginUpdate = { try updater.check($0) }
         settings.pluginUpdates.runInBackground = { $0() }
         settings.pluginUpdates.deliver = { $0() }
     }
@@ -59,6 +59,61 @@ final class PluginUpdatesModelTests: XCTestCase {
         try PluginReleaseFixture.publish([.init(tag: tag)], on: transport)
         transport.answer(PluginReleaseFixture.assetURL(tag: tag), body: try PluginReleaseFixture.zipped(
             PluginReleaseFixture.manifest(version: version, capabilities: capabilities), in: directory))
+    }
+
+    func testARefusedPluginWithAnUpdateSourceCanStillBeCheckedAndUpdated() throws {
+        let package = try PluginReleaseFixture.package(PluginReleaseFixture.manifest(version: "1.0.0"), in: directory)
+        let manifest = try PluginManifestLoader.load(packageAt: package).manifest
+        registry.recordRefused(RefusedPlugin(id: pluginID, manifest: manifest, reason: "It needs a newer Spinnet."))
+        try publish(version: "1.1.0")
+
+        XCTAssertTrue(updates.offersUpdates(for: pluginID), "A refused Plugin offers update controls")
+        updates.checkForUpdate(pluginID)
+
+        XCTAssertEqual(updates.availableVersion(for: pluginID), "1.1.0")
+        updates.update(pluginID)
+        settings.menuEditor.confirmPendingInstallation()
+
+        XCTAssertEqual(installedVersion, "1.1.0")
+        XCTAssertNil(registry.refusedPlugin(pluginID))
+    }
+
+    func testAnUpdateIsReviewedAgainWhenTheUserAppliesIt() throws {
+        try install(version: "1.0.0")
+        try publish(version: "1.0.1")
+        updates.checkForUpdate(pluginID)
+        // The check found write_clipboard undecided; the user decides it before updating.
+        grants.setDecision(.granted, for: pluginID, pluginVersion: "1.0.0", capability: .writeClipboard)
+
+        updates.update(pluginID)
+
+        XCTAssertNil(settings.menuEditor.pendingInstallation, "Nothing is left to review")
+        XCTAssertEqual(installedVersion, "1.0.1")
+    }
+
+    func testAnUpdateBelowRefusedVersionsShowsTheirReasons() throws {
+        try install(version: "1.0.0")
+        let higher = "\(pluginID.rawValue)/v1.2.0", lower = "\(pluginID.rawValue)/v1.1.0"
+        try PluginReleaseFixture.publish([.init(tag: higher), .init(tag: lower)], on: transport)
+        transport.answer(PluginReleaseFixture.assetURL(tag: higher), body: try PluginReleaseFixture.zipped(
+            PluginReleaseFixture.manifest(id: "com.example.impostor", version: "1.2.0"), in: directory))
+        transport.answer(PluginReleaseFixture.assetURL(tag: lower), body: try PluginReleaseFixture.zipped(
+            PluginReleaseFixture.manifest(version: "1.1.0"), in: directory))
+
+        updates.checkForUpdate(pluginID)
+
+        XCTAssertEqual(updates.status(for: pluginID), .available)
+        XCTAssertEqual(updates.message(for: pluginID), "Version 1.1.0 is available. "
+            + "1.2.0 was refused: The package is a different Plugin, com.example.impostor.")
+    }
+
+    func testARefusalNamesTheVersionCoreReports() throws {
+        try install(version: "1.0.0")
+        try PluginReleaseFixture.publish([.init(tag: "\(pluginID.rawValue)/vnext")], on: transport)
+
+        updates.checkForUpdate(pluginID)
+
+        XCTAssertEqual(updates.message(for: pluginID), "No acceptable update. next: The release tag does not name a SemVer version.")
     }
 
     func testAPluginWithoutAnUpdateSourceOffersNoUpdateControls() throws {

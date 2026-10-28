@@ -32,14 +32,16 @@ are installed, updated and removed like any other Plugin.
 ### Plugin Updates
 
 A Plugin that declares an Update Source, a GitHub repository, offers Check for
-Update on its Library entry, however it was installed. The check asks GitHub's
-public API for that repository's releases tagged `<plugin-id>/v<version>` and
+Update on its Library entry, however it was installed, even when this Host
+refused to load it. The check asks GitHub's public API for that repository's
+tags starting `<plugin-id>/v`, looks up their releases newest first, and
 offers the highest newer version it accepts: same Plugin identity and Update
 Source, a strictly greater SemVer version, a compatible Host range, and a
 package downloaded over HTTPS from the repository's release asset. Update then
 replaces the package through the Library's install path: Plugin Storage,
 Plugin Settings, Menu Items and Capability decisions are kept, and newly
-requested Capabilities are reviewed before anything is replaced. Nothing
+requested Capabilities are reviewed, again at that moment, before anything is
+replaced. Nothing
 installs automatically. A refused version, being offline or GitHub's rate
 limit is shown on the entry, and the installed version keeps working. A Plugin
 without an Update Source shows no update controls. Authors publish releases

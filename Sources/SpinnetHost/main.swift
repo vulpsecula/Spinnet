@@ -36,12 +36,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             self.pluginViewPins.forget(pluginID)
         }
     )
-    /// Checks Update Sources and applies Plugin Updates through the same
-    /// install store. Unpacked candidates wait in a temporary directory.
-    private lazy var pluginUpdater = PluginUpdater(
-        store: pluginInstallation, registry: registry, transport: URLSessionHTTPSTransport(),
-        downloads: FileManager.default.temporaryDirectory.appendingPathComponent("Spinnet Plugin Updates", isDirectory: true)
-    )
     /// Each Plugin's Pin (ADR 0016), kept across launches and updates and
     /// forgotten when the Plugin is removed.
     private lazy var pluginViewPins = PluginViewPins(defaults: .standard)
@@ -414,11 +408,20 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.installPlugin = { [unowned self] url in
                 try self.finishInstallation(of: self.pluginInstallation.install(from: url), editor: editor)
             }
+            // Checks Update Sources and applies Plugin Updates through the
+            // same install store. Made here, on the main thread, before any
+            // check runs in the background; unpacked offers wait in a
+            // temporary folder it clears.
+            let pluginUpdater = PluginUpdater(
+                store: pluginInstallation, registry: registry, transport: URLSessionHTTPSTransport(),
+                downloads: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("Spinnet Plugin Updates", isDirectory: true)
+            )
             settings.applyPluginUpdate = { [unowned self] update in
-                try self.finishInstallation(of: self.pluginUpdater.apply(update), editor: editor)
+                try self.finishInstallation(of: pluginUpdater.apply(update), editor: editor)
             }
-            settings.checkPluginUpdate = { [unowned self] pluginID in
-                try self.pluginUpdater.check(pluginID)
+            settings.checkPluginUpdate = { pluginID in
+                try pluginUpdater.check(pluginID)
             }
             settings.removePlugin = { [unowned self] pluginID in
                 try self.pluginInstallation.uninstall(pluginID)
