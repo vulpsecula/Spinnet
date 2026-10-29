@@ -289,20 +289,16 @@ final class RadialMenuView: NSView {
         switch mode {
         case .runtime:
             setAccessibilityRole(.menu)
-            setAccessibilityLabel("Spinnet Menu")
+            setAccessibilityLabel(localized("Spinnet Menu"))
             setAccessibilityHelp(
-                "Use the arrow keys and Return for a Primary Action. "
-                    + "Right-click or Option-Return to choose from the configured Actions."
+                localized("Use the arrow keys and Return for a Primary Action. Right-click or Option-Return to choose from the configured Actions.")
             )
         case .editor:
             setAccessibilityRole(.group)
-            setAccessibilityLabel("Editor Mode Menu")
+            setAccessibilityLabel(localized("Editor Mode Menu"))
             if allowsEditing {
                 setAccessibilityHelp(
-                    "Left-click a Menu Slot to focus it. Use the in-slot Edit button to configure "
-                        + "an occupied Slot, double-click an occupied Slot, or right-click for details "
-                        + "and actions. Press Return, Space, or Command-E to edit the focused Slot. "
-                        + "Actions do not execute in Editor Mode."
+                    localized("Left-click a Menu Slot to focus it. Use the in-slot Edit button to configure an occupied Slot, double-click an occupied Slot, or right-click for details and actions. Press Return, Space, or Command-E to edit the focused Slot. Actions do not execute in Editor Mode.")
                 )
                 registerForDraggedTypes([
                     Self.libraryPresetPasteboardType,
@@ -312,8 +308,7 @@ final class RadialMenuView: NSView {
                 rebuildEditButtons()
             } else {
                 setAccessibilityHelp(
-                    "Move the pointer over a Menu Slot to inspect its Appearance. "
-                        + "Actions and Menu edits are disabled in Editor Mode."
+                    localized("Move the pointer over a Menu Slot to inspect its Appearance. Actions and Menu edits are disabled in Editor Mode.")
                 )
             }
         }
@@ -838,10 +833,10 @@ final class RadialMenuView: NSView {
     private func makeEditorContextMenu(for index: Int) -> NSMenu {
         contextMenuIndex = index
         let slot = slots[index]
-        let menu = NSMenu(title: "Slot \(index + 1)")
+        let menu = NSMenu(title: localized("Slot \(index + 1)"))
 
         let slotInfo = NSMenuItem(
-            title: "Slot \(index + 1) — \(slot.isEmpty ? "Empty" : slot.title)",
+            title: localized("Slot \(index + 1) — \(slot.isEmpty ? localized("Empty") : slot.title)"),
             action: nil,
             keyEquivalent: ""
         )
@@ -850,7 +845,7 @@ final class RadialMenuView: NSView {
 
         if let item = slot.item {
             let primaryInfo = NSMenuItem(
-                title: "Primary Action: \(item.primaryAction.displayTitle)",
+                title: localized("Primary Action: \(item.primaryAction.displayTitle)"),
                 action: nil,
                 keyEquivalent: ""
             )
@@ -859,7 +854,7 @@ final class RadialMenuView: NSView {
 
             for alternate in item.alternateActions {
                 let alternateInfo = NSMenuItem(
-                    title: "Alternate Action: \(alternate.displayTitle)",
+                    title: localized("Alternate Action: \(alternate.displayTitle)"),
                     action: nil,
                     keyEquivalent: ""
                 )
@@ -869,12 +864,12 @@ final class RadialMenuView: NSView {
 
             menu.addItem(.separator())
             let editItem = NSMenuItem(
-                title: "Edit Slot…",
+                title: localized("Edit Slot…"),
                 action: #selector(editContextMenuSlot(_:)),
                 keyEquivalent: ""
             )
             editItem.target = self
-            editItem.toolTip = "Choose the Slot's Actions or give the Slot a custom name"
+            editItem.toolTip = localized("Choose the Slot's Actions or give the Slot a custom name")
             menu.addItem(editItem)
         } else {
             menu.addItem(.separator())
@@ -882,38 +877,38 @@ final class RadialMenuView: NSView {
 
         if let appOverride = slot.appOverride {
             let emptyItem = NSMenuItem(
-                title: "Empty Slot for This App",
+                title: localized("Empty Slot for This App"),
                 action: #selector(emptyContextMenuSlot(_:)),
                 keyEquivalent: ""
             )
             emptyItem.target = self
             emptyItem.isEnabled = !slot.isEmpty
-            emptyItem.toolTip = "Show no Menu Item in this Slot while this App is the Current App"
+            emptyItem.toolTip = localized("Show no Menu Item in this Slot while this App is the Current App")
             menu.addItem(emptyItem)
             let resetItem = NSMenuItem(
-                title: "Reset to Default",
+                title: localized("Reset to Default"),
                 action: #selector(resetContextMenuSlot(_:)),
                 keyEquivalent: ""
             )
             resetItem.target = self
             resetItem.isEnabled = appOverride == .overridden
-            resetItem.toolTip = "Use the default Menu's Menu Item in this Slot for this App"
+            resetItem.toolTip = localized("Use the default Menu's Menu Item in this Slot for this App")
             menu.addItem(resetItem)
             menu.addItem(.separator())
         }
 
         let slotAction = NSMenuItem(
-            title: "Delete Slot",
+            title: localized("Delete Slot"),
             action: #selector(deleteContextMenuSlot(_:)),
             keyEquivalent: ""
         )
         slotAction.target = self
         slotAction.isEnabled = slots.count > 1 && allowsSlotArrangement
         slotAction.toolTip = !allowsSlotArrangement
-            ? "Slots are deleted in the default Menu"
+            ? localized("Slots are deleted in the default Menu")
             : slotAction.isEnabled
-            ? "Delete this Slot after confirmation"
-            : "A Menu must contain at least one Slot"
+            ? localized("Delete this Slot after confirmation")
+            : localized("A Menu must contain at least one Slot")
         menu.addItem(slotAction)
         return menu
     }
@@ -926,7 +921,7 @@ final class RadialMenuView: NSView {
 
         for index in slots.indices where editButtons[index] == nil {
             let button = RadialMenuEditButton(
-                title: "Edit",
+                title: localized("Edit"),
                 target: self,
                 action: #selector(editButtonClicked(_:))
             )
@@ -935,9 +930,9 @@ final class RadialMenuView: NSView {
             button.controlSize = .small
             button.font = NSFont.systemFont(ofSize: 9, weight: .semibold)
             button.alignment = .center
-            button.setAccessibilityLabel("Edit Menu Item in Slot \(index + 1)")
-            button.setAccessibilityHelp("Open the configuration for this Menu Item.")
-            button.toolTip = "Edit Menu Item"
+            button.setAccessibilityLabel(localized("Edit Menu Item in Slot \(index + 1)"))
+            button.setAccessibilityHelp(localized("Open the configuration for this Menu Item."))
+            button.toolTip = localized("Edit Menu Item")
             button.registerForDraggedTypes([
                 Self.libraryPresetPasteboardType,
                 Self.textPasteboardType,
@@ -1077,14 +1072,14 @@ final class RadialMenuView: NSView {
     private func updateAccessibilityValue() {
         if let selectedIndex, slots.indices.contains(selectedIndex) {
             let slot = slots[selectedIndex]
-            setAccessibilityValue(slot.isInherited ? "\(slot.title), from the default Menu" : slot.title)
+            setAccessibilityValue(slot.isInherited ? localized("\(slot.title), from the default Menu") : slot.title)
         } else {
             setAccessibilityValue(noSelectionAccessibilityValue)
         }
     }
 
     private var noSelectionAccessibilityValue: String {
-        presentationMode == .runtime ? "No Menu Item selected" : "No Slot selected"
+        presentationMode == .runtime ? localized("No Menu Item selected") : localized("No Slot selected")
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1484,7 +1479,7 @@ final class RadialMenuView: NSView {
         )
 
         if presentationMode == .editor, allowsEditing, selectedIndex == index, slot.isEmpty {
-            let hint = "DROP HERE" as NSString
+            let hint = localized("DROP HERE") as NSString
             let hintAttributes: [NSAttributedString.Key: Any] = [
                 .font: appearanceConfiguration.titleFont(ofSize: 9, weight: .bold),
                 .foregroundColor: editorAccentColor
@@ -1565,7 +1560,7 @@ final class RadialMenuView: NSView {
         guard presentationMode == .runtime else { return }
         currentApp = app
         currentAppIcon = app == nil ? nil : icon
-        setAccessibilityLabel(app.map { "Spinnet Menu for \($0.name)" } ?? "Spinnet Menu")
+        setAccessibilityLabel(app.map { localized("Spinnet Menu for \($0.name)") } ?? localized("Spinnet Menu"))
         hubAccessibilityElement.setAccessibilityLabel(app?.name ?? "Spinnet")
         hubAccessibilityElement.setAccessibilityRole(currentAppIcon == nil ? .staticText : .image)
         needsDisplay = true
@@ -1577,7 +1572,7 @@ final class RadialMenuView: NSView {
     func showEditorCentre(_ centre: MenuEditorCentre) {
         guard presentationMode == .editor, centre != editorCentre else { return }
         editorCentre = centre
-        setAccessibilityLabel(centre.appName.map { "Editor Mode Menu for \($0)" } ?? "Editor Mode Menu")
+        setAccessibilityLabel(centre.appName.map { localized("Editor Mode Menu for \($0)") } ?? localized("Editor Mode Menu"))
         needsDisplay = true
     }
 

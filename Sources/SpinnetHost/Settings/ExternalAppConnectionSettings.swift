@@ -7,12 +7,12 @@ struct ExternalAppConnectionSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("App Connections").font(.headline)
+            Text(localized("App Connections")).font(.headline)
             ForEach(model.rows) { row in
                 ExternalAppConnectionRow(name: row.check.interface.name, status: row.status,
                     connect: { model.connect(row.id) })
             }
-            Text("Connect checks the App's read-only interface. It does not start the App or perform an Action.")
+            Text(localized("Connect checks the App's read-only interface. It does not start the App or perform an Action."))
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(14)
@@ -36,14 +36,14 @@ private struct ExternalAppConnectionRow: View {
                 if status == .busy {
                     ProgressView().controlSize(.small)
                 } else if !status.isConnected {
-                    Button("Connect \(name)", action: connect)
+                    Button(localized("Connect \(name)"), action: connect)
                         .disabled(status == .notInstalled || status == .capabilityDenied || status == .ownerInvalid)
                 }
             }
             Text(message).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if status == .permissionDenied {
-                Button("Open Automation Settings…") {
+                Button(localized("Open Automation Settings…")) {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
                         NSWorkspace.shared.open(url)
                     }
@@ -52,18 +52,18 @@ private struct ExternalAppConnectionRow: View {
         }
     }
 
-    private var message: LocalizedStringResource {
+    private var message: String {
         switch status {
-        case .ready: return "Connected"
-        case .notRunning: return "Connected. Start \(name) to use its Actions."
-        case .notRunningUnchecked: return "Start \(name), then connect to check Automation permission."
-        case .notInstalled: return "Install \(name) to connect."
-        case .permissionNeeded: return "Connect to allow Spinnet to communicate with \(name)."
-        case .permissionDenied: return "Allow Spinnet to control \(name) in macOS Automation settings, then connect again."
-        case .capabilityDenied: return "Grant External App access below before connecting."
-        case .ownerInvalid: return "This Plugin changed or is unavailable. Close and reopen Plugin Settings."
-        case .busy: return "Checking connection…"
-        case .failed(let message): return "Connection check failed: \(message)"
+        case .ready: return localized("Connected")
+        case .notRunning: return localized("Connected. Start \(name) to use its Actions.")
+        case .notRunningUnchecked: return localized("Start \(name), then connect to check Automation permission.")
+        case .notInstalled: return localized("Install \(name) to connect.")
+        case .permissionNeeded: return localized("Connect to allow Spinnet to communicate with \(name).")
+        case .permissionDenied: return localized("Allow Spinnet to control \(name) in macOS Automation settings, then connect again.")
+        case .capabilityDenied: return localized("Grant External App access below before connecting.")
+        case .ownerInvalid: return localized("This Plugin changed or is unavailable. Close and reopen Plugin Settings.")
+        case .busy: return localized("Checking connection…")
+        case .failed(let message): return localized("Connection check failed: \(message)")
         }
     }
 }

@@ -49,6 +49,8 @@ let package = Package(
         .executableTarget(
             name: "SpinnetHost",
             dependencies: ["SpinnetCore", "SpinnetReviewedTools"],
+            // Host-owned interface text (Localizable.xcstrings).
+            resources: [.process("Resources")],
             linkerSettings: [
                 .linkedFramework("AppKit", .when(platforms: [.macOS]))
             ]

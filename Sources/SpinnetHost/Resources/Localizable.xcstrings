@@ -1,0 +1,6376 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ %@ is installed again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ 已重新安装。"
+          }
+        }
+      }
+    },
+    "%@ %@ is installed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ 已安装。"
+          }
+        }
+      }
+    },
+    "%@ (Optional): Granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（可选）：已授予"
+          }
+        }
+      }
+    },
+    "%@ (Optional): Not granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（可选）：未授予"
+          }
+        }
+      }
+    },
+    "%@ (Unavailable: %@)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@（不可用：%2$@）"
+          }
+        }
+      }
+    },
+    "%@ Last checked %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@上次检查：%2$@。"
+          }
+        }
+      }
+    },
+    "%@ Page Content": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@页面内容"
+          }
+        }
+      }
+    },
+    "%@ Some changes could not be restored. Review the saved settings and credentials before retrying.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 部分更改无法恢复。重试前请检查已存储的设置和凭据。"
+          }
+        }
+      }
+    },
+    "%@ accent colour": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@强调色"
+          }
+        }
+      }
+    },
+    "%@ and %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@和%2$@"
+          }
+        }
+      }
+    },
+    "%@ application icon": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 应用程序图标"
+          }
+        }
+      }
+    },
+    "%@ configuration input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@配置输入"
+          }
+        }
+      }
+    },
+    "%@ could not be checked: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法检查 %1$@：%2$@"
+          }
+        }
+      }
+    },
+    "%@ forgets everything it kept for itself. Its settings, access, and Menu Items stay as they are.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 会忘记为自己保存的一切。它的设置、访问权限和菜单项保持不变。"
+          }
+        }
+      }
+    },
+    "%@ granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已授予%@"
+          }
+        }
+      }
+    },
+    "%@ is not one of its offered values.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 不是它提供的值之一。"
+          }
+        }
+      }
+    },
+    "%@ is the latest version.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 是最新版本。"
+          }
+        }
+      }
+    },
+    "%@ is updated from %@ to %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 已从 %2$@ 更新到 %3$@。"
+          }
+        }
+      }
+    },
+    "%@ is updated to %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 已更新到 %2$@。"
+          }
+        }
+      }
+    },
+    "%@ may monitor %@. Remove that button's click, drag, and scroll assignments in the other utility.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 可能在监视%2$@。请在该工具中移除这个按键的点按、拖移和滚动分配。"
+          }
+        }
+      }
+    },
+    "%@ must be an https address, such as https://api.example.com.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 必须是 https 地址，例如 https://api.example.com。"
+          }
+        }
+      }
+    },
+    "%@ percent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@%%"
+          }
+        }
+      }
+    },
+    "%@ removed. Its Slots use the default Menu.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已移除 %@。它的槽位使用默认菜单。"
+          }
+        }
+      }
+    },
+    "%@ removed. Menu Items that used it are kept and marked unavailable.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已移除 %@。使用它的菜单项会保留并标记为不可用。"
+          }
+        }
+      }
+    },
+    "%@ required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要%@"
+          }
+        }
+      }
+    },
+    "%@ was refused: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 被拒：%2$@"
+          }
+        }
+      }
+    },
+    "%@ · Optional": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · 可选"
+          }
+        }
+      }
+    },
+    "%@, Commands: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@，命令：%2$@"
+          }
+        }
+      }
+    },
+    "%@, from the default Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@，来自默认菜单"
+          }
+        }
+      }
+    },
+    "%@, refused: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@，被拒：%2$@"
+          }
+        }
+      }
+    },
+    "%@, unavailable: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@，不可用：%2$@"
+          }
+        }
+      }
+    },
+    "%lld Capability decisions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 项能力决定"
+          }
+        }
+      }
+    },
+    "%lld Plugin updates available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 %lld 个插件更新可用。"
+          }
+        }
+      }
+    },
+    "%lld Plugins could not be checked. The Library shows why.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个插件无法检查。资源库中显示了原因。"
+          }
+        }
+      }
+    },
+    "%lld disabled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已停用 %lld 个"
+          }
+        }
+      }
+    },
+    "%lld loaded": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已载入 %lld 个"
+          }
+        }
+      }
+    },
+    "%lld ms": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 毫秒"
+          }
+        }
+      }
+    },
+    "%lld of 12 Slots": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / 12 个槽位"
+          }
+        }
+      }
+    },
+    "%lld refused": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "被拒 %lld 个"
+          }
+        }
+      }
+    },
+    ", ": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "、"
+          }
+        }
+      }
+    },
+    "1 Plugin update available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 1 个插件更新可用。"
+          }
+        }
+      }
+    },
+    "1 day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 天"
+          }
+        }
+      }
+    },
+    "1 month": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 个月"
+          }
+        }
+      }
+    },
+    "1 week": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 周"
+          }
+        }
+      }
+    },
+    "A Menu must contain at least one Slot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单必须至少包含一个槽位"
+          }
+        }
+      }
+    },
+    "A Menu must contain at least one Slot.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单必须至少包含一个槽位。"
+          }
+        }
+      }
+    },
+    "A credential must be one line of at most 4096 characters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "凭据必须是不超过 4096 个字符的一行。"
+          }
+        }
+      }
+    },
+    "A credential must have a valid reference and one line of at most 4096 characters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "凭据必须有有效的引用，且为不超过 4096 个字符的一行。"
+          }
+        }
+      }
+    },
+    "A mouse-first macOS action environment centered on a radial Menu.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以环形菜单为中心、鼠标优先的 macOS 动作环境。"
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关于"
+          }
+        }
+      }
+    },
+    "Accent Colour": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强调色"
+          }
+        }
+      }
+    },
+    "Access applies Plugin-wide. Commands requiring denied access remain unavailable; optional access is skipped when not granted. Menu Items are preserved.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "访问权限作用于整个插件。需要被拒访问权限的命令保持不可用；未授予的可选访问权限会被跳过。菜单项会保留。"
+          }
+        }
+      }
+    },
+    "Accessibility": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能"
+          }
+        }
+      }
+    },
+    "Accessibility enables mouse triggers and protected keyboard recording": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能用于鼠标触发键和受保护的键盘录制"
+          }
+        }
+      }
+    },
+    "Accessibility granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已授予辅助功能"
+          }
+        }
+      }
+    },
+    "Accessibility is recommended for mouse triggers, selected text, Paste, and Cut. You can skip and use permission-free Commands. Input Monitoring is not requested. Screen Recording and app-specific Automation are deferred until an explicit feature action.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建议为鼠标触发键、所选文本、粘贴和剪切授予辅助功能权限。你也可以跳过并使用无需权限的命令。Spinnet 不请求输入监控。屏幕录制和针对特定 App 的自动化要等到你明确使用相关功能时才请求。"
+          }
+        }
+      }
+    },
+    "Accessibility status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能状态"
+          }
+        }
+      }
+    },
+    "Acknowledgements": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "致谢"
+          }
+        }
+      }
+    },
+    "Action Parameters": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作参数"
+          }
+        }
+      }
+    },
+    "Add": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加"
+          }
+        }
+      }
+    },
+    "Add %@ to selected Slot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将 %@ 添加到所选槽位"
+          }
+        }
+      }
+    },
+    "Add App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加 App"
+          }
+        }
+      }
+    },
+    "Add Row": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加行"
+          }
+        }
+      }
+    },
+    "Add a row to %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向 %@ 添加一行"
+          }
+        }
+      }
+    },
+    "Add empty Slot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加空槽位"
+          }
+        }
+      }
+    },
+    "Add to %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加到 %@"
+          }
+        }
+      }
+    },
+    "Add to selected empty Slot or drag it to a Slot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加到所选空槽位，或将其拖到槽位"
+          }
+        }
+      }
+    },
+    "Adjust continuously, snap to three recommended sizes, or enter an exact percentage.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连续调整、吸附到三个推荐大小，或输入精确的百分比。"
+          }
+        }
+      }
+    },
+    "After Capture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截屏后"
+          }
+        }
+      }
+    },
+    "Allow %@ to contact %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许 %1$@ 联络 %2$@"
+          }
+        }
+      }
+    },
+    "Allow Spinnet in System Settings → General → Login Items.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在“系统设置”→“通用”→“登录项”中允许 Spinnet。"
+          }
+        }
+      }
+    },
+    "Allow Spinnet in macOS Login Items & Extensions, then return here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 macOS“登录项与扩展”中允许 Spinnet，然后返回此处。"
+          }
+        }
+      }
+    },
+    "Allow Spinnet to control %@ in macOS Automation settings, then connect again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 macOS 自动化设置中允许 Spinnet 控制 %@，然后再次连接。"
+          }
+        }
+      }
+    },
+    "Allows Spinnet to perform system changes for Tasks you confirm. macOS may also ask for administrator approval for a specific operation.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许 Spinnet 为你确认的任务执行系统更改。macOS 也可能为特定操作要求管理员批准。"
+          }
+        }
+      }
+    },
+    "Alternate Action %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备选动作 %@"
+          }
+        }
+      }
+    },
+    "Alternate Action: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备选动作：%@"
+          }
+        }
+      }
+    },
+    "Alternate Actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备选动作"
+          }
+        }
+      }
+    },
+    "App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App"
+          }
+        }
+      }
+    },
+    "App Connections": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 连接"
+          }
+        }
+      }
+    },
+    "App Overrides use it in %@; they stay and are marked unavailable.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 覆盖在 %@ 中使用了它；它们会保留并标记为不可用。"
+          }
+        }
+      }
+    },
+    "App-wide preferences for Spinnet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 的全局偏好设置。"
+          }
+        }
+      }
+    },
+    "Appearance": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外观"
+          }
+        }
+      }
+    },
+    "Appearance changes are shown here. Actions and Menu edits are disabled.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外观更改会显示在这里。动作和菜单编辑已停用。"
+          }
+        }
+      }
+    },
+    "Application": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用程序"
+          }
+        }
+      }
+    },
+    "Application bundle identifier": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用程序 Bundle 标识符"
+          }
+        }
+      }
+    },
+    "Approval required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要批准"
+          }
+        }
+      }
+    },
+    "Approve Spinnet…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "批准 Spinnet…"
+          }
+        }
+      }
+    },
+    "Apps without a bundle identifier cannot be added.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法添加没有 Bundle 标识符的 App。"
+          }
+        }
+      }
+    },
+    "Ask Spinnet to close the front window of, quit or force quit the App in front, or one the Plugin identified. Close and Quit are the App's own ⌘W and ⌘Q, so it may ask you to save first, and only Apps whose menus offer them can be closed or quit that way. Spinnet names the App and asks you before a force quit, or before closing or quitting an App that is not in front; it never closes or quits Spinnet or parts of macOS.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请求 Spinnet 关闭前台 App 或插件识别的 App 的最前面窗口、退出或强制退出该 App。关闭和退出就是 App 自身的 ⌘W 和 ⌘Q，因此它可能会先请你存储，并且只有菜单中提供这些命令的 App 才能这样关闭或退出。强制退出之前，或关闭、退出不在前台的 App 之前，Spinnet 会写明该 App 并征求你的同意；它永远不会关闭或退出 Spinnet 或 macOS 的组成部分。"
+          }
+        }
+      }
+    },
+    "Ask the Host to take a screenshot of an area, the full screen, or a window, then copy it or save it to a folder you chose for the Menu Item. The Plugin never receives the image.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请求宿主截取一个区域、整个屏幕或一个窗口，然后拷贝截屏或将其存储到你为该菜单项选择的文件夹。插件永远不会收到图像。"
+          }
+        }
+      }
+    },
+    "Auto-saved": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动存储"
+          }
+        }
+      }
+    },
+    "Automatic": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动"
+          }
+        }
+      }
+    },
+    "Blue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝色"
+          }
+        }
+      }
+    },
+    "Bold": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粗体"
+          }
+        }
+      }
+    },
+    "Built with Swift and AppKit.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Swift 和 AppKit 构建。"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "Capture the Screen": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截取屏幕"
+          }
+        }
+      }
+    },
+    "Changes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改"
+          }
+        }
+      }
+    },
+    "Changes save automatically": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改会自动存储"
+          }
+        }
+      }
+    },
+    "Changes take effect immediately and apply to all Actions from each Plugin. Access is checked again when an Action runs.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改会立即生效，并应用于每个插件的所有动作。动作运行时会再次检查访问权限。"
+          }
+        }
+      }
+    },
+    "Changes take effect immediately and apply to all Actions from this Plugin.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改会立即生效，并应用于此插件的所有动作。"
+          }
+        }
+      }
+    },
+    "Check Again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再次检查"
+          }
+        }
+      }
+    },
+    "Check All for Updates": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部检查更新"
+          }
+        }
+      }
+    },
+    "Check Now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即检查"
+          }
+        }
+      }
+    },
+    "Check Now for Spinnet updates": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即检查 Spinnet 更新"
+          }
+        }
+      }
+    },
+    "Check for Plugin updates automatically": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动检查插件更新"
+          }
+        }
+      }
+    },
+    "Check for Spinnet updates automatically": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动检查 Spinnet 更新"
+          }
+        }
+      }
+    },
+    "Check for Update": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查更新"
+          }
+        }
+      }
+    },
+    "Check for Update: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查更新：%@"
+          }
+        }
+      }
+    },
+    "Checked ones are used, in this order.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按此顺序使用已勾选的项。"
+          }
+        }
+      }
+    },
+    "Checking connection…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查连接…"
+          }
+        }
+      }
+    },
+    "Checking for Spinnet updates…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查 Spinnet 更新…"
+          }
+        }
+      }
+    },
+    "Checking for updates…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查更新…"
+          }
+        }
+      }
+    },
+    "Checking for update…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查更新…"
+          }
+        }
+      }
+    },
+    "Choice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选项"
+          }
+        }
+      }
+    },
+    "Choose": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选取"
+          }
+        }
+      }
+    },
+    "Choose Actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择动作"
+          }
+        }
+      }
+    },
+    "Choose Again…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新选取…"
+          }
+        }
+      }
+    },
+    "Choose Application…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选取应用程序…"
+          }
+        }
+      }
+    },
+    "Choose Manually…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动选择…"
+          }
+        }
+      }
+    },
+    "Choose Save Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选取存储文件夹"
+          }
+        }
+      }
+    },
+    "Choose Shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选取快捷指令"
+          }
+        }
+      }
+    },
+    "Choose a %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择%@"
+          }
+        }
+      }
+    },
+    "Choose a key.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择一个按键。"
+          }
+        }
+      }
+    },
+    "Choose a valid Primary Action before saving.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储前请选择有效的主要动作。"
+          }
+        }
+      }
+    },
+    "Choose at least one modifier.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请至少选择一个修饰键。"
+          }
+        }
+      }
+    },
+    "Choose from Applications…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从应用程序中选取…"
+          }
+        }
+      }
+    },
+    "Choose keyboard shortcut manually": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动选择键盘快捷键"
+          }
+        }
+      }
+    },
+    "Choose one or more modifiers and a key.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择一个或多个修饰键和一个按键。"
+          }
+        }
+      }
+    },
+    "Choose the Action used by the normal gesture, then select which other Plugin Actions appear in the runtime right-click menu.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择常规手势使用的动作，然后选择哪些其他插件动作出现在运行时的右键菜单中。"
+          }
+        }
+      }
+    },
+    "Choose the Slot's Actions or give the Slot a custom name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择槽位的动作，或为槽位自定名称"
+          }
+        }
+      }
+    },
+    "Choose the typeface and weight used by Menu Item names in Editor and Runtime modes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择菜单项名称在编辑模式和运行模式下使用的字体和字重。"
+          }
+        }
+      }
+    },
+    "Choose what each Slot contains.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择每个槽位包含的内容。"
+          }
+        }
+      }
+    },
+    "Choose…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选取…"
+          }
+        }
+      }
+    },
+    "Clear History": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除历史"
+          }
+        }
+      }
+    },
+    "Clear History…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除历史…"
+          }
+        }
+      }
+    },
+    "Clear Stored Data": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除存储的数据"
+          }
+        }
+      }
+    },
+    "Clear Stored Data for %@?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除 %@ 存储的数据？"
+          }
+        }
+      }
+    },
+    "Clear Stored Data: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除存储的数据：%@"
+          }
+        }
+      }
+    },
+    "Clear Stored Data…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除存储的数据…"
+          }
+        }
+      }
+    },
+    "Clear keyboard shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除键盘快捷键"
+          }
+        }
+      }
+    },
+    "Clear optional keyboard shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除可选的键盘快捷键"
+          }
+        }
+      }
+    },
+    "Clear the same button and any chord containing it from global, per-application, and per-mouse profiles.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从全局、各应用程序和各鼠标的配置文件中清除同一按键及包含它的任何组合键。"
+          }
+        }
+      }
+    },
+    "Click & Drag": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按并拖移"
+          }
+        }
+      }
+    },
+    "Click & Drag to select on release": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按并拖移，松开时选择"
+          }
+        }
+      }
+    },
+    "Click to change": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按以更改"
+          }
+        }
+      }
+    },
+    "Click, then press a keyboard shortcut with at least one modifier key. Accessibility lets Spinnet block other apps while recording.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按，然后按下至少带一个修饰键的键盘快捷键。有辅助功能权限时，Spinnet 可在录制期间阻止其他 App 接收按键。"
+          }
+        }
+      }
+    },
+    "Click, then press a middle or additional mouse button to use as the Menu trigger.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按，然后按下鼠标中键或其他附加按键作为菜单触发键。"
+          }
+        }
+      }
+    },
+    "Clipboard History error: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪贴板历史出错：%@"
+          }
+        }
+      }
+    },
+    "Clipboard retention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪贴板保留时长"
+          }
+        }
+      }
+    },
+    "Close or Quit the App in Front": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭或退出前台 App"
+          }
+        }
+      }
+    },
+    "Collect Clipboard History": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收集剪贴板历史"
+          }
+        }
+      }
+    },
+    "Collect Clipboard History?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收集剪贴板历史？"
+          }
+        }
+      }
+    },
+    "Collection stops. Retained entries still expire on schedule and remain available to authorized Plugins. Plugin grants do not change.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收集会停止。保留的条目仍按计划过期，并继续供已授权的插件使用。插件授权不会改变。"
+          }
+        }
+      }
+    },
+    "Command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command"
+          }
+        }
+      }
+    },
+    "Command definition changed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令定义已更改"
+          }
+        }
+      }
+    },
+    "Command is no longer registered": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令已不再注册"
+          }
+        }
+      }
+    },
+    "Complete this Plugin's Plugin Settings in the Library": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在资源库中完成此插件的插件设置"
+          }
+        }
+      }
+    },
+    "Configurable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可配置"
+          }
+        }
+      }
+    },
+    "Configuration value (JSON or text)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置值（JSON 或文本）"
+          }
+        }
+      }
+    },
+    "Configure Slot %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置槽位 %lld"
+          }
+        }
+      }
+    },
+    "Connect %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接 %@"
+          }
+        }
+      }
+    },
+    "Connect %@ in Plugin Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在插件设置中连接 %@"
+          }
+        }
+      }
+    },
+    "Connect checks the App's read-only interface. It does not start the App or perform an Action.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“连接”会检查 App 的只读接口，不会启动 App 或执行动作。"
+          }
+        }
+      }
+    },
+    "Connect to allow Spinnet to communicate with %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接以允许 Spinnet 与 %@ 通信。"
+          }
+        }
+      }
+    },
+    "Connected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接"
+          }
+        }
+      }
+    },
+    "Connected. Start %@ to use its Actions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接。启动 %@ 以使用其动作。"
+          }
+        }
+      }
+    },
+    "Connection check failed: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接检查失败：%@"
+          }
+        }
+      }
+    },
+    "Contact HTTPS Hosts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "联络 HTTPS 主机"
+          }
+        }
+      }
+    },
+    "Contact only the declared HTTPS hosts through Host Services.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只通过宿主服务联络声明的 HTTPS 主机。"
+          }
+        }
+      }
+    },
+    "Contacts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "联络"
+          }
+        }
+      }
+    },
+    "Control": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control"
+          }
+        }
+      }
+    },
+    "Control External Apps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "控制外部 App"
+          }
+        }
+      }
+    },
+    "Controls": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "控制"
+          }
+        }
+      }
+    },
+    "Copied screenshots are always lossless.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝的截屏总是无损的。"
+          }
+        }
+      }
+    },
+    "Copy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝"
+          }
+        }
+      }
+    },
+    "Copy Diagnostics": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝诊断信息"
+          }
+        }
+      }
+    },
+    "Copy Log Stream Command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝日志流命令"
+          }
+        }
+      }
+    },
+    "Copy and Save": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝并存储"
+          }
+        }
+      }
+    },
+    "Copy to Clipboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝到剪贴板"
+          }
+        }
+      }
+    },
+    "Copyright": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版权"
+          }
+        }
+      }
+    },
+    "Credential": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "凭据"
+          }
+        }
+      }
+    },
+    "Credentials cannot be stored in this session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此会话中无法存储凭据"
+          }
+        }
+      }
+    },
+    "DROP HERE": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖到这里"
+          }
+        }
+      }
+    },
+    "Dark": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深色"
+          }
+        }
+      }
+    },
+    "Default": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认"
+          }
+        }
+      }
+    },
+    "Delete": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除键"
+          }
+        }
+      }
+    },
+    "Delete Slot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除槽位"
+          }
+        }
+      }
+    },
+    "Delete Slot %lld — %@?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除槽位 %1$lld — %2$@？"
+          }
+        }
+      }
+    },
+    "Delete Slot?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除槽位？"
+          }
+        }
+      }
+    },
+    "Delete all retained clipboard entries?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除所有保留的剪贴板条目？"
+          }
+        }
+      }
+    },
+    "Delete selected Slot…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除所选槽位…"
+          }
+        }
+      }
+    },
+    "Delete this Slot after confirmation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认后删除此槽位"
+          }
+        }
+      }
+    },
+    "Denied": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒绝"
+          }
+        }
+      }
+    },
+    "Developer": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发者"
+          }
+        }
+      }
+    },
+    "Development": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发版"
+          }
+        }
+      }
+    },
+    "Diagnostics": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "诊断"
+          }
+        }
+      }
+    },
+    "Diagnostics copied": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拷贝诊断信息"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下箭头"
+          }
+        }
+      }
+    },
+    "Drag a Menu Item Preset to a Slot. Focus an empty Slot to add it with the keyboard-accessible button.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把菜单项预设拖到槽位上。也可以聚焦一个空槽位，用键盘可操作的按钮添加。"
+          }
+        }
+      }
+    },
+    "Drag any Slot to reorder it. Drop it in the delete area or right-click to delete with confirmation. Use Edit to configure its Menu Item.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖移任意槽位以重新排序。将其拖到删除区域，或右键点按，确认后删除。使用“编辑”配置其菜单项。"
+          }
+        }
+      }
+    },
+    "Drag this Preset to an empty Slot to add it": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将此预设拖到空槽位以添加"
+          }
+        }
+      }
+    },
+    "Drop Slot here to delete": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将槽位拖到这里以删除"
+          }
+        }
+      }
+    },
+    "Drop Slot to Delete…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖放槽位以删除…"
+          }
+        }
+      }
+    },
+    "Dropping opens a confirmation. You can also right-click a Slot to delete it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放下后会请你确认。你也可以右键点按槽位来删除它。"
+          }
+        }
+      }
+    },
+    "Each Plugin receives only the Capabilities you grant to it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个插件只获得你授予它的能力。"
+          }
+        }
+      }
+    },
+    "Edit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑"
+          }
+        }
+      }
+    },
+    "Edit %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑 %@"
+          }
+        }
+      }
+    },
+    "Edit Menu Item": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑菜单项"
+          }
+        }
+      }
+    },
+    "Edit Menu Item in Slot %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑槽位 %lld 中的菜单项"
+          }
+        }
+      }
+    },
+    "Edit Slot…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑槽位…"
+          }
+        }
+      }
+    },
+    "Edit on the Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在菜单上编辑"
+          }
+        }
+      }
+    },
+    "Edit the default Menu, or what one App shows in its Slots": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑默认菜单，或某个 App 在其槽位中显示的内容"
+          }
+        }
+      }
+    },
+    "Editor Mode": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑模式"
+          }
+        }
+      }
+    },
+    "Editor Mode Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑模式菜单"
+          }
+        }
+      }
+    },
+    "Editor Mode Menu for %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的编辑模式菜单"
+          }
+        }
+      }
+    },
+    "Empty": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空"
+          }
+        }
+      }
+    },
+    "Empty Slot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空槽位"
+          }
+        }
+      }
+    },
+    "Empty Slot %lld added. Drag a Menu Item Preset onto it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已添加空槽位 %lld。把菜单项预设拖到上面。"
+          }
+        }
+      }
+    },
+    "Empty Slot for This App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为此 App 清空槽位"
+          }
+        }
+      }
+    },
+    "Enable Accessibility in Privacy & Permissions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在隐私与权限中启用辅助功能"
+          }
+        }
+      }
+    },
+    "Enable Collection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用收集"
+          }
+        }
+      }
+    },
+    "Enable Screen Recording": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用屏幕录制"
+          }
+        }
+      }
+    },
+    "Enable Screen Recording in Privacy & Permissions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在隐私与权限中启用屏幕录制"
+          }
+        }
+      }
+    },
+    "Enable Screen Recording…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用屏幕录制…"
+          }
+        }
+      }
+    },
+    "Enable Spinnet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用 Spinnet"
+          }
+        }
+      }
+    },
+    "Enable for Spinnet…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为 Spinnet 启用…"
+          }
+        }
+      }
+    },
+    "Enabled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已启用"
+          }
+        }
+      }
+    },
+    "Enabled for Spinnet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已为 Spinnet 启用"
+          }
+        }
+      }
+    },
+    "Enable…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用…"
+          }
+        }
+      }
+    },
+    "End": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End"
+          }
+        }
+      }
+    },
+    "Esc": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esc"
+          }
+        }
+      }
+    },
+    "Escape": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esc"
+          }
+        }
+      }
+    },
+    "Exclude Application": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排除应用程序"
+          }
+        }
+      }
+    },
+    "Excluded Applications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排除的应用程序"
+          }
+        }
+      }
+    },
+    "Excluded application bundle identifier": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排除的应用程序 Bundle 标识符"
+          }
+        }
+      }
+    },
+    "Exclusions apply to new copies, using the foreground application at sampling time. Clear History to remove older entries. Passwords and Keychain Access always remain excluded.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排除规则作用于新的拷贝，依据采样时位于前台的应用程序。清除历史可移除较早的条目。密码和钥匙串访问始终被排除。"
+          }
+        }
+      }
+    },
+    "File": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件"
+          }
+        }
+      }
+    },
+    "Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件夹"
+          }
+        }
+      }
+    },
+    "Follow Primary Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随主要动作"
+          }
+        }
+      }
+    },
+    "Follow macOS or choose a fixed appearance for the Menu only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随 macOS，或只为菜单选择固定的外观。"
+          }
+        }
+      }
+    },
+    "Format": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格式"
+          }
+        }
+      }
+    },
+    "Forward Delete": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向前删除键"
+          }
+        }
+      }
+    },
+    "General": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通用"
+          }
+        }
+      }
+    },
+    "Grant Access": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授予访问权限"
+          }
+        }
+      }
+    },
+    "Grant Access in Plugin Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在插件设置中授予访问权限"
+          }
+        }
+      }
+    },
+    "Grant External App access below before connecting.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接前请先在下方授予外部 App 访问权限。"
+          }
+        }
+      }
+    },
+    "Granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已授予"
+          }
+        }
+      }
+    },
+    "Green": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绿色"
+          }
+        }
+      }
+    },
+    "HTTPS Endpoint": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HTTPS 端点"
+          }
+        }
+      }
+    },
+    "Help": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help"
+          }
+        }
+      }
+    },
+    "Hide": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏"
+          }
+        }
+      }
+    },
+    "Hide Manual Chooser": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏手动选择"
+          }
+        }
+      }
+    },
+    "Hide manual keyboard shortcut chooser": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏键盘快捷键手动选择"
+          }
+        }
+      }
+    },
+    "Hide the key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏密钥"
+          }
+        }
+      }
+    },
+    "Hold the trigger this long to open the Menu. A shorter press goes to the App, so Side Button 1 still goes Back.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住触发键达到此时长才会打开菜单。较短的按压会交给 App，所以侧键 1 仍可返回。"
+          }
+        }
+      }
+    },
+    "Home": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Home"
+          }
+        }
+      }
+    },
+    "Host": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宿主"
+          }
+        }
+      }
+    },
+    "Host-owned data such as Clipboard History always requires a separate opt-in.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪贴板历史等由宿主拥有的数据始终需要单独选择加入。"
+          }
+        }
+      }
+    },
+    "Identify the App in Front": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "识别前台 App"
+          }
+        }
+      }
+    },
+    "Input Monitoring is not requested. Screen Recording and app-specific Automation are requested only for an explicit feature action.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 不请求输入监控。屏幕录制和针对特定 App 的自动化只会在你明确使用相关功能时请求。"
+          }
+        }
+      }
+    },
+    "Insert Text into the Focused App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向聚焦的 App 插入文本"
+          }
+        }
+      }
+    },
+    "Install": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装"
+          }
+        }
+      }
+    },
+    "Install %@ to connect.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装 %@ 以连接。"
+          }
+        }
+      }
+    },
+    "Install %@ to use %@ Commands": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装 %1$@ 以使用 %2$@ 命令"
+          }
+        }
+      }
+    },
+    "Install %@?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装 %@？"
+          }
+        }
+      }
+    },
+    "Install or Update Plugin": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装或更新插件"
+          }
+        }
+      }
+    },
+    "Install or Update Plugin…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装或更新插件…"
+          }
+        }
+      }
+    },
+    "Installing allows %@ to use:": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装后，%@ 可以使用："
+          }
+        }
+      }
+    },
+    "Invalid Action: Preset requires setup": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无效的动作：预设需要设置"
+          }
+        }
+      }
+    },
+    "Its App Overrides for %@ are removed with it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它在 %@ 中的 App 覆盖也会一并移除。"
+          }
+        }
+      }
+    },
+    "Its access decisions are kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它的访问权限决定会保留。"
+          }
+        }
+      }
+    },
+    "Its access is forgotten and it leaves the Library.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它的访问权限会被遗忘，并离开资源库。"
+          }
+        }
+      }
+    },
+    "JPEG": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JPEG"
+          }
+        }
+      }
+    },
+    "JPEG for photos, gradients and noise; PNG for text and flat colours.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片、渐变和噪点用 JPEG；文字和纯色用 PNG。"
+          }
+        }
+      }
+    },
+    "Keep entries for": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "条目保留时长"
+          }
+        }
+      }
+    },
+    "Keep the Mac and Display Awake": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让 Mac 和显示器保持唤醒"
+          }
+        }
+      }
+    },
+    "Key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按键"
+          }
+        }
+      }
+    },
+    "Keyboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "键盘"
+          }
+        }
+      }
+    },
+    "Keyboard Shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "键盘快捷键"
+          }
+        }
+      }
+    },
+    "Keyboard shortcut optional": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "键盘快捷键（可选）"
+          }
+        }
+      }
+    },
+    "Language": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语言"
+          }
+        }
+      }
+    },
+    "Large": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大"
+          }
+        }
+      }
+    },
+    "Launch at Login": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录时打开"
+          }
+        }
+      }
+    },
+    "Launch at Login needs your approval in System Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“登录时打开”需要你在系统设置中批准"
+          }
+        }
+      }
+    },
+    "Leave blank to follow the Primary Action automatically.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留空以自动跟随主要动作。"
+          }
+        }
+      }
+    },
+    "Left": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左箭头"
+          }
+        }
+      }
+    },
+    "Left-click a Menu Slot to focus it. Use the in-slot Edit button to configure an occupied Slot, double-click an occupied Slot, or right-click for details and actions. Press Return, Space, or Command-E to edit the focused Slot. Actions do not execute in Editor Mode.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左键点按菜单槽位以聚焦它。使用槽位内的“编辑”按钮或连按已占用的槽位进行配置，右键点按查看详情和操作。按 Return、空格键或 Command-E 编辑聚焦的槽位。编辑模式下动作不会执行。"
+          }
+        }
+      }
+    },
+    "Left-click a Slot to focus it. Use its Edit button, double-click, or Command-E to configure a Menu Item; press Return or Space after focusing it. Right-click for details and Slot actions. Slot configuration stays attached to the Menu instead of the Library.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左键点按槽位以聚焦它。使用其“编辑”按钮、连按或 Command-E 配置菜单项；聚焦后也可按 Return 或空格键。右键点按查看详情和槽位操作。槽位配置保存在菜单中，而不在资源库中。"
+          }
+        }
+      }
+    },
+    "Lets Spinnet intercept the configured Side Button, read selected text, send keyboard actions such as Paste or Cut, move the focused window, and close or quit an App through its own menu for Plugins you allow to.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许 Spinnet 拦截配置的侧键、读取所选文本、发送粘贴或剪切等键盘操作、移动聚焦的窗口，并为你允许的插件通过 App 自己的菜单关闭或退出该 App。"
+          }
+        }
+      }
+    },
+    "Lets Spinnet take screenshots, for its own Capture commands and for Plugins you allow to capture the screen. Spinnet asks for it only when you choose Enable Screen Recording.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许 Spinnet 截屏，用于它自己的截屏命令以及你允许截取屏幕的插件。只有在你选择“启用屏幕录制”时，Spinnet 才会请求此权限。"
+          }
+        }
+      }
+    },
+    "Lets the Plugin ask the Host for the current selected text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许插件向宿主请求当前所选的文本。"
+          }
+        }
+      }
+    },
+    "Lets the Plugin ask the Host to replace the current clipboard text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许插件请求宿主替换当前剪贴板中的文本。"
+          }
+        }
+      }
+    },
+    "Library": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "资源库"
+          }
+        }
+      }
+    },
+    "Licence": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "许可证"
+          }
+        }
+      }
+    },
+    "Lifecycle Test Window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生命周期测试窗口"
+          }
+        }
+      }
+    },
+    "Light": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浅色"
+          }
+        }
+      }
+    },
+    "List": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列表"
+          }
+        }
+      }
+    },
+    "Loading Shortcuts…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在载入快捷指令…"
+          }
+        }
+      }
+    },
+    "Log stream command copied": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拷贝日志流命令"
+          }
+        }
+      }
+    },
+    "Lossless and sharp for text; larger files.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无损，文字清晰；文件较大。"
+          }
+        }
+      }
+    },
+    "MENU": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单"
+          }
+        }
+      }
+    },
+    "Manage Permissions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理权限"
+          }
+        }
+      }
+    },
+    "Manage Permissions for %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理 %@ 的权限"
+          }
+        }
+      }
+    },
+    "Manage Reviewed Homebrew Tasks": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理已审核的 Homebrew 任务"
+          }
+        }
+      }
+    },
+    "Manage access separately. Permission changes take effect immediately; Save and Cancel apply only to Plugin Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "访问权限单独管理。权限更改立即生效；“存储”和“取消”只作用于插件设置。"
+          }
+        }
+      }
+    },
+    "Manage packages, taps and user-owned services through reviewed tasks. Package changes require Host confirmation; a separately declared automatic catalog refresh runs when entering Plugin pages and updates Homebrew itself and configured catalogs. Tasks continue after the view closes, prevent idle system sleep and can be stopped without rollback.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过已审核的任务管理软件包、tap 和用户拥有的服务。软件包更改需要宿主确认；单独声明的自动目录刷新会在进入插件页面时运行，并更新 Homebrew 本身和已配置的目录。任务在视图关闭后继续运行，会阻止系统闲置睡眠，并可在不回滚的情况下停止。"
+          }
+        }
+      }
+    },
+    "Medium": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中"
+          }
+        }
+      }
+    },
+    "Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单"
+          }
+        }
+      }
+    },
+    "Menu Editor": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单编辑器"
+          }
+        }
+      }
+    },
+    "Menu Font": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单字体"
+          }
+        }
+      }
+    },
+    "Menu Font Weight": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单字重"
+          }
+        }
+      }
+    },
+    "Menu Item Alias": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单项别名"
+          }
+        }
+      }
+    },
+    "Menu Item added in a new Slot %lld.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在新槽位 %lld 中添加菜单项。"
+          }
+        }
+      }
+    },
+    "Menu Item added to Slot %lld.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已将菜单项添加到槽位 %lld。"
+          }
+        }
+      }
+    },
+    "Menu Item in Slot %lld replaced.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已替换槽位 %lld 中的菜单项。"
+          }
+        }
+      }
+    },
+    "Menu Item in Slot %lld updated.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已更新槽位 %lld 中的菜单项。"
+          }
+        }
+      }
+    },
+    "Menu Opening Delay": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单打开延迟"
+          }
+        }
+      }
+    },
+    "Menu Size": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单大小"
+          }
+        }
+      }
+    },
+    "Menu Size Percentage": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单大小百分比"
+          }
+        }
+      }
+    },
+    "Menu Theme": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单主题"
+          }
+        }
+      }
+    },
+    "Menu Trigger": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单触发方式"
+          }
+        }
+      }
+    },
+    "Menu edit redone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已重做菜单编辑。"
+          }
+        }
+      }
+    },
+    "Menu edit undone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已撤销菜单编辑。"
+          }
+        }
+      }
+    },
+    "Middle Button": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中键"
+          }
+        }
+      }
+    },
+    "Missing %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缺少%@"
+          }
+        }
+      }
+    },
+    "Modifiers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修饰键"
+          }
+        }
+      }
+    },
+    "Monitor Clipboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "监视剪贴板"
+          }
+        }
+      }
+    },
+    "Monitors": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "监视"
+          }
+        }
+      }
+    },
+    "Mouse Button %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标按键 %lld"
+          }
+        }
+      }
+    },
+    "Mouse trigger": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标触发键"
+          }
+        }
+      }
+    },
+    "Mouse trigger: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标触发键：%@"
+          }
+        }
+      }
+    },
+    "Move %@ down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下移 %@"
+          }
+        }
+      }
+    },
+    "Move %@ up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上移 %@"
+          }
+        }
+      }
+    },
+    "Move Alternate Action %@ down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下移备选动作 %@"
+          }
+        }
+      }
+    },
+    "Move Alternate Action %@ up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上移备选动作 %@"
+          }
+        }
+      }
+    },
+    "Move and Resize the Focused Window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移动和调整聚焦窗口的大小"
+          }
+        }
+      }
+    },
+    "Move the pointer over a Menu Slot to inspect its Appearance. Actions and Menu edits are disabled in Editor Mode.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将指针移到菜单槽位上以查看其外观。编辑模式下动作和菜单编辑均停用。"
+          }
+        }
+      }
+    },
+    "Much smaller files; text and edges may blur slightly.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件小得多；文字和边缘可能略显模糊。"
+          }
+        }
+      }
+    },
+    "Multiline Text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多行文本"
+          }
+        }
+      }
+    },
+    "Needs Plugin Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要插件设置"
+          }
+        }
+      }
+    },
+    "New network host": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新的网络主机"
+          }
+        }
+      }
+    },
+    "New network host consent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新网络主机许可"
+          }
+        }
+      }
+    },
+    "No Configuration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无需配置"
+          }
+        }
+      }
+    },
+    "No Menu Item selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择菜单项"
+          }
+        }
+      }
+    },
+    "No Plugin access required for these Commands.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些命令不需要插件访问权限。"
+          }
+        }
+      }
+    },
+    "No Plugin updates available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可用的插件更新。"
+          }
+        }
+      }
+    },
+    "No Presets Found": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到预设"
+          }
+        }
+      }
+    },
+    "No Shortcuts found": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到快捷指令"
+          }
+        }
+      }
+    },
+    "No Slot selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择槽位"
+          }
+        }
+      }
+    },
+    "No Spinnet release is published yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 尚未发布任何版本。"
+          }
+        }
+      }
+    },
+    "No acceptable update. %@: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可接受的更新。%1$@：%2$@"
+          }
+        }
+      }
+    },
+    "No declared Capability requests": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有声明的能力请求"
+          }
+        }
+      }
+    },
+    "No installed Plugin declares an Update Source.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有已安装的插件声明更新源。"
+          }
+        }
+      }
+    },
+    "No parameters": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无参数"
+          }
+        }
+      }
+    },
+    "No rows yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有行。"
+          }
+        }
+      }
+    },
+    "Not Determined": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未决定"
+          }
+        }
+      }
+    },
+    "Not Set": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未设置"
+          }
+        }
+      }
+    },
+    "Not checked yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未检查。"
+          }
+        }
+      }
+    },
+    "Not enabled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未启用"
+          }
+        }
+      }
+    },
+    "Not granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未授予"
+          }
+        }
+      }
+    },
+    "Not reviewed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未审核"
+          }
+        }
+      }
+    },
+    "Not selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择"
+          }
+        }
+      }
+    },
+    "Not set": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未设置"
+          }
+        }
+      }
+    },
+    "Nothing stored": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未存储任何内容"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
+        }
+      }
+    },
+    "Off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关"
+          }
+        }
+      }
+    },
+    "Off — no new entries are collected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭 — 不收集新条目"
+          }
+        }
+      }
+    },
+    "On": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开"
+          }
+        }
+      }
+    },
+    "On — collecting clipboard content on this Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启 — 正在收集此 Mac 上的剪贴板内容"
+          }
+        }
+      }
+    },
+    "Once a day, ask GitHub for a newer Spinnet release. Nothing downloads or installs.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每天一次向 GitHub 询问是否有更新的 Spinnet 版本。不会下载或安装任何内容。"
+          }
+        }
+      }
+    },
+    "Once a day, ask each Plugin's Update Source for a newer version. Nothing installs by itself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每天一次向每个插件的更新源询问是否有新版本。不会自动安装任何内容。"
+          }
+        }
+      }
+    },
+    "Only %@'s Menu Item in this Slot is replaced. The default Menu stays unchanged.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只替换 %@ 在此槽位中的菜单项。默认菜单保持不变。"
+          }
+        }
+      }
+    },
+    "Only a Host running from an app bundle can reopen itself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有从 App 包运行的宿主才能重新打开自己。"
+          }
+        }
+      }
+    },
+    "Open": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开"
+          }
+        }
+      }
+    },
+    "Open %@ Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开%@设置"
+          }
+        }
+      }
+    },
+    "Open %@ Settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开%@设置…"
+          }
+        }
+      }
+    },
+    "Open Accessibility Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开辅助功能设置"
+          }
+        }
+      }
+    },
+    "Open Automation Settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开自动化设置…"
+          }
+        }
+      }
+    },
+    "Open Links": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开链接"
+          }
+        }
+      }
+    },
+    "Open Local Files and Folders": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开本地文件和文件夹"
+          }
+        }
+      }
+    },
+    "Open Login Items Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开登录项设置"
+          }
+        }
+      }
+    },
+    "Open Login Items Settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开登录项设置…"
+          }
+        }
+      }
+    },
+    "Open Login Items…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开登录项…"
+          }
+        }
+      }
+    },
+    "Open Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开菜单"
+          }
+        }
+      }
+    },
+    "Open Spinnet when you log in, so the Menu is ready.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录时打开 Spinnet，让菜单随时可用。"
+          }
+        }
+      }
+    },
+    "Open Spinnet's source repository in the default browser.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在默认浏览器中打开 Spinnet 的源代码仓库。"
+          }
+        }
+      }
+    },
+    "Open Welcome Guide": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开欢迎指南"
+          }
+        }
+      }
+    },
+    "Open Welcome Guide…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开欢迎指南…"
+          }
+        }
+      }
+    },
+    "Open http and https links in a browser. The browser, not the Plugin, loads the page.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在浏览器中打开 http 和 https 链接。网页由浏览器载入，而不是插件。"
+          }
+        }
+      }
+    },
+    "Open local files and folders in Finder or their default app, including launching applications. The receiving app can read the file; the Plugin receives no file contents.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在访达或默认 App 中打开本地文件和文件夹，包括启动应用程序。接收的 App 可以读取文件；插件不会收到任何文件内容。"
+          }
+        }
+      }
+    },
+    "Open the configuration for this Menu Item.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开此菜单项的配置。"
+          }
+        }
+      }
+    },
+    "Open the matching macOS System Settings pane.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开相应的 macOS 系统设置面板。"
+          }
+        }
+      }
+    },
+    "Open the release page on GitHub. Nothing is downloaded.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 上打开版本页面。不会下载任何内容。"
+          }
+        }
+      }
+    },
+    "Opens at once": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即打开"
+          }
+        }
+      }
+    },
+    "Option": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Option"
+          }
+        }
+      }
+    },
+    "Orange": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "橙色"
+          }
+        }
+      }
+    },
+    "Ordered Choices": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有序选项"
+          }
+        }
+      }
+    },
+    "PNG": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PNG"
+          }
+        }
+      }
+    },
+    "Page Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Page Down"
+          }
+        }
+      }
+    },
+    "Page Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Page Up"
+          }
+        }
+      }
+    },
+    "Parameters are shown only for the selected Actions that declare configuration support.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只显示声明支持配置的所选动作的参数。"
+          }
+        }
+      }
+    },
+    "Pause Clipboard History collection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂停收集剪贴板历史"
+          }
+        }
+      }
+    },
+    "Pause collection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂停收集"
+          }
+        }
+      }
+    },
+    "Paused": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暂停"
+          }
+        }
+      }
+    },
+    "Paused — existing entries are retained": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暂停 — 保留现有条目"
+          }
+        }
+      }
+    },
+    "Per Menu Item": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按菜单项"
+          }
+        }
+      }
+    },
+    "Permission changes apply immediately to all Actions from this Plugin. Your Menu Item edits are kept while you manage permissions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限更改会立即应用于此插件的所有动作。管理权限时，你对菜单项的编辑会保留。"
+          }
+        }
+      }
+    },
+    "Permissions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限"
+          }
+        }
+      }
+    },
+    "Pink": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粉色"
+          }
+        }
+      }
+    },
+    "Plugin Access": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件访问权限"
+          }
+        }
+      }
+    },
+    "Plugin Capability Grants": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件能力授权"
+          }
+        }
+      }
+    },
+    "Plugin Installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件已安装"
+          }
+        }
+      }
+    },
+    "Plugin Not Installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件未安装"
+          }
+        }
+      }
+    },
+    "Plugin Permissions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件权限"
+          }
+        }
+      }
+    },
+    "Plugin Reinstalled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件已重新安装"
+          }
+        }
+      }
+    },
+    "Plugin Setting (%@)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件设置（%@）"
+          }
+        }
+      }
+    },
+    "Plugin Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件设置"
+          }
+        }
+      }
+    },
+    "Plugin Settings — Grant Access": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件设置 — 授予访问权限"
+          }
+        }
+      }
+    },
+    "Plugin Settings: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件设置：%@"
+          }
+        }
+      }
+    },
+    "Plugin Updated": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件已更新"
+          }
+        }
+      }
+    },
+    "Plugin is disabled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件已停用"
+          }
+        }
+      }
+    },
+    "Plugin is not registered": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件未注册"
+          }
+        }
+      }
+    },
+    "Plugin unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件不可用"
+          }
+        }
+      }
+    },
+    "Plugins": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件"
+          }
+        }
+      }
+    },
+    "Position": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "位置"
+          }
+        }
+      }
+    },
+    "Potential mouse input conflict": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能的鼠标输入冲突"
+          }
+        }
+      }
+    },
+    "Press a mouse button…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下鼠标按键…"
+          }
+        }
+      }
+    },
+    "Press shortcut…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下快捷键…"
+          }
+        }
+      }
+    },
+    "Prevent idle system and display sleep while the Host owns an effect. Explicit Sleep, closing the lid and low-battery sleep still apply. Stop any effect from the Spinnet Status Item.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宿主持有效果期间，阻止系统和显示器闲置睡眠。手动睡眠、合上盖子和低电量睡眠仍然有效。可从 Spinnet 菜单栏图标停止任何效果。"
+          }
+        }
+      }
+    },
+    "Primary Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主要动作"
+          }
+        }
+      }
+    },
+    "Primary Action: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主要动作：%@"
+          }
+        }
+      }
+    },
+    "Privacy & Permissions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私与权限"
+          }
+        }
+      }
+    },
+    "Purple": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "紫色"
+          }
+        }
+      }
+    },
+    "Quit and open Spinnet again to use the new language.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出并再次打开 Spinnet 以使用新语言。"
+          }
+        }
+      }
+    },
+    "Quit and reopen this app bundle.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出并重新打开此 App 包。"
+          }
+        }
+      }
+    },
+    "Read Basic System Status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取基本系统状态"
+          }
+        }
+      }
+    },
+    "Read Clipboard History": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取剪贴板历史"
+          }
+        }
+      }
+    },
+    "Read Current Clipboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取当前剪贴板"
+          }
+        }
+      }
+    },
+    "Read Reviewed Tools": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取已审核的工具"
+          }
+        }
+      }
+    },
+    "Read Selected Text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取所选文本"
+          }
+        }
+      }
+    },
+    "Read aggregate CPU use, memory use, startup disk capacity and internal battery status. No process names, paths or history.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取 CPU 总使用率、内存使用量、启动磁盘容量和内置电池状态。不读取进程名称、路径或历史记录。"
+          }
+        }
+      }
+    },
+    "Read declared Homebrew package, tap, service, Doctor and application-adoption data. Vulnerability checks send installed upstream repository identities and source versions to api.osv.dev; selected-package analytics contacts formulae.brew.sh. Explicit previews may send chosen package and dependency names and recipe versions to ghcr.io for bounded bottle-size metadata. Reads never install, upgrade or change source trust.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取声明的 Homebrew 软件包、tap、服务、Doctor 和应用程序接管数据。漏洞检查会将已安装软件的上游仓库标识和源代码版本发送到 api.osv.dev；所选软件包的统计信息会联络 formulae.brew.sh。明确的预览可能会将所选软件包和依赖的名称及配方版本发送到 ghcr.io，以获取有限的 bottle 大小元数据。读取操作永远不会安装、升级或更改来源信任。"
+          }
+        }
+      }
+    },
+    "Read declared data types, including retained entries collected before this grant.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取声明的数据类型，包括在此授权之前收集并保留的条目。"
+          }
+        }
+      }
+    },
+    "Read the declared data types from the current clipboard. A Command that reads selected text also uses this grant for a temporary Copy fallback when an app does not expose its selection through Accessibility. Without the grant, it uses Accessibility-only selection.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从当前剪贴板读取声明的数据类型。当某个 App 不通过辅助功能提供其所选内容时，读取所选文本的命令也会借助此授权临时使用“拷贝”作为后备。没有此授权时，只通过辅助功能读取所选内容。"
+          }
+        }
+      }
+    },
+    "Read the focused window's frame and its screen, move or resize that window, and move it into or out of full screen.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取聚焦窗口的位置大小及其所在屏幕，移动该窗口或调整其大小，并让它进入或退出全屏幕。"
+          }
+        }
+      }
+    },
+    "Read the name and bundle identifier of the App in front of Spinnet, and which ways Spinnet would close or quit it. Never a list of your Apps.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取 Spinnet 之前位于前台的 App 的名称和 Bundle 标识符，以及 Spinnet 可以用哪些方式关闭或退出它。永远不会读取你的 App 列表。"
+          }
+        }
+      }
+    },
+    "Reads": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取"
+          }
+        }
+      }
+    },
+    "Ready to Use": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即用"
+          }
+        }
+      }
+    },
+    "Record keyboard shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制键盘快捷键"
+          }
+        }
+      }
+    },
+    "Redo Appearance change": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重做外观更改"
+          }
+        }
+      }
+    },
+    "Redo Slot edit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重做槽位编辑"
+          }
+        }
+      }
+    },
+    "Referenced resource is missing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引用的资源缺失"
+          }
+        }
+      }
+    },
+    "Refused Plugins": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "被拒插件"
+          }
+        }
+      }
+    },
+    "Regular": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常规"
+          }
+        }
+      }
+    },
+    "Relaunch": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动"
+          }
+        }
+      }
+    },
+    "Relaunch Spinnet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动 Spinnet"
+          }
+        }
+      }
+    },
+    "Relaunch Spinnet to use the new language.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动 Spinnet 以使用新语言。"
+          }
+        }
+      }
+    },
+    "Removal failed: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除失败：%@"
+          }
+        }
+      }
+    },
+    "Remove": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
+          }
+        }
+      }
+    },
+    "Remove %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 %@"
+          }
+        }
+      }
+    },
+    "Remove %@ and all its overrides": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 %@ 及其所有覆盖"
+          }
+        }
+      }
+    },
+    "Remove %@?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 %@？"
+          }
+        }
+      }
+    },
+    "Remove App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 App"
+          }
+        }
+      }
+    },
+    "Remove App %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 App %@"
+          }
+        }
+      }
+    },
+    "Remove Normal Mouse triggers for the same button, including click, long-press, drag, drawing, and scroll combinations.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除同一按键的“普通鼠标”触发器，包括点按、长按、拖移、绘制和滚动组合。"
+          }
+        }
+      }
+    },
+    "Remove Plugin": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除插件"
+          }
+        }
+      }
+    },
+    "Remove Plugin: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除插件：%@"
+          }
+        }
+      }
+    },
+    "Remove Plugin?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除插件？"
+          }
+        }
+      }
+    },
+    "Remove actions and gestures from the same button, or configure the device to emit an unmodified native mouse button.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除同一按键上的操作和手势，或将设备配置为发送未经修改的原生鼠标按键。"
+          }
+        }
+      }
+    },
+    "Remove every Click, Click and Drag, and Click and Scroll action for the same mouse button in Mac Mouse Fix.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac Mouse Fix 中移除同一鼠标按键的所有“点按”“点按并拖移”和“点按并滚动”操作。"
+          }
+        }
+      }
+    },
+    "Remove exclusion for %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除对 %@ 的排除"
+          }
+        }
+      }
+    },
+    "Remove the same button action from every matching device and application scheme; scrolling and pointer adjustments can remain enabled.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从每个匹配的设备和应用程序方案中移除同一按键的操作；滚动和指针调整可以保持启用。"
+          }
+        }
+      }
+    },
+    "Remove this Plugin from the Library": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从资源库中移除此插件"
+          }
+        }
+      }
+    },
+    "Replace": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "替换"
+          }
+        }
+      }
+    },
+    "Replace Menu Item in Slot %lld?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "替换槽位 %lld 中的菜单项？"
+          }
+        }
+      }
+    },
+    "Replace the Menu Item in Slot %lld?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "替换槽位 %lld 中的菜单项？"
+          }
+        }
+      }
+    },
+    "Replace the selection in the focused App with text the Plugin supplies.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用插件提供的文本替换聚焦 App 中的所选内容。"
+          }
+        }
+      }
+    },
+    "Required Host Service is not available in this version": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本没有所需的宿主服务"
+          }
+        }
+      }
+    },
+    "Requires separate Host Sensitive Data Collection opt-in.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要单独选择加入宿主的敏感数据收集。"
+          }
+        }
+      }
+    },
+    "Reset Appearance": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还原外观"
+          }
+        }
+      }
+    },
+    "Reset to Default": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还原为默认"
+          }
+        }
+      }
+    },
+    "Restart Spinnet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动 Spinnet"
+          }
+        }
+      }
+    },
+    "Restart Spinnet to finish": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动 Spinnet 以完成"
+          }
+        }
+      }
+    },
+    "Restart Spinnet to finish enabling Screen Recording": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动 Spinnet 以完成启用屏幕录制"
+          }
+        }
+      }
+    },
+    "Return": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return"
+          }
+        }
+      }
+    },
+    "Reveal Data Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示数据文件夹"
+          }
+        }
+      }
+    },
+    "Reveal in Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在访达中显示"
+          }
+        }
+      }
+    },
+    "Revoke Access": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销访问权限"
+          }
+        }
+      }
+    },
+    "Right": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右箭头"
+          }
+        }
+      }
+    },
+    "Right-click a Slot to empty it or reset it to the default.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右键点按槽位以清空它或还原为默认。"
+          }
+        }
+      }
+    },
+    "Row %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 行"
+          }
+        }
+      }
+    },
+    "Run the slow and hanging Action fixtures.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行缓慢和挂起的动作测试夹具。"
+          }
+        }
+      }
+    },
+    "Running": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行中"
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储"
+          }
+        }
+      }
+    },
+    "Save Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储文件夹"
+          }
+        }
+      }
+    },
+    "Save to Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储到文件夹"
+          }
+        }
+      }
+    },
+    "Saved File": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储的文件"
+          }
+        }
+      }
+    },
+    "Saving Clipboard History settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在存储剪贴板历史设置…"
+          }
+        }
+      }
+    },
+    "Saving is off: screenshots are only copied, losslessly. Choose Save to Folder or Copy and Save to use these.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储已关闭：截屏只会被无损拷贝。选择“存储到文件夹”或“拷贝并存储”以使用这些选项。"
+          }
+        }
+      }
+    },
+    "Screen Recording": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "屏幕录制"
+          }
+        }
+      }
+    },
+    "Screen Recording: Not granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "屏幕录制：未授予"
+          }
+        }
+      }
+    },
+    "Screen Recording: Restart Spinnet to finish": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "屏幕录制：重新启动 Spinnet 以完成"
+          }
+        }
+      }
+    },
+    "Screenshot Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截屏设置"
+          }
+        }
+      }
+    },
+    "Screenshot save folder is missing or not writable; choose it again in Screenshot Plugin Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截屏存储文件夹缺失或不可写入；请在截屏插件设置中重新选择"
+          }
+        }
+      }
+    },
+    "Search Library": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索资源库"
+          }
+        }
+      }
+    },
+    "Search Presets and Commands": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索预设和命令"
+          }
+        }
+      }
+    },
+    "Selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选择"
+          }
+        }
+      }
+    },
+    "Selected Commands — Access": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选命令 — 访问权限"
+          }
+        }
+      }
+    },
+    "Semibold": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "半粗"
+          }
+        }
+      }
+    },
+    "Send the named External Apps only the operations Spinnet has reviewed for them, and open only the links listed for them.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只向指定的外部 App 发送 Spinnet 为它们审核过的操作，并且只打开为它们列出的链接。"
+          }
+        }
+      }
+    },
+    "Sensitive Data Collection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "敏感数据收集"
+          }
+        }
+      }
+    },
+    "Service name from the active app's Services menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前 App“服务”菜单中的服务名称"
+          }
+        }
+      }
+    },
+    "Set Shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置快捷键"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置"
+          }
+        }
+      }
+    },
+    "Settings Navigation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置导航"
+          }
+        }
+      }
+    },
+    "Setup Required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要设置"
+          }
+        }
+      }
+    },
+    "Shape the shared look of the Menu in Editor and Runtime modes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设定菜单在编辑模式和运行模式下共用的外观。"
+          }
+        }
+      }
+    },
+    "Shared by every Menu Item made from %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由 %@ 创建的所有菜单项共享。"
+          }
+        }
+      }
+    },
+    "Shift": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shift"
+          }
+        }
+      }
+    },
+    "Shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快捷指令"
+          }
+        }
+      }
+    },
+    "Shortcut name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快捷指令名称"
+          }
+        }
+      }
+    },
+    "Shortcuts for developing and testing Spinnet. Only development builds have this section.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发和测试 Spinnet 的快捷操作。只有开发版本有此部分。"
+          }
+        }
+      }
+    },
+    "Show": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示"
+          }
+        }
+      }
+    },
+    "Show %@ settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示%@设置。"
+          }
+        }
+      }
+    },
+    "Show Status Item": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示菜单栏图标"
+          }
+        }
+      }
+    },
+    "Show in Library": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在资源库中显示"
+          }
+        }
+      }
+    },
+    "Show no Menu Item in this Slot while this App is the Current App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 App 为当前 App 时，此槽位不显示菜单项"
+          }
+        }
+      }
+    },
+    "Show the key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示密钥"
+          }
+        }
+      }
+    },
+    "Side Button 1": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "侧键 1"
+          }
+        }
+      }
+    },
+    "Side Button 2": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "侧键 2"
+          }
+        }
+      }
+    },
+    "Size": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大小"
+          }
+        }
+      }
+    },
+    "Skip for now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时跳过"
+          }
+        }
+      }
+    },
+    "Slot %@ for %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ 的槽位 %1$@"
+          }
+        }
+      }
+    },
+    "Slot %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "槽位 %lld"
+          }
+        }
+      }
+    },
+    "Slot %lld emptied for %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已为 %2$@ 清空槽位 %1$lld。"
+          }
+        }
+      }
+    },
+    "Slot %lld removed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已移除槽位 %lld。"
+          }
+        }
+      }
+    },
+    "Slot %lld reset to the default.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已将槽位 %lld 还原为默认。"
+          }
+        }
+      }
+    },
+    "Slot %lld restored.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已恢复槽位 %lld。"
+          }
+        }
+      }
+    },
+    "Slot %lld — %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "槽位 %1$lld — %2$@"
+          }
+        }
+      }
+    },
+    "Slot Configuration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "槽位配置"
+          }
+        }
+      }
+    },
+    "Slot moved.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已移动槽位。"
+          }
+        }
+      }
+    },
+    "Slots %@ for %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ 的槽位 %1$@"
+          }
+        }
+      }
+    },
+    "Slots are added, moved and deleted in the default Menu.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "槽位在默认菜单中添加、移动和删除。"
+          }
+        }
+      }
+    },
+    "Slots are deleted in the default Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "槽位在默认菜单中删除"
+          }
+        }
+      }
+    },
+    "Small": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小"
+          }
+        }
+      }
+    },
+    "Source on GitHub": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 上的源代码"
+          }
+        }
+      }
+    },
+    "Space": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空格键"
+          }
+        }
+      }
+    },
+    "Spinnet %@ is available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet %@ 现已推出。"
+          }
+        }
+      }
+    },
+    "Spinnet %@ is up to date.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet %@ 已是最新版本。"
+          }
+        }
+      }
+    },
+    "Spinnet Background Operations": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 后台操作"
+          }
+        }
+      }
+    },
+    "Spinnet Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 菜单"
+          }
+        }
+      }
+    },
+    "Spinnet Menu for %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的 Spinnet 菜单"
+          }
+        }
+      }
+    },
+    "Spinnet Permissions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 权限"
+          }
+        }
+      }
+    },
+    "Spinnet Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 设置"
+          }
+        }
+      }
+    },
+    "Spinnet could not turn off Launch at Login: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 无法关闭“登录时打开”：%@"
+          }
+        }
+      }
+    },
+    "Spinnet could not turn on Launch at Login: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 无法打开“登录时打开”：%@"
+          }
+        }
+      }
+    },
+    "Spinnet did not load these installed Plugins. Their Menu Items stay in the Menu, unavailable. Install a copy this version can run, or remove them.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 没有载入这些已安装的插件。它们的菜单项留在菜单中，但不可用。请安装此版本能运行的副本，或将其移除。"
+          }
+        }
+      }
+    },
+    "Spinnet is off: the trigger reaches other apps and the Menu does not open. Clipboard History follows its own setting.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 已关闭：触发键会传给其他 App，菜单不会打开。剪贴板历史遵循其自身设置。"
+          }
+        }
+      }
+    },
+    "Spinnet keeps each key in your Keychain and adds it to requests itself; the Plugin never reads it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 把每个密钥保存在你的钥匙串中，并自行将其加入请求；插件永远无法读取它。"
+          }
+        }
+      }
+    },
+    "Spinnet keeps this key in your Keychain and adds it to requests itself; the Plugin never reads it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 把此密钥保存在你的钥匙串中，并自行将其加入请求；插件永远无法读取它。"
+          }
+        }
+      }
+    },
+    "Spinnet will retain text, URLs, images, rich text, file references, and embedded binary content on this Mac. Source application and copy time are recorded, but not window or document titles. Finder files are not cloned. Default retention is 24 hours. Passwords, Keychain Access, excluded applications, and concealed or transient items are skipped. Plugins need separate type-scoped access, including to entries retained before their grant.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 会在此 Mac 上保留文本、URL、图像、富文本、文件引用和嵌入的二进制内容。会记录来源应用程序和拷贝时间，但不记录窗口或文稿标题。不会克隆访达中的文件。默认保留 24 小时。会跳过密码、钥匙串访问、排除的应用程序以及隐藏或临时的项目。插件需要单独的按类型访问权限，包括访问授权之前保留的条目。"
+          }
+        }
+      }
+    },
+    "Spinnet's Application Support folder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 的 Application Support 文件夹。"
+          }
+        }
+      }
+    },
+    "Spinnet's own text. Plugins show their text as they provide it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 自身的文字。插件的文字按插件提供的原样显示。"
+          }
+        }
+      }
+    },
+    "Start %@ to use its Commands": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动 %@ 以使用其命令"
+          }
+        }
+      }
+    },
+    "Start %@, then connect to check Automation permission.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动 %@，然后连接以检查自动化权限。"
+          }
+        }
+      }
+    },
+    "Still needed: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仍需填写：%@"
+          }
+        }
+      }
+    },
+    "Stored Data": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储的数据"
+          }
+        }
+      }
+    },
+    "Stored Data: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储的数据：%@"
+          }
+        }
+      }
+    },
+    "Stored only on this Mac. Spinnet does not sync history through iCloud or Plugins. Large content is saved locally; Plugins read it in authorized chunks.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只存储在此 Mac 上。Spinnet 不会通过 iCloud 或插件同步历史。大型内容存储在本地；插件按授权分块读取。"
+          }
+        }
+      }
+    },
+    "Streams the Host's and its helpers' logs in Terminal.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在终端中输出宿主及其辅助程序的日志流。"
+          }
+        }
+      }
+    },
+    "Supports parameters": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持参数"
+          }
+        }
+      }
+    },
+    "Switch": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开关"
+          }
+        }
+      }
+    },
+    "System": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统"
+          }
+        }
+      }
+    },
+    "System Access": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统访问"
+          }
+        }
+      }
+    },
+    "System Permissions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统权限"
+          }
+        }
+      }
+    },
+    "Tab": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab"
+          }
+        }
+      }
+    },
+    "Text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文本"
+          }
+        }
+      }
+    },
+    "The Menu Item in Slot %lld uses it; it stays in the Menu and is marked unavailable.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "槽位 %lld 中的菜单项使用了它；该菜单项留在菜单中并标记为不可用。"
+          }
+        }
+      }
+    },
+    "The Menu Items in Slots %@ use it; they stay in the Menu and are marked unavailable.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "槽位 %@ 中的菜单项使用了它；这些菜单项留在菜单中并标记为不可用。"
+          }
+        }
+      }
+    },
+    "The Menu opens with your trigger.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用你的触发方式打开菜单。"
+          }
+        }
+      }
+    },
+    "The Plugin for this Slot is unavailable, so its Actions cannot be changed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此槽位的插件不可用，因此无法更改其动作。"
+          }
+        }
+      }
+    },
+    "The app path, version and every loaded Plugin, for an acceptance report.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 路径、版本和每个已载入的插件，用于验收报告。"
+          }
+        }
+      }
+    },
+    "The current Menu Item and its Actions will be replaced by the selected Preset.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前菜单项及其动作将被所选预设替换。"
+          }
+        }
+      }
+    },
+    "The last check did not complete.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次检查未完成。"
+          }
+        }
+      }
+    },
+    "The previously selected %@ is unavailable. Choose a replacement.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之前选择的%@不可用。请选择替代项。"
+          }
+        }
+      }
+    },
+    "The selected Actions do not require configuration.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选动作不需要配置。"
+          }
+        }
+      }
+    },
+    "The selected Preset is unavailable.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选预设不可用。"
+          }
+        }
+      }
+    },
+    "This External App operation is not supported by Spinnet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 不支持此外部 App 操作"
+          }
+        }
+      }
+    },
+    "This Plugin changed or is unavailable. Close and reopen Plugin Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此插件已更改或不可用。请关闭并重新打开插件设置。"
+          }
+        }
+      }
+    },
+    "This Plugin does not provide another Action.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此插件不提供其他动作。"
+          }
+        }
+      }
+    },
+    "This Preset is unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此预设不可用"
+          }
+        }
+      }
+    },
+    "This Preset requires setup before it can be added": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此预设需要设置后才能添加"
+          }
+        }
+      }
+    },
+    "This cannot be undone. Collection and Plugin grants do not change.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此操作无法撤销。收集设置和插件授权不会改变。"
+          }
+        }
+      }
+    },
+    "This development build does not check automatically. Use Check Now.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此开发版本不会自动检查。请使用“立即检查”。"
+          }
+        }
+      }
+    },
+    "This folder is missing or cannot be written. Choose another to save screenshots.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文件夹缺失或无法写入。请选择其他文件夹来存储截屏。"
+          }
+        }
+      }
+    },
+    "This key combination is not supported.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支持此按键组合。"
+          }
+        }
+      }
+    },
+    "This removes the whole Slot from the Menu. You can undo the deletion.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会从菜单中移除整个槽位。你可以撤销删除。"
+          }
+        }
+      }
+    },
+    "Try a different search.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请尝试其他搜索词。"
+          }
+        }
+      }
+    },
+    "Turn Off and Delete": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭并删除"
+          }
+        }
+      }
+    },
+    "Turn Off and Retain": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭并保留"
+          }
+        }
+      }
+    },
+    "Turn off Clipboard History?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭剪贴板历史？"
+          }
+        }
+      }
+    },
+    "Typeface": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字体"
+          }
+        }
+      }
+    },
+    "URL": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL"
+          }
+        }
+      }
+    },
+    "Unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不可用"
+          }
+        }
+      }
+    },
+    "Unavailable Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不可用的动作"
+          }
+        }
+      }
+    },
+    "Unavailable: %@\n%@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不可用：%1$@\n%2$@"
+          }
+        }
+      }
+    },
+    "Understand the separate layers of authority used by Spinnet and its Plugins.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "了解 Spinnet 及其插件所用的各层权限。"
+          }
+        }
+      }
+    },
+    "Undo Appearance change": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销外观更改"
+          }
+        }
+      }
+    },
+    "Undo Slot edit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销槽位编辑"
+          }
+        }
+      }
+    },
+    "Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上箭头"
+          }
+        }
+      }
+    },
+    "Update %@ to %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将 %1$@ 更新到 %2$@"
+          }
+        }
+      }
+    },
+    "Update to %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新到 %@"
+          }
+        }
+      }
+    },
+    "Use Plugin Setting (%@)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用插件设置（%@）"
+          }
+        }
+      }
+    },
+    "Use https and put {query} once, in the path or query, where the search text goes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 https，并在路径或查询中放置一次 {query}，作为搜索文本的位置。"
+          }
+        }
+      }
+    },
+    "Use the Settings navigation to switch between General, Menu, Appearance, Privacy & Permissions, and About.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用设置导航在通用、菜单、外观、隐私与权限和关于之间切换。"
+          }
+        }
+      }
+    },
+    "Use the arrow keys and Return for a Primary Action. Right-click or Option-Return to choose from the configured Actions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用方向键和 Return 键执行主要动作。右键点按或按 Option-Return 从已配置的动作中选择。"
+          }
+        }
+      }
+    },
+    "Use the default Menu's Menu Item in this Slot for this App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 App 在此槽位中使用默认菜单的菜单项"
+          }
+        }
+      }
+    },
+    "Use the exact title shown in the target app's Services menu. Select text in that app first; submenu entries use slash separators.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用目标 App“服务”菜单中显示的确切标题。请先在该 App 中选择文本；子菜单条目用斜杠分隔。"
+          }
+        }
+      }
+    },
+    "Used for the selected Menu Slot and focus states.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用于所选菜单槽位和聚焦状态。"
+          }
+        }
+      }
+    },
+    "Uses the Plugin Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用插件设置。"
+          }
+        }
+      }
+    },
+    "Version": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本"
+          }
+        }
+      }
+    },
+    "Version %@ (Build %@)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 %1$@（构建 %2$@）"
+          }
+        }
+      }
+    },
+    "Version %@ is available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 %@ 可用。"
+          }
+        }
+      }
+    },
+    "View Release": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看版本"
+          }
+        }
+      }
+    },
+    "Walk through System Permissions and how to open the Menu again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再次了解系统权限以及如何打开菜单。"
+          }
+        }
+      }
+    },
+    "Weight": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字重"
+          }
+        }
+      }
+    },
+    "Welcome Guide": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "欢迎指南"
+          }
+        }
+      }
+    },
+    "What %@ keeps for itself between runs. Removing the Plugin deletes it; an update keeps it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 在多次运行之间为自己保存的内容。移除插件会删除它；更新会保留它。"
+          }
+        }
+      }
+    },
+    "When enabled, hold the mouse trigger, drag to a Menu Item, and release to run it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用后，按住鼠标触发键，拖移到菜单项上，松开即可运行。"
+          }
+        }
+      }
+    },
+    "When off, the Status Item still appears while a Task or Effect is ongoing. Open Spinnet again to show Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭后，任务或效果进行时仍会显示菜单栏图标。再次打开 Spinnet 可显示设置。"
+          }
+        }
+      }
+    },
+    "Write Clipboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写入剪贴板"
+          }
+        }
+      }
+    },
+    "You can revoke access later in Plugin Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你之后可以在插件设置中撤销访问权限。"
+          }
+        }
+      }
+    },
+    "macOS background activity status is unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法获取 macOS 后台活动状态"
+          }
+        }
+      }
+    },
+    "not set": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未设置"
+          }
+        }
+      }
+    },
+    "this App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 App"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

@@ -42,19 +42,19 @@ struct ApplicationMetadata {
     let copyright: String
 
     var versionAndBuild: String {
-        "Version \(version) (Build \(build))"
+        localized("Version \(version) (Build \(build))")
     }
 
-    static let current = ApplicationMetadata(
+    static var current: ApplicationMetadata { ApplicationMetadata(
         name: "Spinnet",
         version: "0.1",
-        build: "Development",
-        description: "A mouse-first macOS action environment centered on a radial Menu.",
+        build: localized("Development"),
+        description: localized("A mouse-first macOS action environment centered on a radial Menu."),
         sourceURL: URL(string: "https://github.com/vulpsecula/Spinnet")!,
-        licence: "GPL-3.0-only",
-        acknowledgements: "Built with Swift and AppKit.",
-        copyright: "© 2026 vulpsecula"
-    )
+        licence: "GPL-3.0-only", // Not localized: a licence identifier
+        acknowledgements: localized("Built with Swift and AppKit."),
+        copyright: "© 2026 vulpsecula" // Not localized: a name
+    ) }
 }
 
 private struct SettingsPageDescriptor {
@@ -69,68 +69,68 @@ extension SettingsPage {
         switch self {
         case .general:
             return SettingsPageDescriptor(
-                title: "General",
+                title: localized("General"),
                 showsEditorMode: false,
                 accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.general"),
                 contentAccessibilityNames: { _ in
-                    ["General", "Launch at Login", "Show Status Item", "Open Welcome Guide"]
+                    [localized("General"), localized("Launch at Login"), localized("Show Status Item"), localized("Open Welcome Guide")]
                 }
             )
         case .menu:
             return SettingsPageDescriptor(
-                title: "Menu",
+                title: localized("Menu"),
                 showsEditorMode: true,
                 accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.menu"),
                 contentAccessibilityNames: { _ in
                     [
-                        "Menu",
-                        "Menu Editor",
-                        "Menu Trigger",
-                        "Mouse trigger",
-                        "Click & Drag",
-                        "Keyboard shortcut optional",
-                        "Accessibility status",
-                        "Library",
-                        "Menu Item Alias",
-                        "Add empty Slot",
-                        "Edit on the Menu"
+                        localized("Menu"),
+                        localized("Menu Editor"),
+                        localized("Menu Trigger"),
+                        localized("Mouse trigger"),
+                        localized("Click & Drag"),
+                        localized("Keyboard shortcut optional"),
+                        localized("Accessibility status"),
+                        localized("Library"),
+                        localized("Menu Item Alias"),
+                        localized("Add empty Slot"),
+                        localized("Edit on the Menu")
                     ]
                 }
             )
         case .appearance:
             return SettingsPageDescriptor(
-                title: "Appearance",
+                title: localized("Appearance"),
                 showsEditorMode: true,
                 accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.appearance"),
                 contentAccessibilityNames: { _ in
                     [
-                        "Appearance", "Menu Theme", "Accent Colour", "Menu Size", "Menu Font", "Menu Font Weight",
-                        "Undo Appearance change", "Redo Appearance change", "Reset Appearance"
+                        localized("Appearance"), localized("Menu Theme"), localized("Accent Colour"), localized("Menu Size"), localized("Menu Font"), localized("Menu Font Weight"),
+                        localized("Undo Appearance change"), localized("Redo Appearance change"), localized("Reset Appearance")
                     ]
                 }
             )
         case .privacyAndPermissions:
             return SettingsPageDescriptor(
-                title: "Privacy & Permissions",
+                title: localized("Privacy & Permissions"),
                 showsEditorMode: false,
                 accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.privacy-and-permissions"),
                 contentAccessibilityNames: { _ in
                     [
-                        "Privacy & Permissions",
-                        "System Permissions",
-                        "Sensitive Data Collection",
-                        "Collect Clipboard History",
-                        "Pause Clipboard History collection",
-                        "Clipboard retention",
-                        "Plugin Access"
+                        localized("Privacy & Permissions"),
+                        localized("System Permissions"),
+                        localized("Sensitive Data Collection"),
+                        localized("Collect Clipboard History"),
+                        localized("Pause Clipboard History collection"),
+                        localized("Clipboard retention"),
+                        localized("Plugin Access")
                     ] + PluginSystemPermission.allCases.map {
-                        "Open \($0.title) Settings"
+                        localized("Open \($0.localizedTitle) Settings")
                     }
                 }
             )
         case .about:
             return SettingsPageDescriptor(
-                title: "About",
+                title: localized("About"),
                 showsEditorMode: false,
                 accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.about"),
                 contentAccessibilityNames: { metadata in
@@ -138,12 +138,12 @@ extension SettingsPage {
                         metadata.name,
                         metadata.versionAndBuild,
                         metadata.description,
-                        "Source on GitHub",
-                        "Licence",
+                        localized("Source on GitHub"),
+                        localized("Licence"),
                         metadata.licence,
-                        "Acknowledgements",
+                        localized("Acknowledgements"),
                         metadata.acknowledgements,
-                        "Copyright",
+                        localized("Copyright"),
                         metadata.copyright
                     ]
                 }

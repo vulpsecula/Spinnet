@@ -22,46 +22,46 @@ struct MouseInputConflictDefinition {
 struct MouseInputConflictDetector {
     private static let macMouseFixID = "mac-mouse-fix"
 
-    static let knownDrivers: [MouseInputConflictDefinition] = [
+    static var knownDrivers: [MouseInputConflictDefinition] { [
         MouseInputConflictDefinition(
             id: "mac-mouse-fix",
-            applicationName: "Mac Mouse Fix",
+            applicationName: "Mac Mouse Fix", // Not localized: an app or process name
             bundleIdentifiers: [
                 "com.nuebling.mac-mouse-fix",
                 "com.nuebling.mac-mouse-fix.helper"
             ],
-            processNames: ["Mac Mouse Fix", "Mac Mouse Fix Helper"],
-            guidance: "Remove every Click, Click and Drag, and Click and Scroll action for the same mouse button in Mac Mouse Fix."
+            processNames: ["Mac Mouse Fix", "Mac Mouse Fix Helper"], // Not localized: an app or process name
+            guidance: localized("Remove every Click, Click and Drag, and Click and Scroll action for the same mouse button in Mac Mouse Fix.")
         ),
         MouseInputConflictDefinition(
             id: "better-touch-tool",
-            applicationName: "BetterTouchTool",
+            applicationName: "BetterTouchTool", // Not localized: an app or process name
             bundleIdentifiers: [],
-            processNames: ["BetterTouchTool"],
-            guidance: "Remove Normal Mouse triggers for the same button, including click, long-press, drag, drawing, and scroll combinations."
+            processNames: ["BetterTouchTool"], // Not localized: an app or process name
+            guidance: localized("Remove Normal Mouse triggers for the same button, including click, long-press, drag, drawing, and scroll combinations.")
         ),
         MouseInputConflictDefinition(
             id: "steer-mouse",
-            applicationName: "SteerMouse",
+            applicationName: "SteerMouse", // Not localized: an app or process name
             bundleIdentifiers: [],
-            processNames: ["SteerMouse"],
-            guidance: "Clear the same button and any chord containing it from global, per-application, and per-mouse profiles."
+            processNames: ["SteerMouse"], // Not localized: an app or process name
+            guidance: localized("Clear the same button and any chord containing it from global, per-application, and per-mouse profiles.")
         ),
         MouseInputConflictDefinition(
             id: "logi-options-plus",
-            applicationName: "Logi Options+",
+            applicationName: "Logi Options+", // Not localized: an app or process name
             bundleIdentifiers: [],
-            processNames: ["Logi Options+", "Logi Options Plus"],
-            guidance: "Remove actions and gestures from the same button, or configure the device to emit an unmodified native mouse button."
+            processNames: ["Logi Options+", "Logi Options Plus"], // Not localized: an app or process name
+            guidance: localized("Remove actions and gestures from the same button, or configure the device to emit an unmodified native mouse button.")
         ),
         MouseInputConflictDefinition(
             id: "linear-mouse",
-            applicationName: "LinearMouse",
+            applicationName: "LinearMouse", // Not localized: an app or process name
             bundleIdentifiers: ["com.lujjjh.LinearMouse"],
-            processNames: ["LinearMouse"],
-            guidance: "Remove the same button action from every matching device and application scheme; scrolling and pointer adjustments can remain enabled."
+            processNames: ["LinearMouse"], // Not localized: an app or process name
+            guidance: localized("Remove the same button action from every matching device and application scheme; scrolling and pointer adjustments can remain enabled.")
         )
-    ]
+    ] }
 
     var runningApplications: () -> [RunningApplicationIdentity] = {
         NSWorkspace.shared.runningApplications.map {
@@ -73,7 +73,7 @@ struct MouseInputConflictDetector {
     }
     var macMouseFixConfigurationData: () -> Data? = {
         let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/com.nuebling.mac-mouse-fix/config.plist")
+            .appendingPathComponent("Library/Application Support/com.nuebling.mac-mouse-fix/config.plist") // Not localized: a file path or saved key
         return try? Data(contentsOf: url)
     }
 
@@ -119,11 +119,11 @@ struct MouseInputConflictDetector {
             options: [],
             format: nil
         ) as? [String: Any],
-        let constants = root["Constants"] as? [String: Any],
+        let constants = root["Constants"] as? [String: Any], // Not localized: a file path or saved key
         integer(from: constants["configVersion"]) == 24,
-        let general = root["General"] as? [String: Any],
+        let general = root["General"] as? [String: Any], // Not localized: a file path or saved key
         general["buttonKillSwitch"] as? Bool != true,
-        let remaps = root["Remaps"] as? [[String: Any]] else {
+        let remaps = root["Remaps"] as? [[String: Any]] else { // Not localized: a file path or saved key
             return []
         }
 

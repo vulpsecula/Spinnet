@@ -128,6 +128,7 @@ final class SettingsWindowController: NSWindowController {
     #endif
 
     var launchAtLogin: LaunchAtLoginModel { model.launchAtLogin }
+    var interfaceLanguage: InterfaceLanguageModel { model.interfaceLanguage }
     /// The saved Show Status Item preference.
     var showsStatusItem: Bool {
         get { model.showsStatusItem }
@@ -167,6 +168,7 @@ final class SettingsWindowController: NSWindowController {
         defaults: UserDefaults = .standard,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         loginItem: LoginItemService = AppBundleLoginItemService(),
+        interfaceLanguage: InterfaceLanguageModel? = nil,
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
         credentialStore: PluginCredentialStore? = nil,
         pluginSettingsStore: PluginSettingsStore? = nil,
@@ -178,7 +180,8 @@ final class SettingsWindowController: NSWindowController {
             capabilityGrantStore: capabilityGrantStore,
             defaults: defaults,
             clipboardHistoryStore: clipboardHistoryStore,
-            loginItem: loginItem
+            loginItem: loginItem,
+            interfaceLanguage: interfaceLanguage
         )
         model.credentialStore = credentialStore
         model.pluginSettingsStore = pluginSettingsStore
@@ -196,12 +199,12 @@ final class SettingsWindowController: NSWindowController {
             rootView: SettingsRootView(model: model, openURL: openURL)
         )
         hostingView.translatesAutoresizingMaskIntoConstraints = false
-        window.title = "Spinnet Settings"
+        window.title = localized("Spinnet Settings")
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 1_280, height: 720)
-        window.setAccessibilityLabel("Spinnet Settings")
+        window.setAccessibilityLabel(localized("Spinnet Settings"))
         window.setAccessibilityHelp(
-            "Use the Settings navigation to switch between General, Menu, Appearance, Privacy & Permissions, and About."
+            localized("Use the Settings navigation to switch between General, Menu, Appearance, Privacy & Permissions, and About.")
         )
         let contentView = NSView()
         contentView.addSubview(hostingView)

@@ -44,8 +44,8 @@ final class KeyboardShortcutCaptureView: NSView {
         super.init(frame: frameRect)
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
-        setAccessibilityLabel("Record keyboard shortcut")
-        setAccessibilityHelp("Click, then press a keyboard shortcut with at least one modifier key. Accessibility lets Spinnet block other apps while recording.")
+        setAccessibilityLabel(localized("Record keyboard shortcut"))
+        setAccessibilityHelp(localized("Click, then press a keyboard shortcut with at least one modifier key. Accessibility lets Spinnet block other apps while recording."))
     }
 
     required init?(coder: NSCoder) {
@@ -208,9 +208,9 @@ final class KeyboardShortcutCaptureView: NSView {
     /// Modifier symbols appear as soon as their flags change, before the
     /// primary key is pressed.
     var recordingDisplayValue: String {
-        guard isRecording else { return shortcut?.displayValue ?? "Not Set" }
+        guard isRecording else { return shortcut?.displayValue ?? localized("Not Set") }
         let symbols = Self.modifierSymbols(for: recordingModifiers)
-        return symbols.isEmpty ? "Press shortcut…" : "\(symbols)…"
+        return symbols.isEmpty ? localized("Press shortcut…") : "\(symbols)…"
     }
 
     private func updateRecordingModifiers(_ flags: NSEvent.ModifierFlags) {
@@ -282,10 +282,10 @@ private enum ManualShortcutModifier: String, CaseIterable, Hashable, Identifiabl
 
     var title: String {
         switch self {
-        case .command: return "Command"
-        case .option: return "Option"
-        case .shift: return "Shift"
-        case .control: return "Control"
+        case .command: return localized("Command")
+        case .option: return localized("Option")
+        case .shift: return localized("Shift")
+        case .control: return localized("Control")
         }
     }
 
@@ -326,7 +326,7 @@ struct KeyboardShortcutEditor: View {
     @State private var manualKeyCode = UInt16(kVK_ANSI_A)
     @State private var manualError: String?
 
-    private static let manualKeys: [ManualShortcutKey] = [
+    private static var manualKeys: [ManualShortcutKey] { [
         ManualShortcutKey(title: "A", keyCode: UInt16(kVK_ANSI_A)),
         ManualShortcutKey(title: "B", keyCode: UInt16(kVK_ANSI_B)),
         ManualShortcutKey(title: "C", keyCode: UInt16(kVK_ANSI_C)),
@@ -374,21 +374,21 @@ struct KeyboardShortcutEditor: View {
         ManualShortcutKey(title: ".", keyCode: UInt16(kVK_ANSI_Period)),
         ManualShortcutKey(title: "/", keyCode: UInt16(kVK_ANSI_Slash)),
         ManualShortcutKey(title: "`", keyCode: UInt16(kVK_ANSI_Grave)),
-        ManualShortcutKey(title: "Return", keyCode: UInt16(kVK_Return)),
-        ManualShortcutKey(title: "Escape", keyCode: UInt16(kVK_Escape)),
-        ManualShortcutKey(title: "Tab", keyCode: UInt16(kVK_Tab)),
-        ManualShortcutKey(title: "Space", keyCode: UInt16(kVK_Space)),
-        ManualShortcutKey(title: "Delete", keyCode: UInt16(kVK_Delete)),
-        ManualShortcutKey(title: "Forward Delete", keyCode: UInt16(kVK_ForwardDelete)),
-        ManualShortcutKey(title: "Left", keyCode: UInt16(kVK_LeftArrow)),
-        ManualShortcutKey(title: "Right", keyCode: UInt16(kVK_RightArrow)),
-        ManualShortcutKey(title: "Up", keyCode: UInt16(kVK_UpArrow)),
-        ManualShortcutKey(title: "Down", keyCode: UInt16(kVK_DownArrow)),
-        ManualShortcutKey(title: "Home", keyCode: UInt16(kVK_Home)),
-        ManualShortcutKey(title: "End", keyCode: UInt16(kVK_End)),
-        ManualShortcutKey(title: "Page Up", keyCode: UInt16(kVK_PageUp)),
-        ManualShortcutKey(title: "Page Down", keyCode: UInt16(kVK_PageDown)),
-        ManualShortcutKey(title: "Help", keyCode: UInt16(kVK_Help)),
+        ManualShortcutKey(title: localized("Return"), keyCode: UInt16(kVK_Return)),
+        ManualShortcutKey(title: localized("Escape"), keyCode: UInt16(kVK_Escape)),
+        ManualShortcutKey(title: localized("Tab"), keyCode: UInt16(kVK_Tab)),
+        ManualShortcutKey(title: localized("Space"), keyCode: UInt16(kVK_Space)),
+        ManualShortcutKey(title: localized("Delete"), keyCode: UInt16(kVK_Delete)),
+        ManualShortcutKey(title: localized("Forward Delete"), keyCode: UInt16(kVK_ForwardDelete)),
+        ManualShortcutKey(title: localized("Left"), keyCode: UInt16(kVK_LeftArrow)),
+        ManualShortcutKey(title: localized("Right"), keyCode: UInt16(kVK_RightArrow)),
+        ManualShortcutKey(title: localized("Up"), keyCode: UInt16(kVK_UpArrow)),
+        ManualShortcutKey(title: localized("Down"), keyCode: UInt16(kVK_DownArrow)),
+        ManualShortcutKey(title: localized("Home"), keyCode: UInt16(kVK_Home)),
+        ManualShortcutKey(title: localized("End"), keyCode: UInt16(kVK_End)),
+        ManualShortcutKey(title: localized("Page Up"), keyCode: UInt16(kVK_PageUp)),
+        ManualShortcutKey(title: localized("Page Down"), keyCode: UInt16(kVK_PageDown)),
+        ManualShortcutKey(title: localized("Help"), keyCode: UInt16(kVK_Help)),
         ManualShortcutKey(title: "F1", keyCode: UInt16(kVK_F1)),
         ManualShortcutKey(title: "F2", keyCode: UInt16(kVK_F2)),
         ManualShortcutKey(title: "F3", keyCode: UInt16(kVK_F3)),
@@ -409,14 +409,14 @@ struct KeyboardShortcutEditor: View {
         ManualShortcutKey(title: "F18", keyCode: UInt16(kVK_F18)),
         ManualShortcutKey(title: "F19", keyCode: UInt16(kVK_F19)),
         ManualShortcutKey(title: "F20", keyCode: UInt16(kVK_F20))
-    ]
+    ] }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 KeyboardShortcutRecorder(shortcut: $shortcut)
                     .frame(width: 164, height: 30)
-                Button(manualEntryVisible ? "Hide Manual Chooser" : "Choose Manually…") {
+                Button(manualEntryVisible ? localized("Hide Manual Chooser") : localized("Choose Manually…")) {
                     manualEntryVisible.toggle()
                     if manualEntryVisible {
                         syncManualSelection()
@@ -425,13 +425,13 @@ struct KeyboardShortcutEditor: View {
                 }
                 .buttonStyle(.link)
                 .controlSize(.small)
-                .accessibilityLabel(manualEntryVisible ? "Hide manual keyboard shortcut chooser" : "Choose keyboard shortcut manually")
+                .accessibilityLabel(manualEntryVisible ? localized("Hide manual keyboard shortcut chooser") : localized("Choose keyboard shortcut manually"))
             }
 
             if manualEntryVisible {
                 HStack(alignment: .top, spacing: 18) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Modifiers")
+                        Text(localized("Modifiers"))
                             .font(.caption.weight(.semibold))
                         ForEach(ManualShortcutModifier.allCases) { modifier in
                             Toggle(
@@ -445,9 +445,9 @@ struct KeyboardShortcutEditor: View {
                     .frame(width: 108, alignment: .leading)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Key")
+                        Text(localized("Key"))
                             .font(.caption.weight(.semibold))
-                        Picker("Key", selection: $manualKeyCode) {
+                        Picker(localized("Key"), selection: $manualKeyCode) {
                             ForEach(Self.manualKeys) { key in
                                 Text(key.title).tag(key.keyCode)
                             }
@@ -458,10 +458,10 @@ struct KeyboardShortcutEditor: View {
                     }
                 }
                 HStack(spacing: 8) {
-                    Button("Set Shortcut", action: applyManualSelection)
+                    Button(localized("Set Shortcut"), action: applyManualSelection)
                         .controlSize(.small)
                         .disabled(manualModifiers.isEmpty)
-                    Text("Choose one or more modifiers and a key.")
+                    Text(localized("Choose one or more modifiers and a key."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -511,12 +511,12 @@ struct KeyboardShortcutEditor: View {
 
     private func applyManualSelection() {
         guard !manualModifiers.isEmpty else {
-            manualError = "Choose at least one modifier."
+            manualError = localized("Choose at least one modifier.")
             return
         }
 
         guard let key = Self.manualKeys.first(where: { $0.keyCode == manualKeyCode }) else {
-            manualError = "Choose a key."
+            manualError = localized("Choose a key.")
             return
         }
         let modifiers = ManualShortcutModifier.allCases
@@ -524,7 +524,7 @@ struct KeyboardShortcutEditor: View {
             .map(\.symbol)
             .joined()
         guard let parsed = MenuKeyboardShortcut(manualText: modifiers + key.title) else {
-            manualError = "This key combination is not supported."
+            manualError = localized("This key combination is not supported.")
             return
         }
         shortcut = parsed

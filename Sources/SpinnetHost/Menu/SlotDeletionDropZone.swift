@@ -28,8 +28,8 @@ final class SlotDeletionDropView: NSView {
         registerForDraggedTypes([RadialMenuView.slotPasteboardType])
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("Drop Slot here to delete")
-        setAccessibilityHelp("Dropping opens a confirmation. You can also right-click a Slot to delete it.")
+        setAccessibilityLabel(localized("Drop Slot here to delete"))
+        setAccessibilityHelp(localized("Dropping opens a confirmation. You can also right-click a Slot to delete it."))
     }
 
     required init?(coder: NSCoder) { fatalError("Not decoded from a nib") }
@@ -65,7 +65,7 @@ final class SlotDeletionDropView: NSView {
         path.fill()
         (targeted ? NSColor.systemRed : NSColor.separatorColor).setStroke()
         path.stroke()
-        let title = "Drop Slot to Delete…" as NSString
+        let title = localized("Drop Slot to Delete…") as NSString
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11, weight: .medium),
             .foregroundColor: targeted ? NSColor.systemRed : NSColor.secondaryLabelColor

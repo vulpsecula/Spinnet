@@ -24,7 +24,7 @@ enum ConfigurationSaveError: LocalizedError {
         switch self {
         case .restored(let reason): return reason
         case .partiallySaved(let reason):
-            return "\(reason) Some changes could not be restored. Review the saved settings and credentials before retrying."
+            return localized("\(reason) Some changes could not be restored. Review the saved settings and credentials before retrying.")
         }
     }
 }
@@ -46,10 +46,10 @@ enum ConfigurationSave {
     ) throws {
         try consent?.validate(allowedHosts: allowedHosts)
         guard secrets.allSatisfy({ PluginCredentialReference.isValid($0.key) && PluginCredentialReference.isValidSecret($0.value) }) else {
-            throw ConfigurationError.invalidAction("A credential must have a valid reference and one line of at most 4096 characters.")
+            throw ConfigurationError.invalidAction(localized("A credential must have a valid reference and one line of at most 4096 characters."))
         }
         if !secrets.isEmpty, credentialStore == nil || pluginID == nil {
-            throw ConfigurationError.invalidAction("Credentials cannot be stored in this session")
+            throw ConfigurationError.invalidAction(localized("Credentials cannot be stored in this session"))
         }
         // Read every old value before touching anything. A read error is not
         // evidence that an item was absent. Secrets stay only in this stack.

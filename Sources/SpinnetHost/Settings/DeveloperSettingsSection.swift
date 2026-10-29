@@ -5,14 +5,14 @@ import SwiftUI
 /// The Developer section, last on the General page of a DEBUG Host.
 struct DeveloperSettingsSection: View {
     /// The section's names, in the order its controls appear.
-    static let accessibleNames = [
-        "Developer",
-        "Relaunch Spinnet",
-        "Lifecycle Test Window",
-        "Copy Diagnostics",
-        "Reveal Data Folder",
-        "Copy Log Stream Command"
-    ]
+    static var accessibleNames: [String] { [
+        localized("Developer"),
+        localized("Relaunch Spinnet"),
+        localized("Lifecycle Test Window"),
+        localized("Copy Diagnostics"),
+        localized("Reveal Data Folder"),
+        localized("Copy Log Stream Command")
+    ] }
 
     let tools: DeveloperTools
     @State private var diagnostics: DeveloperDiagnostics?
@@ -20,52 +20,52 @@ struct DeveloperSettingsSection: View {
 
     var body: some View {
             VStack(alignment: .leading, spacing: 24) {
-                pageHeader(title: "Developer",
-                           description: "Shortcuts for developing and testing Spinnet. Only development builds have this section.",
+                pageHeader(title: localized("Developer"),
+                           description: localized("Shortcuts for developing and testing Spinnet. Only development builds have this section."),
                            titleFont: .title2.weight(.semibold))
 
-                section("Host") {
+                section(localized("Host")) {
                     actionRow(
-                        "Relaunch Spinnet", button: "Relaunch",
+                        localized("Relaunch Spinnet"), button: localized("Relaunch"),
                         detail: tools.canRelaunch
-                            ? "Quit and reopen this app bundle."
-                            : "Only a Host running from an app bundle can reopen itself.",
+                            ? localized("Quit and reopen this app bundle.")
+                            : localized("Only a Host running from an app bundle can reopen itself."),
                         action: tools.relaunch
                     )
                     .disabled(!tools.canRelaunch)
                     Divider()
                     actionRow(
-                        "Lifecycle Test Window", button: "Open",
-                        detail: "Run the slow and hanging Action fixtures.",
+                        localized("Lifecycle Test Window"), button: localized("Open"),
+                        detail: localized("Run the slow and hanging Action fixtures."),
                         action: tools.openLifecycleTestWindow
                     )
                 }
 
-                section("Diagnostics") {
+                section(localized("Diagnostics")) {
                     if let diagnostics {
-                        valueRow("App", diagnostics.appPath)
+                        valueRow(localized("App"), diagnostics.appPath)
                         Divider()
-                        valueRow("Version", "\(diagnostics.version) · \(diagnostics.sourceRevision)")
+                        valueRow(localized("Version"), "\(diagnostics.version) · \(diagnostics.sourceRevision)")
                         Divider()
-                        valueRow("Plugins", pluginSummary(diagnostics))
+                        valueRow(localized("Plugins"), pluginSummary(diagnostics))
                         Divider()
                     }
                     actionRow(
-                        "Copy Diagnostics", button: "Copy",
-                        detail: "The app path, version and every loaded Plugin, for an acceptance report.",
-                        action: { run("Diagnostics copied", tools.copyDiagnostics) }
+                        localized("Copy Diagnostics"), button: localized("Copy"),
+                        detail: localized("The app path, version and every loaded Plugin, for an acceptance report."),
+                        action: { run(localized("Diagnostics copied"), tools.copyDiagnostics) }
                     )
                     Divider()
                     actionRow(
-                        "Reveal Data Folder", button: "Reveal in Finder",
-                        detail: diagnostics?.dataDirectory ?? "Spinnet's Application Support folder.",
+                        localized("Reveal Data Folder"), button: localized("Reveal in Finder"),
+                        detail: diagnostics?.dataDirectory ?? localized("Spinnet's Application Support folder."),
                         action: tools.revealDataFolder
                     )
                     Divider()
                     actionRow(
-                        "Copy Log Stream Command", button: "Copy",
-                        detail: "Streams the Host's and its helpers' logs in Terminal.",
-                        action: { run("Log stream command copied", tools.copyLogStreamCommand) }
+                        localized("Copy Log Stream Command"), button: localized("Copy"),
+                        detail: localized("Streams the Host's and its helpers' logs in Terminal."),
+                        action: { run(localized("Log stream command copied"), tools.copyLogStreamCommand) }
                     )
                 }
 
@@ -86,9 +86,9 @@ struct DeveloperSettingsSection: View {
 
     private func pluginSummary(_ diagnostics: DeveloperDiagnostics) -> String {
         let disabled = diagnostics.plugins.filter { !$0.isEnabled }.count
-        var parts = ["\(diagnostics.plugins.count) loaded"]
-        if disabled > 0 { parts.append("\(disabled) disabled") }
-        if !diagnostics.refused.isEmpty { parts.append("\(diagnostics.refused.count) refused") }
+        var parts = [localized("\(diagnostics.plugins.count) loaded")]
+        if disabled > 0 { parts.append(localized("\(disabled) disabled")) }
+        if !diagnostics.refused.isEmpty { parts.append(localized("\(diagnostics.refused.count) refused")) }
         return parts.joined(separator: " · ")
     }
 

@@ -48,7 +48,7 @@ enum MenuPresentationFactory {
         guard let action = actions[actionID] else {
             return MenuActionPresentation(
                 actionID: actionID,
-                title: "Unavailable Action",
+                title: localized("Unavailable Action"),
                 availability: .unavailable(.commandMissing)
             )
         }

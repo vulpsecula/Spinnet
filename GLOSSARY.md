@@ -323,3 +323,89 @@ _Avoid_: Spinnet License, marketplace licence
 **Independent Plugin**:
 A Plugin that interacts with the Host exclusively through the Documented Plugin Interface and uses no Spinnet-Owned Code beyond what Spinnet publishes under a permissive licence for Plugin authors. Its Upstream Licence is not replaced by the Host's GPL solely because of that interaction.
 _Avoid_: GPL Plugin, bundled code, Host module
+
+## Simplified Chinese
+
+The Chinese for each term, chosen once for the interface's 简体中文. Host-owned text in `Sources/SpinnetHost/Resources/Localizable.xcstrings` uses these words; `LocalizationCompletenessTests` checks every catalog entry that names a term. The interface's short forms follow the term they shorten.
+
+| Term | 简体中文 |
+| --- | --- |
+| Host | 宿主 |
+| Plugin | 插件 |
+| Official Plugin | 官方插件 |
+| Refused Plugin | 被拒插件 |
+| Plugin Removal | 移除插件 |
+| Plugin Update | 插件更新 |
+| Update Source | 更新源 |
+| Plugin Storage | 插件存储 |
+| Command | 命令 |
+| Host Command | 宿主命令 |
+| Host Service | 宿主服务 |
+| Action | 动作 |
+| Primary Action | 主要动作 |
+| Alternate Action | 备选动作 |
+| Menu | 菜单 |
+| Menu Slot | 菜单槽位 |
+| Slot | 槽位 |
+| Menu Item | 菜单项 |
+| Alternate Ring | 备选环 |
+| Menu Item Alias | 菜单项别名 |
+| Menu Item Configuration | 菜单项配置 |
+| Menu Editor | 菜单编辑器 |
+| Editor Mode | 编辑模式 |
+| Welcome Guide | 欢迎指南 |
+| Runtime Mode | 运行模式 |
+| Current App | 当前 App |
+| App Override | App 覆盖 |
+| Library | 资源库 |
+| Menu Item Preset | 菜单项预设 |
+| Preset | 预设 |
+| Ready-to-Use Preset | 即用预设 |
+| Setup-Required Preset | 需设置的预设 |
+| Configuration Sheet | 配置表单 |
+| Plugin Settings | 插件设置 |
+| Appearance | 外观 |
+| Status Item | 菜单栏图标 |
+| Host Activity | 宿主活动 |
+| Effect | 效果 |
+| Plugin View | 插件视图 |
+| View Session | 视图会话 |
+| View Page | 视图页面 |
+| View Component | 视图组件 |
+| Component Style | 组件样式 |
+| Image Source | 图像来源 |
+| Collection | 集合 |
+| Collection Window | 集合窗口 |
+| Immediate State | 即时状态 |
+| View Event | 视图事件 |
+| Explicit Call | 显式调用 |
+| View Action | 视图动作 |
+| Item Action | 条目动作 |
+| Item Mark | 条目标记 |
+| Host-Run Source | 宿主运行源 |
+| Host-Fetched Section | 宿主获取区块 |
+| Host Surface | 宿主界面 |
+| Insertion Target | 插入目标 |
+| Requested Host Operation | 请求的宿主操作 |
+| Host Confirmation | 宿主确认 |
+| App Target | App 目标 |
+| System Permission | 系统权限 |
+| Capability | 能力 |
+| Privacy & Permissions | 隐私与权限 |
+| Sensitive Data Collection | 敏感数据收集 |
+| Clipboard History Store | 剪贴板历史存储 |
+| Clipboard History | 剪贴板历史 |
+| Credential Use | 凭据使用 |
+| External App | 外部 App |
+| External App Adapter | 外部 App 适配器 |
+| External App Connection | 外部 App 连接 |
+| Reviewed App Interface | 已审核的 App 接口 |
+| Deep Link Template | 深层链接模板 |
+| Reviewed Tool Profile | 已审核的工具配置 |
+| Task | 任务 |
+| Documented Plugin Interface | 公开插件接口 |
+| Host Compatibility | 宿主兼容性 |
+| Plugin API Namespace | 插件 API 命名空间 |
+| Spinnet-Owned Code | Spinnet 自有代码 |
+| Upstream Licence | 上游许可证 |
+| Independent Plugin | 独立插件 |

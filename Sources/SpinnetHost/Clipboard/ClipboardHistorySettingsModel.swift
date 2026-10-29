@@ -50,12 +50,12 @@ final class ClipboardHistorySettingsModel: ObservableObject {
     var onChange: (() -> Void)?
 
     var status: String {
-        if let error { return "Clipboard History error: " + error }
-        if isSaving { return "Saving Clipboard History settings…" }
-        guard collectionEnabled else { return "Off — no new entries are collected" }
+        if let error { return localized("Clipboard History error: \(error)") }
+        if isSaving { return localized("Saving Clipboard History settings…") }
+        guard collectionEnabled else { return localized("Off — no new entries are collected") }
         return collectionPaused
-            ? "Paused — existing entries are retained"
-            : "On — collecting clipboard content on this Mac"
+            ? localized("Paused — existing entries are retained")
+            : localized("On — collecting clipboard content on this Mac")
     }
 
     private enum Keys {
@@ -80,7 +80,7 @@ final class ClipboardHistorySettingsModel: ObservableObject {
             retention = ClipboardRetention.allCases
                 .first { $0.hours == store.settings.retentionDays * 24 } ?? .oneDay
         } else {
-            retention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.retention) ?? "1 day") ?? .oneDay
+            retention = ClipboardRetention(rawValue: defaults.string(forKey: Keys.retention) ?? ClipboardRetention.oneDay.rawValue) ?? .oneDay
         }
     }
 

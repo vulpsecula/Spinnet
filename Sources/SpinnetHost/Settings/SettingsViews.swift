@@ -201,6 +201,8 @@ final class SettingsWindowModel: ObservableObject {
 
     /// Launch at Login reads and changes the system's login item.
     let launchAtLogin: LaunchAtLoginModel
+    /// General's interface language, applied when Spinnet relaunches.
+    let interfaceLanguage: InterfaceLanguageModel
     /// Whether the Status Item shows while no Host Activity is ongoing.
     @Published var showsStatusItem: Bool {
         didSet {
@@ -262,6 +264,7 @@ final class SettingsWindowModel: ObservableObject {
         defaults: UserDefaults = .standard,
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         loginItem: LoginItemService = AppBundleLoginItemService(),
+        interfaceLanguage: InterfaceLanguageModel? = nil,
         accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() },
         mouseInputConflictCheck: @escaping (Int) -> [MouseInputConflict] = {
             MouseInputConflictDetector().detect(mouseButton: $0)
@@ -271,6 +274,7 @@ final class SettingsWindowModel: ObservableObject {
         self.metadata = metadata
         self.defaults = defaults
         launchAtLogin = LaunchAtLoginModel(service: loginItem)
+        self.interfaceLanguage = interfaceLanguage ?? InterfaceLanguageModel(defaults: defaults)
         showsStatusItem = defaults.object(forKey: Self.showsStatusItemKey) as? Bool ?? true
         menuEditor = MenuEditorModel(editor: editor)
         privacy = PrivacyPermissionsModel(
@@ -450,29 +454,30 @@ final class SettingsWindowModel: ObservableObject {
 
     var accessibleNames: [String] {
         var names = SettingsPage.allCases.map(\.title)
-        if page.showsEditorMode { names.append("Editor Mode") }
+        if page.showsEditorMode { names.append(localized("Editor Mode")) }
         names.append(contentsOf: page.contentAccessibilityNames(metadata: metadata))
         if page == .menu {
-            names.append(contentsOf: editor.menuItemPresets.map(\.accessibilityLabel))
+            names.append(contentsOf: editor.menuItemPresets.map(\.localizedAccessibilityLabel))
             let slots = menuEditor.editedSlots
             let selectedSlotIsEmpty = slots.indices.contains(menuEditor.selectedMenuIndex)
                 && slots[menuEditor.selectedMenuIndex].item == nil
             if selectedSlotIsEmpty {
                 for preset in editor.menuItemPresets {
-                    names.append("Add \(preset.name) to selected Slot")
+                    names.append(localized("Add \(preset.name) to selected Slot"))
                 }
             }
             for (index, slot) in slots.enumerated()
                 where slot.item != nil {
-                names.append("Edit Menu Item in Slot \(index + 1)")
+                names.append(localized("Edit Menu Item in Slot \(index + 1)"))
             }
             names.append(contentsOf: [
                 menuEditor.deleteSlotLabel,
-                "Undo Slot edit",
-                "Redo Slot edit"
+                localized("Undo Slot edit"),
+                localized("Redo Slot edit")
             ])
         } else if page == .general {
             names.append(contentsOf: launchAtLogin.accessibleNames)
+            names.append(contentsOf: InterfaceLanguageRow.accessibleNames(for: interfaceLanguage))
             names.append(MenuOpeningDelayRow.accessibleName(for: trigger.openingDelay))
             names.append(contentsOf: pluginUpdates.accessibleNames)
             names.append(contentsOf: spinnetReleases.accessibleNames)
@@ -481,20 +486,20 @@ final class SettingsWindowModel: ObservableObject {
             #endif
         } else if page == .privacyAndPermissions {
             names.append(contentsOf: [
-                "Collect Clipboard History",
-                "Pause Clipboard History collection",
-                "Clipboard retention"
+                localized("Collect Clipboard History"),
+                localized("Pause Clipboard History collection"),
+                localized("Clipboard retention")
             ])
             names.append(contentsOf: privacy.capabilityGrants.map { grant in
-                "\(grant.capability.title): \(grant.decision.title)"
+                "\(grant.capability.localizedTitle): \(grant.decision.localizedTitle)"
             })
         }
         if welcomeGuide.isPresented {
             names.append(contentsOf: welcomeGuideAccessibleNames)
         } else if privacy.permissionGuidePresented {
-            names.append("Spinnet Permissions")
-            names.append("Open Accessibility Settings")
-            names.append("Skip for now")
+            names.append(localized("Spinnet Permissions"))
+            names.append(localized("Open Accessibility Settings"))
+            names.append(localized("Skip for now"))
         }
         return names
     }
@@ -579,7 +584,7 @@ struct SettingsRootView: View {
             get: { menuEditor.installationResult != nil },
             set: { if !$0 { menuEditor.installationResult = nil } }
         )) {
-            Button("OK", role: .cancel) { menuEditor.installationResult = nil }
+            Button(localized("OK"), role: .cancel) { menuEditor.installationResult = nil }
         } message: {
             Text(menuEditor.installationResult?.message ?? "")
         }
@@ -587,8 +592,8 @@ struct SettingsRootView: View {
             get: { menuEditor.slotPendingDeletion != nil },
             set: { if !$0 { menuEditor.cancelSlotDeletion() } }
         )) {
-            Button("Cancel", role: .cancel, action: menuEditor.cancelSlotDeletion)
-            Button("Delete Slot", role: .destructive, action: menuEditor.confirmSlotDeletion)
+            Button(localized("Cancel"), role: .cancel, action: menuEditor.cancelSlotDeletion)
+            Button(localized("Delete Slot"), role: .destructive, action: menuEditor.confirmSlotDeletion)
         } message: {
             Text(menuEditor.deletionMessage)
         }
@@ -596,17 +601,17 @@ struct SettingsRootView: View {
             get: { menuEditor.pluginPendingRemoval != nil },
             set: { if !$0 { menuEditor.cancelPluginRemoval() } }
         )) {
-            Button("Cancel", role: .cancel, action: menuEditor.cancelPluginRemoval)
-            Button("Remove Plugin", role: .destructive, action: menuEditor.confirmPluginRemoval)
+            Button(localized("Cancel"), role: .cancel, action: menuEditor.cancelPluginRemoval)
+            Button(localized("Remove Plugin"), role: .destructive, action: menuEditor.confirmPluginRemoval)
         } message: {
             Text(menuEditor.removalMessage)
         }
         .alert(
-            "Replace Menu Item in Slot \((menuEditor.presetPendingReplacement?.slotIndex ?? 0) + 1)?",
+            localized("Replace Menu Item in Slot \((menuEditor.presetPendingReplacement?.slotIndex ?? 0) + 1)?"),
             isPresented: presetReplacementAlertBinding
         ) {
-            Button("Cancel", role: .cancel, action: menuEditor.cancelPresetReplacement)
-            Button("Replace", role: .destructive, action: menuEditor.confirmPresetReplacement)
+            Button(localized("Cancel"), role: .cancel, action: menuEditor.cancelPresetReplacement)
+            Button(localized("Replace"), role: .destructive, action: menuEditor.confirmPresetReplacement)
                 .keyboardShortcut(.defaultAction)
         } message: {
             Text(menuEditor.replacementMessage)
@@ -650,7 +655,7 @@ struct SettingsRootView: View {
             }
 
             Spacer()
-            Text("Settings")
+            Text(localized("Settings"))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .padding(.horizontal, 14)
@@ -660,7 +665,7 @@ struct SettingsRootView: View {
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(Color(nsColor: .underPageBackgroundColor))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Settings Navigation")
+        .accessibilityLabel(localized("Settings Navigation"))
     }
 
     private func navigationButton(_ page: SettingsPage) -> some View {
@@ -677,8 +682,8 @@ struct SettingsRootView: View {
         .buttonStyle(SettingsNavigationButtonStyle(isSelected: page == model.page))
         .accessibilityLabel(page.title)
         .accessibilityIdentifier(page.accessibilityIdentifier.rawValue)
-        .accessibilityHint("Show \(page.title) settings.")
-        .accessibilityValue(page == model.page ? "Selected" : "Not selected")
+        .accessibilityHint(localized("Show \(page.title) settings."))
+        .accessibilityValue(page == model.page ? localized("Selected") : localized("Not selected"))
         .focused($focusedPage, equals: page)
     }
 
@@ -687,11 +692,11 @@ struct SettingsRootView: View {
 
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("Editor Mode")
+                Text(localized("Editor Mode"))
                     .font(.title2.weight(.semibold))
                 Text(model.page == .menu
-                    ? "Drag any Slot to reorder it. Drop it in the delete area or right-click to delete with confirmation. Use Edit to configure its Menu Item."
-                    : "Appearance changes are shown here. Actions and Menu edits are disabled.")
+                    ? localized("Drag any Slot to reorder it. Drop it in the delete area or right-click to delete with confirmation. Use Edit to configure its Menu Item.")
+                    : localized("Appearance changes are shown here. Actions and Menu edits are disabled."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -745,7 +750,7 @@ struct SettingsRootView: View {
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Editor Mode")
+            .accessibilityLabel(localized("Editor Mode"))
 
             if model.page == .menu {
                 HStack(spacing: 8) {
@@ -753,27 +758,27 @@ struct SettingsRootView: View {
                         Image(systemName: "plus")
                     }
                     .disabled(menuSlots.count >= 12 || !menuEditor.canArrangeSlots)
-                    .accessibilityLabel("Add empty Slot")
-                    .help("Add empty Slot")
+                    .accessibilityLabel(localized("Add empty Slot"))
+                    .help(localized("Add empty Slot"))
                     Button(action: menuEditor.undoSlotEdit) {
                         Image(systemName: "arrow.uturn.backward")
                     }
                     .disabled(!menuEditor.canUndoSlotEdit)
                     .keyboardShortcut("z", modifiers: .command)
-                    .help("Undo Slot edit")
-                    .accessibilityLabel("Undo Slot edit")
+                    .help(localized("Undo Slot edit"))
+                    .accessibilityLabel(localized("Undo Slot edit"))
                     Button(action: menuEditor.redoSlotEdit) {
                         Image(systemName: "arrow.uturn.forward")
                     }
                     .disabled(!menuEditor.canRedoSlotEdit)
                     .keyboardShortcut("z", modifiers: [.command, .shift])
-                    .help("Redo Slot edit")
-                    .accessibilityLabel("Redo Slot edit")
+                    .help(localized("Redo Slot edit"))
+                    .accessibilityLabel(localized("Redo Slot edit"))
                     SlotDeletionDropZone(onDrop: menuEditor.requestSlotDeletion)
                         .frame(maxWidth: .infinity)
                     Text("\(menuSlots.count) / 12")
                         .monospacedDigit()
-                        .accessibilityLabel("\(menuSlots.count) of 12 Slots")
+                        .accessibilityLabel(localized("\(menuSlots.count) of 12 Slots"))
                 }
                 .padding(.horizontal, 28)
                 .padding(.top, 10)
@@ -793,7 +798,7 @@ struct SettingsRootView: View {
     private var appSwitcher: some View {
         HStack(spacing: 8) {
             Menu {
-                Button("Default") { menuEditor.editApp(nil) }
+                Button(localized("Default")) { menuEditor.editApp(nil) }
                 let apps = menuEditor.switcherApps
                 if !apps.isEmpty {
                     Divider()
@@ -802,7 +807,7 @@ struct SettingsRootView: View {
                     }
                 }
                 Divider()
-                Menu("Add App") {
+                Menu(localized("Add App")) {
                     let running = menuEditor.runningAppsToAdd
                     ForEach(running) { app in
                         Button(app.name) {
@@ -810,21 +815,21 @@ struct SettingsRootView: View {
                         }
                     }
                     if !running.isEmpty { Divider() }
-                    Button("Choose from Applications…", action: menuEditor.chooseAppToAdd)
+                    Button(localized("Choose from Applications…"), action: menuEditor.chooseAppToAdd)
                 }
             } label: {
-                Text(menuEditor.editedApp?.name ?? "Default")
+                Text(menuEditor.editedApp?.name ?? localized("Default"))
             }
             .fixedSize()
             .disabled(menuEditor.editingMenuIndex != nil)
-            .accessibilityLabel("App")
-            .help("Edit the default Menu, or what one App shows in its Slots")
+            .accessibilityLabel(localized("App"))
+            .help(localized("Edit the default Menu, or what one App shows in its Slots"))
 
             if let app = menuEditor.editedApp {
-                Button("Remove App", action: menuEditor.removeEditedApp)
-                    .help("Remove \(app.name) and all its overrides")
-                    .accessibilityLabel("Remove App \(app.name)")
-                Text("Right-click a Slot to empty it or reset it to the default.")
+                Button(localized("Remove App"), action: menuEditor.removeEditedApp)
+                    .help(localized("Remove \(app.name) and all its overrides"))
+                    .accessibilityLabel(localized("Remove App \(app.name)"))
+                Text(localized("Right-click a Slot to empty it or reset it to the default."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -836,10 +841,10 @@ struct SettingsRootView: View {
     private var menuTriggerSettings: some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack {
-                Label("Open Menu", systemImage: "cursorarrow.rays")
+                Label(localized("Open Menu"), systemImage: "cursorarrow.rays")
                     .font(.headline)
                 Spacer()
-                Text("Auto-saved")
+                Text(localized("Auto-saved"))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -850,12 +855,12 @@ struct SettingsRootView: View {
             )
             .frame(maxWidth: .infinity, minHeight: 68, maxHeight: 68)
 
-            Toggle("Click & Drag to select on release", isOn: $trigger.clickDragEnabled)
+            Toggle(localized("Click & Drag to select on release"), isOn: $trigger.clickDragEnabled)
                 .toggleStyle(.switch)
-                .accessibilityHint("When enabled, hold the mouse trigger, drag to a Menu Item, and release to run it.")
+                .accessibilityHint(localized("When enabled, hold the mouse trigger, drag to a Menu Item, and release to run it."))
 
             HStack {
-                Text("Keyboard")
+                Text(localized("Keyboard"))
                     .frame(width: 68, alignment: .leading)
                 KeyboardShortcutEditor(shortcut: $trigger.keyboardShortcut)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -866,32 +871,32 @@ struct SettingsRootView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(trigger.keyboardShortcut == nil)
-                .help("Clear optional keyboard shortcut")
-                .accessibilityLabel("Clear keyboard shortcut")
+                .help(localized("Clear optional keyboard shortcut"))
+                .accessibilityLabel(localized("Clear keyboard shortcut"))
             }
 
             if privacy.accessibilityPermissionGranted {
-                Label("Accessibility granted", systemImage: "checkmark.circle.fill")
+                Label(localized("Accessibility granted"), systemImage: "checkmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 8) {
-                    Label("Accessibility enables mouse triggers and protected keyboard recording", systemImage: "exclamationmark.triangle.fill")
+                    Label(localized("Accessibility enables mouse triggers and protected keyboard recording"), systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                     Spacer(minLength: 4)
-                    Button("Enable…", action: openAccessibilitySettings)
+                    Button(localized("Enable…"), action: openAccessibilitySettings)
                         .controlSize(.small)
-                        .accessibilityLabel("Open Accessibility Settings")
+                        .accessibilityLabel(localized("Open Accessibility Settings"))
                 }
             }
 
             if !trigger.mouseInputConflicts.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label("Potential mouse input conflict", systemImage: "exclamationmark.triangle.fill")
+                    Label(localized("Potential mouse input conflict"), systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)
-                    Text("\(trigger.mouseInputConflicts.map(\.applicationName).joined(separator: ", ")) may monitor \(MouseTriggerButton.displayName(for: trigger.mouseButton)). Remove that button's click, drag, and scroll assignments in the other utility.")
+                    Text(localized("\(trigger.mouseInputConflicts.map(\.applicationName).joined(separator: ", ")) may monitor \(MouseTriggerButton.displayName(for: trigger.mouseButton)). Remove that button's click, drag, and scroll assignments in the other utility."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -902,7 +907,7 @@ struct SettingsRootView: View {
         .padding(14)
         .settingsCard()
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Menu Trigger")
+        .accessibilityLabel(localized("Menu Trigger"))
     }
 
     private var menuPreviewTheme: MenuAppearanceConfiguration.Theme {
@@ -940,19 +945,19 @@ struct SettingsRootView: View {
     private var spinnetEnabledSwitch: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Enable Spinnet").font(.headline)
+                Text(localized("Enable Spinnet")).font(.headline)
                 Text(trigger.isEnabled
-                     ? "The Menu opens with your trigger."
-                     : "Spinnet is off: the trigger reaches other apps and the Menu does not open. Clipboard History follows its own setting.")
+                     ? localized("The Menu opens with your trigger.")
+                     : localized("Spinnet is off: the trigger reaches other apps and the Menu does not open. Clipboard History follows its own setting."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 12)
-            Toggle("Enable Spinnet", isOn: $trigger.isEnabled)
+            Toggle(localized("Enable Spinnet"), isOn: $trigger.isEnabled)
                 .toggleStyle(.switch)
                 .labelsHidden()
-                .accessibilityLabel("Enable Spinnet")
+                .accessibilityLabel(localized("Enable Spinnet"))
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 14)
@@ -962,7 +967,8 @@ struct SettingsRootView: View {
         Group {
             switch model.page {
             case .general:
-                GeneralSettingsView(model: model, launchAtLogin: model.launchAtLogin, pluginUpdates: model.pluginUpdates)
+                GeneralSettingsView(model: model, launchAtLogin: model.launchAtLogin, pluginUpdates: model.pluginUpdates,
+                                    interfaceLanguage: model.interfaceLanguage)
             case .menu:
                 VStack(spacing: 0) {
                     spinnetEnabledSwitch
@@ -1032,7 +1038,7 @@ struct SettingsRootView: View {
         .padding(.top, 26)
         .padding(.bottom, 28)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(model.page.title) Page Content")
+        .accessibilityLabel(localized("\(model.page.title) Page Content"))
         .sheet(isPresented: editingSheetBinding) {
             if let index = menuEditor.editingMenuIndex {
                 SlotConfigurationSheet(
@@ -1243,9 +1249,9 @@ private struct SlotConfigurationSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("Configure Slot \(slotIndex + 1)")
+                        Text(localized("Configure Slot \(slotIndex + 1)"))
                             .font(.title2.weight(.semibold))
-                        Text(pluginManifest?.name ?? "Plugin unavailable")
+                        Text(pluginManifest?.name ?? localized("Plugin unavailable"))
                             .foregroundStyle(.secondary)
                     }
 
@@ -1275,7 +1281,7 @@ private struct SlotConfigurationSheet: View {
                         }
                     } else {
                         Label(
-                            "The Plugin for this Slot is unavailable, so its Actions cannot be changed.",
+                            localized("The Plugin for this Slot is unavailable, so its Actions cannot be changed."),
                             systemImage: "exclamationmark.triangle.fill"
                         )
                         .font(.subheadline)
@@ -1296,9 +1302,9 @@ private struct SlotConfigurationSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }
+                Button(localized("Cancel"), role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Save") { save() }
+                Button(localized("Save")) { save() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(pluginManifest != nil && selectedCommands.isEmpty)
             }
@@ -1307,7 +1313,7 @@ private struct SlotConfigurationSheet: View {
         }
         .frame(width: 540, height: 600)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Slot Configuration")
+        .accessibilityLabel(localized("Slot Configuration"))
         .onChange(of: primaryCommandID) { commandID in
             let previousPrimaryCommandID = lastPrimaryCommandID
             lastPrimaryCommandID = commandID
@@ -1323,12 +1329,12 @@ private struct SlotConfigurationSheet: View {
 
     private var itemAliasEditor: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text("Menu Item Alias")
+            Text(localized("Menu Item Alias"))
                 .font(.headline)
-            TextField("Follow Primary Action", text: $itemAlias)
+            TextField(localized("Follow Primary Action"), text: $itemAlias)
                 .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("Menu Item Alias")
-            Text("Leave blank to follow the Primary Action automatically.")
+                .accessibilityLabel(localized("Menu Item Alias"))
+            Text(localized("Leave blank to follow the Primary Action automatically."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -1338,18 +1344,18 @@ private struct SlotConfigurationSheet: View {
     private func actionSelection(for plugin: PluginManifest) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Choose Actions")
+                Text(localized("Choose Actions"))
                     .font(.headline)
-                Text("Choose the Action used by the normal gesture, then select which other Plugin Actions appear in the runtime right-click menu.")
+                Text(localized("Choose the Action used by the normal gesture, then select which other Plugin Actions appear in the runtime right-click menu."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("Primary Action")
+                Text(localized("Primary Action"))
                     .frame(width: 118, alignment: .leading)
-                Picker("Primary Action", selection: $primaryCommandID) {
+                Picker(localized("Primary Action"), selection: $primaryCommandID) {
                     ForEach(plugin.commands, id: \.id) { command in
                         Text(command.title).tag(command.id)
                     }
@@ -1358,7 +1364,7 @@ private struct SlotConfigurationSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Primary Action")
+            .accessibilityLabel(localized("Primary Action"))
 
             if let explanation = plugin.commands.first(where: { $0.id == primaryCommandID })?.explanation {
                 Text(explanation)
@@ -1369,11 +1375,11 @@ private struct SlotConfigurationSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Alternate Actions")
+                Text(localized("Alternate Actions"))
                     .font(.subheadline.weight(.semibold))
 
                 if alternateCommands.isEmpty {
-                    Text("This Plugin does not provide another Action.")
+                    Text(localized("This Plugin does not provide another Action."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -1388,26 +1394,26 @@ private struct SlotConfigurationSheet: View {
                                             .foregroundStyle(.secondary)
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
-                                    Text(command.isConfigurable ? "Supports parameters" : "No parameters")
+                                    Text(command.isConfigurable ? localized("Supports parameters") : localized("No parameters"))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
                             .toggleStyle(.checkbox)
-                            .accessibilityLabel("Alternate Action \(command.title)")
+                            .accessibilityLabel(localized("Alternate Action \(command.title)"))
                             Spacer(minLength: 4)
                             Button { moveAlternate(command.id, offset: -1) } label: {
                                 Image(systemName: "chevron.up")
                             }
                             .buttonStyle(.borderless)
                             .disabled(!canMoveAlternate(command.id, offset: -1))
-                            .accessibilityLabel("Move Alternate Action \(command.title) up")
+                            .accessibilityLabel(localized("Move Alternate Action \(command.title) up"))
                             Button { moveAlternate(command.id, offset: 1) } label: {
                                 Image(systemName: "chevron.down")
                             }
                             .buttonStyle(.borderless)
                             .disabled(!canMoveAlternate(command.id, offset: 1))
-                            .accessibilityLabel("Move Alternate Action \(command.title) down")
+                            .accessibilityLabel(localized("Move Alternate Action \(command.title) down"))
                         }
                     }
                 }
@@ -1419,16 +1425,16 @@ private struct SlotConfigurationSheet: View {
     private func actionParameters() -> some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Action Parameters")
+                Text(localized("Action Parameters"))
                     .font(.headline)
-                Text("Parameters are shown only for the selected Actions that declare configuration support.")
+                Text(localized("Parameters are shown only for the selected Actions that declare configuration support."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if configurableCommands.isEmpty {
-                Text("The selected Actions do not require configuration.")
+                Text(localized("The selected Actions do not require configuration."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -1464,7 +1470,7 @@ private struct SlotConfigurationSheet: View {
                     settingOverrideRow(field, for: command)
                 }
                 if command.configurationFields.isEmpty && overridable.isEmpty {
-                    Text("Uses the Plugin Settings.").font(.caption).foregroundStyle(.secondary)
+                    Text(localized("Uses the Plugin Settings.")).font(.caption).foregroundStyle(.secondary)
                 }
             }
         } else if command.configurationFields.isEmpty {
@@ -1493,7 +1499,7 @@ private struct SlotConfigurationSheet: View {
                         else { removeField(key, for: command.id) }
                     }
                 )) {
-                    Text("Plugin Setting (\(shared))").tag(String?.none)
+                    Text(localized("Plugin Setting (\(shared))")).tag(String?.none)
                     Divider()
                     ForEach(field.choices, id: \.self) { Text(field.displayTitle(forChoice: $0)).tag(String?.some($0)) }
                 }
@@ -1507,15 +1513,15 @@ private struct SlotConfigurationSheet: View {
                         else { removeField(key, for: command.id) }
                     }
                 )) {
-                    Text("Plugin Setting (\(shared))").tag(Bool?.none)
-                    Text("On").tag(Bool?.some(true))
-                    Text("Off").tag(Bool?.some(false))
+                    Text(localized("Plugin Setting (\(shared))")).tag(Bool?.none)
+                    Text(localized("On")).tag(Bool?.some(true))
+                    Text(localized("Off")).tag(Bool?.some(false))
                 }
                 .labelsHidden()
                 .frame(maxWidth: .infinity, alignment: .leading)
             default:
                 VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Use Plugin Setting (\(shared))", isOn: Binding(
+                    Toggle(localized("Use Plugin Setting (\(shared))"), isOn: Binding(
                         get: { own == nil },
                         set: { usePlugin in
                             if usePlugin { removeField(key, for: command.id) }
@@ -1540,9 +1546,9 @@ private struct SlotConfigurationSheet: View {
 
     private static func displayText(_ value: JSONValue?) -> String {
         switch value {
-        case .string(let text)?: return text.isEmpty ? "not set" : text
-        case .bool(let on)?: return on ? "On" : "Off"
-        default: return "not set"
+        case .string(let text)?: return text.isEmpty ? localized("not set") : text
+        case .bool(let on)?: return on ? localized("On") : localized("Off")
+        default: return localized("not set")
         }
     }
 
@@ -1567,7 +1573,7 @@ private struct SlotConfigurationSheet: View {
                         .labelsHidden()
                         .frame(maxWidth: .infinity, alignment: .leading)
                     case .toggle:
-                        Toggle("Enabled", isOn: fieldBoolBinding(for: command.id, key: field.key ?? ""))
+                        Toggle(localized("Enabled"), isOn: fieldBoolBinding(for: command.id, key: field.key ?? ""))
                             .toggleStyle(.switch)
                     case .multilineText:
                         ConfigurationTextEditor(text: binding, placeholder: field.placeholder ?? "")
@@ -1636,31 +1642,31 @@ private struct SlotConfigurationSheet: View {
                 kind: metadata?.kind ?? .file,
                 value: inputBinding(for: command.id)
             )
-            .accessibilityLabel("\(command.title) configuration input")
+            .accessibilityLabel(localized("\(command.title) configuration input"))
         case .shortcut:
             ShortcutNameField(
                 value: inputBinding(for: command.id)
             )
-            .accessibilityLabel("\(command.title) configuration input")
+            .accessibilityLabel(localized("\(command.title) configuration input"))
         case .keyboardShortcut:
             KeyboardShortcutEditor(
                 shortcut: keyboardShortcutBinding(for: command.id)
             )
-            .accessibilityLabel("\(command.title) configuration input")
+            .accessibilityLabel(localized("\(command.title) configuration input"))
         case .multilineText:
             ConfigurationTextEditor(
                 text: inputBinding(for: command.id),
                 placeholder: parameterPlaceholder(for: command)
             )
-            .accessibilityLabel("\(command.title) configuration input")
+            .accessibilityLabel(localized("\(command.title) configuration input"))
         case .toggle:
-            Toggle("Enabled", isOn: boolBinding(for: command.id))
+            Toggle(localized("Enabled"), isOn: boolBinding(for: command.id))
                 .toggleStyle(.switch)
-                .accessibilityLabel("\(command.title) configuration input")
+                .accessibilityLabel(localized("\(command.title) configuration input"))
         case .choice:
             if let choices = metadata?.choices, !choices.isEmpty {
                 Picker(
-                    "\(command.title) configuration input",
+                    localized("\(command.title) configuration input"),
                     selection: inputBinding(for: command.id)
                 ) {
                     ForEach(choices, id: \.self) { choice in
@@ -1674,25 +1680,25 @@ private struct SlotConfigurationSheet: View {
                     text: inputBinding(for: command.id),
                     placeholder: parameterPlaceholder(for: command)
                 )
-                .accessibilityLabel("\(command.title) configuration input")
+                .accessibilityLabel(localized("\(command.title) configuration input"))
             }
         case .text:
             if command.hostCommand == .invokeService {
                 ServiceNameField(value: inputBinding(for: command.id))
-                    .accessibilityLabel("\(command.title) configuration input")
+                    .accessibilityLabel(localized("\(command.title) configuration input"))
             } else {
                 ConfigurationTextField(
                     text: inputBinding(for: command.id),
                     placeholder: parameterPlaceholder(for: command)
                 )
-                .accessibilityLabel("\(command.title) configuration input")
+                .accessibilityLabel(localized("\(command.title) configuration input"))
             }
         case .url, .size, .position, .credential, .httpsEndpoint, .orderedChoices, .list:
             ConfigurationTextField(
                 text: inputBinding(for: command.id),
                 placeholder: parameterPlaceholder(for: command)
             )
-            .accessibilityLabel("\(command.title) configuration input")
+            .accessibilityLabel(localized("\(command.title) configuration input"))
         }
     }
 
@@ -1701,7 +1707,7 @@ private struct SlotConfigurationSheet: View {
             if let pluginID, pluginManifest != nil {
                 guard let primaryCommand = selectedCommands.first,
                       primaryCommand.id == primaryCommandID else {
-                    errorMessage = "Choose a valid Primary Action before saving."
+                    errorMessage = localized("Choose a valid Primary Action before saving.")
                     return
                 }
 
@@ -1927,7 +1933,7 @@ private struct SlotConfigurationSheet: View {
         command.configurationField?.placeholder
             ?? command.hostCommand?.configurationField?.placeholder
             ?? command.hostCommand?.inputPlaceholder
-            ?? "Configuration value (JSON or text)"
+            ?? localized("Configuration value (JSON or text)")
     }
 
     private var normalizedItemAlias: String? {
@@ -2088,9 +2094,9 @@ private struct ServiceNameField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            TextField("Service name from the active app's Services menu", text: $value)
+            TextField(localized("Service name from the active app's Services menu"), text: $value)
                 .textFieldStyle(.roundedBorder)
-            Text("Use the exact title shown in the target app's Services menu. Select text in that app first; submenu entries use slash separators.")
+            Text(localized("Use the exact title shown in the target app's Services menu. Select text in that app first; submenu entries use slash separators."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -2104,18 +2110,18 @@ private struct PermissionGuideBanner: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Spinnet Permissions", systemImage: "hand.raised")
+            Label(localized("Spinnet Permissions"), systemImage: "hand.raised")
                 .font(.headline)
-            Text("Accessibility is recommended for mouse triggers, selected text, Paste, and Cut. You can skip and use permission-free Commands. Input Monitoring is not requested. Screen Recording and app-specific Automation are deferred until an explicit feature action.")
+            Text(localized("Accessibility is recommended for mouse triggers, selected text, Paste, and Cut. You can skip and use permission-free Commands. Input Monitoring is not requested. Screen Recording and app-specific Automation are deferred until an explicit feature action."))
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
-                Button("Open Accessibility Settings", action: openSettings)
+                Button(localized("Open Accessibility Settings"), action: openSettings)
                     .controlSize(.small)
-                    .accessibilityLabel("Open Accessibility Settings")
-                Button("Skip for now", action: dismiss)
+                    .accessibilityLabel(localized("Open Accessibility Settings"))
+                Button(localized("Skip for now"), action: dismiss)
                     .controlSize(.small)
-                    .accessibilityLabel("Skip for now")
+                    .accessibilityLabel(localized("Skip for now"))
             }
         }
         .padding(14)
@@ -2127,7 +2133,7 @@ private struct PermissionGuideBanner: View {
         }
         .shadow(color: .black.opacity(0.14), radius: 12, y: 4)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Spinnet Permissions")
+        .accessibilityLabel(localized("Spinnet Permissions"))
     }
 }
 
@@ -2182,22 +2188,22 @@ struct ResourcePathField: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            TextField(kind.title, text: $value)
+            TextField(kind.localizedTitle, text: $value)
                 .textFieldStyle(.roundedBorder)
                 .padding(.leading, isMissing ? 20 : 0)
             Button(buttonTitle, action: chooseResource)
                 .controlSize(.small)
-                .accessibilityLabel("\(buttonTitle.replacingOccurrences(of: "…", with: "")) \(kind.title)")
+                .accessibilityLabel("\(buttonTitle.replacingOccurrences(of: "…", with: "")) \(kind.localizedTitle)")
                 .help(isMissing
-                    ? "The previously selected \(kind.title.lowercased()) is unavailable. Choose a replacement."
-                    : "Choose a \(kind.title.lowercased())")
+                    ? localized("The previously selected \(kind.localizedTitle.lowercased(with: HostLocalization.locale)) is unavailable. Choose a replacement.")
+                    : localized("Choose a \(kind.localizedTitle.lowercased(with: HostLocalization.locale))"))
         }
         .overlay(alignment: .leading) {
             if isMissing {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                     .padding(.leading, 8)
-                    .accessibilityLabel("Missing \(kind.title)")
+                    .accessibilityLabel(localized("Missing \(kind.localizedTitle)"))
                     .allowsHitTesting(false)
             }
         }
@@ -2215,7 +2221,7 @@ struct ResourcePathField: View {
     }
 
     private var buttonTitle: String {
-        isMissing ? "Choose Again…" : "Choose…"
+        isMissing ? localized("Choose Again…") : localized("Choose…")
     }
 
     private func chooseResource() {
@@ -2223,7 +2229,7 @@ struct ResourcePathField: View {
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = kind != .folder
         panel.canChooseDirectories = kind == .folder
-        panel.prompt = "Choose"
+        panel.prompt = localized("Choose")
         if kind == .application {
             panel.allowedContentTypes = [.applicationBundle]
         }
@@ -2240,14 +2246,14 @@ private struct ShortcutNameField: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            TextField("Shortcut name", text: $value)
+            TextField(localized("Shortcut name"), text: $value)
                 .textFieldStyle(.roundedBorder)
-            Menu("Choose…") {
+            Menu(localized("Choose…")) {
                 if isLoading {
-                    Text("Loading Shortcuts…")
+                    Text(localized("Loading Shortcuts…"))
                         .foregroundStyle(.secondary)
                 } else if shortcutNames.isEmpty {
-                    Text("No Shortcuts found")
+                    Text(localized("No Shortcuts found"))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(shortcutNames, id: \.self) { name in
@@ -2257,7 +2263,7 @@ private struct ShortcutNameField: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .accessibilityLabel("Choose Shortcut")
+            .accessibilityLabel(localized("Choose Shortcut"))
         }
         .onAppear { loadShortcutNamesInBackground() }
     }
@@ -2341,21 +2347,21 @@ private struct AppearanceSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                pageHeader(title: SettingsPage.appearance.title, description: "Shape the shared look of the Menu in Editor and Runtime modes.")
+                pageHeader(title: SettingsPage.appearance.title, description: localized("Shape the shared look of the Menu in Editor and Runtime modes."))
 
-                settingsSection(title: "Menu Theme", description: "Follow macOS or choose a fixed appearance for the Menu only.") {
-                    Picker("Menu Theme", selection: $theme) {
+                settingsSection(title: localized("Menu Theme"), description: localized("Follow macOS or choose a fixed appearance for the Menu only.")) {
+                    Picker(localized("Menu Theme"), selection: $theme) {
                         ForEach(MenuAppearanceConfiguration.themeOptions, id: \.self) { value in
-                            Text(value).tag(value)
+                            Text(localized(key: value)).tag(value)
                         }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .frame(maxWidth: 320)
-                    .accessibilityLabel("Menu Theme")
+                    .accessibilityLabel(localized("Menu Theme"))
                 }
 
-                settingsSection(title: "Accent Colour", description: "Used for the selected Menu Slot and focus states.") {
+                settingsSection(title: localized("Accent Colour"), description: localized("Used for the selected Menu Slot and focus states.")) {
                     HStack(spacing: 12) {
                         ForEach(MenuAppearanceConfiguration.accentOptions, id: \.self) { name in
                             Button { accent = name } label: {
@@ -2369,14 +2375,14 @@ private struct AppearanceSettingsView: View {
                                     }
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("\(name) accent colour")
-                            .accessibilityValue(accent == name ? "Selected" : "Not selected")
+                            .accessibilityLabel(localized("\(localized(key: name)) accent colour"))
+                            .accessibilityValue(accent == name ? localized("Selected") : localized("Not selected"))
                         }
                     }
                     .padding(.vertical, 4)
                 }
 
-                settingsSection(title: "Menu Size", description: "Adjust continuously, snap to three recommended sizes, or enter an exact percentage.") {
+                settingsSection(title: localized("Menu Size"), description: localized("Adjust continuously, snap to three recommended sizes, or enter an exact percentage.")) {
                     MenuSizeControl(
                         menuSize: $menuSize,
                         accent: accent,
@@ -2385,26 +2391,26 @@ private struct AppearanceSettingsView: View {
                     )
                 }
 
-                settingsSection(title: "Menu Font", description: "Choose the typeface and weight used by Menu Item names in Editor and Runtime modes.") {
+                settingsSection(title: localized("Menu Font"), description: localized("Choose the typeface and weight used by Menu Item names in Editor and Runtime modes.")) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 16) {
-                            Text("Typeface")
+                            Text(localized("Typeface"))
                                 .frame(width: 76, alignment: .leading)
                             MenuFontPopUp(selection: $font, options: MenuAppearanceConfiguration.fontOptions)
                                 .frame(width: 240, alignment: .leading)
                         }
                         HStack(spacing: 16) {
-                            Text("Weight")
+                            Text(localized("Weight"))
                                 .frame(width: 76, alignment: .leading)
-                            Picker("Menu Font Weight", selection: $fontWeight) {
+                            Picker(localized("Menu Font Weight"), selection: $fontWeight) {
                                 ForEach(MenuAppearanceConfiguration.fontWeightOptions, id: \.self) { value in
-                                    Text(value).tag(value)
+                                    Text(localized(key: value)).tag(value)
                                 }
                             }
                             .pickerStyle(.menu)
                             .labelsHidden()
                             .frame(width: 240, alignment: .leading)
-                            .accessibilityLabel("Menu Font Weight")
+                            .accessibilityLabel(localized("Menu Font Weight"))
                         }
                     }
                     .frame(maxWidth: 420, alignment: .leading)
@@ -2412,7 +2418,7 @@ private struct AppearanceSettingsView: View {
 
                 Divider()
                 HStack {
-                    Label("Changes save automatically", systemImage: "checkmark.circle.fill")
+                    Label(localized("Changes save automatically"), systemImage: "checkmark.circle.fill")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -2421,17 +2427,17 @@ private struct AppearanceSettingsView: View {
                     }
                     .disabled(!canUndo)
                     .keyboardShortcut("z", modifiers: .command)
-                    .help("Undo Appearance change")
-                    .accessibilityLabel("Undo Appearance change")
+                    .help(localized("Undo Appearance change"))
+                    .accessibilityLabel(localized("Undo Appearance change"))
                     Button(action: redo) {
                         Image(systemName: "arrow.uturn.forward")
                     }
                     .disabled(!canRedo)
                     .keyboardShortcut("z", modifiers: [.command, .shift])
-                    .help("Redo Appearance change")
-                    .accessibilityLabel("Redo Appearance change")
-                    Button("Reset Appearance", action: reset)
-                    .accessibilityLabel("Reset Appearance")
+                    .help(localized("Redo Appearance change"))
+                    .accessibilityLabel(localized("Redo Appearance change"))
+                    Button(localized("Reset Appearance"), action: reset)
+                    .accessibilityLabel(localized("Reset Appearance"))
                 }
             }
             .frame(maxWidth: 560, alignment: .leading)
@@ -2482,9 +2488,9 @@ private struct MenuSizeControl: View {
                         }
                     )
                     .frame(height: MenuSizeSliderView.labelHeight + MenuSizeSliderView.sliderHeight)
-                    .accessibilityLabel("Menu Size")
+                    .accessibilityLabel(localized("Menu Size"))
                     .accessibilityValue(
-                        "\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: currentPercentage)) percent"
+                        localized("\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: currentPercentage)) percent")
                     )
                 }
                 .frame(maxWidth: .infinity)
@@ -2499,7 +2505,7 @@ private struct MenuSizeControl: View {
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 64)
-                    .accessibilityLabel("Menu Size Percentage")
+                    .accessibilityLabel(localized("Menu Size Percentage"))
                     Text("%")
                         .foregroundStyle(.secondary)
                 }
@@ -2577,14 +2583,14 @@ private struct PrivacySettingsView: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                pageHeader(title: SettingsPage.privacyAndPermissions.title, description: "Understand the separate layers of authority used by Spinnet and its Plugins.")
+                pageHeader(title: SettingsPage.privacyAndPermissions.title, description: localized("Understand the separate layers of authority used by Spinnet and its Plugins."))
                 VStack(spacing: 0) {
-                    Text("System Permissions").font(.headline).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 16)
+                    Text(localized("System Permissions")).font(.headline).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 16)
                     ForEach(PluginSystemPermission.allCases, id: \.self) { permission in
                         privacyRow(
                             icon: systemPermissionIconName(permission),
-                            title: permission.title,
-                            body: permission.explanation,
+                            title: permission.localizedTitle,
+                            body: permission.localizedExplanation,
                             status: systemPermissionStatus(permission),
                             actionTitle: systemPermissionActionTitle(permission),
                             action: { systemPermissionAction(permission) }
@@ -2597,86 +2603,86 @@ private struct PrivacySettingsView: View {
                     HostBackgroundOperationsPermissionView(status: backgroundOperationsStatus,
                         error: backgroundOperationsError, manage: manageBackgroundOperations)
                     Divider().padding(.leading, 52)
-                    Text("Input Monitoring is not requested. Screen Recording and app-specific Automation are requested only for an explicit feature action.")
+                    Text(localized("Input Monitoring is not requested. Screen Recording and app-specific Automation are requested only for an explicit feature action."))
                         .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
                     VStack(alignment: .leading, spacing: 12) {
                         privacyRow(
                             icon: "lock.shield",
-                            title: "Sensitive Data Collection",
-                            body: "Host-owned data such as Clipboard History always requires a separate opt-in.",
+                            title: localized("Sensitive Data Collection"),
+                            body: localized("Host-owned data such as Clipboard History always requires a separate opt-in."),
                             status: clipboardCollectionStatus
                         )
-                        Toggle("Collect Clipboard History", isOn: Binding(get: { clipboardCollectionEnabled }, set: { value in
+                        Toggle(localized("Collect Clipboard History"), isOn: Binding(get: { clipboardCollectionEnabled }, set: { value in
                             if value { confirmEnable = true } else { confirmDisable = true }
                         }))
-                            .alert("Collect Clipboard History?", isPresented: $confirmEnable) {
-                                Button("Enable Collection") { clipboardCollectionPaused = false; clipboardCollectionEnabled = true }
-                                Button("Cancel", role: .cancel) {}
+                            .alert(localized("Collect Clipboard History?"), isPresented: $confirmEnable) {
+                                Button(localized("Enable Collection")) { clipboardCollectionPaused = false; clipboardCollectionEnabled = true }
+                                Button(localized("Cancel"), role: .cancel) {}
                             } message: {
-                                Text("Spinnet will retain text, URLs, images, rich text, file references, and embedded binary content on this Mac. Source application and copy time are recorded, but not window or document titles. Finder files are not cloned. Default retention is 24 hours. Passwords, Keychain Access, excluded applications, and concealed or transient items are skipped. Plugins need separate type-scoped access, including to entries retained before their grant.")
+                                Text(localized("Spinnet will retain text, URLs, images, rich text, file references, and embedded binary content on this Mac. Source application and copy time are recorded, but not window or document titles. Finder files are not cloned. Default retention is 24 hours. Passwords, Keychain Access, excluded applications, and concealed or transient items are skipped. Plugins need separate type-scoped access, including to entries retained before their grant."))
                             }
-                            .alert("Turn off Clipboard History?", isPresented: $confirmDisable) {
-                                Button("Turn Off and Retain") { turnOffHistory(false) }
-                                Button("Turn Off and Delete", role: .destructive) { turnOffHistory(true) }
-                                Button("Cancel", role: .cancel) {}
+                            .alert(localized("Turn off Clipboard History?"), isPresented: $confirmDisable) {
+                                Button(localized("Turn Off and Retain")) { turnOffHistory(false) }
+                                Button(localized("Turn Off and Delete"), role: .destructive) { turnOffHistory(true) }
+                                Button(localized("Cancel"), role: .cancel) {}
                             } message: {
-                                Text("Collection stops. Retained entries still expire on schedule and remain available to authorized Plugins. Plugin grants do not change.")
+                                Text(localized("Collection stops. Retained entries still expire on schedule and remain available to authorized Plugins. Plugin grants do not change."))
                             }
                             .toggleStyle(.switch)
-                            .accessibilityLabel("Collect Clipboard History")
-                            .accessibilityValue(clipboardCollectionEnabled ? "On" : "Off")
-                        Toggle("Pause collection", isOn: $clipboardCollectionPaused)
+                            .accessibilityLabel(localized("Collect Clipboard History"))
+                            .accessibilityValue(clipboardCollectionEnabled ? localized("On") : localized("Off"))
+                        Toggle(localized("Pause collection"), isOn: $clipboardCollectionPaused)
                             .toggleStyle(.switch)
                             .disabled(!clipboardCollectionEnabled)
-                            .accessibilityLabel("Pause Clipboard History collection")
-                            .accessibilityValue(clipboardCollectionPaused ? "Paused" : "Running")
+                            .accessibilityLabel(localized("Pause Clipboard History collection"))
+                            .accessibilityValue(clipboardCollectionPaused ? localized("Paused") : localized("Running"))
                         HStack {
-                            Text("Keep entries for")
-                            Picker("Clipboard retention", selection: $clipboardRetention) {
+                            Text(localized("Keep entries for"))
+                            Picker(localized("Clipboard retention"), selection: $clipboardRetention) {
                                 ForEach(ClipboardRetention.allCases, id: \.self) { retention in
-                                    Text(retention.rawValue).tag(retention)
+                                    Text(localized(key: retention.rawValue)).tag(retention)
                                 }
                             }
                             .labelsHidden()
                             .pickerStyle(.menu)
-                            .accessibilityLabel("Clipboard retention")
+                            .accessibilityLabel(localized("Clipboard retention"))
                             Spacer()
                         }
                         .disabled(!clipboardCollectionEnabled)
-                        Text("Stored only on this Mac. Spinnet does not sync history through iCloud or Plugins. Large content is saved locally; Plugins read it in authorized chunks.")
+                        Text(localized("Stored only on this Mac. Spinnet does not sync history through iCloud or Plugins. Large content is saved locally; Plugins read it in authorized chunks."))
                             .font(.caption).foregroundStyle(.secondary)
-                        Text("Excluded Applications").font(.headline).id("clipboard-exclusions")
-                        Text("Exclusions apply to new copies, using the foreground application at sampling time. Clear History to remove older entries. Passwords and Keychain Access always remain excluded.")
+                        Text(localized("Excluded Applications")).font(.headline).id("clipboard-exclusions")
+                        Text(localized("Exclusions apply to new copies, using the foreground application at sampling time. Clear History to remove older entries. Passwords and Keychain Access always remain excluded."))
                             .font(.caption).foregroundStyle(.secondary)
                         ForEach(excludedApplications, id: \.self) { bundleID in
                             HStack {
                                 Text(bundleID).textSelection(.enabled)
                                 Spacer()
                                 if !ClipboardHistoryStore.defaultExcludedApplications.contains(bundleID) {
-                                    Button("Remove") { removeExcludedApplication(bundleID) }
-                                        .accessibilityLabel("Remove exclusion for \(bundleID)")
-                                } else { Text("Default").foregroundStyle(.secondary) }
+                                    Button(localized("Remove")) { removeExcludedApplication(bundleID) }
+                                        .accessibilityLabel(localized("Remove exclusion for \(bundleID)"))
+                                } else { Text(localized("Default")).foregroundStyle(.secondary) }
                             }
                         }
                         HStack {
-                            TextField("Application bundle identifier", text: $excludedBundleID)
-                                .accessibilityLabel("Excluded application bundle identifier")
-                            Button("Add") {
+                            TextField(localized("Application bundle identifier"), text: $excludedBundleID)
+                                .accessibilityLabel(localized("Excluded application bundle identifier"))
+                            Button(localized("Add")) {
                                 addExcludedApplication(excludedBundleID)
                                 excludedBundleID = ""
                             }.disabled(excludedBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            Button("Choose Application…") { chooseExcludedApplication() }
+                            Button(localized("Choose Application…")) { chooseExcludedApplication() }
                         }
                         ClipboardHistoryClearButton(action: clearHistory)
                     }
                     Divider().padding(.leading, 52)
                     privacyRow(
                         icon: "puzzlepiece.extension",
-                        title: "Plugin Access",
-                        body: "Each Plugin receives only the Capabilities you grant to it.",
+                        title: localized("Plugin Access"),
+                        body: localized("Each Plugin receives only the Capabilities you grant to it."),
                         status: capabilityGrants.isEmpty
-                            ? "No declared Capability requests"
-                            : "\(capabilityGrants.count) Capability decisions"
+                            ? localized("No declared Capability requests")
+                            : localized("\(capabilityGrants.count) Capability decisions")
                     )
                 }
                 .padding(.horizontal, 18)
@@ -2696,7 +2702,7 @@ private struct PrivacySettingsView: View {
         panel.allowedContentTypes = [.application]
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Exclude Application"
+        panel.prompt = localized("Exclude Application")
         if panel.runModal() == .OK, let url = panel.url, let bundleID = Bundle(url: url)?.bundleIdentifier {
             addExcludedApplication(bundleID)
         }
@@ -2706,9 +2712,9 @@ private struct PrivacySettingsView: View {
     private var pluginCapabilityControls: some View {
         if pluginManifests.contains(where: { !$0.capabilities.isEmpty }) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Plugin Capability Grants")
+                Text(localized("Plugin Capability Grants"))
                     .font(.headline)
-                Text("Changes take effect immediately and apply to all Actions from each Plugin. Access is checked again when an Action runs.")
+                Text(localized("Changes take effect immediately and apply to all Actions from each Plugin. Access is checked again when an Action runs."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -2722,7 +2728,7 @@ private struct PrivacySettingsView: View {
                 }
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Plugin Capability Grants")
+            .accessibilityLabel(localized("Plugin Capability Grants"))
         }
     }
 
@@ -2747,16 +2753,16 @@ private struct PrivacySettingsView: View {
     /// Screen Recording is requested only here, from the user's click; every
     /// other permission row opens System Settings.
     private func systemPermissionActionTitle(_ permission: PluginSystemPermission) -> String {
-        if restartFinishes(permission) { return "Restart Spinnet" }
+        if restartFinishes(permission) { return localized("Restart Spinnet") }
         return permission == .screenRecording && !screenRecordingPermissionGranted
-            ? "Enable Screen Recording…"
-            : "Open \(permission.title) Settings…"
+            ? localized("Enable Screen Recording…")
+            : localized("Open \(permission.localizedTitle) Settings…")
     }
 
     private func systemPermissionStatus(_ permission: PluginSystemPermission) -> String {
-        if systemPermissionGranted(permission) { return "\(permission.title) granted" }
-        if restartFinishes(permission) { return "Restart Spinnet to finish" }
-        return "\(permission.title) required"
+        if systemPermissionGranted(permission) { return localized("\(permission.localizedTitle) granted") }
+        if restartFinishes(permission) { return localized("Restart Spinnet to finish") }
+        return localized("\(permission.localizedTitle) required")
     }
 
     /// macOS applies a new Screen Recording grant only to a relaunched Spinnet.
@@ -2808,7 +2814,7 @@ private struct PrivacySettingsView: View {
                 Button(actionTitle, action: action)
                     .controlSize(.small)
                     .accessibilityLabel(actionTitle.replacingOccurrences(of: "…", with: ""))
-                    .accessibilityHint("Open the matching macOS System Settings pane.")
+                    .accessibilityHint(localized("Open the matching macOS System Settings pane."))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2826,7 +2832,7 @@ private struct AboutSettingsView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 80, height: 80)
-                        .accessibilityLabel("\(metadata.name) application icon")
+                        .accessibilityLabel(localized("\(metadata.name) application icon"))
                     VStack(alignment: .leading, spacing: 5) {
                         Text(metadata.name).font(.largeTitle.weight(.semibold)).accessibilityLabel(metadata.name)
                         Text(metadata.versionAndBuild).foregroundStyle(.secondary).accessibilityLabel(metadata.versionAndBuild)
@@ -2834,17 +2840,17 @@ private struct AboutSettingsView: View {
                 }
                 Text(metadata.description).font(.title3).fixedSize(horizontal: false, vertical: true).accessibilityLabel(metadata.description)
                 Link(destination: metadata.sourceURL) {
-                    Label("Source on GitHub", systemImage: "arrow.up.right.square")
+                    Label(localized("Source on GitHub"), systemImage: "arrow.up.right.square")
                 }
-                .accessibilityLabel("Source on GitHub")
-                .accessibilityHint("Open Spinnet's source repository in the default browser.")
+                .accessibilityLabel(localized("Source on GitHub"))
+                .accessibilityHint(localized("Open Spinnet's source repository in the default browser."))
 
                 VStack(spacing: 0) {
-                    aboutRow(title: "Licence", value: metadata.licence)
+                    aboutRow(title: localized("Licence"), value: metadata.licence)
                     Divider()
-                    aboutRow(title: "Acknowledgements", value: metadata.acknowledgements)
+                    aboutRow(title: localized("Acknowledgements"), value: metadata.acknowledgements)
                     Divider()
-                    aboutRow(title: "Copyright", value: metadata.copyright)
+                    aboutRow(title: localized("Copyright"), value: metadata.copyright)
                 }
                 .padding(.horizontal, 18)
                 .settingsCard()

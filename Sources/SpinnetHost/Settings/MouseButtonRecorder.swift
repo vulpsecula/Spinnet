@@ -39,7 +39,7 @@ struct MouseButtonRecorder: NSViewRepresentable {
 final class MouseButtonCaptureView: NSView {
     var buttonNumber = MenuTriggerConfiguration.defaultMouseButton {
         didSet {
-            setAccessibilityLabel("Mouse trigger: \(MouseTriggerButton.displayName(for: buttonNumber))")
+            setAccessibilityLabel(localized("Mouse trigger: \(MouseTriggerButton.displayName(for: buttonNumber))"))
             needsDisplay = true
         }
     }
@@ -54,7 +54,7 @@ final class MouseButtonCaptureView: NSView {
         super.init(frame: frameRect)
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
-        setAccessibilityHelp("Click, then press a middle or additional mouse button to use as the Menu trigger.")
+        setAccessibilityHelp(localized("Click, then press a middle or additional mouse button to use as the Menu trigger."))
     }
 
     required init?(coder: NSCoder) {
@@ -128,7 +128,7 @@ final class MouseButtonCaptureView: NSView {
                 .foregroundColor: NSColor.labelColor
             ]
         )
-        let instruction = (isRecording ? "Press a mouse button…" : "Click to change") as NSString
+        let instruction = (isRecording ? localized("Press a mouse button…") : localized("Click to change")) as NSString
         instruction.draw(
             at: NSPoint(x: 70, y: 14),
             withAttributes: [

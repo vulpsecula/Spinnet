@@ -30,7 +30,7 @@ extension RefusedPlugin {
 
     /// What VoiceOver reads for its Library row: the name, then why the Host
     /// refused it.
-    var libraryAccessibilityLabel: String { "\(libraryName), refused: \(reason)" }
+    var libraryAccessibilityLabel: String { localized("\(libraryName), refused: \(reason)") }
 }
 
 /// What became of an install, reported as an alert every time: the Library's
@@ -115,21 +115,23 @@ final class MenuEditorModel: ObservableObject {
     @Published private(set) var slotPendingDeletion: UUID?
 
     var deletionTitle: String {
-        guard let id = slotPendingDeletion, let index = slotIDs.firstIndex(of: id) else { return "Delete Slot?" }
-        return "Delete Slot \(index + 1) — \(menuSlots[index].title)?"
+        guard let id = slotPendingDeletion, let index = slotIDs.firstIndex(of: id) else { return localized("Delete Slot?") }
+        return localized("Delete Slot \(index + 1) — \(menuSlots[index].title)?")
     }
 
     /// Says what deleting the pending Slot removes, naming the Apps whose
     /// App Overrides of it go with it.
     var deletionMessage: String {
-        let base = "This removes the whole Slot from the Menu. You can undo the deletion."
+        let base = localized("This removes the whole Slot from the Menu. You can undo the deletion.")
         guard let id = slotPendingDeletion, let index = slotIDs.firstIndex(of: id),
               editor.configuration.menu.slots.indices.contains(index) else { return base }
         let names = editor.configuration.menu.slots[index].appOverrides.keys
             .map { app(for: $0).name }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         guard !names.isEmpty else { return base }
-        return base + " Its App Overrides for \(Self.listed(names)) are removed with it."
+        return HostLocalization.joiningSentences([
+            base, localized("Its App Overrides for \(Self.listed(names)) are removed with it.")
+        ])
     }
     private var undoHistory: [MenuHistoryEntry] = []
     private var redoHistory: [MenuHistoryEntry] = []
@@ -199,7 +201,7 @@ final class MenuEditorModel: ObservableObject {
 
     func choosePluginPackage() {
         let panel = NSOpenPanel()
-        panel.title = "Install or Update Plugin"
+        panel.title = localized("Install or Update Plugin")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.treatsFilePackagesAsDirectories = false
@@ -209,37 +211,43 @@ final class MenuEditorModel: ObservableObject {
     }
 
     var removalTitle: String {
-        guard let plugin = pluginPendingRemoval else { return "Remove Plugin?" }
-        return "Remove \(plugin.name)?"
+        guard let plugin = pluginPendingRemoval else { return localized("Remove Plugin?") }
+        return localized("Remove \(plugin.name)?")
     }
 
     /// Names the Menu Slots whose Menu Items use the Plugin, in the default
     /// Menu and in App Overrides, since those stay and stop working.
     var removalMessage: String {
-        let base = "Its access is forgotten and it leaves the Library."
+        let base = localized("Its access is forgotten and it leaves the Library.")
         guard let plugin = pluginPendingRemoval else { return base }
         let usage = slotNumbers(usingPlugin: plugin.pluginID)
-        var message = base
+        var message = [base]
         switch usage.defaultSlots.count {
         case 0:
             break
         case 1:
-            message += " The Menu Item in Slot \(usage.defaultSlots[0]) uses it; it stays in the Menu and is marked unavailable."
+            message.append(localized("The Menu Item in Slot \(usage.defaultSlots[0]) uses it; it stays in the Menu and is marked unavailable."))
         default:
-            message += " The Menu Items in Slots \(Self.listed(usage.defaultSlots)) use it; they stay in the Menu and are marked unavailable."
+            message.append(localized("The Menu Items in Slots \(Self.listed(usage.defaultSlots)) use it; they stay in the Menu and are marked unavailable."))
         }
-        guard !usage.overrideSlots.isEmpty else { return message }
+        guard !usage.overrideSlots.isEmpty else { return HostLocalization.joiningSentences(message) }
         let apps = usage.overrideSlots
             .map { app, slots in (name: self.app(for: app).name, slots: slots) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-            .map { "\($0.slots.count == 1 ? "Slot" : "Slots") \(Self.listed($0.slots)) for \($0.name)" }
-        return message + " App Overrides use it in \(Self.listed(apps)); they stay and are marked unavailable."
+            .map {
+                $0.slots.count == 1
+                    ? localized("Slot \(Self.listed($0.slots)) for \($0.name)")
+                    : localized("Slots \(Self.listed($0.slots)) for \($0.name)")
+            }
+        message.append(localized("App Overrides use it in \(Self.listed(apps)); they stay and are marked unavailable."))
+        return HostLocalization.joiningSentences(message)
     }
 
     private static func listed<T: CustomStringConvertible>(_ items: [T]) -> String {
         let names = items.map(\.description)
         guard names.count > 1 else { return names.first ?? "" }
-        return names.dropLast().joined(separator: ", ") + " and \(names[names.count - 1])"
+        let head = names.dropLast().joined(separator: localized(", "))
+        return localized("\(head) and \(names[names.count - 1])")
     }
 
     /// The Slot numbers whose default Menu Item, and whose App Override for
@@ -283,9 +291,9 @@ final class MenuEditorModel: ObservableObject {
             try removePlugin(plugin.pluginID)
             refreshMenuSlots()
             refreshToken += 1
-            placementMessage = "\(plugin.name) removed. Menu Items that used it are kept and marked unavailable."
+            placementMessage = localized("\(plugin.name) removed. Menu Items that used it are kept and marked unavailable.")
         } catch {
-            placementMessage = "Removal failed: \(error.localizedDescription)"
+            placementMessage = localized("Removal failed: \(error.localizedDescription)")
         }
     }
 
@@ -336,7 +344,7 @@ final class MenuEditorModel: ObservableObject {
     }
 
     private func reportInstallationFailure(_ error: Error) {
-        installationResult = PluginInstallationResult(title: "Plugin Not Installed",
+        installationResult = PluginInstallationResult(title: localized("Plugin Not Installed"),
                                                       message: error.localizedDescription)
     }
 
@@ -364,22 +372,25 @@ final class MenuEditorModel: ObservableObject {
         grantRequestedAccess?(manifest, requested)
         refreshMenuSlots()
         refreshToken += 1
-        let kept = requested.isEmpty ? " Its access decisions are kept." : ""
+        func message(_ sentence: String, keepsAccess: Bool = true) -> String {
+            guard keepsAccess, requested.isEmpty else { return sentence }
+            return HostLocalization.joiningSentences([sentence, localized("Its access decisions are kept.")])
+        }
         switch previous {
         case nil where refused != nil:
             // Its manifest could not be read, so there is no version to name.
             installationResult = PluginInstallationResult(
-                title: "Plugin Updated", message: "\(manifest.name) is updated to \(manifest.version).\(kept)")
+                title: localized("Plugin Updated"), message: message(localized("\(manifest.name) is updated to \(manifest.version).")))
         case nil:
             installationResult = PluginInstallationResult(
-                title: "Plugin Installed", message: "\(manifest.name) \(manifest.version) is installed.")
+                title: localized("Plugin Installed"), message: localized("\(manifest.name) \(manifest.version) is installed."))
         case manifest.version:
             installationResult = PluginInstallationResult(
-                title: "Plugin Reinstalled", message: "\(manifest.name) \(manifest.version) is installed again.\(kept)")
+                title: localized("Plugin Reinstalled"), message: message(localized("\(manifest.name) \(manifest.version) is installed again.")))
         case let previous?:
             installationResult = PluginInstallationResult(
-                title: "Plugin Updated",
-                message: "\(manifest.name) is updated from \(previous) to \(manifest.version).\(kept)")
+                title: localized("Plugin Updated"),
+                message: message(localized("\(manifest.name) is updated from \(previous) to \(manifest.version).")))
         }
     }
 
@@ -502,8 +513,8 @@ final class MenuEditorModel: ObservableObject {
             slotIDs.insert(slotID, at: index)
             selectedMenuIndex = index
             placementMessage = slot.item == nil
-                ? "Empty Slot \(index + 1) added. Drag a Menu Item Preset onto it."
-                : "Slot \(index + 1) restored."
+                ? localized("Empty Slot \(index + 1) added. Drag a Menu Item Preset onto it.")
+                : localized("Slot \(index + 1) restored.")
             configurationDidChange(editor.configuration)
             return true
         } catch {
@@ -512,7 +523,7 @@ final class MenuEditorModel: ObservableObject {
         }
     }
 
-    var deleteSlotLabel: String { "Delete selected Slot…" }
+    var deleteSlotLabel: String { localized("Delete selected Slot…") }
 
     /// Every UI deletion first captures an identity, never a mutable index.
     @discardableResult
@@ -521,7 +532,7 @@ final class MenuEditorModel: ObservableObject {
               slotIDs.indices.contains(index) else { return false }
         guard requireDefaultMenuForArrangement() else { return false }
         guard slotIDs.count > 1 else {
-            placementMessage = "A Menu must contain at least one Slot."
+            placementMessage = localized("A Menu must contain at least one Slot.")
             return false
         }
         slotPendingDeletion = slotIDs[index]
@@ -562,7 +573,7 @@ final class MenuEditorModel: ObservableObject {
             try editor.removeSlot(at: index)
             slotIDs.remove(at: index)
             selectedMenuIndex = min(index, editor.configuration.menu.slots.count - 1)
-            placementMessage = "Slot \(index + 1) removed."
+            placementMessage = localized("Slot \(index + 1) removed.")
             configurationDidChange(editor.configuration)
             if recordHistory {
                 record(.slot(SlotHistoryEntry(
@@ -617,7 +628,7 @@ final class MenuEditorModel: ObservableObject {
             selectedMenuIndex = direction == .undo
                 ? entry.selectedIndexBefore
                 : entry.selectedIndexAfter
-            placementMessage = direction == .undo ? "Menu edit undone." : "Menu edit redone."
+            placementMessage = direction == .undo ? localized("Menu edit undone.") : localized("Menu edit redone.")
             configurationDidChange(configuration)
             return true
         }
@@ -659,15 +670,15 @@ final class MenuEditorModel: ObservableObject {
                 pluginID: pluginID,
                 slotIndex: index
             )
-            placementMessage = "Replace the Menu Item in Slot \(index + 1)?"
+            placementMessage = localized("Replace the Menu Item in Slot \(index + 1)?")
             return false
         }
         guard let preset = editor.menuItemPresets.first(where: { $0.id == pluginID }) else {
-            placementMessage = "The selected Preset is unavailable."
+            placementMessage = localized("The selected Preset is unavailable.")
             return false
         }
         guard preset.isAvailable else {
-            placementMessage = preset.unavailableReason?.description ?? "The selected Preset is unavailable."
+            placementMessage = preset.unavailableReason?.localizedDescription ?? localized("The selected Preset is unavailable.")
             return false
         }
         if !connectionsPrepared, deferForConnections(pluginID: pluginID, resume: { [weak self] in
@@ -680,7 +691,7 @@ final class MenuEditorModel: ObservableObject {
                 replacing: false
             )
             editingMenuIndex = index
-            placementMessage = "Invalid Action: Preset requires setup"
+            placementMessage = localized("Invalid Action: Preset requires setup")
             return false
         }
         return applyPreset(pluginID: pluginID, at: index, replacing: false)
@@ -698,11 +709,11 @@ final class MenuEditorModel: ObservableObject {
         guard requireDefaultMenuForArrangement() else { return false }
         guard (0...editor.configuration.menu.slots.count).contains(index) else { return false }
         guard let preset = editor.menuItemPresets.first(where: { $0.id == pluginID }) else {
-            placementMessage = "The selected Preset is unavailable."
+            placementMessage = localized("The selected Preset is unavailable.")
             return false
         }
         guard preset.isAvailable else {
-            placementMessage = preset.unavailableReason?.description ?? "The selected Preset is unavailable."
+            placementMessage = preset.unavailableReason?.localizedDescription ?? localized("The selected Preset is unavailable.")
             return false
         }
         if !connectionsPrepared, deferForConnections(pluginID: pluginID, resume: { [weak self] in
@@ -722,7 +733,7 @@ final class MenuEditorModel: ObservableObject {
                     pluginID: pluginID, slotIndex: index, replacing: false, insertion: insertion
                 )
                 editingMenuIndex = index
-                placementMessage = "Invalid Action: Preset requires setup"
+                placementMessage = localized("Invalid Action: Preset requires setup")
                 configurationDidChange(editor.configuration)
                 return false
             }
@@ -734,7 +745,7 @@ final class MenuEditorModel: ObservableObject {
             placementMessage = error.localizedDescription
             return false
         }
-        placementMessage = "Menu Item added in a new Slot \(index + 1)."
+        placementMessage = localized("Menu Item added in a new Slot \(index + 1).")
         configurationDidChange(editor.configuration)
         record(.composition(CompositionHistoryEntry(
             before: insertion.configurationBefore,
@@ -759,7 +770,7 @@ final class MenuEditorModel: ObservableObject {
 
     private func applyConfirmedPresetReplacement(_ pending: PendingPresetReplacement) {
         guard let preset = editor.menuItemPresets.first(where: { $0.id == pending.pluginID }) else {
-            placementMessage = "The selected Preset is unavailable."
+            placementMessage = localized("The selected Preset is unavailable.")
             return
         }
         if preset.readiness == .setupRequired {
@@ -802,9 +813,9 @@ final class MenuEditorModel: ObservableObject {
     var replacementMessage: String {
         if let app = editedApp, let pending = presetPendingReplacement,
            !editor.isOverridden(slotAt: pending.slotIndex, for: app.bundleIdentifier) {
-            return "Only \(app.name)'s Menu Item in this Slot is replaced. The default Menu stays unchanged."
+            return localized("Only \(app.name)'s Menu Item in this Slot is replaced. The default Menu stays unchanged.")
         }
-        return "The current Menu Item and its Actions will be replaced by the selected Preset."
+        return localized("The current Menu Item and its Actions will be replaced by the selected Preset.")
     }
 
     func cancelPresetReplacement() {
@@ -832,8 +843,8 @@ final class MenuEditorModel: ObservableObject {
         editingMenuIndex = nil
         selectedMenuIndex = setup.slotIndex
         placementMessage = setup.replacing
-            ? "Menu Item in Slot \(setup.slotIndex + 1) replaced."
-            : "Menu Item added to Slot \(setup.slotIndex + 1)."
+            ? localized("Menu Item in Slot \(setup.slotIndex + 1) replaced.")
+            : localized("Menu Item added to Slot \(setup.slotIndex + 1).")
         configurationDidChange(configuration, alreadyPersisted: true)
         record(.composition(CompositionHistoryEntry(
             before: before,
@@ -858,7 +869,7 @@ final class MenuEditorModel: ObservableObject {
         }
         editor.restore(configuration)
         editingMenuIndex = nil
-        placementMessage = "Menu Item in Slot \(selectedMenuIndex + 1) updated."
+        placementMessage = localized("Menu Item in Slot \(selectedMenuIndex + 1) updated.")
         configurationDidChange(configuration, alreadyPersisted: true)
         recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
     }
@@ -884,7 +895,7 @@ final class MenuEditorModel: ObservableObject {
             try editor.reorderSlots(order: ids.compactMap { slotIDs.firstIndex(of: $0) })
             slotIDs = ids
             selectedMenuIndex = targetIndex
-            placementMessage = "Slot moved."
+            placementMessage = localized("Slot moved.")
             configurationDidChange(editor.configuration)
             record(.reorder(before: previousIDs, after: slotIDs, source: sourceIndex, target: targetIndex))
             return true
@@ -993,7 +1004,7 @@ final class MenuEditorModel: ObservableObject {
     func addApp(bundleIdentifier: String?, name: String?) -> Bool {
         guard editingMenuIndex == nil else { return false }
         guard let identifier = AppBundleIdentifier(validating: bundleIdentifier) else {
-            placementMessage = "Apps without a bundle identifier cannot be added."
+            placementMessage = localized("Apps without a bundle identifier cannot be added.")
             return false
         }
         if !switcherApps.contains(where: { $0.bundleIdentifier == identifier }) {
@@ -1014,8 +1025,8 @@ final class MenuEditorModel: ObservableObject {
 
     func chooseAppToAdd() {
         let panel = NSOpenPanel()
-        panel.title = "Add App"
-        panel.prompt = "Add App"
+        panel.title = localized("Add App")
+        panel.prompt = localized("Add App")
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
         panel.allowedContentTypes = [.application]
         panel.canChooseDirectories = false
@@ -1041,7 +1052,7 @@ final class MenuEditorModel: ObservableObject {
 
     /// Empties the Slot at `index` for the edited App.
     func emptySlot(at index: Int) {
-        editOverride(at: index, message: "Slot \(index + 1) emptied for \(editedApp?.name ?? "this App").") {
+        editOverride(at: index, message: localized("Slot \(index + 1) emptied for \(editedApp?.name ?? localized("this App")).")) {
             try editor.emptySlot(at: index, for: $0)
         }
     }
@@ -1049,7 +1060,7 @@ final class MenuEditorModel: ObservableObject {
     /// Returns the Slot at `index` to the default Menu's Menu Item for the
     /// edited App.
     func resetSlotToDefault(at index: Int) {
-        editOverride(at: index, message: "Slot \(index + 1) reset to the default.") {
+        editOverride(at: index, message: localized("Slot \(index + 1) reset to the default.")) {
             try editor.resetSlotToDefault(at: index, for: $0)
         }
     }
@@ -1067,7 +1078,7 @@ final class MenuEditorModel: ObservableObject {
         }
         addedApps.removeAll { $0.bundleIdentifier == app.bundleIdentifier }
         editApp(nil)
-        placementMessage = "\(app.name) removed. Its Slots use the default Menu."
+        placementMessage = localized("\(app.name) removed. Its Slots use the default Menu.")
         configurationDidChange(editor.configuration)
         recordComposition(before: before, selectedIndexBefore: selectedMenuIndex, app: app.bundleIdentifier)
     }
@@ -1102,7 +1113,7 @@ final class MenuEditorModel: ObservableObject {
 
     private func requireDefaultMenuForArrangement() -> Bool {
         guard canArrangeSlots else {
-            placementMessage = "Slots are added, moved and deleted in the default Menu."
+            placementMessage = localized("Slots are added, moved and deleted in the default Menu.")
             return false
         }
         return true
@@ -1160,8 +1171,8 @@ final class MenuEditorModel: ObservableObject {
             )
             selectedMenuIndex = index
             placementMessage = replacing
-                ? "Menu Item in Slot \(index + 1) replaced."
-                : "Menu Item added to Slot \(index + 1)."
+                ? localized("Menu Item in Slot \(index + 1) replaced.")
+                : localized("Menu Item added to Slot \(index + 1).")
             configurationDidChange(editor.configuration)
             recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
             if editor.menuItemPresets.first(where: { $0.id == pluginID })?.isConfigurable == true {
@@ -1187,7 +1198,7 @@ struct MenuEditorCentre: Equatable {
 
     /// The text drawn in the centre, nil while the App's icon is.
     var label: String? {
-        guard let appName else { return "MENU" }
+        guard let appName else { return localized("MENU") }
         return appIcon == nil ? appName : nil
     }
 

@@ -279,18 +279,18 @@ extension PrivacyPermissionsModel {
     /// The live status line for a System Permission, as the Welcome Guide's
     /// permission step shows it.
     func statusTitle(for permission: PluginSystemPermission) -> String {
-        if isGranted(permission) { return "\(permission.title) granted" }
-        if awaitsRestart(permission) { return "Restart Spinnet to finish" }
-        return "\(permission.title) required"
+        if isGranted(permission) { return localized("\(permission.localizedTitle) granted") }
+        if awaitsRestart(permission) { return localized("Restart Spinnet to finish") }
+        return localized("\(permission.localizedTitle) required")
     }
 
     /// Screen Recording is requested from the user's click; every other
     /// permission opens System Settings.
     func actionTitle(for permission: PluginSystemPermission) -> String {
-        if awaitsRestart(permission) { return "Restart Spinnet" }
+        if awaitsRestart(permission) { return localized("Restart Spinnet") }
         return permission == .screenRecording && !isGranted(permission)
-            ? "Enable Screen Recording…"
-            : "Open \(permission.title) Settings…"
+            ? localized("Enable Screen Recording…")
+            : localized("Open \(permission.localizedTitle) Settings…")
     }
 
     /// What the permission's button does: relaunch to apply a new Screen

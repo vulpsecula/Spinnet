@@ -8,41 +8,41 @@ struct ScreenshotSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("After Capture").font(.headline)
-            Picker("After Capture", selection: $model.afterCapture) {
-                ForEach(ScreenshotSettings.AfterCapture.allCases, id: \.self) { Text($0.title).tag($0) }
+            Text(localized("After Capture")).font(.headline)
+            Picker(localized("After Capture"), selection: $model.afterCapture) {
+                ForEach(ScreenshotSettings.AfterCapture.allCases, id: \.self) { Text($0.localizedTitle).tag($0) }
             }
             .labelsHidden()
-            .accessibilityLabel("After Capture")
+            .accessibilityLabel(localized("After Capture"))
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("Saved File").font(.headline)
-                Picker("Format", selection: $model.format) {
+                Text(localized("Saved File")).font(.headline)
+                Picker(localized("Format"), selection: $model.format) {
                     ForEach(ScreenshotSettings.FileFormat.allCases, id: \.self) { format in
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(format.title)
-                            Text(format.summary)
+                            Text(format.localizedTitle)
+                            Text(format.localizedSummary)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .tag(format)
-                        .accessibilityLabel("\(format.title): \(format.summary)")
+                        .accessibilityLabel("\(format.localizedTitle): \(format.localizedSummary)")
                     }
                 }
                 .pickerStyle(.radioGroup)
-                .accessibilityLabel("Format")
+                .accessibilityLabel(localized("Format"))
                 HStack {
-                    Text("Save Folder")
+                    Text(localized("Save Folder"))
                     Text((model.saveFolder as NSString).abbreviatingWithTildeInPath)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .foregroundStyle(.secondary)
-                        .accessibilityLabel("Save Folder")
+                        .accessibilityLabel(localized("Save Folder"))
                         .accessibilityValue(model.saveFolder)
                     Spacer()
-                    Button("Choose…", action: model.chooseFolder)
-                        .accessibilityLabel("Choose Save Folder")
+                    Button(localized("Choose…"), action: model.chooseFolder)
+                        .accessibilityLabel(localized("Choose Save Folder"))
                 }
                 if let problem = model.folderProblem {
                     Label(problem, systemImage: "exclamationmark.triangle")
@@ -50,8 +50,8 @@ struct ScreenshotSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Text(model.afterCapture.saves
-                     ? "Copied screenshots are always lossless."
-                     : "Saving is off: screenshots are only copied, losslessly. Choose Save to Folder or Copy and Save to use these.")
+                     ? localized("Copied screenshots are always lossless.")
+                     : localized("Saving is off: screenshots are only copied, losslessly. Choose Save to Folder or Copy and Save to use these."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -62,6 +62,6 @@ struct ScreenshotSettingsView: View {
         .padding(14)
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Screenshot Settings")
+        .accessibilityLabel(localized("Screenshot Settings"))
     }
 }

@@ -6,11 +6,11 @@ import SwiftUI
 struct SpinnetReleaseChecksSection: View {
     @ObservedObject var releases: SpinnetReleaseChecksModel
 
-    private let title = "Check for Spinnet updates automatically"
+    private let title = localized("Check for Spinnet updates automatically")
     private var detail: String {
         releases.isDevelopmentBuild
             ? SpinnetReleaseChecksModel.developmentBuildNote
-            : "Once a day, ask GitHub for a newer Spinnet release. Nothing downloads or installs."
+            : localized("Once a day, ask GitHub for a newer Spinnet release. Nothing downloads or installs.")
     }
 
     var body: some View {
@@ -32,18 +32,18 @@ struct SpinnetReleaseChecksSection: View {
                     .accessibilityHint(detail)
             }
             HStack(spacing: 8) {
-                Button("Check Now", action: releases.checkNow)
+                Button(localized("Check Now"), action: releases.checkNow)
                     .controlSize(.small)
                     .disabled(releases.isChecking)
-                    .accessibilityLabel("Check Now for Spinnet updates")
+                    .accessibilityLabel(localized("Check Now for Spinnet updates"))
                 if releases.isChecking {
                     ProgressView().controlSize(.small)
                 }
                 Text(releases.summary)
                 if releases.availableRelease != nil {
-                    Button("View Release", action: releases.openAvailableRelease)
+                    Button(localized("View Release"), action: releases.openAvailableRelease)
                         .controlSize(.small)
-                        .accessibilityHint("Open the release page on GitHub. Nothing is downloaded.")
+                        .accessibilityHint(localized("Open the release page on GitHub. Nothing is downloaded."))
                 }
             }
             .font(.caption)

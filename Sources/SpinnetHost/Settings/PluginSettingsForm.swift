@@ -10,8 +10,8 @@ struct PluginSettingsForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Settings").font(.headline)
-            Text("Shared by every Menu Item made from \(model.manifest.name).")
+            Text(localized("Settings")).font(.headline)
+            Text(localized("Shared by every Menu Item made from \(model.manifest.name)."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -27,7 +27,7 @@ struct PluginSettingsForm: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(field.displayTitle)
                             if field.overridable {
-                                Text("Per Menu Item").font(.caption2).foregroundStyle(.secondary)
+                                Text(localized("Per Menu Item")).font(.caption2).foregroundStyle(.secondary)
                             }
                         }
                         .frame(width: 104, alignment: .leading)
@@ -38,7 +38,7 @@ struct PluginSettingsForm: View {
                 }
             }
             if model.showsCredential {
-                Text("Spinnet keeps each key in your Keychain and adds it to requests itself; the Plugin never reads it.")
+                Text(localized("Spinnet keeps each key in your Keychain and adds it to requests itself; the Plugin never reads it."))
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
@@ -53,7 +53,7 @@ struct PluginSettingsForm: View {
                 ))
             }
             if !model.missingTitles.isEmpty {
-                Label("Still needed: " + model.missingTitles.joined(separator: ", "), systemImage: "exclamationmark.circle")
+                Label(localized("Still needed: \(model.missingTitles.joined(separator: localized(", ")))"), systemImage: "exclamationmark.circle")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -119,16 +119,16 @@ struct PluginSettingsForm: View {
                     if let index {
                         Button { model.moveChoice(choice, by: -1, for: key) } label: { Image(systemName: "chevron.up") }
                             .disabled(index == 0)
-                            .accessibilityLabel("Move \(choice) up")
+                            .accessibilityLabel(localized("Move \(choice) up"))
                         Button { model.moveChoice(choice, by: 1, for: key) } label: { Image(systemName: "chevron.down") }
                             .disabled(index == chosen.count - 1)
-                            .accessibilityLabel("Move \(choice) down")
+                            .accessibilityLabel(localized("Move \(choice) down"))
                     }
                     Spacer(minLength: 0)
                 }
                 .buttonStyle(.borderless)
             }
-            Text("Checked ones are used, in this order.")
+            Text(localized("Checked ones are used, in this order."))
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .frame(maxWidth: 250, alignment: .leading)
@@ -141,7 +141,7 @@ struct PluginSettingsForm: View {
         let rows = model.rows(for: key)
         return VStack(alignment: .leading, spacing: 8) {
             if rows.isEmpty {
-                Text(field.placeholder ?? "No rows yet.").font(.caption).foregroundStyle(.secondary)
+                Text(field.placeholder ?? localized("No rows yet.")).font(.caption).foregroundStyle(.secondary)
             }
             ForEach(rows.indices, id: \.self) { index in
                 let name = rowName(rows[index], field: field, index: index)
@@ -158,18 +158,18 @@ struct PluginSettingsForm: View {
                     Button { editingRow = ListRowEdit(field: field, key: key, index: index, cells: rows[index], isNew: false) } label: {
                         Image(systemName: "pencil")
                     }
-                    .help("Edit")
-                    .accessibilityLabel("Edit \(name)")
+                    .help(localized("Edit"))
+                    .accessibilityLabel(localized("Edit \(name)"))
                     Button { model.moveRow(at: index, by: -1, in: key) } label: { Image(systemName: "chevron.up") }
                         .disabled(index == 0)
-                        .accessibilityLabel("Move \(name) up")
+                        .accessibilityLabel(localized("Move \(name) up"))
                     Button { model.moveRow(at: index, by: 1, in: key) } label: { Image(systemName: "chevron.down") }
                         .disabled(index == rows.count - 1)
-                        .accessibilityLabel("Move \(name) down")
+                        .accessibilityLabel(localized("Move \(name) down"))
                     Button(role: .destructive) { model.removeRow(at: index, from: key) } label: {
                         Image(systemName: "minus.circle")
                     }
-                    .accessibilityLabel("Remove \(name)")
+                    .accessibilityLabel(localized("Remove \(name)"))
                 }
                 .buttonStyle(.borderless)
                 .padding(8)
@@ -179,10 +179,10 @@ struct PluginSettingsForm: View {
                 model.addRow(to: key)
                 let rows = model.rows(for: key)
                 editingRow = ListRowEdit(field: field, key: key, index: rows.count - 1, cells: rows[rows.count - 1], isNew: true)
-            } label: { Label("Add Row", systemImage: "plus") }
+            } label: { Label(localized("Add Row"), systemImage: "plus") }
                 .buttonStyle(.borderless)
                 .disabled(rows.count >= field.maxRows ?? CommandConfigurationField.listRowLimit)
-                .accessibilityLabel("Add a row to \(field.displayTitle)")
+                .accessibilityLabel(localized("Add a row to \(field.displayTitle)"))
         }
         .sheet(item: $editingRow) { edit in
             ListRowSheet(edit: edit, onSave: { cells in
@@ -198,7 +198,7 @@ struct PluginSettingsForm: View {
     /// What a row is called: its first filled-in text cell, or its position.
     private func rowName(_ row: [String: String], field: CommandConfigurationField, index: Int) -> String {
         field.columns.lazy.filter { $0.kind == .text }.compactMap { row[$0.key] }
-            .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? "Row \(index + 1)"
+            .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? localized("Row \(index + 1)")
     }
 
     /// The row's other filled-in cells, shown under its name while it is
@@ -242,19 +242,19 @@ struct CredentialField: View {
     var body: some View {
         HStack(spacing: 6) {
             if isRevealed {
-                ConfigurationTextField(text: $secret, placeholder: placeholder ?? "Not set")
+                ConfigurationTextField(text: $secret, placeholder: placeholder ?? localized("Not set"))
             } else {
-                SecureField(placeholder ?? "Not set", text: $secret)
+                SecureField(placeholder ?? localized("Not set"), text: $secret)
                     .textFieldStyle(.roundedBorder)
             }
             Button { isRevealed.toggle() } label: {
                 Image(systemName: isRevealed ? "eye.slash" : "eye")
             }
             .buttonStyle(.borderless)
-            .help(isRevealed ? "Hide" : "Show")
-            .accessibilityLabel(isRevealed ? "Hide the key" : "Show the key")
+            .help(isRevealed ? localized("Hide") : localized("Show"))
+            .accessibilityLabel(isRevealed ? localized("Hide the key") : localized("Show the key"))
         }
-        .help("Spinnet keeps this key in your Keychain and adds it to requests itself; the Plugin never reads it.")
+        .help(localized("Spinnet keeps this key in your Keychain and adds it to requests itself; the Plugin never reads it."))
     }
 }
 
@@ -286,7 +286,7 @@ private struct ListRowSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(edit.isNew ? "Add to \(edit.field.displayTitle)" : "Edit \(edit.field.displayTitle)")
+            Text(edit.isNew ? localized("Add to \(edit.field.displayTitle)") : localized("Edit \(edit.field.displayTitle)"))
                 .font(.headline)
             ForEach(edit.field.columns, id: \.key) { column in
                 VStack(alignment: .leading, spacing: 4) {
@@ -297,7 +297,7 @@ private struct ListRowSheet: View {
                     ), placeholder: column.placeholder ?? column.displayTitle)
                     .accessibilityLabel(column.displayTitle)
                     if column.kind == .urlTemplate {
-                        Text("Use https and put {query} once, in the path or query, where the search text goes.")
+                        Text(localized("Use https and put {query} once, in the path or query, where the search text goes."))
                             .font(.caption2).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -305,8 +305,8 @@ private struct ListRowSheet: View {
             }
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel, action: onCancel).keyboardShortcut(.cancelAction)
-                Button("Save") { onSave(cells) }
+                Button(localized("Cancel"), role: .cancel, action: onCancel).keyboardShortcut(.cancelAction)
+                Button(localized("Save")) { onSave(cells) }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!edit.field.columns.allSatisfy { $0.accepts(cells[$0.key] ?? "") })
             }

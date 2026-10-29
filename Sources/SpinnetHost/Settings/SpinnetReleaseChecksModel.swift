@@ -206,14 +206,14 @@ final class SpinnetReleaseChecksModel: ObservableObject {
     /// What General says about the last check.
     var summary: String {
         switch status {
-        case .notChecked: return "Not checked yet."
-        case .checking: return "Checking for Spinnet updates…"
+        case .notChecked: return localized("Not checked yet.")
+        case .checking: return localized("Checking for Spinnet updates…")
         case .upToDate(let latest):
-            let base = latest == nil ? "No Spinnet release is published yet." : "Spinnet \(runningVersion) is up to date."
+            let base = latest == nil ? localized("No Spinnet release is published yet.") : localized("Spinnet \(runningVersion) is up to date.")
             guard let last = shownLastCheck else { return base }
-            return "\(base) Last checked \(last.formatted(.relative(presentation: .named)))."
-        case .available(let release): return "Spinnet \(release.version) is available."
-        case .failed: return "The last check did not complete."
+            return localized("\(base) Last checked \(last.formatted(.relative(presentation: .named).locale(HostLocalization.locale))).")
+        case .available(let release): return localized("Spinnet \(release.version) is available.")
+        case .failed: return localized("The last check did not complete.")
         }
     }
 
@@ -223,12 +223,12 @@ final class SpinnetReleaseChecksModel: ObservableObject {
         return failure
     }
 
-    static let developmentBuildNote = "This development build does not check automatically. Use Check Now."
+    static var developmentBuildNote: String { localized("This development build does not check automatically. Use Check Now.") }
 
     var accessibleNames: [String] {
-        var names = ["Check for Spinnet updates automatically", "Check Now for Spinnet updates"]
+        var names = [localized("Check for Spinnet updates automatically"), localized("Check Now for Spinnet updates")]
         if isDevelopmentBuild { names.append(Self.developmentBuildNote) }
-        if let availableRelease { names.append(contentsOf: ["Spinnet \(availableRelease.version) is available.", "View Release"]) }
+        if let availableRelease { names.append(contentsOf: [localized("Spinnet \(availableRelease.version) is available."), localized("View Release")]) }
         if let shownFailure { names.append(shownFailure) }
         return names
     }

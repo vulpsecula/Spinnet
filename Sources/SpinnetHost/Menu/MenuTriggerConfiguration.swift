@@ -131,21 +131,21 @@ struct MenuKeyboardShortcut: Codable, Equatable {
         if let code = alphaNumeric[key] { return code }
 
         switch key {
-        case "RETURN", "ENTER": return UInt16(kVK_Return)
-        case "ESCAPE", "ESC": return UInt16(kVK_Escape)
-        case "TAB": return UInt16(kVK_Tab)
-        case "SPACE": return UInt16(kVK_Space)
-        case "DELETE", "BACKSPACE": return UInt16(kVK_Delete)
-        case "FORWARD DELETE", "FORWARDDELETE": return UInt16(kVK_ForwardDelete)
-        case "LEFT": return UInt16(kVK_LeftArrow)
-        case "RIGHT": return UInt16(kVK_RightArrow)
-        case "UP": return UInt16(kVK_UpArrow)
-        case "DOWN": return UInt16(kVK_DownArrow)
-        case "HOME": return UInt16(kVK_Home)
-        case "END": return UInt16(kVK_End)
-        case "PAGE UP", "PAGEUP": return UInt16(kVK_PageUp)
-        case "PAGE DOWN", "PAGEDOWN": return UInt16(kVK_PageDown)
-        case "HELP": return UInt16(kVK_Help)
+        case "RETURN", "ENTER": return UInt16(kVK_Return) // Not localized: a typed key name
+        case "ESCAPE", "ESC": return UInt16(kVK_Escape) // Not localized: a typed key name
+        case "TAB": return UInt16(kVK_Tab) // Not localized: a typed key name
+        case "SPACE": return UInt16(kVK_Space) // Not localized: a typed key name
+        case "DELETE", "BACKSPACE": return UInt16(kVK_Delete) // Not localized: a typed key name
+        case "FORWARD DELETE", "FORWARDDELETE": return UInt16(kVK_ForwardDelete) // Not localized: a typed key name
+        case "LEFT": return UInt16(kVK_LeftArrow) // Not localized: a typed key name
+        case "RIGHT": return UInt16(kVK_RightArrow) // Not localized: a typed key name
+        case "UP": return UInt16(kVK_UpArrow) // Not localized: a typed key name
+        case "DOWN": return UInt16(kVK_DownArrow) // Not localized: a typed key name
+        case "HOME": return UInt16(kVK_Home) // Not localized: a typed key name
+        case "END": return UInt16(kVK_End) // Not localized: a typed key name
+        case "PAGE UP", "PAGEUP": return UInt16(kVK_PageUp) // Not localized: a typed key name
+        case "PAGE DOWN", "PAGEDOWN": return UInt16(kVK_PageDown) // Not localized: a typed key name
+        case "HELP": return UInt16(kVK_Help) // Not localized: a typed key name
         default:
             let functionKeys: [String: UInt16] = [
                 "F1": UInt16(kVK_F1), "F2": UInt16(kVK_F2),
@@ -165,8 +165,8 @@ struct MenuKeyboardShortcut: Codable, Equatable {
 
     private static func displayKey(_ key: String, keyCode: UInt16) -> String {
         switch Int(keyCode) {
-        case kVK_Escape: return "Esc"
-        case kVK_Space: return "Space"
+        case kVK_Escape: return localized("Esc")
+        case kVK_Space: return localized("Space")
         case kVK_Return: return "↩"
         case kVK_Tab: return "⇥"
         case kVK_Delete: return "⌫"
@@ -175,11 +175,11 @@ struct MenuKeyboardShortcut: Codable, Equatable {
         case kVK_RightArrow: return "→"
         case kVK_UpArrow: return "↑"
         case kVK_DownArrow: return "↓"
-        case kVK_Home: return "Home"
-        case kVK_End: return "End"
-        case kVK_PageUp: return "Page Up"
-        case kVK_PageDown: return "Page Down"
-        case kVK_Help: return "Help"
+        case kVK_Home: return localized("Home")
+        case kVK_End: return localized("End")
+        case kVK_PageUp: return localized("Page Up")
+        case kVK_PageDown: return localized("Page Down")
+        case kVK_Help: return localized("Help")
         case kVK_F1: return "F1"
         case kVK_F2: return "F2"
         case kVK_F3: return "F3"
@@ -280,10 +280,10 @@ enum MouseTriggerButton {
 
     static func displayName(for buttonNumber: Int) -> String {
         switch buttonNumber {
-        case 2: return "Middle Button"
-        case 3: return "Side Button 1"
-        case 4: return "Side Button 2"
-        default: return "Mouse Button \(buttonNumber + 1)"
+        case 2: return localized("Middle Button")
+        case 3: return localized("Side Button 1")
+        case 4: return localized("Side Button 2")
+        default: return localized("Mouse Button \(buttonNumber + 1)")
         }
     }
 }

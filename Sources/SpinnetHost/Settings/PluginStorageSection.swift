@@ -18,7 +18,7 @@ final class PluginStorageModel: ObservableObject {
     }
 
     var usageDescription: String {
-        usage == 0 ? "Nothing stored" : ByteCountFormatter.string(fromByteCount: Int64(usage), countStyle: .file)
+        usage == 0 ? localized("Nothing stored") : ByteCountFormatter.string(fromByteCount: Int64(usage), countStyle: .file)
     }
 
     var canClear: Bool { usage > 0 }
@@ -47,19 +47,19 @@ struct PluginStorageSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Stored Data").font(.headline)
+            Text(localized("Stored Data")).font(.headline)
             HStack {
                 Text(model.usageDescription)
-                    .accessibilityLabel("Stored Data: \(model.usageDescription)")
+                    .accessibilityLabel(localized("Stored Data: \(model.usageDescription)"))
                 Spacer()
-                Button("Clear Stored Data…") { confirmingClear = true }
+                Button(localized("Clear Stored Data…")) { confirmingClear = true }
                     .disabled(!model.canClear)
-                    .accessibilityLabel("Clear Stored Data: \(pluginName)")
+                    .accessibilityLabel(localized("Clear Stored Data: \(pluginName)"))
             }
             if let failure = model.failure {
                 Label(failure, systemImage: "exclamationmark.triangle").font(.caption)
             }
-            Text("What \(pluginName) keeps for itself between runs. Removing the Plugin deletes it; an update keeps it.")
+            Text(localized("What \(pluginName) keeps for itself between runs. Removing the Plugin deletes it; an update keeps it."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -67,11 +67,11 @@ struct PluginStorageSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
         .onAppear(perform: model.refresh)
-        .alert("Clear Stored Data for \(pluginName)?", isPresented: $confirmingClear) {
-            Button("Cancel", role: .cancel) {}
-            Button("Clear Stored Data", role: .destructive, action: model.clear)
+        .alert(localized("Clear Stored Data for \(pluginName)?"), isPresented: $confirmingClear) {
+            Button(localized("Cancel"), role: .cancel) {}
+            Button(localized("Clear Stored Data"), role: .destructive, action: model.clear)
         } message: {
-            Text("\(pluginName) forgets everything it kept for itself. Its settings, access, and Menu Items stay as they are.")
+            Text(localized("\(pluginName) forgets everything it kept for itself. Its settings, access, and Menu Items stay as they are."))
         }
     }
 }

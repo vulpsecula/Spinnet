@@ -18,12 +18,12 @@ struct MenuActionPresentation: Equatable {
 
     var displayTitle: String {
         guard let reason = availability.reason else { return title }
-        return "\(title) (Unavailable: \(reason.description))"
+        return localized("\(title) (Unavailable: \(reason.localizedDescription))")
     }
 
     var accessibilityLabel: String {
         guard let reason = availability.reason else { return title }
-        return "\(title), unavailable: \(reason.description)"
+        return localized("\(title), unavailable: \(reason.localizedDescription)")
     }
 
     /// Why an Action is unavailable comes first, then what it does. The title
@@ -32,7 +32,7 @@ struct MenuActionPresentation: Equatable {
     var toolTip: String {
         guard let explanation else { return accessibilityLabel }
         guard let reason = availability.reason else { return explanation }
-        return "Unavailable: \(reason.description)\n\(explanation)"
+        return localized("Unavailable: \(reason.localizedDescription)\n\(explanation)")
     }
 }
 
@@ -83,7 +83,7 @@ struct MenuSlotPresentation: Equatable {
     /// name and falls back to the Primary Action title or the empty-state
     /// label.
     var title: String {
-        item?.title ?? "Empty Slot"
+        item?.title ?? localized("Empty Slot")
     }
 
     static var empty: Self {

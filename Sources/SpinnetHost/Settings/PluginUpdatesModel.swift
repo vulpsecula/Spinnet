@@ -161,17 +161,18 @@ final class PluginUpdatesModel: ObservableObject {
             return Entry(installedVersion: installedVersion, status: .failed, message: error.localizedDescription)
         case .success(let check):
             // Refusals carry the version their tag names, highest first.
-            let refused = check.refusals.map { "\($0.version) was refused: \($0.reason)" }
+            let refused = check.refusals.map { localized("\($0.version) was refused: \($0.reason)") }
             if let update = check.update {
-                let message = (["Version \(update.manifest.version) is available."] + refused.prefix(1)).joined(separator: " ")
+                let message = HostLocalization.joiningSentences(
+                    [localized("Version \(update.manifest.version) is available.")] + refused.prefix(1))
                 return Entry(installedVersion: installedVersion, status: .available, message: message, offer: update)
             }
             if let refusal = check.refusals.first {
                 return Entry(installedVersion: installedVersion, status: .refused,
-                             message: "No acceptable update. \(refusal.version): \(refusal.reason)")
+                             message: localized("No acceptable update. \(refusal.version): \(refusal.reason)"))
             }
             return Entry(installedVersion: installedVersion, status: .upToDate,
-                         message: "\(check.installedVersion) is the latest version.")
+                         message: localized("\(check.installedVersion) is the latest version."))
         }
     }
 
@@ -274,16 +275,16 @@ final class PluginUpdatesModel: ObservableObject {
         if let stoppedBy = run.stoppedBy {
             runFailure = stoppedBy.localizedDescription
         } else if failures.count == 1 {
-            runFailure = "\(failures[0].name) could not be checked: \(failures[0].message)"
+            runFailure = localized("\(failures[0].name) could not be checked: \(failures[0].message)")
         } else if failures.count > 1 {
-            runFailure = "\(failures.count) Plugins could not be checked. The Library shows why."
+            runFailure = localized("\(failures.count) Plugins could not be checked. The Library shows why.")
         } else {
             runFailure = nil
         }
     }
 
     var accessibleNames: [String] {
-        var names = ["Check for Plugin updates automatically", "Check Now"]
+        var names = [localized("Check for Plugin updates automatically"), localized("Check Now")]
         if let runFailure { names.append(runFailure) }
         return names
     }

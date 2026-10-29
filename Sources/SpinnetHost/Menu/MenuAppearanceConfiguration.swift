@@ -42,7 +42,7 @@ struct MenuAppearanceConfiguration: Equatable {
             self.rawValue = rawValue
         }
 
-        static let system = MenuFont(rawValue: "System")
+        static let system = MenuFont(rawValue: "System") // Not localized: a saved value, shown through localized(key:)
 
         func makeFont(
             ofSize size: CGFloat,
@@ -221,9 +221,9 @@ struct MenuAppearanceConfiguration: Equatable {
 
     private static func normalizedFontFamily(_ font: String) -> String {
         let legacyFontMapping = [
-            "Rounded": "Avenir Next",
-            "Serif": "Georgia",
-            "Monospaced": "SF Mono"
+            "Rounded": "Avenir Next", // Not localized: saved values and font family names
+            "Serif": "Georgia", // Not localized: saved values and font family names
+            "Monospaced": "SF Mono" // Not localized: saved values and font family names
         ]
         let candidate = legacyFontMapping[font] ?? font
         return fontOptions.contains(candidate) ? candidate : MenuFont.system.rawValue

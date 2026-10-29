@@ -138,9 +138,9 @@ final class MenuSizeSliderView: NSView {
         slider.isContinuous = true
         slider.target = self
         slider.action = #selector(sliderValueChanged(_:))
-        slider.setAccessibilityLabel("Menu Size")
+        slider.setAccessibilityLabel(localized("Menu Size"))
         slider.setAccessibilityValue(
-            "\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: value)) percent"
+            localized("\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: value)) percent")
         )
         addSubview(slider)
     }
@@ -205,7 +205,7 @@ final class MenuSizeSliderView: NSView {
                 ofSize: NSFont.smallSystemFontSize,
                 weight: isActive ? .semibold : isApproaching ? .medium : .regular
             )
-            let title = "\(size.rawValue) \(Int(size.percentage.rounded()))%"
+            let title = "\(localized(key: size.rawValue)) \(Int(size.percentage.rounded()))%"
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
                 .foregroundColor: isActive
@@ -284,14 +284,14 @@ final class MenuSizeSliderView: NSView {
         }
         slider.doubleValue = clampedValue
         slider.setAccessibilityValue(
-            "\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: clampedValue)) percent"
+            localized("\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: clampedValue)) percent")
         )
         needsDisplay = true
     }
 
     @objc private func sliderValueChanged(_ sender: NSSlider) {
         sender.setAccessibilityValue(
-            "\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: sender.doubleValue)) percent"
+            localized("\(MenuAppearanceConfiguration.menuSizePercentageText(forPercentage: sender.doubleValue)) percent")
         )
         onValueChanged?(sender.doubleValue)
         needsDisplay = true

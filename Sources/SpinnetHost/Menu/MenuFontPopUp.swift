@@ -16,7 +16,7 @@ struct MenuFontPopUp: NSViewRepresentable {
         button.menu?.delegate = context.coordinator
         button.target = context.coordinator
         button.action = #selector(Coordinator.choose(_:))
-        button.setAccessibilityLabel("Menu Font")
+        button.setAccessibilityLabel(localized("Menu Font"))
         context.coordinator.button = button
         return button
     }
@@ -69,13 +69,17 @@ struct MenuFontPopUp: NSViewRepresentable {
         /// Each family's preview title, kept for the life of the process so
         /// reopening the page or the popup does not create its font again.
         private static func preview(_ family: String) -> NSAttributedString {
-            if let cached = previews[family] { return cached }
-            let font = family == MenuAppearanceConfiguration.MenuFont.system.rawValue
+            // The saved System value stays the item's title; only its shown
+            // name is in the interface language.
+            let isSystem = family == MenuAppearanceConfiguration.MenuFont.system.rawValue
+            let name = isSystem ? localized(key: family) : family
+            if let cached = previews[name] { return cached }
+            let font = isSystem
                 ? NSFont.systemFont(ofSize: 13)
                 : NSFontManager.shared.font(withFamily: family, traits: [], weight: 5, size: 13)
                     ?? NSFont.systemFont(ofSize: 13)
-            let title = NSAttributedString(string: family, attributes: [.font: font])
-            previews[family] = title
+            let title = NSAttributedString(string: name, attributes: [.font: font])
+            previews[name] = title
             return title
         }
     }

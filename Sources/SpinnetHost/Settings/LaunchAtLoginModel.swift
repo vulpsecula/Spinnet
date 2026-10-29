@@ -57,7 +57,7 @@ final class LaunchAtLoginModel: ObservableObject {
     /// What the page says under the toggle, if anything.
     var note: String? {
         switch status {
-        case .requiresApproval: return "Launch at Login needs your approval in System Settings"
+        case .requiresApproval: return localized("Launch at Login needs your approval in System Settings")
         case .enabled, .notRegistered, .notFound: return nil
         }
     }
@@ -71,7 +71,9 @@ final class LaunchAtLoginModel: ObservableObject {
             if enabled { try service.register() } else { try service.unregister() }
             failure = nil
         } catch {
-            failure = "Spinnet could not turn \(enabled ? "on" : "off") Launch at Login: \(error.localizedDescription)"
+            failure = enabled
+                ? localized("Spinnet could not turn on Launch at Login: \(error.localizedDescription)")
+                : localized("Spinnet could not turn off Launch at Login: \(error.localizedDescription)")
         }
         refresh()
     }
@@ -81,7 +83,7 @@ final class LaunchAtLoginModel: ObservableObject {
     var accessibleNames: [String] {
         var names: [String] = []
         if let note { names.append(note) }
-        if needsApproval { names.append("Open Login Items Settings") }
+        if needsApproval { names.append(localized("Open Login Items Settings")) }
         if let failure { names.append(failure) }
         return names
     }

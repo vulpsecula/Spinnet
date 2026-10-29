@@ -46,6 +46,9 @@ if name == "swift":
         resource = build / "Spinnet_SpinnetCore.bundle"
         resource.mkdir(exist_ok=True)
         (resource / "resource.rb").write_text("fixture")
+        strings = build / "Spinnet_SpinnetHost.bundle/Contents/Resources/zh-Hans.lproj"
+        strings.mkdir(parents=True, exist_ok=True)
+        (strings / "Localizable.strings").write_text("fixture")
 elif name == "security":
     print('1) FIXTURE_ID "Apple Development: Fixture"')
 elif name == "git":
@@ -178,6 +181,11 @@ class LauncherTests(unittest.TestCase):
                 self.assertFalse((contents / "Resources/Spinnet_SpinnetCore.bundle").exists(),
                                  "An obsolete incremental-build bundle must not ship retired Ruby adapters")
                 self.assertFalse((contents / "Resources/Plugins").exists(), "The app contains no Plugins")
+                self.assertTrue((contents / "Resources/zh-Hans.lproj/Localizable.strings").exists(),
+                                "The app carries the Host's String Catalog in its own resources")
+                self.assertTrue((contents / "Resources/en.lproj").is_dir())
+                self.assertIn(["--verify-localizations"],
+                              [call["args"] for call in commands if call["tool"] == "SpinnetHost"])
                 signed = [call["args"] for call in commands if call["tool"] == "codesign" and "--sign" in call["args"]]
                 self.assertEqual(len(signed), len(HELPERS) + 1)
                 for name, suffix in HELPERS.items():

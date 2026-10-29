@@ -37,22 +37,22 @@ struct MenuEditorView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 pageHeader(
-                    title: "Menu",
-                    description: "Choose what each Slot contains."
+                    title: localized("Menu"),
+                    description: localized("Choose what each Slot contains.")
                 )
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Library").font(.title2.weight(.semibold))
-                    Text("Drag a Menu Item Preset to a Slot. Focus an empty Slot to add it with the keyboard-accessible button.")
+                    Text(localized("Library")).font(.title2.weight(.semibold))
+                    Text(localized("Drag a Menu Item Preset to a Slot. Focus an empty Slot to add it with the keyboard-accessible button."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
-                TextField("Search Presets and Commands", text: $searchText)
+                TextField(localized("Search Presets and Commands"), text: $searchText)
                     .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Search Library")
+                    .accessibilityLabel(localized("Search Library"))
                 HStack(spacing: 12) {
-                    Button("Install or Update Plugin…", action: onInstallPlugin)
+                    Button(localized("Install or Update Plugin…"), action: onInstallPlugin)
                     if let pluginUpdates {
                         CheckAllPluginUpdatesButton(updates: pluginUpdates)
                     }
@@ -65,8 +65,8 @@ struct MenuEditorView: View {
                         Image(systemName: "magnifyingglass")
                             .font(.title2)
                             .foregroundStyle(.secondary)
-                        Text("No Presets Found").font(.headline)
-                        Text("Try a different search.")
+                        Text(localized("No Presets Found")).font(.headline)
+                        Text(localized("Try a different search."))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -89,9 +89,9 @@ struct MenuEditorView: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Edit on the Menu", systemImage: "cursorarrow.motionlines")
+                    Label(localized("Edit on the Menu"), systemImage: "cursorarrow.motionlines")
                         .font(.headline)
-                    Text("Left-click a Slot to focus it. Use its Edit button, double-click, or Command-E to configure a Menu Item; press Return or Space after focusing it. Right-click for details and Slot actions. Slot configuration stays attached to the Menu instead of the Library.")
+                    Text(localized("Left-click a Slot to focus it. Use its Edit button, double-click, or Command-E to configure a Menu Item; press Return or Space after focusing it. Right-click for details and Slot actions. Slot configuration stays attached to the Menu instead of the Library."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -106,7 +106,7 @@ struct MenuEditorView: View {
             .frame(maxWidth: 540, alignment: .leading)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Menu")
+        .accessibilityLabel(localized("Menu"))
     }
 
     @ViewBuilder
@@ -143,11 +143,11 @@ struct MenuEditorView: View {
                     .lineLimit(1)
                 HStack(spacing: 10) {
                     Label(
-                        preset.stateLabel,
+                        preset.localizedStateLabel,
                         systemImage: presetStateImageName(preset)
                     )
                     Label(
-                        preset.configurationLabel,
+                        preset.localizedConfigurationLabel,
                         systemImage: preset.isConfigurable ? "slider.horizontal.3" : "checkmark.seal"
                     )
                 }
@@ -164,15 +164,15 @@ struct MenuEditorView: View {
                 Image(systemName: "slider.horizontal.3")
             }
             .buttonStyle(.borderless)
-            .help("Plugin Settings — Grant Access")
-            .accessibilityLabel("Plugin Settings: \(preset.name)")
+            .help(localized("Plugin Settings — Grant Access"))
+            .accessibilityLabel(localized("Plugin Settings: \(preset.name)"))
 
             Button { onRemovePlugin(preset) } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
-            .help("Remove this Plugin from the Library")
-            .accessibilityLabel("Remove Plugin: \(preset.name)")
+            .help(localized("Remove this Plugin from the Library"))
+            .accessibilityLabel(localized("Remove Plugin: \(preset.name)"))
 
             if !selectedSlotIsOccupied {
                 Button {
@@ -183,7 +183,7 @@ struct MenuEditorView: View {
                 .buttonStyle(.borderless)
                 .disabled(!preset.isAvailable)
                 .help(presetActionHelp(preset))
-                .accessibilityLabel("Add \(preset.name) to selected Slot")
+                .accessibilityLabel(localized("Add \(preset.name) to selected Slot"))
             }
 
             Image(systemName: "line.3.horizontal")
@@ -201,7 +201,7 @@ struct MenuEditorView: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(preset.accessibilityLabel)
+        .accessibilityLabel(preset.localizedAccessibilityLabel)
         .accessibilityHint(presetActionHelp(preset))
     }
 
@@ -210,8 +210,8 @@ struct MenuEditorView: View {
     private func refusedPluginsSection(_ plugins: [RefusedPlugin]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Refused Plugins").font(.headline)
-                Text("Spinnet did not load these installed Plugins. Their Menu Items stay in the Menu, unavailable. Install a copy this version can run, or remove them.")
+                Text(localized("Refused Plugins")).font(.headline)
+                Text(localized("Spinnet did not load these installed Plugins. Their Menu Items stay in the Menu, unavailable. Install a copy this version can run, or remove them."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -250,8 +250,8 @@ struct MenuEditorView: View {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
-            .help("Remove this Plugin from the Library")
-            .accessibilityLabel("Remove Plugin: \(plugin.libraryName)")
+            .help(localized("Remove this Plugin from the Library"))
+            .accessibilityLabel(localized("Remove Plugin: \(plugin.libraryName)"))
         }
         .padding(10)
         .background {
@@ -274,10 +274,10 @@ struct MenuEditorView: View {
     }
 
     private func presetActionHelp(_ preset: MenuItemPreset) -> String {
-        guard preset.isAvailable else { return "This Preset is unavailable" }
-        guard preset.readiness == .readyToUse else { return "This Preset requires setup before it can be added" }
+        guard preset.isAvailable else { return localized("This Preset is unavailable") }
+        guard preset.readiness == .readyToUse else { return localized("This Preset requires setup before it can be added") }
         return selectedSlotIsOccupied
-            ? "Drag this Preset to an empty Slot to add it"
-            : "Add to selected empty Slot or drag it to a Slot"
+            ? localized("Drag this Preset to an empty Slot to add it")
+            : localized("Add to selected empty Slot or drag it to a Slot")
     }
 }

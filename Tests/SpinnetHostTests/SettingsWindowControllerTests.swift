@@ -504,6 +504,12 @@ final class SettingsWindowControllerTests: XCTestCase {
             }
         }
 
+        // SPINNET_UI_LANGUAGE=zh-Hans renders the pages in Simplified Chinese.
+        let launchLocale = HostLocalization.locale
+        defer { HostLocalization.locale = launchLocale }
+        if let language = ProcessInfo.processInfo.environment["SPINNET_UI_LANGUAGE"] {
+            HostLocalization.locale = Locale(identifier: language)
+        }
         let emptySlotCount = Int(
             ProcessInfo.processInfo.environment["SPINNET_UI_EMPTY_SLOTS"] ?? "0"
         ) ?? 0

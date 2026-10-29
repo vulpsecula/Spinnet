@@ -30,17 +30,17 @@ struct EndpointConsentBox: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("New network host", systemImage: "network")
+            Label(localized("New network host"), systemImage: "network")
                 .font(.subheadline.weight(.semibold))
             Text(consent.disclosure)
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
-            Toggle("Allow \(consent.manifest.name) to contact \(consent.newHosts.joined(separator: ", "))", isOn: $allowed)
+            Toggle(localized("Allow \(consent.manifest.name) to contact \(consent.newHosts.joined(separator: ", "))"), isOn: $allowed)
                 .toggleStyle(.checkbox)
         }
         .padding(10)
         .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("New network host consent")
+        .accessibilityLabel(localized("New network host consent"))
     }
 }

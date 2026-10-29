@@ -152,6 +152,16 @@ cp "$ROOT_DIR/Resources/LaunchDaemons/com.vulpsecula.SpinnetHost.privileged-tool
 # Core no longer has runtime resources. Do not package its obsolete SwiftPM
 # bundle if an incremental build left the retired Ruby adapters behind.
 
+# The Host's compiled String Catalog goes into the app's own resources, so
+# the Host and AppKit both run in the interface language General chooses.
+HOST_RESOURCES="$BUILD_DIR/Spinnet_SpinnetHost.bundle/Contents/Resources"
+if [[ ! -f "$HOST_RESOURCES/zh-Hans.lproj/Localizable.strings" ]]; then
+    echo "error: missing the Host's compiled String Catalog in $HOST_RESOURCES" >&2
+    exit 1
+fi
+cp -R "$HOST_RESOURCES/"*.lproj "$APP_RESOURCES/"
+mkdir -p "$APP_RESOURCES/en.lproj"
+
 # The app contains no Plugins: every Plugin, official or not, is installed
 # into the user's saved data the way the Library installs one.
 
@@ -168,6 +178,13 @@ cat >"$INFO_PLIST" <<PLIST
   <string>Spinnet</string>
   <key>CFBundleDisplayName</key>
   <string>Spinnet</string>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>en</string>
+    <string>zh-Hans</string>
+  </array>
   <key>CFBundleShortVersionString</key>
   <string>$APP_VERSION</string>
   <key>SpinnetSourceRevision</key>
@@ -207,6 +224,7 @@ fi
 codesign --verify --deep --strict "$APP_BUNDLE"
 "$APP_CONTENTS/Helpers/SpinnetToolTaskRunner" --verify-resources
 "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass" --verify
+"$APP_BINARY" --verify-localizations
 if [[ -n "$SIGNING_IDENTITY" && "$SIGNING_IDENTITY" != "-" ]]; then
     "$APP_BINARY" --verify-homebrew-transport
     bash "$ROOT_DIR/script/check_background_helper.sh" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"

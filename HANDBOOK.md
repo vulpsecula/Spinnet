@@ -97,6 +97,15 @@ runs. A development build says so and checks only on Check Now. A failure or
 GitHub's rate limit is reported on General, not in an alert, and is not
 retried before the next check.
 
+### Language
+
+General's Language chooses System (the default), English or 简体中文 for
+Spinnet's own text, and offers Relaunch: the choice is saved as the app's
+preferred language and applies from the next launch. Plugin-supplied text,
+such as Plugin names, Command titles, Plugin Settings labels and Plugin View
+content, is shown as the Plugin provides it. The Settings window is
+translated; the remaining Host surfaces follow.
+
 ### Privacy and ongoing work
 
 Privacy & Permissions separates macOS System Permissions, Sensitive Data
@@ -185,6 +194,20 @@ ICU Unicode properties. Payload `pattern` constraints still execute; an
 unsupported pattern fails the check rather than counting as an expected
 refusal. The Python suite also covers packaging, the development install
 option and developer-tool entry points.
+
+Host-owned interface text comes from
+`Sources/SpinnetHost/Resources/Localizable.xcstrings`, looked up with
+`localized(...)` (or `localized(key:)` for SpinnetCore's English), never for
+Plugin-supplied text. English source text is the key; each key needs a
+`zh-Hans` translation using the Chinese recorded for its terms in
+[GLOSSARY.md](GLOSSARY.md#simplified-chinese). `LocalizationCompletenessTests`
+fails on a missing translation, a mismatched argument, a different term, or
+interface text in a listed source file that bypasses the catalog; mark a
+literal that is not interface text `// Not localized: <why>`. The launcher
+copies the compiled catalog into the app's own resources and checks it with
+`--verify-localizations`. `SPINNET_UI_LANGUAGE=zh-Hans` with
+`SPINNET_UI_ARTIFACT_DIR` renders the Settings pages in Chinese from
+`testEverySettingsPageRendersAtTheWindowBoundary`.
 
 For scripted Action progress, timeout, cancellation and explicit retry checks,
 `./script/build_and_run.sh --lifecycle-check` opens the Debug-only lifecycle

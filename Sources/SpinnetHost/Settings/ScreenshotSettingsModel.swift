@@ -29,7 +29,7 @@ final class ScreenshotSettingsModel: ObservableObject {
     /// Set only while the settings save and the folder cannot be used; a
     /// capture that only copies never looks at it.
     var folderProblem: String? {
-        settings.unavailableReason == nil ? nil : "This folder is missing or cannot be written. Choose another to save screenshots."
+        settings.unavailableReason == nil ? nil : localized("This folder is missing or cannot be written. Choose another to save screenshots.")
     }
 
     func chooseFolder() {
@@ -38,7 +38,7 @@ final class ScreenshotSettingsModel: ObservableObject {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
+        panel.prompt = localized("Choose")
         panel.directoryURL = URL(fileURLWithPath: (saveFolder as NSString).expandingTildeInPath, isDirectory: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         saveFolder = url.path

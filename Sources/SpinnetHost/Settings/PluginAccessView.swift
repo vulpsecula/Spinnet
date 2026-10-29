@@ -22,7 +22,7 @@ struct PluginAccessView: View {
             Text("\(manifest.name) · \(manifest.version)").font(.headline)
             ForEach(PluginConsentGroup.allCases, id: \.self) { group in
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(group.rawValue).font(.subheadline.weight(.semibold))
+                    Text(group.localizedTitle).font(.subheadline.weight(.semibold))
                     Text(disclosure.details(for: group)).font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -38,20 +38,20 @@ struct PluginAccessView: View {
                         let optional = disclosure.commands.contains {
                             manifest.optionalCapabilities(forCommand: $0).contains(capability)
                         }
-                        Text(optional ? "\(capability.title) · Optional" : capability.title)
+                        Text(optional ? localized("\(capability.localizedTitle) · Optional") : capability.localizedTitle)
                         Spacer()
                         let decision = grants.first {
                             $0.pluginID == manifest.id && $0.pluginVersion == manifest.version && $0.capability == capability
                         }?.decision ?? .notDetermined
                         let granted = decision == .granted
-                        Text(decision == .notDetermined ? "Not reviewed" : decision.title).foregroundStyle(.secondary)
-                        Button(granted ? "Revoke Access" : "Grant Access") {
+                        Text(decision == .notDetermined ? localized("Not reviewed") : decision.localizedTitle).foregroundStyle(.secondary)
+                        Button(granted ? localized("Revoke Access") : localized("Grant Access")) {
                             setDecision(granted ? .denied : .granted, manifest.id, manifest.version, capability)
                         }
-                        .accessibilityLabel("\(granted ? "Revoke Access" : "Grant Access"): \(manifest.name), \(capability.title)")
+                        .accessibilityLabel("\(granted ? localized("Revoke Access") : localized("Grant Access")): \(manifest.name), \(capability.localizedTitle)")
                     }
                 }
-                Text("Access applies Plugin-wide. Commands requiring denied access remain unavailable; optional access is skipped when not granted. Menu Items are preserved.")
+                Text(localized("Access applies Plugin-wide. Commands requiring denied access remain unavailable; optional access is skipped when not granted. Menu Items are preserved."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -72,26 +72,26 @@ struct PluginInstallSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Install \(manifest.name)?")
+            Text(localized("Install \(manifest.name)?"))
                 .font(.title2.weight(.semibold))
-            Text("Installing allows \(manifest.name) to use:")
+            Text(localized("Installing allows \(manifest.name) to use:"))
                 .font(.subheadline)
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(installation.review.requestedAccess, id: \.self) { capability in
-                    Label(capability.title, systemImage: "checkmark.shield")
+                    Label(capability.localizedTitle, systemImage: "checkmark.shield")
                 }
             }
             ScrollView {
                 PluginAccessView(manifest: manifest, grants: [], setDecision: { _, _, _, _ in },
                                  showsDecisions: false)
             }
-            Text("You can revoke access later in Plugin Settings.")
+            Text(localized("You can revoke access later in Plugin Settings."))
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
-                Button("Cancel", action: onCancel)
+                Button(localized("Cancel"), action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Install", action: onInstall)
+                Button(localized("Install"), action: onInstall)
                     .keyboardShortcut(.defaultAction)
             }
         }
@@ -121,7 +121,7 @@ struct PluginConsentSheet: View {
                                   onDone: { showingPermissions = false })
         } else {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Plugin Settings")
+                Text(localized("Plugin Settings"))
                     .font(.title2.weight(.semibold))
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -141,11 +141,11 @@ struct PluginConsentSheet: View {
                 }
                 HStack {
                     if pluginSettings != nil || requiresConnection {
-                        Button("Cancel", action: { if let onCancel { onCancel() } else { close() } })
+                        Button(localized("Cancel"), action: { if let onCancel { onCancel() } else { close() } })
                             .keyboardShortcut(.cancelAction)
                     }
                     Spacer()
-                    Button(pluginSettings == nil ? "Done" : "Save") {
+                    Button(pluginSettings == nil ? localized("Done") : localized("Save")) {
                         // Settings that do not save keep the sheet open with the reason.
                         if let pluginSettings, !pluginSettings.save() { return }
                         close()
@@ -172,8 +172,8 @@ struct PluginPermissionsPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Plugin Permissions").font(.title2.weight(.semibold))
-            Text("Changes take effect immediately and apply to all Actions from this Plugin.")
+            Text(localized("Plugin Permissions")).font(.title2.weight(.semibold))
+            Text(localized("Changes take effect immediately and apply to all Actions from this Plugin."))
                 .font(.subheadline).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             ScrollView {
@@ -183,7 +183,7 @@ struct PluginPermissionsPage: View {
             }
             HStack {
                 Spacer()
-                Button("Done", action: onDone)
+                Button(localized("Done"), action: onDone)
                     .keyboardShortcut(.defaultAction)
             }
         }
@@ -199,12 +199,12 @@ private struct PluginPermissionsLink: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Permissions").font(.headline)
-            Text("Manage access separately. Permission changes take effect immediately; Save and Cancel apply only to Plugin Settings.")
+            Text(localized("Permissions")).font(.headline)
+            Text(localized("Manage access separately. Permission changes take effect immediately; Save and Cancel apply only to Plugin Settings."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("Manage Permissions", action: open)
-                .accessibilityLabel("Manage Permissions for \(pluginName)")
+            Button(localized("Manage Permissions"), action: open)
+                .accessibilityLabel(localized("Manage Permissions for \(pluginName)"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -257,38 +257,38 @@ struct MenuItemAccessSummary: View {
     }
 
     var body: some View {
-        DisclosureGroup("Selected Commands — Access") {
+        DisclosureGroup(localized("Selected Commands — Access")) {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(capabilities, id: \.self) { capability in
-                    Label("\(capability.title): \(granted(capability) ? "Granted" : "Not granted")",
+                    Label("\(capability.localizedTitle): \(granted(capability) ? localized("Granted") : localized("Not granted"))",
                           systemImage: granted(capability) ? "checkmark.circle" : "lock")
                 }
                 ForEach(optionalCapabilities, id: \.self) { capability in
-                    Label("\(capability.title) (Optional): \(granted(capability) ? "Granted" : "Not granted")",
+                    Label(granted(capability) ? localized("\(capability.localizedTitle) (Optional): Granted") : localized("\(capability.localizedTitle) (Optional): Not granted"),
                           systemImage: granted(capability) ? "checkmark.circle" : "lock")
                 }
                 if capabilities.isEmpty && optionalCapabilities.isEmpty {
-                    Text("No Plugin access required for these Commands.")
+                    Text(localized("No Plugin access required for these Commands."))
                 }
                 if needsScreenRecording {
                     // The Screenshot Configuration Sheet is one of the two
                     // places the Screen Recording prompt may come from.
                     if privacy.screenRecordingAwaitsRestart && HostRelaunch.isAvailable {
-                        Label("Screen Recording: Restart Spinnet to finish", systemImage: "arrow.clockwise")
-                        Button("Restart Spinnet") { HostRelaunch.relaunch() }
-                            .accessibilityLabel("Restart Spinnet to finish enabling Screen Recording")
+                        Label(localized("Screen Recording: Restart Spinnet to finish"), systemImage: "arrow.clockwise")
+                        Button(localized("Restart Spinnet")) { HostRelaunch.relaunch() }
+                            .accessibilityLabel(localized("Restart Spinnet to finish enabling Screen Recording"))
                     } else {
-                        Label("Screen Recording: Not granted", systemImage: "lock")
-                        Button("Enable Screen Recording…") {
+                        Label(localized("Screen Recording: Not granted"), systemImage: "lock")
+                        Button(localized("Enable Screen Recording…")) {
                             if !privacy.requestScreenRecordingPermission() { openScreenRecordingSettings() }
                         }
-                        .accessibilityLabel("Enable Screen Recording")
+                        .accessibilityLabel(localized("Enable Screen Recording"))
                     }
                 }
-                Text("Permission changes apply immediately to all Actions from this Plugin. Your Menu Item edits are kept while you manage permissions.")
+                Text(localized("Permission changes apply immediately to all Actions from this Plugin. Your Menu Item edits are kept while you manage permissions."))
                     .font(.caption).foregroundStyle(.secondary)
-                Button("Manage Permissions") { showingPermissions = true }
-                    .accessibilityLabel("Manage Permissions for \(manifest.name)")
+                Button(localized("Manage Permissions")) { showingPermissions = true }
+                    .accessibilityLabel(localized("Manage Permissions for \(manifest.name)"))
             }
             .padding(.top, 8)
         }

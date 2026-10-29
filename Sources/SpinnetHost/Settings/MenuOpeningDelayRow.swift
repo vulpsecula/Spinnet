@@ -6,12 +6,12 @@ import SwiftUI
 struct MenuOpeningDelayRow: View {
     @ObservedObject var trigger: MenuTriggerModel
 
-    static let title = "Menu Opening Delay"
+    static var title: String { localized("Menu Opening Delay") }
     static let step: TimeInterval = 0.05
-    private static let detail = "Hold the trigger this long to open the Menu. A shorter press goes to the App, so Side Button 1 still goes Back."
+    private static var detail: String { localized("Hold the trigger this long to open the Menu. A shorter press goes to the App, so Side Button 1 still goes Back.") }
 
     static func valueText(for delay: TimeInterval) -> String {
-        delay <= 0 ? "Opens at once" : "\(Int((delay * 1000).rounded())) ms"
+        delay <= 0 ? localized("Opens at once") : localized("\(Int((delay * 1000).rounded())) ms")
     }
 
     static func accessibleName(for delay: TimeInterval) -> String {

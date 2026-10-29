@@ -174,20 +174,20 @@ final class PluginSettingsModel: ObservableObject {
                     switch field.kind {
                     case .httpsEndpoint:
                         throw ConfigurationError.invalidAction(
-                            "\(field.displayTitle) must be an https address, such as https://api.example.com.")
+                            localized("\(field.displayTitle) must be an https address, such as https://api.example.com."))
                     case .list:
                         throw ConfigurationError.invalidAction(field.listProblem(value) ?? "")
                     default:
-                        throw ConfigurationError.invalidAction("\(field.displayTitle) is not one of its offered values.")
+                        throw ConfigurationError.invalidAction(localized("\(field.displayTitle) is not one of its offered values."))
                     }
                 }
             }
             let typed = secrets.filter { !$0.value.isEmpty }
             guard typed.values.allSatisfy(PluginCredentialReference.isValidSecret) else {
-                throw ConfigurationError.invalidAction("A credential must be one line of at most 4096 characters.")
+                throw ConfigurationError.invalidAction(localized("A credential must be one line of at most 4096 characters."))
             }
             if !typed.isEmpty, credentialStore == nil {
-                throw ConfigurationError.invalidAction("Credentials cannot be stored in this session")
+                throw ConfigurationError.invalidAction(localized("Credentials cannot be stored in this session"))
             }
             let previous = store.hasValues(for: manifest.id) ? store.values(for: manifest.id) : nil
             try ConfigurationSave.perform(

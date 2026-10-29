@@ -1117,6 +1117,23 @@ if let status = DevelopmentPluginInstall.runIfRequested(arguments: CommandLine.a
 }
 #endif
 
+// This launch's interface language, from General's choice.
+HostLocalization.applyPreferredLanguage()
+
+// The packaging check that the app carries the String Catalog in its own
+// resources, so the Host and AppKit can run in each interface language.
+if CommandLine.arguments.contains("--verify-localizations") {
+    let chinese = HostLocalization.withLanguage(.simplifiedChinese) { SettingsPage.general.title }
+    guard HostLocalization.bundleURL == Bundle.main.bundleURL, chinese != "General",
+          Set(Bundle.main.localizations).isSuperset(of: InterfaceLanguage.localizations) else {
+        FileHandle.standardError.write(Data("error: the app bundle lacks its localized interface text\n".utf8))
+        exit(1)
+    }
+    print("Spinnet interface languages: \(InterfaceLanguage.localizations.joined(separator: ", ")); "
+        + "this launch: \(HostLocalization.locale.identifier), \(SettingsPage.general.title)")
+    exit(0)
+}
+
 let application = NSApplication.shared
 let delegate = ApplicationDelegate()
 application.delegate = delegate

@@ -7,20 +7,23 @@ struct GeneralSettingsView: View {
     @ObservedObject var model: SettingsWindowModel
     @ObservedObject var launchAtLogin: LaunchAtLoginModel
     @ObservedObject var pluginUpdates: PluginUpdatesModel
+    @ObservedObject var interfaceLanguage: InterfaceLanguageModel
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 pageHeader(title: SettingsPage.general.title,
-                           description: "App-wide preferences for Spinnet.")
+                           description: localized("App-wide preferences for Spinnet."))
 
                 VStack(spacing: 0) {
                     launchAtLoginRow
                     Divider()
                     toggleRow(
-                        "Show Status Item", isOn: $model.showsStatusItem,
-                        detail: "When off, the Status Item still appears while a Task or Effect is ongoing. Open Spinnet again to show Settings."
+                        localized("Show Status Item"), isOn: $model.showsStatusItem,
+                        detail: localized("When off, the Status Item still appears while a Task or Effect is ongoing. Open Spinnet again to show Settings.")
                     )
+                    Divider()
+                    InterfaceLanguageRow(language: interfaceLanguage)
                     Divider()
                     welcomeGuideRow
                 }
@@ -53,15 +56,15 @@ struct GeneralSettingsView: View {
     private var launchAtLoginRow: some View {
         VStack(alignment: .leading, spacing: 8) {
             toggleRow(
-                "Launch at Login",
+                localized("Launch at Login"),
                 isOn: Binding(get: { launchAtLogin.isOn }, set: { launchAtLogin.setEnabled($0) }),
-                detail: launchAtLogin.note ?? "Open Spinnet when you log in, so the Menu is ready."
+                detail: launchAtLogin.note ?? localized("Open Spinnet when you log in, so the Menu is ready.")
             )
             if launchAtLogin.needsApproval {
-                Button("Open Login Items Settings…", action: launchAtLogin.openLoginItemsSettings)
+                Button(localized("Open Login Items Settings…"), action: launchAtLogin.openLoginItemsSettings)
                     .controlSize(.small)
-                    .accessibilityLabel("Open Login Items Settings")
-                    .accessibilityHint("Allow Spinnet in System Settings → General → Login Items.")
+                    .accessibilityLabel(localized("Open Login Items Settings"))
+                    .accessibilityHint(localized("Allow Spinnet in System Settings → General → Login Items."))
             }
             if let failure = launchAtLogin.failure {
                 Label(failure, systemImage: "exclamationmark.triangle.fill")
@@ -77,15 +80,15 @@ struct GeneralSettingsView: View {
     private var welcomeGuideRow: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Welcome Guide").font(.body.weight(.medium))
-                Text("Walk through System Permissions and how to open the Menu again.")
+                Text(localized("Welcome Guide")).font(.body.weight(.medium))
+                Text(localized("Walk through System Permissions and how to open the Menu again."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 12)
-            Button("Open Welcome Guide…", action: model.openWelcomeGuide)
-                .accessibilityLabel("Open Welcome Guide")
+            Button(localized("Open Welcome Guide…"), action: model.openWelcomeGuide)
+                .accessibilityLabel(localized("Open Welcome Guide"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 12)
