@@ -9,7 +9,11 @@ behaviour and Plugin development live in
 
 A first launch without a saved Menu starts with eight empty Slots. A launch
 with no Plugin installed opens the Welcome Guide, which walks through System
-Permissions and how to open the Menu, then finishes in the Menu Editor. Once
+Permissions and how to open the Menu, offers the Official Plugins as a
+checklist with a starter set checked, then finishes in the Menu Editor. Install
+Selected downloads each checked Plugin's newest acceptable version from
+SpinnetPlugins and installs it through the Library's review, one row at a time
+with its own progress, failure and Retry; nothing is placed into Slots. Once
 completed or skipped it does not open by itself again; General's Open Welcome
 Guide… reopens it. Open Settings → Menu and add a Plugin's Preset to a Slot. Each Menu Item has one
 Primary Action and optional Alternate Actions, available by right-click.
@@ -32,7 +36,8 @@ record or enter a keyboard shortcut under Settings → Menu. The Library
 contains Plugins, including those whose Commands directly call Host Services.
 Spinnet itself contains no Plugins: install a package from the Library. Official
 Plugins from [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins)
-are installed, updated and removed like any other Plugin.
+are installed, updated and removed like any other Plugin; the Host's fixed list
+of them, in `OfficialPlugins.swift`, only feeds the Welcome Guide's checklist.
 
 ### Menu Opening Delay
 

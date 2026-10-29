@@ -51,7 +51,7 @@ final class WelcomeGuideTests: XCTestCase {
         XCTAssertFalse(try launch(withPlugins: true).welcomeGuide.isPresented)
     }
 
-    func testTheGuideStepsThroughPermissionsAndTheMenuTriggerToTheFinish() throws {
+    func testTheGuideStepsThroughPermissionsTheMenuTriggerAndOfficialPluginsToTheFinish() throws {
         let guide = try launch().welcomeGuide
         XCTAssertFalse(guide.canGoBack)
 
@@ -60,10 +60,10 @@ final class WelcomeGuideTests: XCTestCase {
             guide.next()
             visited.append(guide.step)
         }
-        XCTAssertEqual(visited, [.welcome, .systemPermissions, .menuTrigger, .finish])
+        XCTAssertEqual(visited, [.welcome, .systemPermissions, .menuTrigger, .officialPlugins, .finish])
 
         guide.back()
-        XCTAssertEqual(guide.step, .menuTrigger)
+        XCTAssertEqual(guide.step, .officialPlugins)
         XCTAssertTrue(guide.isPresented)
     }
 

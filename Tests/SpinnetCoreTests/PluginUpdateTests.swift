@@ -595,6 +595,43 @@ final class PluginUpdateTests: XCTestCase {
     }
 
     /// The published version-selection fixtures are what the Host offers.
+    /// The Welcome Guide installs a Plugin that is not installed yet from the
+    /// Update Source the Host names for it, under the same acceptance rules
+    /// except that any version is newer than none.
+    func testTheNewestAcceptableReleaseOfAPluginNotInstalledIsOfferedForInstallation() throws {
+        let source = try PluginUpdateSource(github: PluginReleaseFixture.repository)
+        try publish([.init(tag: tag("2.1.0"), prerelease: true), .init(tag: tag("2.0.0")), .init(tag: tag("1.0.0"))])
+        try publishAsset(tag: tag("2.0.0"), PluginReleaseFixture.manifest(version: "2.0.0", updateSource: "someone-else/plugins"))
+        try publishAsset(tag: tag("1.0.0"), PluginReleaseFixture.manifest(version: "1.0.0"))
+
+        let lookup = try updater.newestRelease(of: PluginReleaseFixture.pluginID, named: "Updatable", from: source)
+
+        let offer = try XCTUnwrap(lookup.offer, "\(lookup.refusals)")
+        XCTAssertEqual(offer.manifest.version, "1.0.0")
+        XCTAssertEqual(offer.review.requestedAccess, [.writeClipboard], "A first install reviews every Capability")
+        XCTAssertEqual(lookup.refusals.map(\.reason),
+                       ["The package declares the Update Source someone-else/plugins, not example-org/plugins."])
+        XCTAssertNil(installedVersion, "Looking up installs nothing")
+
+        try store.install(from: offer.packageURL)
+        XCTAssertEqual(installedVersion, "1.0.0")
+    }
+
+    func testAPluginNotInstalledWithNoAcceptableReleaseIsOfferedNothing() throws {
+        let source = try PluginUpdateSource(github: PluginReleaseFixture.repository)
+        try publish([.init(tag: tag("1.0.0"))])
+        try publishAsset(tag: tag("1.0.0"), PluginReleaseFixture.manifest(id: "com.example.impostor", version: "1.0.0"))
+
+        let lookup = try updater.newestRelease(of: PluginReleaseFixture.pluginID, named: "Updatable", from: source)
+
+        XCTAssertNil(lookup.offer)
+        XCTAssertEqual(lookup.refusals.map(\.reason), ["The package is a different Plugin, com.example.impostor."])
+        XCTAssertThrowsError(try updater.newestRelease(of: PluginID("com.example.unpublished"), named: "Unpublished",
+                                                       from: try PluginUpdateSource(github: "nobody/nothing"))) {
+            XCTAssertEqual($0 as? PluginUpdateError, .offline)
+        }
+    }
+
     func testThePublishedVersionSelectionFixturesAreWhatACheckOffers() throws {
         struct Case: Decodable { let name: String; let installed: String; let tags: [String]; let offered: String? }
         struct Index: Decodable { let plugin_id: String; let cases: [Case] }

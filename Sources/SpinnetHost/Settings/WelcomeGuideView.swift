@@ -9,6 +9,7 @@ extension WelcomeGuideStep {
         case .welcome: return "Welcome to Spinnet"
         case .systemPermissions: return "System Permissions"
         case .menuTrigger: return "Open the Menu"
+        case .officialPlugins: return "Install Plugins"
         case .finish: return "You're Ready"
         }
     }
@@ -29,6 +30,8 @@ extension SettingsWindowModel {
             }
         case .menuTrigger:
             names.append(contentsOf: ["Menu Trigger", "Mouse trigger", "Click & Drag", "Keyboard shortcut optional"])
+        case .officialPlugins:
+            names.append(contentsOf: officialPlugins.accessibleNames)
         case .finish:
             names.append("Open Menu Editor")
         }
@@ -45,6 +48,7 @@ extension SettingsWindowModel {
 /// Menu Trigger controls, passed in by the Settings root view.
 struct WelcomeGuideSheet<TriggerControls: View>: View {
     @ObservedObject var guide: WelcomeGuideModel
+    @ObservedObject var officialPlugins: OfficialPluginInstallModel
     @ObservedObject var privacy: PrivacyPermissionsModel
     let openURL: (URL) -> Bool
     let triggerControls: TriggerControls
@@ -77,6 +81,15 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
             guard guide.step == .systemPermissions || guide.step == .menuTrigger else { return }
             privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false)
         }
+        // The Library's installation review, over the guide.
+        .sheet(item: Binding(
+            get: { officialPlugins.pendingReview },
+            set: { if $0 == nil { officialPlugins.cancelReview() } }
+        )) { installation in
+            PluginInstallSheet(installation: installation,
+                               onCancel: officialPlugins.cancelReview,
+                               onInstall: officialPlugins.confirmReview)
+        }
     }
 
     private var stepIndicator: some View {
@@ -91,7 +104,7 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
     private var stepContent: some View {
         switch guide.step {
         case .welcome:
-            Text("Spinnet opens a radial Menu wherever you are. This guide sets up the System Permissions Spinnet needs and how you open the Menu.")
+            Text("Spinnet opens a radial Menu wherever you are. This guide sets up the System Permissions Spinnet needs and how you open the Menu, and installs Official Plugins.")
                 .fixedSize(horizontal: false, vertical: true)
             Text("You can change all of this later in Settings, and reopen this guide from General.")
                 .foregroundStyle(.secondary)
@@ -110,10 +123,78 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
             .settingsCard()
         case .menuTrigger:
             ScrollView { triggerControls }
+        case .officialPlugins:
+            officialPluginsStep
         case .finish:
             Text("Next, add Menu Items to your Slots in the Menu Editor. Plugins from the Library provide them.")
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var officialPluginsStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Official Plugins are published in SpinnetPlugins. Choose the ones to install now; installed Plugins wait in the Library until you add them to Slots.")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(officialPlugins.plugins) { plugin in
+                        officialPluginRow(plugin)
+                        if plugin != officialPlugins.plugins.last { Divider() }
+                    }
+                }
+                .padding(.horizontal, 14)
+            }
+            .settingsCard()
+            HStack {
+                Spacer()
+                Button("Install Selected", action: officialPlugins.installSelected)
+                    .disabled(!officialPlugins.canInstallSelected)
+            }
+        }
+    }
+
+    private func officialPluginRow(_ plugin: OfficialPlugin) -> some View {
+        let state = officialPlugins.state(for: plugin.id)
+        return HStack(alignment: .center, spacing: 12) {
+            Toggle(isOn: Binding(get: { officialPlugins.isSelected(plugin.id) },
+                                 set: { officialPlugins.setSelected($0, for: plugin.id) })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(plugin.name).font(.headline)
+                    Text(plugin.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.checkbox)
+            .disabled(state == .installed)
+            .accessibilityLabel(plugin.name)
+            Spacer(minLength: 12)
+            switch state {
+            case .notInstalled:
+                EmptyView()
+            case .downloading:
+                ProgressView().controlSize(.small)
+                    .accessibilityLabel("Installing \(plugin.name)")
+            case .awaitingReview:
+                Text("Waiting for review").font(.caption).foregroundStyle(.secondary)
+            case .installed:
+                Label("Installed", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            case .failed(let message):
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: 220, alignment: .trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Retry") { officialPlugins.retry(plugin.id) }
+                    .controlSize(.small)
+                    .accessibilityLabel("Retry \(plugin.name)")
+            }
+        }
+        .padding(.vertical, 8)
     }
 
     private func permissionRow(_ permission: PluginSystemPermission) -> some View {
