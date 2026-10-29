@@ -21,6 +21,8 @@ struct GeneralSettingsView: View {
                         "Show Status Item", isOn: $model.showsStatusItem,
                         detail: "When off, the Status Item still appears while a Task or Effect is ongoing. Open Spinnet again to show Settings."
                     )
+                    Divider()
+                    welcomeGuideRow
                 }
                 .padding(.horizontal, 18)
                 .settingsCard()
@@ -62,6 +64,23 @@ struct GeneralSettingsView: View {
             }
         }
         .padding(.bottom, launchAtLogin.needsApproval || launchAtLogin.failure != nil ? 12 : 0)
+    }
+
+    private var welcomeGuideRow: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Welcome Guide").font(.body.weight(.medium))
+                Text("Walk through System Permissions and how to open the Menu again.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Button("Open Welcome Guide…", action: model.openWelcomeGuide)
+                .accessibilityLabel("Open Welcome Guide")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
     }
 
     private func toggleRow(_ title: String, isOn: Binding<Bool>, detail: String) -> some View {

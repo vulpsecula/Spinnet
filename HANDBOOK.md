@@ -7,8 +7,11 @@ behaviour and Plugin development live in
 
 ## Using Spinnet
 
-A first launch without a saved Menu starts with eight empty Slots. Open
-Settings → Menu and add a Plugin's Preset to a Slot. Each Menu Item has one
+A first launch without a saved Menu starts with eight empty Slots. A launch
+with no Plugin installed opens the Welcome Guide, which walks through System
+Permissions and how to open the Menu, then finishes in the Menu Editor. Once
+completed or skipped it does not open by itself again; General's Open Welcome
+Guide… reopens it. Open Settings → Menu and add a Plugin's Preset to a Slot. Each Menu Item has one
 Primary Action and optional Alternate Actions, available by right-click.
 Its Configuration Sheet saves or cancels edits together; Menu arrangement,
 appearance and triggers save automatically. Unavailable Actions keep their

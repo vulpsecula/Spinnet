@@ -98,6 +98,10 @@ _Avoid_: Overview, wheel editor
 The non-executing presentation of a Menu inside the Menu Editor.
 _Avoid_: Preview Menu, test Menu
 
+**Welcome Guide**:
+The Host's first-run walkthrough of System Permissions and how to open the Menu, ending in the Menu Editor. It opens at a launch with no Plugin installed until completed or skipped, and General reopens it.
+_Avoid_: Onboarding, setup assistant, permission guide
+
 **Runtime Mode**:
 The executable presentation of a Menu when the user invokes it outside Settings.
 _Avoid_: Live preview, actual Menu

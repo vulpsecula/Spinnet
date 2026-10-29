@@ -73,7 +73,7 @@ extension SettingsPage {
                 showsEditorMode: false,
                 accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.general"),
                 contentAccessibilityNames: { _ in
-                    ["General", "Launch at Login", "Show Status Item"]
+                    ["General", "Launch at Login", "Show Status Item", "Open Welcome Guide"]
                 }
             )
         case .menu:

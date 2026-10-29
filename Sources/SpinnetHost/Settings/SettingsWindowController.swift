@@ -137,6 +137,10 @@ final class SettingsWindowController: NSWindowController {
     }
 
     var permissionGuidePresented: Bool { model.privacy.permissionGuidePresented }
+    var welcomeGuidePresented: Bool { model.welcomeGuide.isPresented }
+    /// Opens the Welcome Guide when no Plugin is installed and the guide was
+    /// never completed or skipped.
+    func openWelcomeGuideAtLaunchIfNeeded() { model.openWelcomeGuideAtLaunchIfNeeded() }
     var clipboardCollectionEnabled: Bool {
         get { model.clipboardHistory.collectionEnabled }
         set { model.clipboardHistory.collectionEnabled = newValue }

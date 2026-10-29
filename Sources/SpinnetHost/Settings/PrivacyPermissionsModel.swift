@@ -272,3 +272,48 @@ final class PrivacyPermissionsModel: ObservableObject {
         pluginSettingsManifest = manifests().first { $0.id == pluginID }
     }
 }
+
+// MARK: System Permission presentation
+
+extension PrivacyPermissionsModel {
+    /// The live status line for a System Permission, as the Welcome Guide's
+    /// permission step shows it.
+    func statusTitle(for permission: PluginSystemPermission) -> String {
+        if isGranted(permission) { return "\(permission.title) granted" }
+        if awaitsRestart(permission) { return "Restart Spinnet to finish" }
+        return "\(permission.title) required"
+    }
+
+    /// Screen Recording is requested from the user's click; every other
+    /// permission opens System Settings.
+    func actionTitle(for permission: PluginSystemPermission) -> String {
+        if awaitsRestart(permission) { return "Restart Spinnet" }
+        return permission == .screenRecording && !isGranted(permission)
+            ? "Enable Screen Recording…"
+            : "Open \(permission.title) Settings…"
+    }
+
+    /// What the permission's button does: relaunch to apply a new Screen
+    /// Recording grant, ask macOS once, or open the System Settings pane.
+    func performAction(for permission: PluginSystemPermission, openURL: (URL) -> Bool) {
+        if awaitsRestart(permission) { HostRelaunch.relaunch(); return }
+        if permission == .screenRecording, !isGranted(permission), requestScreenRecordingPermission() { return }
+        if let url = permission.systemSettingsURL { _ = openURL(url) }
+    }
+
+    private func awaitsRestart(_ permission: PluginSystemPermission) -> Bool {
+        permission == .screenRecording && screenRecordingAwaitsRestart && HostRelaunch.isAvailable
+    }
+}
+
+extension PluginSystemPermission {
+    /// The System Settings pane where the user grants this permission.
+    var systemSettingsURL: URL? {
+        switch self {
+        case .accessibility:
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        case .screenRecording:
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+        }
+    }
+}

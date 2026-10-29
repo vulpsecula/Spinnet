@@ -474,7 +474,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             installStatusItem()
             settings.onShowsStatusItemChanged = { [weak self] in self?.statusItemController?.setShowsStatusItem($0) }
             try installTriggers()
-            if settings.permissionGuidePresented { settings.present() }
+            settings.openWelcomeGuideAtLaunchIfNeeded()
+            if settings.welcomeGuidePresented || settings.permissionGuidePresented { settings.present() }
             #if DEBUG
             if CommandLine.arguments.contains("--lifecycle-check") {
                 showLifecycleTestWindow()

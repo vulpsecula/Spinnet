@@ -229,6 +229,8 @@ final class SettingsWindowModel: ObservableObject {
     /// The Library's Check for Update and Update per Plugin, and General's
     /// checks of every Plugin.
     let pluginUpdates: PluginUpdatesModel
+    /// The first-run Welcome Guide, also reopened from General.
+    let welcomeGuide: WelcomeGuideModel
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onScreenshotSettingsChanged: (() -> Void)?
@@ -283,6 +285,15 @@ final class SettingsWindowModel: ObservableObject {
             editor.pluginManifests + editor.refusedPlugins.compactMap(\.manifest)
         }, defaults: defaults)
         pluginUpdates.startUpdate = { [weak menuEditor] in menuEditor?.installPluginUpdate($0) }
+        // A Refused Plugin is installed too.
+        welcomeGuide = WelcomeGuideModel(defaults: defaults, hasInstalledPlugins: { [editor] in
+            !editor.pluginManifests.isEmpty || !editor.refusedPlugins.isEmpty
+        })
+        // The guide's permission step stood in for the first-run banner.
+        welcomeGuide.onComplete = { [weak self] in
+            self?.privacy.dismissPermissionGuide()
+            self?.selectPage(.menu)
+        }
         // The Library bumps its token after each install, update or removal.
         pluginUpdates.observeInstalledPlugins(menuEditor.$refreshToken.dropFirst())
         // Authority decides Menu Item availability, so a grant or permission
@@ -300,6 +311,17 @@ final class SettingsWindowModel: ObservableObject {
         menuEditor.grantRequestedAccess = { [weak privacy] manifest, requested in
             privacy?.grantRequestedAccess(manifest, requested)
         }
+    }
+
+    /// Opens the Welcome Guide when this launch has no Plugin installed and
+    /// the guide was never completed or skipped.
+    func openWelcomeGuideAtLaunchIfNeeded() {
+        welcomeGuide.openAtLaunchIfNeeded()
+    }
+
+    /// General's Open Welcome Guide…, available whatever is installed.
+    func openWelcomeGuide() {
+        welcomeGuide.open()
     }
 
     /// Persist a sheet draft before changing editor state, Undo or presentation.
@@ -461,7 +483,9 @@ final class SettingsWindowModel: ObservableObject {
                 "\(grant.capability.title): \(grant.decision.title)"
             })
         }
-        if privacy.permissionGuidePresented {
+        if welcomeGuide.isPresented {
+            names.append(contentsOf: welcomeGuideAccessibleNames)
+        } else if privacy.permissionGuidePresented {
             names.append("Spinnet Permissions")
             names.append("Open Accessibility Settings")
             names.append("Skip for now")
@@ -481,6 +505,7 @@ struct SettingsRootView: View {
     @ObservedObject var privacy: PrivacyPermissionsModel
     @ObservedObject var menuEditor: MenuEditorModel
     @ObservedObject var screenshots: ScreenshotSettingsModel
+    @ObservedObject var welcomeGuide: WelcomeGuideModel
     let openURL: (URL) -> Bool
 
     init(model: SettingsWindowModel, openURL: @escaping (URL) -> Bool) {
@@ -491,6 +516,7 @@ struct SettingsRootView: View {
         self.clipboardHistory = model.clipboardHistory
         self.privacy = model.privacy
         self.screenshots = model.screenshots
+        self.welcomeGuide = model.welcomeGuide
         self.openURL = openURL
     }
     @FocusState private var focusedPage: SettingsPage?
@@ -579,8 +605,16 @@ struct SettingsRootView: View {
         } message: {
             Text(menuEditor.replacementMessage)
         }
+        .sheet(isPresented: Binding(
+            get: { welcomeGuide.isPresented },
+            // Closing the sheet any other way counts as skipping it.
+            set: { if !$0, welcomeGuide.isPresented { welcomeGuide.skip() } }
+        )) {
+            WelcomeGuideSheet(guide: welcomeGuide, privacy: privacy, openURL: openURL,
+                              triggerControls: menuTriggerSettings)
+        }
         .overlay(alignment: .topTrailing) {
-            if privacy.permissionGuidePresented {
+            if privacy.permissionGuidePresented, !welcomeGuide.isPresented {
                 PermissionGuideBanner(
                     openSettings: openAccessibilitySettings,
                     dismiss: privacy.dismissPermissionGuide
