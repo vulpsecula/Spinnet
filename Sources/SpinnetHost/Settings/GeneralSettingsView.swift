@@ -6,6 +6,7 @@ import SwiftUI
 struct GeneralSettingsView: View {
     @ObservedObject var model: SettingsWindowModel
     @ObservedObject var launchAtLogin: LaunchAtLoginModel
+    @ObservedObject var pluginUpdates: PluginUpdatesModel
 
     var body: some View {
         ScrollView {
@@ -23,6 +24,10 @@ struct GeneralSettingsView: View {
                 }
                 .padding(.horizontal, 18)
                 .settingsCard()
+
+                PluginUpdateChecksSection(updates: pluginUpdates, showLibrary: { model.selectPage(.menu) })
+                    .padding(.horizontal, 18)
+                    .settingsCard()
 
                 #if DEBUG
                 if let tools = model.developerTools {

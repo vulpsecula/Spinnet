@@ -55,6 +55,12 @@ final class SettingsWindowController: NSWindowController {
         get { model.pluginUpdates.checkPluginUpdate }
         set { model.pluginUpdates.checkPluginUpdate = newValue }
     }
+    var checkPluginUpdates: (([PluginID], @escaping () -> Bool) -> PluginUpdateRun)? {
+        get { model.pluginUpdates.checkPluginUpdates }
+        set { model.pluginUpdates.checkPluginUpdates = newValue }
+    }
+    /// Schedules General's daily check of every Plugin; asks nothing until due.
+    func startAutomaticPluginUpdateChecks() { model.pluginUpdates.startAutomaticChecks() }
     var removePlugin: ((PluginID) throws -> Void)? {
         get { model.menuEditor.removePlugin }
         set { model.menuEditor.removePlugin = newValue }
