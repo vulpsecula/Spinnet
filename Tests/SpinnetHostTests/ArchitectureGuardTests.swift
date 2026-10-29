@@ -39,7 +39,17 @@ final class ArchitectureGuardTests: XCTestCase {
         .init("Sources/SpinnetHost/Application/Migrations/ScreenshotPluginMigration.swift", "builtin.capture_area", .retiredPluginMigration),
         .init("Sources/SpinnetHost/Application/Migrations/ScreenshotPluginMigration.swift", "builtin.capture_full_screen", .retiredPluginMigration),
         .init("Sources/SpinnetHost/Application/Migrations/ScreenshotPluginMigration.swift", "builtin.capture_window", .retiredPluginMigration)
-    ]
+    ] + officialPluginList
+
+    /// The Welcome Guide's fixed list names each Official Plugin's identity
+    /// once, and nothing else of it. An official Plugin missing from the list
+    /// fails too, as an exception that no longer matches.
+    private static var officialPluginList: [ArchitectureGuard.Exception] {
+        let packages = (try? OfficialPluginFixtures.all()) ?? []
+        return packages.map {
+            .init("Sources/SpinnetHost/Settings/OfficialPlugins.swift", $0.manifest.id.rawValue, .officialPluginList)
+        }
+    }
 
     func testHostModulesNameNoPluginSpecificLiteralsBeyondTheExceptions() throws {
         let declared = try declaredLiterals()

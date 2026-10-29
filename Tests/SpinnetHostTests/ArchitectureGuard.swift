@@ -58,6 +58,9 @@ enum ArchitectureGuard {
         /// A Plugin API catalogue ID that a Plugin also happens to use as a
         /// Command ID; the Host names the operation, not the Plugin.
         case catalogueID
+        /// The Host's fixed list of Official Plugins the Welcome Guide offers:
+        /// identity only, with no Plugin behaviour.
+        case officialPluginList
         /// The W ticket under the plugin architecture map, #47, that removes it.
         case removedBy(String)
 
@@ -68,6 +71,7 @@ enum ArchitectureGuard {
             case .retiredReview: return "retired review carried into a grant"
             case .testFixture: return "test fixture"
             case .catalogueID: return "Plugin API catalogue ID"
+            case .officialPluginList: return "Official Plugin list"
             case .removedBy(let ticket): return "removed by \(ticket)"
             }
         }
