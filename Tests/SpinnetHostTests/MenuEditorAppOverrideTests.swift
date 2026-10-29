@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 import SpinnetCore
 @testable import SpinnetHost
@@ -274,6 +275,190 @@ final class MenuEditorAppOverrideTests: XCTestCase {
         _ = model.switcherApps
 
         XCTAssertEqual(lookups, 1)
+    }
+
+    // MARK: - Keeping App Overrides in step with Slot changes (#122)
+
+    func testDeletingADefaultSlotWithAppOverridesAsksFirstNamingTheApps() throws {
+        let editor = try makeEditor()
+        try editor.emptySlot(at: 0, for: safari)
+        try editor.emptySlot(at: 0, for: finder)
+        try editor.emptySlot(at: 2, for: finder)
+        let model = MenuEditorModel(editor: editor, appName: { $0 == self.safari ? "Safari" : "Finder" })
+        var saved: [HostConfiguration] = []
+        model.onConfigurationChanged = { saved.append($0) }
+
+        XCTAssertTrue(model.requestSlotDeletion(at: 0))
+
+        XCTAssertEqual(model.deletionMessage,
+                       "This removes the whole Slot from the Menu. You can undo the deletion."
+                           + " Its App Overrides for Finder and Safari are removed with it.")
+        XCTAssertEqual(model.editor.configuration.menu.slots.count, 3)
+        XCTAssertTrue(saved.isEmpty)
+
+        model.confirmSlotDeletion()
+
+        XCTAssertEqual(saved.last?.menu.slots.count, 2)
+        XCTAssertEqual(saved.last?.menu.overriddenApps, [finder])
+        model.undoSlotEdit()
+        XCTAssertEqual(Set(model.editor.configuration.menu.overriddenApps), [finder, safari])
+        XCTAssertTrue(model.editor.isOverridden(slotAt: 0, for: safari))
+    }
+
+    func testDeletingADefaultSlotWithoutAppOverridesDoesNotMentionThem() throws {
+        let editor = try makeEditor()
+        try editor.emptySlot(at: 2, for: safari)
+        let model = MenuEditorModel(editor: editor, appName: { _ in "Safari" })
+
+        XCTAssertTrue(model.requestSlotDeletion(at: 1))
+
+        XCTAssertEqual(model.deletionMessage,
+                       "This removes the whole Slot from the Menu. You can undo the deletion.")
+        model.confirmSlotDeletion()
+        XCTAssertEqual(model.editor.configuration.menu.overriddenApps, [safari])
+    }
+
+    func testTheEditorCentreShowsMenuForTheDefaultAndTheEditedAppsIcon() throws {
+        let icon = NSImage(size: NSSize(width: 8, height: 8))
+        let safariURL = URL(fileURLWithPath: "/Applications/Safari.app")
+        var loaded: [URL] = []
+        let icons = CurrentAppIcons(environment: .init(
+            load: { _, _ in nil },
+            loadBundle: { url, _ in loaded.append(url); return url == safariURL ? icon : nil },
+            background: { $0() }, main: { $0() }
+        ))
+        let model = MenuEditorModel(
+            editor: try makeEditor(), appName: { _ in nil },
+            appURL: { $0 == self.safari ? safariURL : URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app") },
+            appIcons: icons
+        )
+
+        XCTAssertEqual(model.centre.label, "MENU")
+        XCTAssertNil(model.editedAppIcon)
+
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        XCTAssertTrue(model.editedAppIcon === icon)
+        XCTAssertNil(model.centre.label)
+
+        // An App without an icon is named instead.
+        model.addApp(bundleIdentifier: "com.apple.finder", name: "Finder")
+        XCTAssertNil(model.editedAppIcon)
+        XCTAssertEqual(model.centre.label, "Finder")
+
+        model.editApp(safari)
+        XCTAssertTrue(model.editedAppIcon === icon)
+        model.editApp(nil)
+        XCTAssertNil(model.editedAppIcon)
+        XCTAssertEqual(model.centre.label, "MENU")
+        // Each App's icon is read once.
+        XCTAssertEqual(loaded.count, 2)
+    }
+
+    func testAnEditedAppsIconArrivingAfterAnotherAppIsChosenIsNotShown() throws {
+        var pending: [() -> Void] = []
+        let icons = CurrentAppIcons(environment: .init(
+            load: { _, _ in nil },
+            loadBundle: { _, _ in NSImage(size: NSSize(width: 8, height: 8)) },
+            background: { pending.append($0) }, main: { $0() }
+        ))
+        let model = MenuEditorModel(
+            editor: try makeEditor(), appName: { _ in nil },
+            appURL: { URL(fileURLWithPath: "/Applications/\($0.rawValue).app") },
+            appIcons: icons
+        )
+
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        XCTAssertNil(model.editedAppIcon)
+        XCTAssertEqual(model.centre.label, "Safari")
+        model.editApp(nil)
+        pending.forEach { $0() }
+
+        XCTAssertNil(model.editedAppIcon)
+        XCTAssertEqual(model.centre.label, "MENU")
+
+        model.editApp(safari)
+        XCTAssertNotNil(model.editedAppIcon)
+    }
+
+    func testRemovingTheEditedAppReturnsTheCentreToMenu() throws {
+        let model = MenuEditorModel(
+            editor: try makeEditor(), appName: { _ in nil },
+            appURL: { _ in URL(fileURLWithPath: "/Applications/Safari.app") },
+            appIcons: CurrentAppIcons(environment: .init(
+                load: { _, _ in nil },
+                loadBundle: { _, _ in NSImage(size: NSSize(width: 8, height: 8)) },
+                background: { $0() }, main: { $0() }
+            ))
+        )
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        model.emptySlot(at: 0)
+
+        model.removeEditedApp()
+
+        XCTAssertNil(model.editedAppIcon)
+        XCTAssertEqual(model.centre.label, "MENU")
+    }
+
+    /// Each App's bundle is looked up once while the Menu Editor runs, like
+    /// its name.
+    func testAnEditedAppsBundleIsLookedUpOncePerApp() throws {
+        var lookups: [AppBundleIdentifier] = []
+        let model = MenuEditorModel(
+            editor: try makeEditor(), appName: { _ in nil },
+            appURL: { lookups.append($0); return URL(fileURLWithPath: "/Applications/\($0.rawValue).app") },
+            appIcons: CurrentAppIcons(environment: .init(
+                load: { _, _ in nil }, loadBundle: { _, _ in nil }, background: { $0() }, main: { $0() }
+            ))
+        )
+        model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
+        model.editApp(nil)
+        model.editApp(safari)
+        model.editApp(nil)
+        model.editApp(safari)
+
+        XCTAssertEqual(lookups, [safari])
+    }
+
+    /// The Menu Editor keeps only a few edited Apps' icons, so its store
+    /// costs little once Settings closes.
+    func testTheEditorKeepsOnlyAFewEditedAppsIcons() throws {
+        var reads: [String] = []
+        let editorModel = MenuEditorModel(
+            editor: try makeEditor(), appName: { _ in nil },
+            appURL: { URL(fileURLWithPath: "/Applications/\($0.rawValue).app") },
+            appIcons: CurrentAppIcons(environment: .init(
+                load: { _, _ in nil },
+                loadBundle: { url, side in
+                    reads.append(url.lastPathComponent)
+                    return NSImage(size: NSSize(width: side, height: side))
+                },
+                background: { $0() }, main: { $0() }
+            ), capacity: MenuEditorModel.editedAppIconCapacity)
+        )
+        let apps = (0...MenuEditorModel.editedAppIconCapacity).map { "com.example.app\($0)" }
+        apps.forEach { editorModel.addApp(bundleIdentifier: $0, name: $0) }
+        reads = []
+
+        editorModel.editApp(try XCTUnwrap(AppBundleIdentifier(validating: apps[0])))
+
+        XCTAssertEqual(MenuEditorModel.editedAppIconCapacity, 4)
+        XCTAssertEqual(reads, ["com.example.app0.app"])
+    }
+
+    /// The edited App's icon is read at least as large as the Menu Editor's
+    /// centre draws it at the largest Menu Size on this Mac's screens.
+    func testTheEditedAppsIconIsReadLargeEnoughForTheEditorsCentre() throws {
+        let view = RadialMenuView(
+            slots: [.empty, .empty, .empty], mode: .editor,
+            previewScale: MenuEditorModel.previewScale, previewCanvasDiameter: MenuEditorModel.previewCanvasDiameter
+        )
+        view.applyAppearance(MenuAppearanceConfiguration(menuSize: "200"))
+        view.showEditorCentre(MenuEditorCentre(appName: "Safari", appIcon: NSImage(size: NSSize(width: 8, height: 8))))
+        let drawn = try XCTUnwrap(view.hubIconRect)
+        let backing = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
+
+        XCTAssertGreaterThanOrEqual(CGFloat(MenuEditorModel.editedAppIconPixelSide), drawn.width * backing)
+        XCTAssertLessThan(CGFloat(MenuEditorModel.editedAppIconPixelSide), drawn.width * backing + 2)
     }
 
     // MARK: - Helpers

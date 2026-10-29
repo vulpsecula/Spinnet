@@ -100,6 +100,44 @@ final class MenuCurrentAppHubTests: XCTestCase {
         XCTAssertFalse(try isRed(atCentreOf: view))
     }
 
+    /// While the Menu Editor edits an App's App Overrides (#122), its centre
+    /// draws that App's icon, or names it until one is known, and VoiceOver
+    /// hears which Menu is edited; the default Menu keeps "MENU".
+    func testEditorModeShowsTheEditedAppsIconAndDefaultKeepsMenu() throws {
+        let view = RadialMenuView(slots: [.empty, .empty, .empty], mode: .editor)
+
+        view.showEditorCentre(MenuEditorCentre(appName: "Safari", appIcon: Self.redIcon()))
+        XCTAssertNotNil(view.hubIconRect)
+        XCTAssertNil(view.hubLabel)
+        XCTAssertEqual(view.accessibilityLabel(), "Editor Mode Menu for Safari")
+        XCTAssertTrue(try isRed(atCentreOf: view))
+
+        view.showEditorCentre(MenuEditorCentre(appName: "Finder", appIcon: nil))
+        XCTAssertNil(view.hubIconRect)
+        XCTAssertEqual(view.hubLabel, "Finder")
+
+        view.showEditorCentre(.defaultMenu)
+        XCTAssertNil(view.hubIconRect)
+        XCTAssertEqual(view.hubLabel, "MENU")
+        XCTAssertEqual(view.accessibilityLabel(), "Editor Mode Menu")
+        XCTAssertFalse(try isRed(atCentreOf: view))
+    }
+
+    /// "Spinnet" stays whole even at the smallest Menu Size; only an edited
+    /// App's name wider than the centre's circle is truncated.
+    func testTheRuntimeLabelIsDrawnWholeAtTheSmallestMenuSize() throws {
+        let view = RadialMenuView(slots: [.empty, .empty, .empty])
+        view.applyAppearance(MenuAppearanceConfiguration(menuSize: "50"))
+
+        XCTAssertEqual(view.hubLabel, "Spinnet")
+        XCTAssertEqual(view.hubLabelTruncates, false)
+
+        let editor = RadialMenuView(slots: [.empty, .empty, .empty], mode: .editor)
+        editor.applyAppearance(MenuAppearanceConfiguration(menuSize: "50"))
+        editor.showEditorCentre(MenuEditorCentre(appName: String(repeating: "Very Long App Name ", count: 4), appIcon: nil))
+        XCTAssertEqual(editor.hubLabelTruncates, true)
+    }
+
     /// Each invocation shows the App in front then; a press in the centre
     /// still closes the Menu.
     func testEachInvocationShowsItsCurrentAppAndAPressInTheCentreStillCloses() throws {

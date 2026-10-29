@@ -494,8 +494,8 @@ struct SettingsRootView: View {
     // The Editor Mode column owns enough width for the radial Menu to remain
     // legible while the page content keeps a usable control width beside it.
     private let editorModeColumnWidth: CGFloat = 520
-    private let menuPreviewScale: CGFloat = 1.24
-    private let menuPreviewCanvasDiameter: CGFloat = 432
+    private let menuPreviewScale = MenuEditorModel.previewScale
+    private let menuPreviewCanvasDiameter = MenuEditorModel.previewCanvasDiameter
     private let menuPreviewContainerDiameter: CGFloat = 456
 
     var body: some View {
@@ -555,7 +555,7 @@ struct SettingsRootView: View {
             Button("Cancel", role: .cancel, action: menuEditor.cancelSlotDeletion)
             Button("Delete Slot", role: .destructive, action: menuEditor.confirmSlotDeletion)
         } message: {
-            Text("This removes the whole Slot from the Menu. You can undo the deletion.")
+            Text(menuEditor.deletionMessage)
         }
         .alert(menuEditor.removalTitle, isPresented: Binding(
             get: { menuEditor.pluginPendingRemoval != nil },
@@ -680,6 +680,7 @@ struct SettingsRootView: View {
                     mode: .editor,
                     allowsEditing: model.page == .menu,
                     allowsArrangement: menuEditor.canArrangeSlots,
+                    centre: menuEditor.centre,
                     previewScale: menuPreviewScale,
                     previewCanvasDiameter: menuPreviewCanvasDiameter,
                     onSelection: menuEditor.selectMenuItem,
@@ -1047,6 +1048,9 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     /// Whether Slots may be added, moved and deleted: only in the default
     /// Menu.
     let allowsArrangement: Bool
+    /// What the centre shows: the edited App, or "MENU" for the default
+    /// Menu.
+    let centre: MenuEditorCentre
     let previewScale: CGFloat
     let previewCanvasDiameter: CGFloat
     let onSelection: (Int) -> Void
@@ -1069,6 +1073,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
         )
         applyCallbacks(to: view)
         view.updateEditorSlots(slots, appearance: appearance, allowsArrangement: allowsArrangement)
+        view.showEditorCentre(centre)
         view.selectEditorItem(at: selectedIndex)
         return view
     }
@@ -1076,6 +1081,7 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
     func updateNSView(_ nsView: RadialMenuView, context: Context) {
         applyCallbacks(to: nsView)
         nsView.updateEditorSlots(slots, appearance: appearance, allowsArrangement: allowsArrangement)
+        nsView.showEditorCentre(centre)
         nsView.selectEditorItem(at: selectedIndex)
     }
 

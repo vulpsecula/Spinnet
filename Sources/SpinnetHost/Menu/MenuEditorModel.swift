@@ -95,6 +95,17 @@ final class MenuEditorModel: ObservableObject {
     /// Names already looked up, so listing the switcher does not ask
     /// Launch Services again on every evaluation.
     private var appNames: [AppBundleIdentifier: String] = [:]
+    private let appURL: (AppBundleIdentifier) -> URL?
+    /// Bundles already looked up, nil for an App not installed, so
+    /// switching between Apps does not ask Launch Services again.
+    private var appURLs: [AppBundleIdentifier: URL?] = [:]
+    /// The edited Apps' icons, kept apart from the Menu's own so editing
+    /// never evicts an icon the Menu's next opening would draw, and only a
+    /// few of them, so they cost little once Settings closes.
+    private let appIcons: CurrentAppIcons
+    /// The edited App's icon for the Menu Editor's centre, nil for the
+    /// default Menu and until it has been read.
+    @Published private(set) var editedAppIcon: NSImage?
 
     var editorSlots: [EditorMenuSlot] {
         zip(slotIDs, menuSlots).map { EditorMenuSlot(id: $0.0, presentation: $0.1) }
@@ -106,6 +117,19 @@ final class MenuEditorModel: ObservableObject {
     var deletionTitle: String {
         guard let id = slotPendingDeletion, let index = slotIDs.firstIndex(of: id) else { return "Delete Slot?" }
         return "Delete Slot \(index + 1) — \(menuSlots[index].title)?"
+    }
+
+    /// Says what deleting the pending Slot removes, naming the Apps whose
+    /// App Overrides of it go with it.
+    var deletionMessage: String {
+        let base = "This removes the whole Slot from the Menu. You can undo the deletion."
+        guard let id = slotPendingDeletion, let index = slotIDs.firstIndex(of: id),
+              editor.configuration.menu.slots.indices.contains(index) else { return base }
+        let names = editor.configuration.menu.slots[index].appOverrides.keys
+            .map { app(for: $0).name }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        guard !names.isEmpty else { return base }
+        return base + " Its App Overrides for \(Self.listed(names)) are removed with it."
     }
     private var undoHistory: [MenuHistoryEntry] = []
     private var redoHistory: [MenuHistoryEntry] = []
@@ -123,10 +147,14 @@ final class MenuEditorModel: ObservableObject {
 
     init(
         editor: HostConfigurationEditor,
-        appName: @escaping (AppBundleIdentifier) -> String? = MenuEditorModel.installedAppName
+        appName: @escaping (AppBundleIdentifier) -> String? = MenuEditorModel.installedAppName,
+        appURL: @escaping (AppBundleIdentifier) -> URL? = MenuEditorModel.installedAppURL,
+        appIcons: CurrentAppIcons = CurrentAppIcons(capacity: MenuEditorModel.editedAppIconCapacity)
     ) {
         self.editor = editor
         self.appName = appName
+        self.appURL = appURL
+        self.appIcons = appIcons
         slotIDs = editor.configuration.menu.slots.map { _ in UUID() }
         menuSlots = []
         menuSlots = makeMenuSlots()
@@ -909,8 +937,54 @@ final class MenuEditorModel: ObservableObject {
         presetPendingReplacement = nil
         connectionPlacementIntent = nil
         editedApp = app.map(self.app(for:))
+        showEditedAppIcon()
         refreshMenuSlots()
         refreshToken += 1
+    }
+
+    /// What the Menu Editor's centre shows, which its view draws.
+    var centre: MenuEditorCentre {
+        MenuEditorCentre(appName: editedApp?.name, appIcon: editedAppIcon)
+    }
+
+    /// The scale the Menu Editor draws its Menu at, before fitting it to
+    /// its canvas.
+    static let previewScale: CGFloat = 1.24
+    /// The side, in points, of the Menu Editor's square canvas.
+    static let previewCanvasDiameter: CGFloat = 432
+
+    /// The pixel side an edited App's icon is read at: the largest square
+    /// the Menu Editor's canvas draws it in, at the largest Menu Size, on
+    /// the densest screen attached now.
+    static var editedAppIconPixelSide: Int {
+        let backing = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
+        let side = RadialMenuView.largestEditorHubIconSide(canvasDiameter: previewCanvasDiameter)
+        return Int((side * backing).rounded(.up))
+    }
+
+    /// How many edited Apps' icons the Menu Editor keeps.
+    static let editedAppIconCapacity = 4
+
+    /// Shows the edited App's icon in the centre, read from its bundle off
+    /// the main thread the first time; an icon arriving after another App
+    /// was chosen is not shown.
+    private func showEditedAppIcon() {
+        editedAppIcon = nil
+        guard let app = editedAppID, let url = installedURL(of: app) else { return }
+        let show: (NSImage) -> Void = { [weak self] icon in
+            guard let self, self.editedAppID == app else { return }
+            self.editedAppIcon = icon
+        }
+        if let cached = appIcons.icon(forAppAt: url, pixelSide: Self.editedAppIconPixelSide, loaded: show) {
+            show(cached)
+        }
+    }
+
+    private func installedURL(of app: AppBundleIdentifier) -> URL? {
+        if let url = appURLs[app] { return url }
+        let url = appURL(app)
+        appURLs[app] = .some(url)
+        return url
     }
 
     /// Adds an App to the switcher and edits it. An App is identified by its
@@ -1049,6 +1123,12 @@ final class MenuEditorModel: ObservableObject {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier.rawValue).map(displayName(of:))
     }
 
+    /// Where the installed App with `identifier` is, read only while the
+    /// Menu Editor edits it, never when the Menu opens.
+    static func installedAppURL(_ identifier: AppBundleIdentifier) -> URL? {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier.rawValue)
+    }
+
     private static func displayName(of url: URL) -> String {
         let name = FileManager.default.displayName(atPath: url.path)
         return name.hasSuffix(".app") ? String(name.dropLast(4)) : name
@@ -1092,5 +1172,29 @@ final class MenuEditorModel: ObservableObject {
             placementMessage = error.localizedDescription
             return false
         }
+    }
+}
+
+/// What the Menu Editor's centre shows (#122): "MENU" for the default Menu;
+/// for an edited App, its icon once read and its name until then.
+struct MenuEditorCentre: Equatable {
+    /// The edited App's name, nil for the default Menu.
+    var appName: String?
+    /// The edited App's icon once read; ignored for the default Menu.
+    var appIcon: NSImage?
+
+    static let defaultMenu = MenuEditorCentre(appName: nil, appIcon: nil)
+
+    /// The text drawn in the centre, nil while the App's icon is.
+    var label: String? {
+        guard let appName else { return "MENU" }
+        return appIcon == nil ? appName : nil
+    }
+
+    /// The icon drawn in the centre, nil while a label is.
+    var icon: NSImage? { appName == nil ? nil : appIcon }
+
+    static func == (lhs: MenuEditorCentre, rhs: MenuEditorCentre) -> Bool {
+        lhs.appName == rhs.appName && lhs.icon === rhs.icon
     }
 }

@@ -76,6 +76,9 @@ final class RadialMenuView: NSView {
     private let presentationMode: RadialMenuPresentationMode
     private var currentApp: CurrentApp?
     private var currentAppIcon: NSImage?
+    /// What the Menu Editor's centre shows, as its model says; Editor Mode
+    /// only.
+    private var editorCentre = MenuEditorCentre.defaultMenu
     private let allowsEditing: Bool
     private let previewScale: CGFloat
     private let previewCanvasDiameter: CGFloat?
@@ -1498,29 +1501,66 @@ final class RadialMenuView: NSView {
     }
 
     private func drawHubLabel(using menuLayout: RadialMenuLayout, in canvas: NSRect) {
-        if let icon = currentAppIcon, let rect = hubIconRect(using: menuLayout, in: canvas) {
+        if let icon = hubIcon, let rect = hubIconRect(using: menuLayout, in: canvas) {
             icon.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true,
                       hints: [.interpolation: NSImageInterpolation.high.rawValue])
             return
         }
-        guard let hubLabel else { return }
+        guard let label = hubLabelLayout(using: menuLayout, in: canvas) else { return }
+        guard label.truncates else {
+            label.text.draw(at: label.rect.origin, withAttributes: label.attributes)
+            return
+        }
+        let truncating = NSMutableParagraphStyle()
+        truncating.alignment = .center
+        truncating.lineBreakMode = .byTruncatingTail
+        var attributes = label.attributes
+        attributes[.paragraphStyle] = truncating
+        label.text.draw(
+            with: label.rect,
+            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+            attributes: attributes
+        )
+    }
+
+    /// The centre's label as drawn: its text, attributes and rect, and
+    /// whether it is wider than the centre allows and so truncated; nil
+    /// while the centre shows an icon.
+    private func hubLabelLayout(
+        using menuLayout: RadialMenuLayout, in canvas: NSRect
+    ) -> (text: NSString, attributes: [NSAttributedString.Key: Any], rect: NSRect, truncates: Bool)? {
+        guard let hubLabel else { return nil }
         let center = CGPoint(x: canvas.midX, y: canvas.midY)
-        let centerLabel = hubLabel as NSString
-        let centerAttributes: [NSAttributedString.Key: Any] = [
+        let text = hubLabel as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
             .font: appearanceConfiguration.titleFont(ofSize: 10, weight: .semibold),
             .foregroundColor: palette.secondaryLabel
         ]
-        let size = centerLabel.size(withAttributes: centerAttributes)
-        centerLabel.draw(
-            at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2),
-            withAttributes: centerAttributes
-        )
+        let size = text.size(withAttributes: attributes)
+        // Only an edited App's name, which may be longer than the centre is
+        // wide, is bounded by the centre's circle, inset to clear its edge;
+        // "Spinnet" and "MENU" are drawn whole at every Menu Size.
+        let isEditedAppName = presentationMode == .editor && editorCentre.appName != nil
+        let available = max(Self.hubCircle(using: menuLayout, in: canvas).width - 2 * Self.hubLabelInset, 0)
+        let width = isEditedAppName ? min(size.width, available) : size.width
+        let rect = NSRect(x: center.x - width / 2, y: center.y - size.height / 2, width: width, height: size.height)
+        return (text, attributes, rect, width < size.width)
+    }
+
+    /// The space, in points, the centre's label keeps from each side of
+    /// the centre's circle.
+    private static let hubLabelInset: CGFloat = 4
+
+    /// Whether the centre's label is truncated to fit; nil while it shows
+    /// an icon.
+    var hubLabelTruncates: Bool? {
+        hubLabelLayout(using: layout, in: bounds)?.truncates
     }
 
     /// Shows `app`, the Current App of this invocation, in the centre of a
     /// Runtime Mode Menu: its icon once `icon` is known, "Spinnet" until
     /// then, and its name to VoiceOver throughout. Nil keeps "Spinnet".
-    /// Editor Mode keeps "MENU".
+    /// Editor Mode ignores it and shows `showEditorCentre(_:)`'s centre.
     func showCurrentApp(_ app: CurrentApp?, icon: NSImage?) {
         guard presentationMode == .runtime else { return }
         currentApp = app
@@ -1531,30 +1571,52 @@ final class RadialMenuView: NSView {
         needsDisplay = true
     }
 
-    /// The text drawn in the centre, nil while it shows the Current App's
-    /// icon.
+    /// Shows `centre`, the Menu Editor model's centre, in the centre of the
+    /// Menu Editor: the edited App's icon or name, or "MENU" for the default
+    /// Menu. Runtime Mode ignores it.
+    func showEditorCentre(_ centre: MenuEditorCentre) {
+        guard presentationMode == .editor, centre != editorCentre else { return }
+        editorCentre = centre
+        setAccessibilityLabel(centre.appName.map { "Editor Mode Menu for \($0)" } ?? "Editor Mode Menu")
+        needsDisplay = true
+    }
+
+    /// The text drawn in the centre, nil while it shows an App's icon: in
+    /// Editor Mode, the Menu Editor's centre label.
     var hubLabel: String? {
         switch presentationMode {
-        case .editor: return "MENU"
+        case .editor: return editorCentre.label
         case .runtime: return currentAppIcon == nil ? "Spinnet" : nil
         }
     }
 
-    /// Where the Current App's icon is drawn, nil while none is: a square
+    /// Where the centre's App icon is drawn, nil while none is: the Current
+    /// App's in Runtime Mode, the edited App's in Editor Mode, in a square
     /// within the centre's visible circle, so it fits every Menu Size.
     var hubIconRect: NSRect? {
         hubIconRect(using: layout, in: bounds)
     }
 
     /// The side, in points, of the square a Current App's icon is drawn in
-    /// at the present Menu Size; nil in Editor Mode.
+    /// at the present Menu Size; nil in Editor Mode, whose edited App's icon
+    /// is read at `MenuEditorModel.editedAppIconPixelSide`, from
+    /// `largestEditorHubIconSide(canvasDiameter:)`.
     var hubIconSide: CGFloat? {
         presentationMode == .runtime ? Self.hubIconSquare(using: layout, in: bounds).width : nil
     }
 
     private func hubIconRect(using menuLayout: RadialMenuLayout, in canvas: NSRect) -> NSRect? {
-        guard presentationMode == .runtime, currentApp != nil, currentAppIcon != nil else { return nil }
+        guard hubIcon != nil else { return nil }
         return Self.hubIconSquare(using: menuLayout, in: canvas)
+    }
+
+    /// The App icon drawn in the centre: the Current App's in Runtime Mode,
+    /// the edited App's in Editor Mode.
+    private var hubIcon: NSImage? {
+        switch presentationMode {
+        case .editor: return editorCentre.icon
+        case .runtime: return currentApp == nil ? nil : currentAppIcon
+        }
     }
 
     /// The centre's visible circle.
@@ -1562,6 +1624,17 @@ final class RadialMenuView: NSView {
         let scale = menuLayout.outerRadius / 142
         let radius = max(menuLayout.innerRadius - 5 * scale, 4)
         return NSRect(x: canvas.midX - radius, y: canvas.midY - radius, width: radius * 2, height: radius * 2)
+    }
+
+    /// The largest side, in points, of the square an Editor Mode Menu on a
+    /// canvas `canvasDiameter` points wide draws an App's icon in: at the
+    /// largest Menu Size, whose Menu fills the canvas.
+    static func largestEditorHubIconSide(canvasDiameter: CGFloat) -> CGFloat {
+        let outerRadius = max((canvasDiameter - 2 * RadialMenuLayout.defaultOverlayPadding) / 2, 1)
+        let scale = outerRadius / 142
+        let layout = RadialMenuLayout(itemCount: 1, innerRadius: 38 * scale, outerRadius: outerRadius,
+                                      itemCenterRadius: 90 * scale)
+        return hubIconSquare(using: layout, in: .zero).width
     }
 
     private static func hubIconSquare(using menuLayout: RadialMenuLayout, in canvas: NSRect) -> NSRect {

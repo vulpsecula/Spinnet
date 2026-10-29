@@ -126,4 +126,42 @@ final class CurrentAppIconsTests: XCTestCase {
         XCTAssertEqual(bitmap.pixelsWide, 96)
         XCTAssertEqual(bitmap.pixelsHigh, 96)
     }
+
+    /// An App that need not be running, as the Menu Editor edits, is read
+    /// from its bundle and kept by bundle path: two URLs naming one bundle
+    /// share an entry.
+    func testAnAppBundlesIconIsReadFromItsBundleAndKeptByPath() {
+        var reads: [String] = []
+        let icons = CurrentAppIcons(environment: .init(
+            load: { _, _ in XCTFail("A bundle is not read as a running App"); return nil },
+            loadBundle: { url, side in
+                reads.append("\(url.lastPathComponent)@\(side)")
+                return NSImage(size: NSSize(width: side, height: side))
+            },
+            background: { $0() }, main: { $0() }))
+
+        XCTAssertNil(icons.icon(forAppAt: URL(fileURLWithPath: "/Applications/Safari.app"), pixelSide: 64) { _ in })
+        XCTAssertNotNil(icons.icon(forAppAt: URL(fileURLWithPath: "/Applications/./Safari.app"), pixelSide: 64) { _ in })
+
+        XCTAssertEqual(reads, ["Safari.app@64"])
+    }
+
+    /// A smaller store, as the Menu Editor keeps, drops icons sooner.
+    func testAStoreKeepsOnlyItsCapacityOfIcons() {
+        let icons = CurrentAppIcons(environment: .init(
+            load: { [unowned self] app, side in
+                loads.append("\(app.name)@\(side)")
+                return NSImage(size: NSSize(width: side, height: side))
+            },
+            background: { [unowned self] in background.append($0) },
+            main: { [unowned self] in main.append($0) }), capacity: 2)
+        let apps = (0..<3).map { app(Int32(100 + $0), "com.example.\($0)", "App\($0)") }
+        apps.forEach { lookUp($0, in: icons) }
+        loads = []
+
+        XCTAssertNotNil(lookUp(apps[2], in: icons))
+        XCTAssertNotNil(lookUp(apps[1], in: icons))
+        XCTAssertNil(lookUp(apps[0], in: icons))
+        XCTAssertEqual(loads, ["App0@64"])
+    }
 }

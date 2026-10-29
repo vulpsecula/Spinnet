@@ -20,7 +20,9 @@ an App needs a bundle identifier. Adding a Preset to a Slot or editing its
 Menu Item then overrides that Slot, and right-clicking a Slot empties it or
 resets it to the default. They apply while that App is the Current App;
 every other App gets the default Menu. Slots are arranged in the default
-Menu only.
+Menu only, and App Overrides follow their Slot: a new Slot is inherited by
+every App, and deleting a Slot names the Apps whose overrides go with it.
+While an App is edited, the Menu Editor's centre shows its icon.
 
 Mouse Side Button 1 opens the Menu by default. Change the mouse trigger or
 record or enter a keyboard shortcut under Settings → Menu. The Library
