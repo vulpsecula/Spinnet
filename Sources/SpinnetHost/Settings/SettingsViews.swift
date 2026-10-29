@@ -229,6 +229,9 @@ final class SettingsWindowModel: ObservableObject {
     /// The Library's Check for Update and Update per Plugin, and General's
     /// checks of every Plugin.
     let pluginUpdates: PluginUpdatesModel
+    /// General's checks for a newer Spinnet release, also shown in the
+    /// Status Item.
+    let spinnetReleases: SpinnetReleaseChecksModel
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onScreenshotSettingsChanged: (() -> Void)?
@@ -283,6 +286,7 @@ final class SettingsWindowModel: ObservableObject {
             editor.pluginManifests + editor.refusedPlugins.compactMap(\.manifest)
         }, defaults: defaults)
         pluginUpdates.startUpdate = { [weak menuEditor] in menuEditor?.installPluginUpdate($0) }
+        spinnetReleases = SpinnetReleaseChecksModel(defaults: defaults)
         // The Library bumps its token after each install, update or removal.
         pluginUpdates.observeInstalledPlugins(menuEditor.$refreshToken.dropFirst())
         // Authority decides Menu Item availability, so a grant or permission
@@ -448,6 +452,7 @@ final class SettingsWindowModel: ObservableObject {
         } else if page == .general {
             names.append(contentsOf: launchAtLogin.accessibleNames)
             names.append(contentsOf: pluginUpdates.accessibleNames)
+            names.append(contentsOf: spinnetReleases.accessibleNames)
             #if DEBUG
             if developerTools != nil { names.append(contentsOf: DeveloperSettingsSection.accessibleNames) }
             #endif

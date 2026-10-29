@@ -58,6 +58,18 @@ per repository; a failure or GitHub's rate limit is reported on General, not
 in an alert, and is not retried before the next check. Authors publish releases
 as described in [Update Source](PluginAPI/reference/update-source.md).
 
+### Spinnet releases
+
+General's "Check for Spinnet updates automatically" (on by default) asks
+GitHub once a day for this repository's newest release that is neither a
+draft nor a prerelease, and compares its tag's version by SemVer with the
+running one. Check Now asks at once. A newer release is shown on General and
+first in the Status Item, both opening its release page; nothing is
+downloaded or installed. It stays shown across launches until that version
+runs. A development build says so and checks only on Check Now. A failure or
+GitHub's rate limit is reported on General, not in an alert, and is not
+retried before the next check.
+
 ### Privacy and ongoing work
 
 Privacy & Permissions separates macOS System Permissions, Sensitive Data

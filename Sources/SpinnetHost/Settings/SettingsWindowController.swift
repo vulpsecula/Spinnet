@@ -61,6 +61,8 @@ final class SettingsWindowController: NSWindowController {
     }
     /// Schedules General's daily check of every Plugin; asks nothing until due.
     func startAutomaticPluginUpdateChecks() { model.pluginUpdates.startAutomaticChecks() }
+    /// General's Spinnet release checks, also shown in the Status Item.
+    var spinnetReleases: SpinnetReleaseChecksModel { model.spinnetReleases }
     var removePlugin: ((PluginID) throws -> Void)? {
         get { model.menuEditor.removePlugin }
         set { model.menuEditor.removePlugin = newValue }

@@ -1,9 +1,13 @@
 import AppKit
+import Combine
 import SpinnetCore
 
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let actionTarget: StatusItemActionTarget
     private let activities: HostActivities?
+    /// A newer Spinnet release is listed first and opens its release page.
+    private let releases: SpinnetReleaseChecksModel?
+    private var releaseObservation: AnyCancellable?
     private let services = ReviewedServicesMenuController()
     private var observation: UUID?
     private weak var openMenu: NSMenu?
@@ -19,12 +23,21 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private var showsStatusItem = true
 
     init(openSettings: @escaping () -> Void, quit: @escaping () -> Void, activities: HostActivities? = nil,
+         releases: SpinnetReleaseChecksModel? = nil,
          scheduleTick: @escaping (@escaping () -> Void) -> (() -> Void) = HostActivityListModel.schedule) {
         self.scheduleTick = scheduleTick
         self.activities = activities
+        self.releases = releases
         actionTarget = StatusItemActionTarget(openSettings: openSettings, quit: quit,
-                                              stop: { activities?.stop($0) })
+                                              stop: { activities?.stop($0) },
+                                              openRelease: { releases?.openAvailableRelease() })
         super.init()
+        releaseObservation = releases?.$status.dropFirst().removeDuplicates().sink { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let menu = self.openMenu { self.replaceItems(in: menu) } else { self.statusItem?.menu = self.makeMenu() }
+            }
+        }
         observation = activities?.observeChanges { [weak self] in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -96,6 +109,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
         menu.delegate = self
         menu.setAccessibilityLabel("Spinnet Status Item Menu")
+
+        if let release = releases?.availableRelease {
+            let releaseItem = NSMenuItem(title: "Spinnet \(release.version) Is Available…",
+                                         action: #selector(StatusItemActionTarget.openRelease(_:)), keyEquivalent: "")
+            releaseItem.target = actionTarget
+            releaseItem.setAccessibilityHelp("Open the release page on GitHub. Nothing is downloaded.")
+            menu.addItem(releaseItem)
+            menu.addItem(.separator())
+        }
 
         let settingsItem = NSMenuItem(
             title: "Settings…",
@@ -188,11 +210,18 @@ private final class StatusItemActionTarget: NSObject {
     private let openSettingsAction: () -> Void
     private let quitAction: () -> Void
     private let stopAction: (String) -> Void
+    private let openReleaseAction: () -> Void
 
-    init(openSettings: @escaping () -> Void, quit: @escaping () -> Void, stop: @escaping (String) -> Void) {
+    init(openSettings: @escaping () -> Void, quit: @escaping () -> Void, stop: @escaping (String) -> Void,
+         openRelease: @escaping () -> Void) {
         openSettingsAction = openSettings
         quitAction = quit
         stopAction = stop
+        openReleaseAction = openRelease
+    }
+
+    @objc func openRelease(_ sender: Any?) {
+        openReleaseAction()
     }
 
     @objc func openSettings(_ sender: Any?) {

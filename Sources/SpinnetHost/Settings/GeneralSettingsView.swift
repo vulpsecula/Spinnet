@@ -29,6 +29,10 @@ struct GeneralSettingsView: View {
                     .padding(.horizontal, 18)
                     .settingsCard()
 
+                SpinnetReleaseChecksSection(releases: model.spinnetReleases)
+                    .padding(.horizontal, 18)
+                    .settingsCard()
+
                 #if DEBUG
                 if let tools = model.developerTools {
                     DeveloperSettingsSection(tools: tools)
