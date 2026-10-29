@@ -22,10 +22,8 @@ final class SpinnetReleaseChecksModel: ObservableObject {
     static let lastCheckKey = "spinnet-releases.last-check"
     static let availableVersionKey = "spinnet-releases.available-version"
     static let availablePageKey = "spinnet-releases.available-page"
-    /// How long after launch an overdue automatic check waits, so it never
-    /// competes with starting up.
-    static let launchDelay: TimeInterval = 60
-    static let checkInterval: TimeInterval = 24 * 60 * 60
+    static let launchDelay = DailyCheckSchedule.launchDelay
+    static let checkInterval = DailyCheckSchedule.interval
 
     /// Whether Spinnet checks once a day. Off, or in a development build, no
     /// automatic request is made.
@@ -33,14 +31,14 @@ final class SpinnetReleaseChecksModel: ObservableObject {
         didSet {
             guard checksAutomatically != oldValue else { return }
             defaults.set(checksAutomatically, forKey: Self.checksAutomaticallyKey)
-            if launchedAt != nil { scheduleNextCheck() }
+            if schedule.hasStarted { schedule.reschedule() }
         }
     }
     @Published private(set) var status: Status = .notChecked
     /// Why the last check failed while an earlier newer release is still shown.
     @Published private(set) var failure: String?
     /// When Spinnet was last checked, kept across launches.
-    @Published private(set) var lastCheck: Date?
+    var lastCheck: Date? { schedule.lastCheck }
 
     /// The running Spinnet version, compared with a newer release kept from
     /// an earlier launch.
@@ -58,46 +56,35 @@ final class SpinnetReleaseChecksModel: ObservableObject {
     /// Asks GitHub for the newest release; it reaches the network.
     var checkRelease: (() throws -> SpinnetReleaseCheck)?
     var openReleasePage: (URL) -> Void = { NSWorkspace.shared.open($0) }
-    /// Where a check runs, off the main thread, at the given priority, and
-    /// where its result lands.
-    var runInBackground: (DispatchQoS.QoSClass, @escaping () -> Void) -> Void = { priority, work in
-        DispatchQueue.global(qos: priority).async(execute: work)
+    /// Where a check runs and lands, and the clocks and timer of the daily
+    /// check; see `DailyCheckSchedule`.
+    var runInBackground: (DispatchQoS.QoSClass, @escaping () -> Void) -> Void {
+        get { schedule.runInBackground } set { schedule.runInBackground = newValue }
     }
-    var deliver: (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) }
-    var now: () -> Date = Date.init
-    /// A clock that only moves forward, for how long ago the Host launched.
-    var uptime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
-    /// Runs `fire` once after an interval and returns how to cancel it. The
-    /// model keeps at most one, for the next due check.
-    var scheduleCheck: (TimeInterval, @escaping () -> Void) -> () -> Void = { interval, fire in
-        let item = DispatchWorkItem(block: fire)
-        DispatchQueue.main.asyncAfter(wallDeadline: .now() + interval, execute: item)
-        return item.cancel
+    var deliver: (@escaping () -> Void) -> Void {
+        get { schedule.deliver } set { schedule.deliver = newValue }
+    }
+    var now: () -> Date { get { schedule.now } set { schedule.now = newValue } }
+    var uptime: () -> TimeInterval { get { schedule.uptime } set { schedule.uptime = newValue } }
+    var scheduleCheck: (TimeInterval, @escaping () -> Void) -> () -> Void {
+        get { schedule.scheduleCheck } set { schedule.scheduleCheck = newValue }
     }
 
     private let defaults: UserDefaults
-    private var cancelScheduledCheck: (() -> Void)?
-    private var launchedAt: TimeInterval?
-    private var observations: [AnyCancellable] = []
+    private let schedule: DailyCheckSchedule
 
     init(defaults: UserDefaults) {
         self.defaults = defaults
+        schedule = DailyCheckSchedule(defaults: defaults, lastCheckKey: Self.lastCheckKey)
         checksAutomatically = defaults.object(forKey: Self.checksAutomaticallyKey) as? Bool ?? true
-        lastCheck = defaults.object(forKey: Self.lastCheckKey) as? Date
         if let version = defaults.string(forKey: Self.availableVersionKey),
            let page = defaults.string(forKey: Self.availablePageKey).flatMap(URL.init(string:)) {
             status = .available(SpinnetRelease(version: version, page: page))
         }
         forgetAvailableReleaseIfApplied()
-        NotificationCenter.default.publisher(for: .NSSystemClockDidChange)
-            .sink { [weak self] _ in
-                let reschedule = { [weak self] in
-                    guard let self, self.launchedAt != nil else { return }
-                    self.scheduleNextCheck()
-                }
-                if Thread.isMainThread { reschedule() } else { DispatchQueue.main.async(execute: reschedule) }
-            }
-            .store(in: &observations)
+        schedule.isEnabled = { [unowned self] in self.checksDaily }
+        schedule.onDue = { [unowned self] in self.check(automatic: true) }
+        schedule.willChange = { [unowned self] in self.objectWillChange.send() }
     }
 
     /// The newer release shown on General and in the Status Item, if any.
@@ -112,7 +99,7 @@ final class SpinnetReleaseChecksModel: ObservableObject {
     var checksDaily: Bool { checksAutomatically && !isDevelopmentBuild }
 
     /// When Spinnet was last checked, never later than now.
-    var shownLastCheck: Date? { lastCheck.map { min($0, now()) } }
+    var shownLastCheck: Date? { schedule.shownLastCheck }
 
     func openAvailableRelease() {
         guard let availableRelease else { return }
@@ -127,37 +114,15 @@ final class SpinnetReleaseChecksModel: ObservableObject {
     /// Called once at launch. Asks for nothing until a check is due, and
     /// then not before `launchDelay` has passed since launch.
     func startAutomaticChecks() {
-        launchedAt = uptime()
-        scheduleNextCheck()
-    }
-
-    private func scheduleNextCheck() {
-        cancelScheduledCheck?()
-        cancelScheduledCheck = nil
-        guard checksDaily else { return }
-        let now = now()
-        let due = lastCheck.map { min($0, now) + Self.checkInterval } ?? now
-        let sinceLaunch = launchedAt.map { uptime() - $0 } ?? 0
-        let wait = max(due.timeIntervalSince(now), Self.launchDelay - sinceLaunch, 0)
-        cancelScheduledCheck = scheduleCheck(wait) { [weak self] in self?.automaticCheckFired() }
-    }
-
-    private func automaticCheckFired() {
-        cancelScheduledCheck = nil
-        guard checksDaily else { return }
-        let due = lastCheck.map { min($0, now()) + Self.checkInterval } ?? now()
-        guard now() >= due else { return scheduleNextCheck() }
-        check(automatic: true)
+        schedule.start()
     }
 
     /// Whatever happens, the next automatic check is scheduled; a failure is
     /// not retried sooner.
     private func check(automatic: Bool) {
-        defer { if launchedAt != nil { scheduleNextCheck() } }
+        defer { if schedule.hasStarted { schedule.reschedule() } }
         guard !isChecking, let checkRelease else { return }
-        let started = now()
-        lastCheck = started
-        defaults.set(started, forKey: Self.lastCheckKey)
+        schedule.recordCheck()
         let previous = status
         status = .checking
         runInBackground(automatic ? .utility : .userInitiated) { [weak self] in
@@ -175,8 +140,8 @@ final class SpinnetReleaseChecksModel: ObservableObject {
         case .failure(let error):
             // A failed check does not take away a release already found; it
             // is still reported.
-            if case .available = previous { status = previous; failure = error.localizedDescription; return }
-            status = .failed(error.localizedDescription)
+            if case .available = previous { status = previous; failure = localizedFailure(error); return }
+            status = .failed(localizedFailure(error))
         }
         failure = nil
         keepAvailableRelease()
@@ -211,7 +176,8 @@ final class SpinnetReleaseChecksModel: ObservableObject {
         case .upToDate(let latest):
             let base = latest == nil ? localized("No Spinnet release is published yet.") : localized("Spinnet \(runningVersion) is up to date.")
             guard let last = shownLastCheck else { return base }
-            return localized("\(base) Last checked \(last.formatted(.relative(presentation: .named).locale(HostLocalization.locale))).")
+            let relative = last.formatted(.relative(presentation: .named).locale(HostLocalization.locale))
+            return HostLocalization.joiningSentences([base, localized("Last checked \(relative).")])
         case .available(let release): return localized("Spinnet \(release.version) is available.")
         case .failed: return localized("The last check did not complete.")
         }

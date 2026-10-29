@@ -27,24 +27,32 @@ public enum SpinnetReleaseCheckError: Error, Equatable, LocalizedError {
     case timedOut
     case rateLimited(resetsAt: Date?)
     case unexpectedStatus(Int)
-    case unreadableAnswer(String)
+    case unreadableAnswer(HostText)
+    /// The running Spinnet's own version is not SemVer, so no release can be
+    /// compared with it.
+    case runningVersionNotSemVer(String)
 
-    public var errorDescription: String? {
+    /// What the Host shows, in the interface language. A reset time is
+    /// written as whoever shows it writes times.
+    public func text(resetTime: (Date) -> String) -> HostText {
         switch self {
         case .offline:
-            return "Spinnet could not reach GitHub. Check your connection and try again."
+            return HostText("Spinnet could not reach GitHub. Check your connection and try again.")
         case .timedOut:
-            return "GitHub did not answer in time. Try again later."
+            return HostText("GitHub did not answer in time. Try again later.")
         case .rateLimited(let reset):
-            guard let reset else { return "GitHub's limit on update checks is reached. Try again later." }
-            let time = DateFormatter.localizedString(from: reset, dateStyle: .none, timeStyle: .short)
-            return "GitHub's limit on update checks is reached. Try again after \(time)."
+            return PluginUpdateError.rateLimitText(resetsAt: reset, resetTime: resetTime)
         case .unexpectedStatus(let status):
-            return "GitHub answered with status \(status)."
+            return HostText("GitHub answered with status %@.", .verbatim(String(status)))
         case .unreadableAnswer(let detail):
-            return "GitHub's newest Spinnet release could not be read: \(detail)"
+            return HostText("GitHub's newest Spinnet release could not be read: %@", detail)
+        case .runningVersionNotSemVer(let version):
+            return HostText("This Spinnet's version, %@, is not a SemVer version, so it cannot be compared.",
+                            .verbatim(version))
         }
     }
+
+    public var errorDescription: String? { text(resetTime: PluginUpdateError.systemResetTime).english }
 }
 
 /// Asks GitHub for the Spinnet repository's newest release that is neither a
@@ -87,7 +95,7 @@ public final class SpinnetReleaseChecker {
         } catch HTTPSTransportError.timedOut {
             throw SpinnetReleaseCheckError.timedOut
         } catch HTTPSTransportError.responseTooLarge {
-            throw SpinnetReleaseCheckError.unreadableAnswer("it is too large.")
+            throw SpinnetReleaseCheckError.unreadableAnswer(HostText("it is too large."))
         } catch {
             throw SpinnetReleaseCheckError.offline
         }
@@ -105,16 +113,19 @@ public final class SpinnetReleaseChecker {
             throw SpinnetReleaseCheckError.unexpectedStatus(response.status)
         }
         guard let release = try? JSONDecoder().decode(Release.self, from: response.body) else {
-            throw SpinnetReleaseCheckError.unreadableAnswer("it is not a release.")
+            throw SpinnetReleaseCheckError.unreadableAnswer(HostText("it is not a release."))
         }
         guard release.draft != true, release.prerelease != true else {
-            throw SpinnetReleaseCheckError.unreadableAnswer("it is a draft or a prerelease.")
+            throw SpinnetReleaseCheckError.unreadableAnswer(HostText("it is a draft or a prerelease."))
         }
         let written = release.tag.hasPrefix("v") ? String(release.tag.dropFirst()) : release.tag
         guard let latest = try? PluginVersion(written) else {
-            throw SpinnetReleaseCheckError.unreadableAnswer("its tag \(release.tag) does not name a SemVer version.")
+            throw SpinnetReleaseCheckError.unreadableAnswer(
+                HostText("its tag %@ does not name a SemVer version.", .verbatim(release.tag)))
         }
-        let running = try PluginVersion(runningVersion)
+        guard let running = try? PluginVersion(runningVersion) else {
+            throw SpinnetReleaseCheckError.runningVersionNotSemVer(runningVersion)
+        }
         guard latest > running else { return .upToDate(latest: written) }
         return .newer(SpinnetRelease(version: written, page: page(of: release.tag)))
     }

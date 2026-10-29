@@ -4,7 +4,7 @@ import SpinnetTestSupport
 import XCTest
 @testable import SpinnetHost
 
-/// The Welcome Guide's official Plugins step, driven through the Settings
+/// The Welcome Guide's Official Plugins step, driven through the Settings
 /// window model against GitHub answers recorded as SpinnetPlugins publishes
 /// them, and installed through the Library's own installation review.
 final class OfficialPluginInstallTests: XCTestCase {
@@ -69,7 +69,7 @@ final class OfficialPluginInstallTests: XCTestCase {
         while settings.welcomeGuide.step != .officialPlugins { settings.welcomeGuide.next() }
     }
 
-    /// Publishes the frozen copy of an official Plugin as SpinnetPlugins
+    /// Publishes the frozen copy of an Official Plugin as SpinnetPlugins
     /// releases it: tag `<id>/v<version>`, asset `<id>.spinnetplugin.zip`.
     private func publish(_ name: String) throws {
         let fixture = try OfficialPluginFixtures.named(name)
@@ -107,7 +107,7 @@ final class OfficialPluginInstallTests: XCTestCase {
 
         XCTAssertEqual(Dictionary(uniqueKeysWithValues: official.plugins.map { ($0.id, $0.name) }),
                        Dictionary(uniqueKeysWithValues: try OfficialPluginFixtures.all().map { ($0.manifest.id, $0.manifest.name) }),
-                       "Every official Plugin is offered under its own identity and name")
+                       "Every Official Plugin is offered under its own identity and name")
         for plugin in official.plugins {
             XCTAssertEqual(plugin.updateSource.github, repository)
             XCTAssertFalse(plugin.summary.isEmpty, plugin.name)
@@ -191,6 +191,58 @@ final class OfficialPluginInstallTests: XCTestCase {
         official.installSelected()
 
         XCTAssertEqual(official.state(for: cut), .failed("SpinnetPlugins has no release of Cut that Spinnet can install."))
+    }
+
+    func testARefusedReleaseSaysWhyInTheInterfaceLanguage() throws {
+        try launch()
+        toOfficialStep()
+        let cut = try id("Cut")
+        for name in starterNames where name != "Cut" { official.setSelected(false, for: try id(name)) }
+        transport.answer("https://api.github.com/repos/\(repository)/git/matching-refs/tags/\(cut.rawValue)/v",
+                         body: try JSONSerialization.data(withJSONObject: [["ref": "refs/tags/\(cut.rawValue)/vnext"]]))
+
+        official.installSelected()
+        XCTAssertEqual(official.state(for: cut), .failed("SpinnetPlugins has no release of Cut that Spinnet can install. "
+            + "next was refused: The release tag does not name a SemVer version."))
+
+        try HostLocalization.withLanguage(.simplifiedChinese) { official.retry(cut) }
+        XCTAssertEqual(official.state(for: cut), .failed("SpinnetPlugins 中没有 Spinnet 可以安装的 Cut 版本。"
+            + "next 被拒：发布标签未指明 SemVer 版本。"))
+    }
+
+    func testOpenMenuEditorWaitsUntilEveryStartedInstallIsDone() throws {
+        try publish("Keep Awake")
+        try publish("Cut")
+        try launch()
+        toOfficialStep()
+        for plugin in official.plugins where plugin.name != "Keep Awake" && plugin.name != "Cut" {
+            official.setSelected(false, for: plugin.id)
+        }
+        var held: [() -> Void] = []
+        official.runInBackground = { held.append($0) }
+        let guide = settings.welcomeGuide
+        let waiting = "Open Menu Editor is available once the Official Plugins being installed are done."
+
+        official.installSelected()
+        guide.next()
+        XCTAssertEqual(guide.step, .finish)
+        XCTAssertFalse(guide.canComplete, "Lookups are still under way")
+        XCTAssertTrue(settings.accessibleNames.contains(waiting))
+        guide.complete()
+        XCTAssertTrue(guide.isPresented, "The guide does not close while installs are under way")
+
+        for work in held { work() }
+        XCTAssertEqual(official.pendingReview?.review.manifest.name, "Keep Awake")
+        XCTAssertFalse(guide.canComplete, "A review is still waiting")
+        guide.complete()
+        XCTAssertTrue(guide.isPresented)
+
+        official.confirmReview()
+        XCTAssertTrue(guide.canComplete)
+        XCTAssertFalse(settings.accessibleNames.contains(waiting))
+        guide.complete()
+        XCTAssertFalse(guide.isPresented)
+        XCTAssertEqual(installedNames, ["Keep Awake", "Cut"])
     }
 
     func testDecliningTheReviewLeavesThePluginNotInstalledWithRetry() throws {

@@ -30,7 +30,7 @@ struct GeneralSettingsView: View {
                 .padding(.horizontal, 18)
                 .settingsCard()
 
-                MenuOpeningDelayRow(trigger: model.trigger)
+                MenuOpeningDelayRow(trigger: model.trigger, privacy: model.privacy)
                     .padding(.horizontal, 18)
                     .settingsCard()
 

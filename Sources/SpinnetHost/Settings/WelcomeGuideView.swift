@@ -13,6 +13,11 @@ extension WelcomeGuideStep {
         case .finish: return localized("You're Ready")
         }
     }
+
+    /// Why Open Menu Editor is unavailable while installs are under way.
+    static var installsUnderWayNote: String {
+        localized("Open Menu Editor is available once the Official Plugins being installed are done.")
+    }
 }
 
 extension SettingsWindowModel {
@@ -34,6 +39,7 @@ extension SettingsWindowModel {
             names.append(contentsOf: officialPlugins.accessibleNames)
         case .finish:
             names.append(localized("Open Menu Editor"))
+            if !guide.canComplete { names.append(WelcomeGuideStep.installsUnderWayNote) }
         }
         if guide.canGoBack { names.append(localized("Back")) }
         if guide.step != .finish {
@@ -128,6 +134,11 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
         case .finish:
             Text(localized("Next, add Menu Items to your Slots in the Menu Editor. Plugins from the Library provide them."))
                 .fixedSize(horizontal: false, vertical: true)
+            if !guide.canComplete {
+                Label(WelcomeGuideStep.installsUnderWayNote, systemImage: "hourglass")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -237,6 +248,7 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
             if guide.step == .finish {
                 Button(localized("Open Menu Editor"), action: guide.complete)
                     .keyboardShortcut(.defaultAction)
+                    .disabled(!guide.canComplete)
             } else {
                 Button(localized("Continue"), action: guide.next)
                     .keyboardShortcut(.defaultAction)

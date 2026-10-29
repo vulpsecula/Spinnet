@@ -13,7 +13,9 @@ Permissions and how to open the Menu, offers the Official Plugins as a
 checklist with a starter set checked, then finishes in the Menu Editor. Install
 Selected downloads each checked Plugin's newest acceptable version from
 SpinnetPlugins and installs it through the Library's review, one row at a time
-with its own progress, failure and Retry; nothing is placed into Slots. Once
+with its own progress, failure and Retry; nothing is placed into Slots. Open
+Menu Editor waits, and says so, until every install the guide started has
+installed or failed, so no lookup or review is left behind the closed guide. Once
 completed or skipped it does not open by itself again; General's Open Welcome
 Guide… reopens it. Open Settings → Menu and add a Plugin's Preset to a Slot. Each Menu Item has one
 Primary Action and optional Alternate Actions, available by right-click.
@@ -53,7 +55,8 @@ press while the Menu is open closes it at once; the delay governs opening only.
 The keyboard shortcut follows the same rule with its original key events,
 autorepeats included. With a delay it is read from Spinnet's event tap
 instead of being registered as a system hot key, so it needs Accessibility;
-without that permission, or at 0, it stays a hot key that opens at once.
+without that permission, or at 0, it stays a hot key that opens at once;
+General says so next to the delay when a shortcut is set without Accessibility.
 
 With Click & Drag, the delay comes first: a press-drag-release shorter than
 the delay is a short press and goes to the App, motion included. Once the Menu
@@ -208,7 +211,10 @@ Plugin-supplied text. English source text is the key; each key needs a
 [GLOSSARY.md](GLOSSARY.md#simplified-chinese). Host-owned text built outside
 the Host, such as a Host Confirmation from SpinnetCore or the Reviewed Tools,
 is a `HostText`: its key is the English with `%@` per argument, and names,
-versions and tool output stay verbatim. Failures a Host Service returns
+versions and tool output stay verbatim. Plugin Update and Spinnet release
+check failures and the Plugin updater's refusal reasons are `HostText`s too,
+shown with `localizedFailure(_:)`; a reset time is written in the interface
+language. Failures a Host Service returns
 through the Plugin interface stay English, as SpinnetCore's do; the Host
 localizes the failures it shows itself. `LocalizationCompletenessTests`
 fails on a missing translation, a mismatched argument, a different term, a

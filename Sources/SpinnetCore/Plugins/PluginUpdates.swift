@@ -32,12 +32,15 @@ public struct PluginUpdateRefusal: Equatable, Sendable {
     public let tag: String
     /// The version the tag names, as written after `<id>/v`.
     public let version: String
-    public let reason: String
+    /// Why, shown by the Host in the interface language.
+    public let reasonText: HostText
+    /// Why, in English.
+    public var reason: String { reasonText.english }
 
-    public init(tag: String, version: String, reason: String) {
+    public init(tag: String, version: String, reason: HostText) {
         self.tag = tag
         self.version = version
-        self.reason = reason
+        reasonText = reason
     }
 }
 
@@ -72,6 +75,11 @@ public struct PluginReleaseLookup: Equatable, Sendable {
     public let offer: PluginUpdateOffer?
     /// Higher versions that were refused or not tried, with why, highest first.
     public let refusals: [PluginUpdateRefusal]
+
+    public init(offer: PluginUpdateOffer?, refusals: [PluginUpdateRefusal]) {
+        self.offer = offer
+        self.refusals = refusals
+    }
 }
 
 /// The outcome of checking several installed Plugins at once.
@@ -95,10 +103,10 @@ public enum PluginUpdateError: Error, Equatable, LocalizedError {
     case rateLimited(resetsAt: Date?)
     case repositoryNotFound(PluginUpdateSource)
     case unexpectedStatus(Int)
-    case unreadableAnswer(String)
+    case unreadableAnswer(HostText)
     /// The tag list is larger than the answer bound.
     case tagListTooLarge
-    case changedSinceCheck(String)
+    case changedSinceCheck(HostText)
 
     /// Whether asking GitHub about another Plugin now would fail the same way.
     public var stopsRun: Bool {
@@ -108,31 +116,43 @@ public enum PluginUpdateError: Error, Equatable, LocalizedError {
         }
     }
 
-    public var errorDescription: String? {
+    /// What the Host shows, in the interface language. A reset time is
+    /// written as whoever shows it writes times.
+    public func text(resetTime: (Date) -> String) -> HostText {
         switch self {
         case .notInstalled(let id):
-            return "\(id.rawValue) is not installed."
+            return HostText("%@ is not installed.", .verbatim(id.rawValue))
         case .noUpdateSource(let name):
-            return "\(name) declares no Update Source."
+            return HostText("%@ declares no Update Source.", .verbatim(name))
         case .offline:
-            return "Spinnet could not reach GitHub. Check your connection and try again."
+            return HostText("Spinnet could not reach GitHub. Check your connection and try again.")
         case .timedOut:
-            return "GitHub did not answer in time. Try again later."
+            return HostText("GitHub did not answer in time. Try again later.")
         case .rateLimited(let reset):
-            guard let reset else { return "GitHub's limit on update checks is reached. Try again later." }
-            let time = DateFormatter.localizedString(from: reset, dateStyle: .none, timeStyle: .short)
-            return "GitHub's limit on update checks is reached. Try again after \(time)."
+            return Self.rateLimitText(resetsAt: reset, resetTime: resetTime)
         case .repositoryNotFound(let source):
-            return "GitHub has no public repository \(source.github)."
+            return HostText("GitHub has no public repository %@.", .verbatim(source.github))
         case .unexpectedStatus(let status):
-            return "GitHub answered with status \(status)."
+            return HostText("GitHub answered with status %@.", .verbatim(String(status)))
         case .unreadableAnswer(let detail):
-            return "GitHub's release tags could not be read: \(detail)"
+            return HostText("GitHub's release tags could not be read: %@", detail)
         case .tagListTooLarge:
-            return "GitHub's release tags could not be read: \(PluginUpdater.tooLarge)"
+            return HostText("GitHub's release tags could not be read: %@", PluginUpdater.tooLarge)
         case .changedSinceCheck(let detail):
-            return "The update no longer applies: \(detail) Check again."
+            return HostText("The update no longer applies: %@ Check again.", detail)
         }
+    }
+
+    public var errorDescription: String? { text(resetTime: Self.systemResetTime).english }
+
+    static func rateLimitText(resetsAt reset: Date?, resetTime: (Date) -> String) -> HostText {
+        guard let reset else { return HostText("GitHub's limit on update checks is reached. Try again later.") }
+        return HostText("GitHub's limit on update checks is reached. Try again after %@.", .verbatim(resetTime(reset)))
+    }
+
+    /// A reset time as the system's region writes it, for SpinnetCore's English.
+    static func systemResetTime(_ reset: Date) -> String {
+        DateFormatter.localizedString(from: reset, dateStyle: .none, timeStyle: .short)
     }
 }
 
@@ -194,8 +214,7 @@ public final class PluginUpdater {
     public func newestRelease(of pluginID: PluginID, named name: String,
                               from source: PluginUpdateSource) throws -> PluginReleaseLookup {
         let tags = try listTags(of: source, prefix: Self.tagPrefix(of: pluginID))
-        let found = try lookUp(Target(id: pluginID, name: name, version: nil), source: source, tags: tags)
-        return PluginReleaseLookup(offer: found.offer, refusals: found.refusals)
+        return try lookUp(Target(id: pluginID, name: name, version: nil), source: source, tags: tags)
     }
 
     /// Checks each Plugin as `check` does, within the same per-Plugin bounds,
@@ -289,8 +308,7 @@ public final class PluginUpdater {
                                  update: found.offer, refusals: found.refusals)
     }
 
-    private func lookUp(_ target: Target, source: PluginUpdateSource,
-                        tags: [String]) throws -> (offer: PluginUpdateOffer?, refusals: [PluginUpdateRefusal]) {
+    private func lookUp(_ target: Target, source: PluginUpdateSource, tags: [String]) throws -> PluginReleaseLookup {
         let pluginID = target.id
         let prefix = Self.tagPrefix(of: pluginID)
 
@@ -299,7 +317,7 @@ public final class PluginUpdater {
         for tag in tags {
             let written = String(tag.dropFirst(prefix.count))
             guard let version = try? PluginVersion(written) else {
-                refusals.append(.init(tag: tag, version: written, reason: "The release tag does not name a SemVer version."))
+                refusals.append(.init(tag: tag, version: written, reason: HostText("The release tag does not name a SemVer version.")))
                 continue
             }
             if target.version.map({ version > $0 }) ?? true { newer.append((version, tag)) }
@@ -310,11 +328,12 @@ public final class PluginUpdater {
         let workspace = workspace(for: pluginID)
         var budget = Budget()
         for (version, tag) in newer {
-            func refuse(_ reason: String) {
+            func refuse(_ reason: HostText) {
                 refusals.append(.init(tag: tag, version: version.description, reason: reason))
             }
             guard budget.lookups < PluginUpdateBudgets.maximumReleaseLookups else {
-                refuse("Not looked up: a check looks up at most \(PluginUpdateBudgets.maximumReleaseLookups) releases.")
+                refuse(HostText("Not looked up: a check looks up at most %@ releases.",
+                                .verbatim(String(PluginUpdateBudgets.maximumReleaseLookups))))
                 continue
             }
             budget.lookups += 1
@@ -327,18 +346,22 @@ public final class PluginUpdater {
                 let (offer, accepted) = try accept(release, version: version, for: target, source: source,
                                                    into: directory, budget: &budget)
                 let package = try keep(accepted, tag: release.tag, of: target, generation: generation)
-                return (PluginUpdateOffer(tag: offer.tag, manifest: offer.manifest,
-                                          review: offer.review, packageURL: package ?? offer.packageURL), refusals)
+                return PluginReleaseLookup(offer: PluginUpdateOffer(tag: offer.tag, manifest: offer.manifest, review: offer.review,
+                                                                    packageURL: package ?? offer.packageURL),
+                                           refusals: refusals)
             } catch let error as PluginUpdateError {
                 try? FileManager.default.removeItem(at: directory)
                 throw error
+            } catch let refusal as Refusal {
+                try? FileManager.default.removeItem(at: directory)
+                refuse(refusal.text)
             } catch {
                 try? FileManager.default.removeItem(at: directory)
-                refuse(error.localizedDescription)
+                refuse(.verbatim(error.localizedDescription))
             }
         }
         _ = try keep(nil, tag: nil, of: target, generation: generation)
-        return (nil, refusals)
+        return PluginReleaseLookup(offer: nil, refusals: refusals)
     }
 
     /// Installs an offer from `check` in place of the installed version,
@@ -349,10 +372,11 @@ public final class PluginUpdater {
         let installed = try installedManifest(offer.manifest.id)
         guard let source = installed.updateSource, offer.manifest.updateSource.map(source.isSame) == true,
               try PluginVersion(offer.manifest.version) > PluginVersion(installed.version) else {
-            throw PluginUpdateError.changedSinceCheck("\(installed.name) \(installed.version) is installed now.")
+            throw PluginUpdateError.changedSinceCheck(
+                HostText("%@ %@ is installed now.", .verbatim(installed.name), .verbatim(installed.version)))
         }
         guard (try? PluginManifestLoader.load(packageAt: offer.packageURL).manifest) == offer.manifest else {
-            throw PluginUpdateError.changedSinceCheck("The downloaded package changed.")
+            throw PluginUpdateError.changedSinceCheck(HostText("The downloaded package changed."))
         }
         let manifest = try store.install(from: offer.packageURL)
         // Every offer kept for the Plugin was made for the version it replaced.
@@ -402,20 +426,20 @@ public final class PluginUpdater {
     /// `accepted`, under `tag`, or nothing. When another check kept the same
     /// release from the same asset meanwhile, that copy is offered and this
     /// one deleted. Returns the package to offer.
-    private func keep(_ accepted: KeptOffer?, tag: String?, of installed: Target,
+    private func keep(_ accepted: KeptOffer?, tag: String?, of target: Target,
                       generation: Int) throws -> URL? {
         var discarded: [URL] = []
         defer { for directory in Set(discarded) { try? FileManager.default.removeItem(at: directory) } }
         return try lock.withLock { () throws -> URL? in
-            var offers = kept[installed.id] ?? [:]
-            guard generations[installed.id, default: 0] == generation else {
+            var offers = kept[target.id] ?? [:]
+            guard generations[target.id, default: 0] == generation else {
                 // Updated or removed during the check: the offer is for a
                 // version no longer installed.
                 guard let accepted else { return nil }
                 if !offers.values.contains(where: { $0.directory == accepted.directory }) {
                     discarded.append(accepted.directory)
                 }
-                throw PluginUpdateError.changedSinceCheck("\(installed.name) changed during the check.")
+                throw PluginUpdateError.changedSinceCheck(HostText("%@ changed during the check.", .verbatim(target.name)))
             }
             var package: URL?
             if let accepted, let tag {
@@ -428,7 +452,7 @@ public final class PluginUpdater {
                         discarded.append(existing.directory)
                     }
                     guard FileManager.default.fileExists(atPath: accepted.packageURL.path) else {
-                        throw PluginUpdateError.changedSinceCheck("The downloaded package changed.")
+                        throw PluginUpdateError.changedSinceCheck(HostText("The downloaded package changed."))
                     }
                     offers[tag] = accepted
                     package = accepted.packageURL
@@ -438,20 +462,24 @@ public final class PluginUpdater {
                 discarded.append(offer.directory)
                 offers[other] = nil
             }
-            kept[installed.id] = offers.isEmpty ? nil : offers
+            kept[target.id] = offers.isEmpty ? nil : offers
             return package
         }
     }
 
     // MARK: - Acceptance
 
-    static let tooLarge = "GitHub's answer is larger than Spinnet reads."
+    static let tooLarge = HostText("GitHub's answer is larger than Spinnet reads.")
 
     private struct Refusal: Error, LocalizedError {
-        let reason: String
+        let text: HostText
         /// The answer exceeded its bound.
         var tooLarge = false
-        var errorDescription: String? { reason }
+        init(_ text: HostText, tooLarge: Bool = false) {
+            self.text = text
+            self.tooLarge = tooLarge
+        }
+        var errorDescription: String? { text.english }
     }
 
     /// What one check has spent of its published bounds.
@@ -460,34 +488,35 @@ public final class PluginUpdater {
         var downloads = 0
     }
 
-    private func accept(_ release: Release, version: PluginVersion, for installed: Target,
+    private func accept(_ release: Release, version: PluginVersion, for target: Target,
                         source: PluginUpdateSource, into directory: URL,
                         budget: inout Budget) throws -> (PluginUpdateOffer, KeptOffer) {
-        let name = PluginUpdateSource.assetName(for: installed.id)
+        let name = PluginUpdateSource.assetName(for: target.id)
         guard let asset = release.assets.first(where: { $0.name == name }) else {
-            throw Refusal(reason: "The release has no asset named \(name).")
+            throw Refusal(HostText("The release has no asset named %@.", .verbatim(name)))
         }
         guard let url = URL(string: asset.downloadURL), Self.isReleaseAsset(url, of: source, tag: release.tag, named: name) else {
-            throw Refusal(reason: "The package is not a release asset of \(source.github) on github.com over HTTPS.")
+            throw Refusal(HostText("The package is not a release asset of %@ on github.com over HTTPS.", .verbatim(source.github)))
         }
         let package: URL
         let keptAs: KeptOffer
         // An offer kept from the same asset URL is reused rather than
         // downloaded again; it is read, version-checked and reviewed below
         // like a fresh download.
-        let previous = lock.withLock { kept[installed.id]?[release.tag] }
+        let previous = lock.withLock { kept[target.id]?[release.tag] }
         if let previous, previous.asset == url, FileManager.default.fileExists(atPath: previous.packageURL.path) {
             package = previous.packageURL
             keptAs = previous
         } else {
             guard budget.downloads < PluginUpdateBudgets.maximumDownloads else {
-                throw Refusal(reason: "Not downloaded: a check downloads at most \(PluginUpdateBudgets.maximumDownloads) packages.")
+                throw Refusal(HostText("Not downloaded: a check downloads at most %@ packages.",
+                                      .verbatim(String(PluginUpdateBudgets.maximumDownloads))))
             }
             budget.downloads += 1
             do {
                 package = try PluginPackageArchive.unpack(download(url), into: directory)
             } catch let refusal as PluginPackageArchive.Refusal {
-                throw Refusal(reason: refusal.reason + ".")
+                throw Refusal(.verbatim(refusal.reason + "."))
             }
             keptAs = KeptOffer(asset: url, packageURL: package, directory: directory)
         }
@@ -495,24 +524,28 @@ public final class PluginUpdater {
         do {
             manifest = try PluginManifestLoader.load(packageAt: package).manifest
         } catch {
-            throw Refusal(reason: "The package cannot be read: \(error.localizedDescription)")
+            throw Refusal(HostText("The package cannot be read: %@", .verbatim(error.localizedDescription)))
         }
-        guard manifest.id == installed.id else {
-            throw Refusal(reason: "The package is a different Plugin, \(manifest.id.rawValue).")
+        guard manifest.id == target.id else {
+            throw Refusal(HostText("The package is a different Plugin, %@.", .verbatim(manifest.id.rawValue)))
         }
         guard let declared = manifest.updateSource, declared.isSame(as: source) else {
-            let named = manifest.updateSource.map { "declares the Update Source \($0.github)" } ?? "declares no Update Source"
-            throw Refusal(reason: "The package \(named), not \(source.github).")
+            guard let declared = manifest.updateSource else {
+                throw Refusal(HostText("The package declares no Update Source, not %@.", .verbatim(source.github)))
+            }
+            throw Refusal(HostText("The package declares the Update Source %@, not %@.",
+                                   .verbatim(declared.github), .verbatim(source.github)))
         }
         guard let packageVersion = try? PluginVersion(manifest.version), packageVersion == version else {
-            throw Refusal(reason: "The package is version \(manifest.version), not the \(version) its release tag names.")
+            throw Refusal(HostText("The package is version %@, not the %@ its release tag names.",
+                                  .verbatim(manifest.version), .verbatim(version.description)))
         }
         // The same checks as any install, Host Compatibility included.
         let review: PluginInstallationReview
         do {
             review = try store.review(package)
         } catch {
-            throw Refusal(reason: error.localizedDescription)
+            throw Refusal(.verbatim(error.localizedDescription))
         }
         return (PluginUpdateOffer(tag: release.tag, manifest: manifest, review: review, packageURL: package), keptAs)
     }
@@ -564,7 +597,7 @@ public final class PluginUpdater {
         } catch HTTPSTransportError.timedOut {
             throw PluginUpdateError.timedOut
         } catch HTTPSTransportError.responseTooLarge {
-            throw Refusal(reason: Self.tooLarge, tooLarge: true)
+            throw Refusal(Self.tooLarge, tooLarge: true)
         } catch {
             throw PluginUpdateError.offline
         }
@@ -587,7 +620,7 @@ public final class PluginUpdater {
         do {
             response = try askAPI("repos/\(source.owner)/\(source.repository)/git/matching-refs/tags/\(prefix)")
         } catch let refusal as Refusal {
-            throw refusal.tooLarge ? PluginUpdateError.tagListTooLarge : PluginUpdateError.unreadableAnswer(refusal.reason)
+            throw refusal.tooLarge ? PluginUpdateError.tagListTooLarge : PluginUpdateError.unreadableAnswer(refusal.text)
         }
         switch response.status {
         case 200:
@@ -601,7 +634,7 @@ public final class PluginUpdater {
         do {
             references = try JSONDecoder().decode([Reference].self, from: response.body)
         } catch {
-            throw PluginUpdateError.unreadableAnswer("it is not a list of tags.")
+            throw PluginUpdateError.unreadableAnswer(HostText("it is not a list of tags."))
         }
         let tagPrefix = "refs/tags/" + prefix
         return references.map(\.ref).filter { $0.hasPrefix(tagPrefix) }.map { String($0.dropFirst("refs/tags/".count)) }
@@ -616,10 +649,10 @@ public final class PluginUpdater {
         case 404:
             return nil
         default:
-            throw Refusal(reason: "GitHub answered the release lookup with status \(response.status).")
+            throw Refusal(HostText("GitHub answered the release lookup with status %@.", .verbatim(String(response.status))))
         }
         guard let release = try? JSONDecoder().decode(Release.self, from: response.body), release.tag == tag else {
-            throw Refusal(reason: "GitHub's answer is not the release \(tag).")
+            throw Refusal(HostText("GitHub's answer is not the release %@.", .verbatim(tag)))
         }
         return release
     }
@@ -637,15 +670,16 @@ public final class PluginUpdater {
                 guard let location = response.headers["location"], let next = URL(string: location, relativeTo: url)?.absoluteURL,
                       next.scheme == "https", let host = next.host?.lowercased(),
                       PluginUpdateBudgets.downloadHosts.contains(host), next.user == nil, next.port == nil else {
-                    throw Refusal(reason: "The release asset redirects away from GitHub's download storage.")
+                    throw Refusal(HostText("The release asset redirects away from GitHub's download storage."))
                 }
                 url = next
             case 404:
-                throw Refusal(reason: "GitHub has no file for this release asset.")
+                throw Refusal(HostText("GitHub has no file for this release asset."))
             default:
-                throw Refusal(reason: "GitHub answered the download with status \(response.status).")
+                throw Refusal(HostText("GitHub answered the download with status %@.", .verbatim(String(response.status))))
             }
         }
-        throw Refusal(reason: "The release asset redirects more than \(PluginUpdateBudgets.maximumRedirects) times.")
+        throw Refusal(HostText("The release asset redirects more than %@ times.",
+                          .verbatim(String(PluginUpdateBudgets.maximumRedirects))))
     }
 }

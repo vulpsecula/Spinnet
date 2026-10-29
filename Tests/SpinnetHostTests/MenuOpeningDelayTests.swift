@@ -35,6 +35,35 @@ final class MenuOpeningDelayTests: XCTestCase {
                        "The delay lives on General only")
     }
 
+    func testGeneralSaysTheShortcutOpensAtOnceWithoutAccessibility() throws {
+        let suite = "MenuOpeningDelayTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var accessibility = false
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, defaults: defaults,
+                                        accessibilityPermissionCheck: { accessibility })
+        model.selectPage(.general)
+        let note = "Without Accessibility, the keyboard shortcut still opens the Menu at once."
+
+        model.trigger.keyboardShortcut = try XCTUnwrap(MenuKeyboardShortcut(manualText: "Opt + D"))
+        XCTAssertFalse(model.accessibleNames.contains(note), "At 0 the shortcut opens at once anyway")
+
+        model.trigger.openingDelay = 0.3
+        XCTAssertTrue(model.accessibleNames.contains(note))
+        try HostLocalization.withLanguage(.simplifiedChinese) {
+            XCTAssertTrue(model.accessibleNames.contains("未获得辅助功能权限时，键盘快捷键仍会立即打开菜单。"))
+        }
+
+        accessibility = true
+        model.privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false)
+        XCTAssertFalse(model.accessibleNames.contains(note), "With Accessibility the shortcut waits too")
+
+        accessibility = false
+        model.privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false)
+        model.trigger.keyboardShortcut = nil
+        XCTAssertFalse(model.accessibleNames.contains(note), "Without a shortcut there is nothing to say")
+    }
+
     // MARK: Mouse trigger
 
     func testZeroDelayOpensOnThePressAndConsumesTheButtonAsBefore() throws {

@@ -81,6 +81,7 @@ final class LocalizationCompletenessTests: XCTestCase {
             + MenuAppearanceConfiguration.menuSizeOptions + MenuAppearanceConfiguration.fontWeightOptions
             + [MenuAppearanceConfiguration.MenuFont.system.rawValue]
             + ClipboardRetention.allCases.map(\.rawValue)
+        english += OfficialPlugin.all.map(\.summaryKey)
         for text in english {
             XCTAssertNotNil(catalog[text] ?? nil, "\"\(text)\" has no zh-Hans translation")
         }
@@ -192,6 +193,69 @@ final class LocalizationCompletenessTests: XCTestCase {
         HostText(key: input.displayOperation, arguments: [])
         """#
         XCTAssertEqual(LocalizedSurfaces.hostTextKeys(in: source), ["Quit %@?", "Source: %@."])
+    }
+
+    /// Every failure of a Plugin Update check or a Spinnet release check, and
+    /// every refusal reason the Plugin updater gives itself, is shown from
+    /// the catalog rather than as SpinnetCore's English, and reads in English
+    /// as SpinnetCore describes it.
+    func testEveryUpdateCheckFailureAndRefusalIsShownInTheInterfaceLanguage() throws {
+        let source = try PluginUpdateSource(github: "vulpsecula/SpinnetPlugins")
+        let pluginFailures: [PluginUpdateError] = [
+            .notInstalled(PluginID("com.example.clock")), .noUpdateSource("Clock"), .offline, .timedOut,
+            .rateLimited(resetsAt: nil), .repositoryNotFound(source), .unexpectedStatus(500),
+            .unreadableAnswer(HostText("it is not a list of tags.")), .tagListTooLarge,
+            .changedSinceCheck(HostText("The downloaded package changed.")),
+            .changedSinceCheck(HostText("%@ changed during the check.", .verbatim("Clock")))
+        ]
+        let releaseFailures: [SpinnetReleaseCheckError] = [
+            .offline, .timedOut, .rateLimited(resetsAt: nil), .unexpectedStatus(500),
+            .unreadableAnswer(HostText("it is not a release.")), .unreadableAnswer(HostText("it is too large.")),
+            .unreadableAnswer(HostText("it is a draft or a prerelease.")),
+            .unreadableAnswer(HostText("its tag %@ does not name a SemVer version.", .verbatim("nightly"))),
+            .runningVersionNotSemVer("dev-build")
+        ]
+        let failures: [Error] = pluginFailures + releaseFailures
+        let names = ["com.example.clock", "Clock", "vulpsecula/SpinnetPlugins", "nightly", "dev-build", "SemVer"]
+        for failure in failures {
+            XCTAssertEqual(localizedFailure(failure), failure.localizedDescription)
+        }
+        try HostLocalization.withLanguage(.simplifiedChinese) {
+            for failure in failures {
+                let shown = localizedFailure(failure)
+                XCTAssertFalse(LocalizedSurfaces.containsUntranslatedEnglish(LocalizedSurfaces.removing(names, from: shown)),
+                               "\(failure) is shown as \"\(shown)\"")
+            }
+        }
+
+        let catalog = try LocalizedSurfaces.catalog()
+        let updater = try String(contentsOf: TestRepository.root.appendingPathComponent(
+            "Sources/SpinnetCore/Plugins/PluginUpdates.swift"), encoding: .utf8)
+        let refusals = LocalizedSurfaces.hostTextKeys(in: updater)
+        XCTAssertGreaterThan(refusals.count, 15, "Every reason the updater gives is a HostText")
+        XCTAssertFalse(updater.contains("Refusal(reason: \""), "A refusal reason is written as English")
+        for key in refusals { XCTAssertNotNil(catalog[key] ?? nil, "\"\(key)\" has no zh-Hans translation") }
+    }
+
+    /// The time GitHub's limit resets is written as the interface language
+    /// writes times, not as the system's region does.
+    func testARateLimitSaysWhenItResetsInTheInterfaceLanguage() throws {
+        let reset = Date(timeIntervalSince1970: 1_700_000_000)
+        for language in [InterfaceLanguage.english, .simplifiedChinese] {
+            try HostLocalization.withLanguage(language) {
+                let time = reset.formatted(Date.FormatStyle(date: .omitted, time: .shortened)
+                    .locale(Locale(identifier: language.rawValue)))
+                for failure in [PluginUpdateError.rateLimited(resetsAt: reset) as Error,
+                                SpinnetReleaseCheckError.rateLimited(resetsAt: reset)] {
+                    let shown = localizedFailure(failure)
+                    XCTAssertTrue(shown.contains(time), "\(language): \(shown) does not say \(time)")
+                    if language == .simplifiedChinese {
+                        XCTAssertFalse(LocalizedSurfaces.containsUntranslatedEnglish(
+                            LocalizedSurfaces.removing([time], from: shown)), shown)
+                    }
+                }
+            }
+        }
     }
 
     /// A Host Confirmation names the Plugin and the App as they are and loses

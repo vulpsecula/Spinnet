@@ -310,6 +310,7 @@ final class SettingsWindowModel: ObservableObject {
             },
             install: { [weak menuEditor] in try menuEditor?.installReviewed($0) })
         welcomeGuide.onOpen = { [weak officialPlugins] in officialPlugins?.reset() }
+        welcomeGuide.hasInstallsUnderWay = { [weak officialPlugins] in officialPlugins?.hasInstallsUnderWay ?? false }
         // The guide's permission step stood in for the first-run banner.
         welcomeGuide.onComplete = { [weak self] in
             self?.privacy.dismissPermissionGuide()
@@ -492,6 +493,10 @@ final class SettingsWindowModel: ObservableObject {
             names.append(contentsOf: launchAtLogin.accessibleNames)
             names.append(contentsOf: InterfaceLanguageRow.accessibleNames(for: interfaceLanguage))
             names.append(MenuOpeningDelayRow.accessibleName(for: trigger.openingDelay))
+            if let note = MenuOpeningDelayRow.shortcutNote(trigger: trigger,
+                                                           accessibilityGranted: privacy.accessibilityPermissionGranted) {
+                names.append(note)
+            }
             names.append(contentsOf: pluginUpdates.accessibleNames)
             names.append(contentsOf: spinnetReleases.accessibleNames)
             #if DEBUG

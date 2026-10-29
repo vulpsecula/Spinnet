@@ -84,14 +84,22 @@ final class SpinnetReleaseCheckTests: XCTestCase {
         XCTAssertEqual(failedCheck(), .unexpectedStatus(500))
 
         transport.answer(latestURL, body: Data("<html>".utf8))
-        XCTAssertEqual(failedCheck(), .unreadableAnswer("it is not a release."))
+        XCTAssertEqual(failedCheck(), .unreadableAnswer(HostText("it is not a release.")))
 
         try publishLatest(tag: "nightly")
-        XCTAssertEqual(failedCheck(), .unreadableAnswer("its tag nightly does not name a SemVer version."))
+        XCTAssertEqual(failedCheck(), .unreadableAnswer(HostText("its tag %@ does not name a SemVer version.", .verbatim("nightly"))))
 
         try publishLatest(tag: "v9.0.0", prerelease: true)
-        XCTAssertEqual(failedCheck(), .unreadableAnswer("it is a draft or a prerelease."),
+        XCTAssertEqual(failedCheck(), .unreadableAnswer(HostText("it is a draft or a prerelease.")),
                        "Only a published, final release is compared")
+    }
+
+    func testARunningVersionThatIsNotSemVerFailsTheCheck() throws {
+        try publishLatest(tag: "v1.2.0")
+
+        XCTAssertEqual(failedCheck(running: "dev-build"), .runningVersionNotSemVer("dev-build"))
+        XCTAssertEqual(SpinnetReleaseCheckError.runningVersionNotSemVer("dev-build").localizedDescription,
+                       "This Spinnet's version, dev-build, is not a SemVer version, so it cannot be compared.")
     }
 }
 

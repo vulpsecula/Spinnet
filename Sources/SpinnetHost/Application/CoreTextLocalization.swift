@@ -1,3 +1,4 @@
+import Foundation
 import SpinnetCore
 
 // Host-owned English that SpinnetCore defines, shown in the interface
@@ -83,6 +84,25 @@ extension ActionUnavailableReason {
             return localized("Screenshot save folder is missing or not writable; choose it again in Screenshot Plugin Settings")
         }
     }
+}
+
+/// A failure the Host shows itself: a Plugin Update check's or a Spinnet
+/// release check's from the catalog, with a reset time written as the
+/// interface language writes times; any other as it describes itself.
+func localizedFailure(_ error: Error) -> String {
+    switch error {
+    case let failure as PluginUpdateError: return localized(failure.text(resetTime: localizedResetTime))
+    case let failure as SpinnetReleaseCheckError: return localized(failure.text(resetTime: localizedResetTime))
+    default: return error.localizedDescription
+    }
+}
+
+private func localizedResetTime(_ reset: Date) -> String {
+    reset.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(HostLocalization.locale))
+}
+
+extension PluginUpdateRefusal {
+    var localizedReason: String { localized(reasonText) }
 }
 
 extension HostConfirmation {

@@ -121,6 +121,7 @@ struct PluginUpdateChecksSection: View {
         case let count: available = localized("\(count) Plugin updates available.")
         }
         guard let last = updates.shownLastCheck else { return available }
-        return localized("\(available) Last checked \(last.formatted(.relative(presentation: .named).locale(HostLocalization.locale))).")
+        let relative = last.formatted(.relative(presentation: .named).locale(HostLocalization.locale))
+        return HostLocalization.joiningSentences([available, localized("Last checked \(relative).")])
     }
 }

@@ -5,6 +5,7 @@ import SwiftUI
 /// seen it.
 struct MenuOpeningDelayRow: View {
     @ObservedObject var trigger: MenuTriggerModel
+    @ObservedObject var privacy: PrivacyPermissionsModel
 
     static var title: String { localized("Menu Opening Delay") }
     static let step: TimeInterval = 0.05
@@ -16,6 +17,14 @@ struct MenuOpeningDelayRow: View {
 
     static func accessibleName(for delay: TimeInterval) -> String {
         "\(title): \(valueText(for: delay))"
+    }
+
+    /// With a delay the keyboard shortcut is read from the event tap, which
+    /// needs Accessibility; without it the shortcut stays a hot key that
+    /// opens at once.
+    static func shortcutNote(trigger: MenuTriggerModel, accessibilityGranted: Bool) -> String? {
+        guard trigger.openingDelay > 0, trigger.keyboardShortcut != nil, !accessibilityGranted else { return nil }
+        return localized("Without Accessibility, the keyboard shortcut still opens the Menu at once.")
     }
 
     var body: some View {
@@ -40,6 +49,13 @@ struct MenuOpeningDelayRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if let note = Self.shortcutNote(trigger: trigger, accessibilityGranted: privacy.accessibilityPermissionGranted) {
+                Label(note, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(note)
+            }
         }
         .padding(.vertical, 12)
     }

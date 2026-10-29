@@ -51,6 +51,16 @@
         }
       }
     },
+    "%@ %@ is installed now.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在安装的是 %1$@ %2$@。"
+          }
+        }
+      }
+    },
     "%@ %@ is installed.": {
       "localizations": {
         "zh-Hans": {
@@ -87,16 +97,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@（不可用：%2$@）"
-          }
-        }
-      }
-    },
-    "%@ Last checked %@.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@上次检查：%2$@。"
           }
         }
       }
@@ -181,6 +181,16 @@
         }
       }
     },
+    "%@ changed during the check.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 在检查期间发生了变化。"
+          }
+        }
+      }
+    },
     "%@ completed": {
       "localizations": {
         "zh-Hans": {
@@ -207,6 +217,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法检查 %1$@：%2$@"
+          }
+        }
+      }
+    },
+    "%@ declares no Update Source.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 未声明更新源。"
           }
         }
       }
@@ -297,6 +317,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 不在前台。未插入任何内容。"
+          }
+        }
+      }
+    },
+    "%@ is not installed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 未安装。"
           }
         }
       }
@@ -3571,6 +3601,126 @@
         }
       }
     },
+    "GitHub answered the download with status %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 对下载返回了状态码 %@。"
+          }
+        }
+      }
+    },
+    "GitHub answered the release lookup with status %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 对发布版本查询返回了状态码 %@。"
+          }
+        }
+      }
+    },
+    "GitHub answered with status %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 返回了状态码 %@。"
+          }
+        }
+      }
+    },
+    "GitHub did not answer in time. Try again later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 未及时响应。请稍后再试。"
+          }
+        }
+      }
+    },
+    "GitHub has no file for this release asset.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 上没有此发布资源的文件。"
+          }
+        }
+      }
+    },
+    "GitHub has no public repository %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 上没有公开仓库 %@。"
+          }
+        }
+      }
+    },
+    "GitHub's answer is larger than Spinnet reads.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 的回应超出了 Spinnet 可读取的大小。"
+          }
+        }
+      }
+    },
+    "GitHub's answer is not the release %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 的回应不是发布版本 %@。"
+          }
+        }
+      }
+    },
+    "GitHub's limit on update checks is reached. Try again after %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 的更新检查次数已达上限。请在 %@ 之后再试。"
+          }
+        }
+      }
+    },
+    "GitHub's limit on update checks is reached. Try again later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 的更新检查次数已达上限。请稍后再试。"
+          }
+        }
+      }
+    },
+    "GitHub's newest Spinnet release could not be read: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取 GitHub 上最新的 Spinnet 发布版本：%@"
+          }
+        }
+      }
+    },
+    "GitHub's release tags could not be read: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取 GitHub 上的发布标签：%@"
+          }
+        }
+      }
+    },
     "Grant Access": {
       "localizations": {
         "zh-Hans": {
@@ -4197,6 +4347,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "大"
+          }
+        }
+      }
+    },
+    "Last checked %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次检查：%@。"
           }
         }
       }
@@ -5121,6 +5281,16 @@
         }
       }
     },
+    "Not downloaded: a check downloads at most %@ packages.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未下载：每次检查最多下载 %@ 个软件包。"
+          }
+        }
+      }
+    },
     "Not enabled": {
       "localizations": {
         "zh-Hans": {
@@ -5147,6 +5317,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "未安装：其访问权限未获允许。"
+          }
+        }
+      }
+    },
+    "Not looked up: a check looks up at most %@ releases.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未查询：每次检查最多查询 %@ 个发布版本。"
           }
         }
       }
@@ -5417,6 +5597,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开菜单编辑器"
+          }
+        }
+      }
+    },
+    "Open Menu Editor is available once the Official Plugins being installed are done.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在安装的官方插件完成后，即可打开菜单编辑器。"
           }
         }
       }
@@ -7011,7 +7201,7 @@
         }
       }
     },
-    "Runs a shortcut from the Shortcuts app.": {
+    "Runs a shortcut from the Shortcuts App.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -7821,6 +8011,16 @@
         }
       }
     },
+    "Spinnet could not reach GitHub. Check your connection and try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 无法连接 GitHub。请检查网络连接后重试。"
+          }
+        }
+      }
+    },
     "Spinnet could not save settings": {
       "localizations": {
         "zh-Hans": {
@@ -8431,6 +8631,16 @@
         }
       }
     },
+    "The downloaded package changed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的软件包已更改。"
+          }
+        }
+      }
+    },
     "The focused field is a password field. Nothing was inserted.": {
       "localizations": {
         "zh-Hans": {
@@ -8451,12 +8661,112 @@
         }
       }
     },
+    "The package cannot be read: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取该软件包：%@"
+          }
+        }
+      }
+    },
+    "The package declares no Update Source, not %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该软件包未声明更新源，应为 %@。"
+          }
+        }
+      }
+    },
+    "The package declares the Update Source %@, not %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该软件包声明的更新源是 %1$@，而不是 %2$@。"
+          }
+        }
+      }
+    },
+    "The package is a different Plugin, %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该软件包是另一个插件 %@。"
+          }
+        }
+      }
+    },
+    "The package is not a release asset of %@ on github.com over HTTPS.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该软件包不是通过 HTTPS 从 github.com 上 %@ 的发布资源获取的。"
+          }
+        }
+      }
+    },
+    "The package is version %@, not the %@ its release tag names.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该软件包的版本是 %1$@，而不是其发布标签所指明的 %2$@。"
+          }
+        }
+      }
+    },
     "The previously selected %@ is unavailable. Choose a replacement.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "之前选择的%@不可用。请选择替代项。"
+          }
+        }
+      }
+    },
+    "The release asset redirects away from GitHub's download storage.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该发布资源重定向到了 GitHub 下载存储之外。"
+          }
+        }
+      }
+    },
+    "The release asset redirects more than %@ times.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该发布资源重定向超过 %@ 次。"
+          }
+        }
+      }
+    },
+    "The release has no asset named %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该发布版本没有名为 %@ 的资源。"
+          }
+        }
+      }
+    },
+    "The release tag does not name a SemVer version.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发布标签未指明 SemVer 版本。"
           }
         }
       }
@@ -8477,6 +8787,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "所选预设不可用。"
+          }
+        }
+      }
+    },
+    "The update no longer applies: %@ Check again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此更新已不再适用：%@请重新检查。"
           }
         }
       }
@@ -8537,6 +8857,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "此预设需要设置后才能添加"
+          }
+        }
+      }
+    },
+    "This Spinnet's version, %@, is not a SemVer version, so it cannot be compared.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Spinnet 的版本 %@ 不是 SemVer 版本，因此无法比较。"
           }
         }
       }
@@ -9241,6 +9571,16 @@
         }
       }
     },
+    "Without Accessibility, the keyboard shortcut still opens the Menu at once.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未获得辅助功能权限时，键盘快捷键仍会立即打开菜单。"
+          }
+        }
+      }
+    },
     "Working": {
       "localizations": {
         "zh-Hans": {
@@ -9407,6 +9747,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "到 %@"
+          }
+        }
+      }
+    },
+    "it is a draft or a prerelease.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它是草稿或预发布版本。"
+          }
+        }
+      }
+    },
+    "it is not a list of tags.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回应不是标签列表。"
+          }
+        }
+      }
+    },
+    "it is not a release.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回应不是发布版本。"
+          }
+        }
+      }
+    },
+    "it is too large.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回应过大。"
+          }
+        }
+      }
+    },
+    "its tag %@ does not name a SemVer version.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其标签 %@ 未指明 SemVer 版本。"
           }
         }
       }

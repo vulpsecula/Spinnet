@@ -155,6 +155,34 @@ final class SpinnetReleaseChecksTests: XCTestCase {
         XCTAssertTrue(releases.summary.hasPrefix("Spinnet 1.0.0 is up to date."))
     }
 
+    func testGeneralSaysWhenItLastCheckedAndWhyItFailedInTheInterfaceLanguage() throws {
+        try publishLatest(tag: "v1.0.0")
+        try launch()
+        releases.checkNow()
+
+        try HostLocalization.withLanguage(.simplifiedChinese) {
+            let summary = releases.summary
+            XCTAssertTrue(summary.hasPrefix("Spinnet 1.0.0 已是最新版本。上次检查："), summary)
+            XCTAssertTrue(summary.hasSuffix("。"), summary)
+
+            transport.answer(latestURL, status: 429)
+            releases.checkNow()
+            XCTAssertEqual(releases.shownFailure, "GitHub 的更新检查次数已达上限。请稍后再试。")
+        }
+        XCTAssertEqual(releases.summary, "The last check did not complete.")
+    }
+
+    func testARunningVersionThatIsNotSemVerIsReportedAsAFailedCheck() throws {
+        try publishLatest(tag: "v1.2.0")
+        try launch(running: "dev-build")
+
+        releases.checkNow()
+
+        XCTAssertEqual(releases.status,
+                       .failed("This Spinnet's version, dev-build, is not a SemVer version, so it cannot be compared."))
+        XCTAssertTrue(generalNames.contains("This Spinnet's version, dev-build, is not a SemVer version, so it cannot be compared."))
+    }
+
     func testANewerReleaseIsKeptAcrossLaunchesUntilItIsInstalled() throws {
         try publishLatest(tag: "v1.2.0")
         try launch()

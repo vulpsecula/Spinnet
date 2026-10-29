@@ -116,6 +116,27 @@ final class PluginUpdatesModelTests: XCTestCase {
         XCTAssertEqual(updates.message(for: pluginID), "No acceptable update. next: The release tag does not name a SemVer version.")
     }
 
+    func testRefusalsAndFailuresAreShownInTheInterfaceLanguage() throws {
+        try install(version: "1.0.0")
+        try HostLocalization.withLanguage(.simplifiedChinese) {
+            updates.checkForUpdate(pluginID)
+            XCTAssertEqual(updates.message(for: pluginID), "Spinnet 无法连接 GitHub。请检查网络连接后重试。")
+
+            try PluginReleaseFixture.publish([.init(tag: "\(pluginID.rawValue)/vnext")], on: transport)
+            updates.checkForUpdate(pluginID)
+            XCTAssertEqual(updates.message(for: pluginID), "没有可接受的更新。next：发布标签未指明 SemVer 版本。")
+
+            let higher = "\(pluginID.rawValue)/v1.2.0", lower = "\(pluginID.rawValue)/v1.1.0"
+            try PluginReleaseFixture.publish([.init(tag: higher), .init(tag: lower)], on: transport)
+            transport.answer(PluginReleaseFixture.assetURL(tag: higher), body: try PluginReleaseFixture.zipped(
+                PluginReleaseFixture.manifest(id: "com.example.impostor", version: "1.2.0"), in: directory))
+            transport.answer(PluginReleaseFixture.assetURL(tag: lower), body: try PluginReleaseFixture.zipped(
+                PluginReleaseFixture.manifest(version: "1.1.0"), in: directory))
+            updates.checkForUpdate(pluginID)
+            XCTAssertEqual(updates.message(for: pluginID), "版本 1.1.0 可用。1.2.0 被拒：该软件包是另一个插件 com.example.impostor。")
+        }
+    }
+
     func testAPluginWithoutAnUpdateSourceOffersNoUpdateControls() throws {
         try install(version: "1.0.0", updateSource: nil)
 

@@ -21,7 +21,7 @@ final class WelcomeGuideModel: ObservableObject {
 
     /// Finishing the guide continues in the Menu Editor.
     var onComplete: (() -> Void)?
-    /// Each opening starts the official Plugins step afresh.
+    /// Each opening starts the Official Plugins step afresh.
     var onOpen: (() -> Void)?
 
     private let defaults: UserDefaults
@@ -52,7 +52,14 @@ final class WelcomeGuideModel: ObservableObject {
         isPresented = true
     }
 
+    /// Whether Official Plugin installs started in the guide are still under
+    /// way; Open Menu Editor waits until each has installed or failed.
+    var hasInstallsUnderWay: () -> Bool = { false }
+
+    var canComplete: Bool { !hasInstallsUnderWay() }
+
     func complete() {
+        guard canComplete else { return }
         skip()
         onComplete?()
     }

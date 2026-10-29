@@ -346,7 +346,7 @@ final class PluginUpdateTests: XCTestCase {
         XCTAssertEqual(failedCheck(), .unexpectedStatus(500))
 
         transport.answer(PluginReleaseFixture.tagsURL, body: Data(#"{"message": "Moved"}"#.utf8))
-        XCTAssertEqual(failedCheck(), .unreadableAnswer("it is not a list of tags."))
+        XCTAssertEqual(failedCheck(), .unreadableAnswer(HostText("it is not a list of tags.")))
 
         transport.answer(PluginReleaseFixture.tagsURL, body: Data(count: PluginUpdateBudgets.maximumAnswerBytes + 1))
         XCTAssertEqual(failedCheck(), .tagListTooLarge)
