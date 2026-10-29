@@ -630,6 +630,8 @@ final class GlobalTriggerController {
     private var escapeHotKey: EventHotKeyRef?
     private var mouseEventTap: CFMachPort?
     private var mouseEventTapSource: CFRunLoopSource?
+    private var keyEventTap: CFMachPort?
+    private var keyEventTapSource: CFRunLoopSource?
     private var permissionRetryTimer: Timer?
     private var mouseGestureOrigin: CGPoint?
     private var mouseGestureDidDrag = false
@@ -638,6 +640,31 @@ final class GlobalTriggerController {
     private let signature = OSType(0x53504E54) // SPNT
     private let accessibilityPermission: AccessibilityPermissionController
     private let mouseButtonStateCheck: (Int) -> Bool
+    private let scheduleDelay: (TimeInterval, @escaping () -> Void) -> () -> Void
+    private let postEvent: (CGEvent) -> Void
+
+    /// A trigger press the opening delay is holding back from the Current
+    /// App: the press and everything recorded since, in arrival order.
+    private struct HeldPress {
+        enum Trigger: Equatable {
+            case mouse(button: Int)
+            case key(code: Int64)
+        }
+        let trigger: Trigger
+        var events: [CGEvent]
+        var pointer: CGPoint
+        var cancelDelay: () -> Void
+    }
+    private var heldPress: HeldPress?
+    /// A key whose remaining events belong to the Menu after it opened or
+    /// closed, so they never reach the App on their own.
+    private var swallowedKeyCode: Int64?
+    /// A button whose press was handed to the App mid-press, so its
+    /// remaining motion and release follow it there.
+    private var handedBackButton: Int?
+
+    /// Marks events the trigger re-delivers to the Current App ("SPNTRDLV").
+    private static let redeliveryMarker: Int64 = 0x5350_4E54_5244_4C56
 
     var configuration = MenuTriggerConfiguration()
     private(set) var keyboardShortcutRegistered = true
@@ -652,6 +679,22 @@ final class GlobalTriggerController {
     var onMouseDrag: ((CGPoint) -> Void)?
     var onMouseDragRelease: ((CGPoint) -> Void)?
     var onAccessibilityPermissionChanged: ((Bool) -> Void)?
+    /// Whether the Menu is open. A trigger press then closes it at once,
+    /// because the opening delay governs opening only.
+    var isMenuOpen: (() -> Bool)?
+
+    /// Whether the keyboard shortcut is read from an event tap rather than
+    /// registered as a system hot key: only with an opening delay, because
+    /// only then must a short press be returned to the App.
+    var handlesKeyboardShortcutInEventTap: Bool {
+        configuration.openingDelay > 0 && configuration.keyboardShortcut != nil
+    }
+
+    /// True for an event the trigger re-delivered to the Current App after a
+    /// press shorter than the opening delay.
+    static func isRedelivered(_ event: CGEvent) -> Bool {
+        event.getIntegerValueField(.eventSourceUserData) == redeliveryMarker
+    }
 
     init(
         accessibilityPermission: AccessibilityPermissionController = AccessibilityPermissionController(),
@@ -666,10 +709,18 @@ final class GlobalTriggerController {
                 .hidSystemState,
                 button: button
             )
-        }
+        },
+        scheduleDelay: @escaping (TimeInterval, @escaping () -> Void) -> () -> Void = { delay, work in
+            let item = DispatchWorkItem(block: work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+            return { item.cancel() }
+        },
+        postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: .cgSessionEventTap) }
     ) {
         self.accessibilityPermission = accessibilityPermission
         self.mouseButtonStateCheck = mouseButtonStateCheck
+        self.scheduleDelay = scheduleDelay
+        self.postEvent = postEvent
     }
 
     func start(configuration: MenuTriggerConfiguration) -> Bool {
@@ -723,6 +774,7 @@ final class GlobalTriggerController {
     }
 
     func apply(_ configuration: MenuTriggerConfiguration) -> Bool {
+        handHeldPressBack()
         self.configuration = configuration
         guard isRunning else { return true }
         mouseGestureOrigin = nil
@@ -767,8 +819,18 @@ final class GlobalTriggerController {
             captureHandler?(buttonNumber)
             return nil
         }
-        if isCapturingMouseButton {
+        if isCapturingMouseButton || Self.isRedelivered(event) {
             return Unmanaged.passUnretained(event)
+        }
+        if let handedBackButton, type != .mouseMoved {
+            let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+            if type == .otherMouseDragged || buttonNumber == handedBackButton {
+                if type == .otherMouseUp, buttonNumber == handedBackButton { self.handedBackButton = nil }
+                return Unmanaged.passUnretained(event)
+            }
+        }
+        if case .mouse(let heldButton)? = heldPress?.trigger {
+            return continueHeldMousePress(button: heldButton, type: type, event: event)
         }
 
         if type == .mouseMoved || type == .otherMouseDragged {
@@ -788,6 +850,10 @@ final class GlobalTriggerController {
         switch type {
         case .otherMouseDown:
             guard mouseGestureOrigin == nil else { return nil }
+            if configuration.openingDelay > 0, isMenuOpen?() != true {
+                holdPress(.mouse(button: buttonNumber), event: event)
+                return nil
+            }
             mouseGestureOrigin = event.location
             mouseGestureDidDrag = false
             onInvoke?()
@@ -803,6 +869,121 @@ final class GlobalTriggerController {
             break
         }
         return nil
+    }
+
+    /// Events of the trigger button while its press is held back: motion is
+    /// recorded for the App, and an early release hands the whole press back.
+    private func continueHeldMousePress(
+        button: Int,
+        type: CGEventType,
+        event: CGEvent
+    ) -> Unmanaged<CGEvent>? {
+        switch type {
+        case .mouseMoved:
+            heldPress?.pointer = event.location
+            return Unmanaged.passUnretained(event)
+        case .otherMouseDragged:
+            heldPress?.events.append(event.copy() ?? event)
+            heldPress?.pointer = event.location
+            return nil
+        case .otherMouseUp where Int(event.getIntegerValueField(.mouseEventButtonNumber)) == button:
+            heldPress?.events.append(event.copy() ?? event)
+            handHeldPressBack()
+            handedBackButton = nil
+            return nil
+        default:
+            return Unmanaged.passUnretained(event)
+        }
+    }
+
+    // MARK: Opening delay
+
+    private func holdPress(_ trigger: HeldPress.Trigger, event: CGEvent) {
+        let cancelDelay = scheduleDelay(configuration.openingDelay) { [weak self] in
+            self?.openHeldPress()
+        }
+        heldPress = HeldPress(
+            trigger: trigger,
+            events: [event.copy() ?? event],
+            pointer: event.location,
+            cancelDelay: cancelDelay
+        )
+    }
+
+    /// The trigger was held for the opening delay: its events belong to the
+    /// Menu, which opens where the pointer is now.
+    private func openHeldPress() {
+        guard let press = heldPress else { return }
+        heldPress = nil
+        switch press.trigger {
+        case .mouse:
+            mouseGestureOrigin = press.pointer
+            mouseGestureDidDrag = false
+        case .key(let code):
+            swallowedKeyCode = code
+        }
+        onInvoke?()
+    }
+
+    /// Returns a held press to the Current App: the original events in
+    /// order, marked so this trigger lets them through. A press still down
+    /// keeps going to the App until it is released.
+    private func handHeldPressBack() {
+        guard let press = heldPress else { return }
+        heldPress = nil
+        press.cancelDelay()
+        if case .mouse(let button) = press.trigger { handedBackButton = button }
+        for event in press.events {
+            event.setIntegerValueField(.eventSourceUserData, value: Self.redeliveryMarker)
+            postEvent(event)
+        }
+    }
+
+    /// The keyboard shortcut read from the event tap, used only with an
+    /// opening delay. Without one, the shortcut is a system hot key.
+    func interceptKeyEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let keyEventTap { CGEvent.tapEnable(tap: keyEventTap, enable: true) }
+            return Unmanaged.passUnretained(event)
+        }
+        guard type == .keyDown || type == .keyUp,
+              handlesKeyboardShortcutInEventTap,
+              !Self.isRedelivered(event),
+              let shortcut = configuration.keyboardShortcut else {
+            return Unmanaged.passUnretained(event)
+        }
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        if case .key(let heldCode)? = heldPress?.trigger, heldCode == keyCode {
+            heldPress?.events.append(event.copy() ?? event)
+            if type == .keyUp { handHeldPressBack() }
+            return nil
+        }
+        if swallowedKeyCode == keyCode {
+            if type == .keyUp { swallowedKeyCode = nil }
+            return nil
+        }
+        guard type == .keyDown,
+              keyCode == Int64(shortcut.keyCode),
+              Self.carbonModifiers(of: event.flags) == shortcut.modifiers,
+              heldPress == nil else {
+            return Unmanaged.passUnretained(event)
+        }
+        if isMenuOpen?() == true {
+            swallowedKeyCode = keyCode
+            onInvoke?()
+        } else {
+            holdPress(.key(code: keyCode), event: event)
+        }
+        return nil
+    }
+
+    private static func carbonModifiers(of flags: CGEventFlags) -> UInt32 {
+        var modifiers: UInt32 = 0
+        if flags.contains(.maskCommand) { modifiers |= UInt32(cmdKey) }
+        if flags.contains(.maskControl) { modifiers |= UInt32(controlKey) }
+        if flags.contains(.maskAlternate) { modifiers |= UInt32(optionKey) }
+        if flags.contains(.maskShift) { modifiers |= UInt32(shiftKey) }
+        return modifiers
     }
 
     @discardableResult
@@ -884,7 +1065,11 @@ final class GlobalTriggerController {
     }
 
     private func registerInvokeShortcut() -> Bool {
+        removeKeyEventTap()
         guard let shortcut = configuration.keyboardShortcut else { return true }
+        if handlesKeyboardShortcutInEventTap, installKeyEventTap() {
+            return true
+        }
 
         let invokeStatus = RegisterEventHotKey(
             shortcut.keyCode,
@@ -898,6 +1083,44 @@ final class GlobalTriggerController {
             return false
         }
         return true
+    }
+
+    /// Reads keystrokes only while an opening delay needs the shortcut's
+    /// original key events. It needs the Accessibility permission the mouse
+    /// tap needs; without it the shortcut stays a hot key that opens at once.
+    private func installKeyEventTap() -> Bool {
+        let eventMask = (CGEventMask(1) << CGEventType.keyDown.rawValue)
+            | (CGEventMask(1) << CGEventType.keyUp.rawValue)
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: eventMask,
+            callback: { _, type, event, context in
+                guard let context else { return Unmanaged.passUnretained(event) }
+                let controller = Unmanaged<GlobalTriggerController>
+                    .fromOpaque(context)
+                    .takeUnretainedValue()
+                return controller.interceptKeyEvent(type: type, event: event)
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else { return false }
+
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        keyEventTap = tap
+        keyEventTapSource = source
+        return true
+    }
+
+    private func removeKeyEventTap() {
+        if let keyEventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), keyEventTapSource, .commonModes)
+        }
+        if let keyEventTap { CFMachPortInvalidate(keyEventTap) }
+        keyEventTap = nil
+        keyEventTapSource = nil
     }
 
     func registerEscape() -> Bool {
@@ -919,6 +1142,10 @@ final class GlobalTriggerController {
     }
 
     func stop() {
+        handHeldPressBack()
+        handedBackButton = nil
+        swallowedKeyCode = nil
+        removeKeyEventTap()
         isRunning = false
         permissionRetryTimer?.invalidate()
         permissionRetryTimer = nil

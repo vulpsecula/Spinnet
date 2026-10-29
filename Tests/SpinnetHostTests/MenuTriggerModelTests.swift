@@ -125,4 +125,24 @@ final class MenuTriggerModelTests: XCTestCase {
         XCTAssertEqual(triggerChanges, 0)
         XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).mouseButton, 4)
     }
+
+    /// The Menu opening delay: zero by default, meaning the Menu opens on
+    /// the press as it always has; any edit is clamped to the offered range,
+    /// saved, and reported so the running trigger applies it at once.
+    func testTheOpeningDelayDefaultsToZeroIsBoundedPersistsAndReportsChanges() {
+        let model = MenuTriggerModel(defaults: defaults, conflictCheck: { _ in [] })
+        XCTAssertEqual(model.openingDelay, 0)
+        var reported: [MenuTriggerConfiguration] = []
+        model.onChange = { reported.append($0) }
+
+        model.openingDelay = 0.3
+        XCTAssertEqual(reported.last?.openingDelay, 0.3)
+        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).openingDelay, 0.3)
+
+        model.openingDelay = 5
+        XCTAssertEqual(model.openingDelay, MenuTriggerConfiguration.openingDelayRange.upperBound)
+        model.openingDelay = -1
+        XCTAssertEqual(model.openingDelay, 0)
+        XCTAssertEqual(MenuTriggerConfiguration.openingDelayRange, 0...1)
+    }
 }

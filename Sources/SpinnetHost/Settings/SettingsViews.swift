@@ -451,6 +451,7 @@ final class SettingsWindowModel: ObservableObject {
             ])
         } else if page == .general {
             names.append(contentsOf: launchAtLogin.accessibleNames)
+            names.append(MenuOpeningDelayRow.accessibleName(for: trigger.openingDelay))
             names.append(contentsOf: pluginUpdates.accessibleNames)
             names.append(contentsOf: spinnetReleases.accessibleNames)
             #if DEBUG

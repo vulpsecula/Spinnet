@@ -685,6 +685,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func installTriggers() throws {
         let controller = GlobalTriggerController()
         controller.onInvoke = { [weak self] in self?.toggleMenu() }
+        controller.isMenuOpen = { [weak self] in self?.menu?.isOpen ?? false }
         controller.onEscape = { [weak self] in self?.menu.dismiss() }
         controller.onMouseDrag = { [weak self] screenPoint in
             self?.menu.updateGesture(at: screenPoint)
