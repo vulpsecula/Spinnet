@@ -101,6 +101,16 @@ an update offered below refused versions is shown with their reasons. A failed
 check, such as being offline, GitHub's rate limit or an unreadable tag list,
 is reported. Either way the installed version keeps working.
 
+The Host also checks every installed Plugin that declares an Update Source,
+once a day while the user leaves automatic checks on, and when the user asks
+to check all Plugins. Such a check of several Plugins lists the tags once per
+repository, by the longest prefix their `<id>/v` prefixes share, and treats
+each Plugin as above within the bounds below, which apply to each Plugin.
+When that shared list is larger than the answer bound, each Plugin's own
+prefix is listed instead. Being offline, a timeout or GitHub's rate limit
+stops the check of the remaining Plugins until the next one; nothing is
+retried sooner.
+
 | Bound | Value |
 | --- | --- |
 | Releases looked up per check | 10 |

@@ -51,7 +51,12 @@ struct MenuEditorView: View {
                 TextField("Search Presets and Commands", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Search Library")
-                Button("Install or Update Plugin…", action: onInstallPlugin)
+                HStack(spacing: 12) {
+                    Button("Install or Update Plugin…", action: onInstallPlugin)
+                    if let pluginUpdates {
+                        CheckAllPluginUpdatesButton(updates: pluginUpdates)
+                    }
+                }
 
                 let presets = libraryPresets
                 let refusedPlugins = refusedPluginsForQuery(searchText)

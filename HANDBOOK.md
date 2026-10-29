@@ -46,7 +46,16 @@ requested Capabilities are reviewed, again at that moment, before anything is
 replaced. Nothing
 installs automatically. A refused version, being offline or GitHub's rate
 limit is shown on the entry, and the installed version keeps working. A Plugin
-without an Update Source shows no update controls. Authors publish releases
+without an Update Source shows no update controls.
+
+General's "Check for Plugin updates automatically" (on by default) checks
+every such Plugin at most once a day across launches, never at launch before
+a check is due, with a single timer for the next one; turned off, no
+automatic request is made and an automatic check under way stops asking. General's Check Now and the Library's Check All
+for Updates run the same check at once. General shows how many updates are
+available, and each affected Library entry offers Update. Tags are listed once
+per repository; a failure or GitHub's rate limit is reported on General, not
+in an alert, and is not retried before the next check. Authors publish releases
 as described in [Update Source](PluginAPI/reference/update-source.md).
 
 ### Privacy and ongoing work

@@ -226,7 +226,8 @@ final class SettingsWindowModel: ObservableObject {
     let appearance: MenuAppearanceModel
     /// What the Host does after every screenshot.
     let screenshots: ScreenshotSettingsModel
-    /// The Library's Check for Update and Update per Plugin.
+    /// The Library's Check for Update and Update per Plugin, and General's
+    /// checks of every Plugin.
     let pluginUpdates: PluginUpdatesModel
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
@@ -278,11 +279,12 @@ final class SettingsWindowModel: ObservableObject {
         clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
         screenshots = ScreenshotSettingsModel(defaults: defaults)
         // A refused Plugin can be updated too, to a version this Host runs.
-        pluginUpdates = PluginUpdatesModel(manifest: { [editor] pluginID in
-            editor.pluginManifests.first { $0.id == pluginID }
-                ?? editor.refusedPlugins.first { $0.id == pluginID }?.manifest
-        })
+        pluginUpdates = PluginUpdatesModel(manifests: { [editor] in
+            editor.pluginManifests + editor.refusedPlugins.compactMap(\.manifest)
+        }, defaults: defaults)
         pluginUpdates.startUpdate = { [weak menuEditor] in menuEditor?.installPluginUpdate($0) }
+        // The Library bumps its token after each install, update or removal.
+        pluginUpdates.observeInstalledPlugins(menuEditor.$refreshToken.dropFirst())
         // Authority decides Menu Item availability, so a grant or permission
         // change has to recompute the Slots.
         privacy.onAuthorityChanged = { [weak menuEditor] in menuEditor?.refreshMenuSlots() }
@@ -445,6 +447,7 @@ final class SettingsWindowModel: ObservableObject {
             ])
         } else if page == .general {
             names.append(contentsOf: launchAtLogin.accessibleNames)
+            names.append(contentsOf: pluginUpdates.accessibleNames)
             #if DEBUG
             if developerTools != nil { names.append(contentsOf: DeveloperSettingsSection.accessibleNames) }
             #endif
@@ -919,7 +922,7 @@ struct SettingsRootView: View {
         Group {
             switch model.page {
             case .general:
-                GeneralSettingsView(model: model, launchAtLogin: model.launchAtLogin)
+                GeneralSettingsView(model: model, launchAtLogin: model.launchAtLogin, pluginUpdates: model.pluginUpdates)
             case .menu:
                 VStack(spacing: 0) {
                     spinnetEnabledSwitch

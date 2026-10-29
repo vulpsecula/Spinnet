@@ -37,3 +37,90 @@ struct PluginUpdateControls: View {
         }
     }
 }
+
+/// The Library's Check All for Updates: the same check of every Plugin as
+/// General's Check Now.
+struct CheckAllPluginUpdatesButton: View {
+    @ObservedObject var updates: PluginUpdatesModel
+
+    var body: some View {
+        if updates.canCheckAll {
+            HStack(spacing: 8) {
+                Button("Check All for Updates", action: updates.checkNow)
+                    .disabled(updates.isCheckingAll)
+                if updates.isCheckingAll {
+                    ProgressView().controlSize(.small)
+                    Text("Checking for updates…").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+/// General's Plugin Update checks: the daily automatic check, Check Now, how
+/// many updates are available and why the last check did not complete. A
+/// failure is reported here only, never as an alert.
+struct PluginUpdateChecksSection: View {
+    @ObservedObject var updates: PluginUpdatesModel
+    let showLibrary: () -> Void
+
+    private let detail = "Once a day, ask each Plugin's Update Source for a newer version. Nothing installs by itself."
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Check for Plugin updates automatically").font(.body.weight(.medium))
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 12)
+                Toggle("Check for Plugin updates automatically", isOn: $updates.checksAutomatically)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .accessibilityLabel("Check for Plugin updates automatically")
+                    .accessibilityHint(detail)
+            }
+            HStack(spacing: 8) {
+                Button("Check Now", action: updates.checkNow)
+                    .controlSize(.small)
+                    .disabled(updates.isCheckingAll || !updates.canCheckAll)
+                if updates.isCheckingAll {
+                    ProgressView().controlSize(.small)
+                    Text("Checking for updates…")
+                } else {
+                    Text(summary)
+                    if updates.availableUpdateCount > 0 {
+                        Button("Show in Library", action: showLibrary)
+                            .controlSize(.small)
+                    }
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            if let failure = updates.runFailure, !updates.isCheckingAll {
+                Label(failure, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(failure)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
+    }
+
+    private var summary: String {
+        guard updates.canCheckAll else { return "No installed Plugin declares an Update Source." }
+        let available: String
+        switch updates.availableUpdateCount {
+        case 0: available = updates.lastCheck == nil ? "Not checked yet." : "No Plugin updates available."
+        case 1: available = "1 Plugin update available."
+        case let count: available = "\(count) Plugin updates available."
+        }
+        guard let last = updates.shownLastCheck else { return available }
+        return "\(available) Last checked \(last.formatted(.relative(presentation: .named)))."
+    }
+}

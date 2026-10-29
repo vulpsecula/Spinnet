@@ -36,7 +36,7 @@ final class PluginUpdatesModelTests: XCTestCase {
         settings.menuEditor.installPlugin = { [store] in try store!.install(from: $0) }
         settings.menuEditor.applyPluginUpdate = { try updater.apply($0) }
         settings.pluginUpdates.checkPluginUpdate = { try updater.check($0) }
-        settings.pluginUpdates.runInBackground = { $0() }
+        settings.pluginUpdates.runInBackground = { $1() }
         settings.pluginUpdates.deliver = { $0() }
     }
 

@@ -411,7 +411,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             // Checks Update Sources and applies Plugin Updates through the
             // same install store. Made here, on the main thread, before any
             // check runs in the background; unpacked offers wait in a
-            // temporary folder it clears.
+            // temporary folder it clears at launch and after each update.
             let pluginUpdater = PluginUpdater(
                 store: pluginInstallation, registry: registry, transport: URLSessionHTTPSTransport(),
                 downloads: FileManager.default.temporaryDirectory
@@ -423,8 +423,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.checkPluginUpdate = { pluginID in
                 try pluginUpdater.check(pluginID)
             }
+            settings.checkPluginUpdates = { pluginIDs, isCancelled in
+                pluginUpdater.checkAll(pluginIDs, isCancelled: isCancelled)
+            }
+            // A single timer for the next due check; nothing is asked at launch.
+            settings.startAutomaticPluginUpdateChecks()
             settings.removePlugin = { [unowned self] pluginID in
                 try self.pluginInstallation.uninstall(pluginID)
+                pluginUpdater.discardOffers(for: pluginID)
                 self.clipboardBroker?.responseCache.clear()
                 if let configuration = self.currentConfiguration {
                     self.menu.reload(items: self.makeMenuSlots(from: configuration))
