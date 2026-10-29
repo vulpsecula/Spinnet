@@ -20,6 +20,18 @@ final class MenuTriggerModel: ObservableObject {
     @Published var keyboardShortcut: MenuKeyboardShortcut? {
         didSet { configurationDidChange() }
     }
+    /// How long the trigger must be held before the Menu opens, shown on
+    /// General. Edits are clamped to `MenuTriggerConfiguration.openingDelayRange`.
+    @Published var openingDelay: TimeInterval {
+        didSet {
+            let bounded = MenuTriggerConfiguration.boundedOpeningDelay(openingDelay)
+            guard bounded == openingDelay else {
+                openingDelay = bounded
+                return
+            }
+            configurationDidChange()
+        }
+    }
 
     @Published private(set) var mouseInputConflicts: [MouseInputConflict]
 
@@ -48,7 +60,8 @@ final class MenuTriggerModel: ObservableObject {
         MenuTriggerConfiguration(
             mouseButton: mouseButton,
             clickDragEnabled: clickDragEnabled,
-            keyboardShortcut: keyboardShortcut
+            keyboardShortcut: keyboardShortcut,
+            openingDelay: openingDelay
         )
     }
 
@@ -67,6 +80,7 @@ final class MenuTriggerModel: ObservableObject {
         mouseButton = saved.mouseButton
         clickDragEnabled = saved.clickDragEnabled
         keyboardShortcut = saved.keyboardShortcut
+        openingDelay = saved.openingDelay
         mouseInputConflicts = conflictCheck(saved.mouseButton)
         isEnabled = Self.isEnabled(in: defaults)
     }

@@ -31,6 +31,30 @@ Spinnet itself contains no Plugins: install a package from the Library. Official
 Plugins from [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins)
 are installed, updated and removed like any other Plugin.
 
+### Menu Opening Delay
+
+General's Menu Opening Delay (0 to 1 second, 0 by default) lets the trigger
+keep its usual job. At 0 the Menu opens on the press, as it always has. Above
+0, Spinnet holds the press back: held for the delay, the Menu opens where the
+pointer is then and the press never reaches the App; released sooner, the
+original press, any motion and the release go to the Current App in their
+original order, so a short Side Button 1 press still goes Back. Re-delivered
+events are marked, and Spinnet's own trigger lets them through. A trigger
+press while the Menu is open closes it at once; the delay governs opening only.
+
+The keyboard shortcut follows the same rule with its original key events,
+autorepeats included. With a delay it is read from Spinnet's event tap
+instead of being registered as a system hot key, so it needs Accessibility;
+without that permission, or at 0, it stays a hot key that opens at once.
+
+With Click & Drag, the delay comes first: a press-drag-release shorter than
+the delay is a short press and goes to the App, motion included. Once the Menu
+opens, drag selection measures from where it opened, so motion during the
+delay is not a selection. The trackpad trigger (#110) should follow the same
+rule when it lands: hold its gesture back for the delay, return it unchanged
+to the App on an early end, and start any drag selection only once the Menu
+has opened.
+
 ### Plugin Updates
 
 A Plugin that declares an Update Source, a GitHub repository, offers Check for

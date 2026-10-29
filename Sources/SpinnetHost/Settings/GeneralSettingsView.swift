@@ -25,6 +25,10 @@ struct GeneralSettingsView: View {
                 .padding(.horizontal, 18)
                 .settingsCard()
 
+                MenuOpeningDelayRow(trigger: model.trigger)
+                    .padding(.horizontal, 18)
+                    .settingsCard()
+
                 PluginUpdateChecksSection(updates: pluginUpdates, showLibrary: { model.selectPage(.menu) })
                     .padding(.horizontal, 18)
                     .settingsCard()
