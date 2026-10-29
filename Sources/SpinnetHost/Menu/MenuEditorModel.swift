@@ -346,24 +346,11 @@ final class MenuEditorModel: ObservableObject {
 
     private func install(_ pending: PendingPluginInstallation) throws {
         let review = pending.review
-        let perform: () throws -> PluginManifest
-        if let update = pending.update {
-            guard let applyPluginUpdate else { return }
-            perform = { try applyPluginUpdate(update) }
-        } else {
-            guard let installPlugin else { return }
-            perform = { try installPlugin(pending.source) }
-        }
         let refused = editor.refusedPlugins.first { $0.id == review.manifest.id }
         let previous = editor.pluginManifests.first { $0.id == review.manifest.id }?.version
             ?? refused?.manifest?.version
-        let manifest = try perform()
+        guard let manifest = try installReviewed(pending) else { return }
         let requested = review.requestedAccess
-        // Inheritance notifications precede registration. Even an update
-        // needing no consent must refresh Access against the new manifest.
-        grantRequestedAccess?(manifest, requested)
-        refreshMenuSlots()
-        refreshToken += 1
         let kept = requested.isEmpty ? " Its access decisions are kept." : ""
         switch previous {
         case nil where refused != nil:
@@ -381,6 +368,28 @@ final class MenuEditorModel: ObservableObject {
                 title: "Plugin Updated",
                 message: "\(manifest.name) is updated from \(previous) to \(manifest.version).\(kept)")
         }
+    }
+
+    /// Installs a reviewed package, or applies a reviewed Plugin Update,
+    /// granting what the review asked for, without reporting the result.
+    /// Nothing is placed into Slots. Returns nil when the Host cannot install.
+    @discardableResult
+    func installReviewed(_ pending: PendingPluginInstallation) throws -> PluginManifest? {
+        let perform: () throws -> PluginManifest
+        if let update = pending.update {
+            guard let applyPluginUpdate else { return nil }
+            perform = { try applyPluginUpdate(update) }
+        } else {
+            guard let installPlugin else { return nil }
+            perform = { try installPlugin(pending.source) }
+        }
+        let manifest = try perform()
+        // Inheritance notifications precede registration. Even an update
+        // needing no consent must refresh Access against the new manifest.
+        grantRequestedAccess?(manifest, pending.review.requestedAccess)
+        refreshMenuSlots()
+        refreshToken += 1
+        return manifest
     }
 
     private func makeMenuSlots() -> [MenuSlotPresentation] {

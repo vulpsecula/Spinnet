@@ -59,6 +59,11 @@ final class SettingsWindowController: NSWindowController {
         get { model.pluginUpdates.checkPluginUpdates }
         set { model.pluginUpdates.checkPluginUpdates = newValue }
     }
+    /// Finds an Official Plugin's newest acceptable version for the Welcome Guide.
+    var lookUpOfficialPluginRelease: ((OfficialPlugin) throws -> PluginReleaseLookup)? {
+        get { model.officialPlugins.lookUpRelease }
+        set { model.officialPlugins.lookUpRelease = newValue }
+    }
     /// Schedules General's daily check of every Plugin; asks nothing until due.
     func startAutomaticPluginUpdateChecks() { model.pluginUpdates.startAutomaticChecks() }
     /// General's Spinnet release checks, also shown in the Status Item.

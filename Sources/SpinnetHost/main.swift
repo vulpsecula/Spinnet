@@ -426,6 +426,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.checkPluginUpdates = { pluginIDs, isCancelled in
                 pluginUpdater.checkAll(pluginIDs, isCancelled: isCancelled)
             }
+            // The Welcome Guide installs Official Plugins under the same
+            // acceptance rules, then through the Library's review.
+            settings.lookUpOfficialPluginRelease = { plugin in
+                try pluginUpdater.newestRelease(of: plugin.id, named: plugin.name, from: plugin.updateSource)
+            }
             // A single timer for the next due check; nothing is asked at launch.
             settings.startAutomaticPluginUpdateChecks()
             // Spinnet release checks ask GitHub for the newest release and

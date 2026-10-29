@@ -64,6 +64,16 @@ public struct PluginUpdateCheck: Equatable, Sendable {
     public let refusals: [PluginUpdateRefusal]
 }
 
+/// The newest acceptable published version of a Plugin that is not
+/// installed, found as a check finds a Plugin Update.
+public struct PluginReleaseLookup: Equatable, Sendable {
+    /// The highest accepted version, if any. It installs through the same
+    /// installation review as a package the user chose.
+    public let offer: PluginUpdateOffer?
+    /// Higher versions that were refused or not tried, with why, highest first.
+    public let refusals: [PluginUpdateRefusal]
+}
+
 /// The outcome of checking several installed Plugins at once.
 public struct PluginUpdateRun {
     /// Each Plugin's check, or why it could not be made, in the order asked.
@@ -177,6 +187,17 @@ public final class PluginUpdater {
         return try check(installed, source: source, tags: tags)
     }
 
+    /// Looks up the newest acceptable version of a Plugin that is not
+    /// installed at `source`, under the same acceptance rules and bounds as a
+    /// check, where any version is newer than none. Nothing is installed: the
+    /// offer goes through the normal installation review.
+    public func newestRelease(of pluginID: PluginID, named name: String,
+                              from source: PluginUpdateSource) throws -> PluginReleaseLookup {
+        let tags = try listTags(of: source, prefix: Self.tagPrefix(of: pluginID))
+        let found = try lookUp(Target(id: pluginID, name: name, version: nil), source: source, tags: tags)
+        return PluginReleaseLookup(offer: found.offer, refusals: found.refusals)
+    }
+
     /// Checks each Plugin as `check` does, within the same per-Plugin bounds,
     /// listing the tags of Plugins that share an Update Source once, by
     /// their common prefix. Being offline, timing out or reaching GitHub's
@@ -253,9 +274,24 @@ public final class PluginUpdater {
         return String(prefix)
     }
 
+    /// The Plugin a check or lookup is for: an installed one, or one not
+    /// installed, which has no version.
+    private struct Target {
+        let id: PluginID
+        let name: String
+        let version: PluginVersion?
+    }
+
     private func check(_ installed: PluginManifest, source: PluginUpdateSource, tags: [String]) throws -> PluginUpdateCheck {
-        let pluginID = installed.id
-        let current = try PluginVersion(installed.version)
+        let target = Target(id: installed.id, name: installed.name, version: try PluginVersion(installed.version))
+        let found = try lookUp(target, source: source, tags: tags)
+        return PluginUpdateCheck(pluginID: installed.id, installedVersion: installed.version,
+                                 update: found.offer, refusals: found.refusals)
+    }
+
+    private func lookUp(_ target: Target, source: PluginUpdateSource,
+                        tags: [String]) throws -> (offer: PluginUpdateOffer?, refusals: [PluginUpdateRefusal]) {
+        let pluginID = target.id
         let prefix = Self.tagPrefix(of: pluginID)
 
         var refusals: [PluginUpdateRefusal] = []
@@ -266,7 +302,7 @@ public final class PluginUpdater {
                 refusals.append(.init(tag: tag, version: written, reason: "The release tag does not name a SemVer version."))
                 continue
             }
-            if version > current { newer.append((version, tag)) }
+            if target.version.map({ version > $0 }) ?? true { newer.append((version, tag)) }
         }
         newer.sort { $0.version > $1.version }
 
@@ -288,13 +324,11 @@ public final class PluginUpdater {
                 guard let release = try lookUpRelease(tag, of: source), release.draft != true, release.prerelease != true else {
                     continue
                 }
-                let (offer, accepted) = try accept(release, version: version, replacing: installed, source: source,
+                let (offer, accepted) = try accept(release, version: version, for: target, source: source,
                                                    into: directory, budget: &budget)
-                let package = try keep(accepted, tag: release.tag, of: installed, generation: generation)
-                return PluginUpdateCheck(pluginID: pluginID, installedVersion: installed.version,
-                                         update: PluginUpdateOffer(tag: offer.tag, manifest: offer.manifest,
-                                                                   review: offer.review, packageURL: package ?? offer.packageURL),
-                                         refusals: refusals)
+                let package = try keep(accepted, tag: release.tag, of: target, generation: generation)
+                return (PluginUpdateOffer(tag: offer.tag, manifest: offer.manifest,
+                                          review: offer.review, packageURL: package ?? offer.packageURL), refusals)
             } catch let error as PluginUpdateError {
                 try? FileManager.default.removeItem(at: directory)
                 throw error
@@ -303,8 +337,8 @@ public final class PluginUpdater {
                 refuse(error.localizedDescription)
             }
         }
-        _ = try keep(nil, tag: nil, of: installed, generation: generation)
-        return PluginUpdateCheck(pluginID: pluginID, installedVersion: installed.version, update: nil, refusals: refusals)
+        _ = try keep(nil, tag: nil, of: target, generation: generation)
+        return (nil, refusals)
     }
 
     /// Installs an offer from `check` in place of the installed version,
@@ -368,7 +402,7 @@ public final class PluginUpdater {
     /// `accepted`, under `tag`, or nothing. When another check kept the same
     /// release from the same asset meanwhile, that copy is offered and this
     /// one deleted. Returns the package to offer.
-    private func keep(_ accepted: KeptOffer?, tag: String?, of installed: PluginManifest,
+    private func keep(_ accepted: KeptOffer?, tag: String?, of installed: Target,
                       generation: Int) throws -> URL? {
         var discarded: [URL] = []
         defer { for directory in Set(discarded) { try? FileManager.default.removeItem(at: directory) } }
@@ -426,7 +460,7 @@ public final class PluginUpdater {
         var downloads = 0
     }
 
-    private func accept(_ release: Release, version: PluginVersion, replacing installed: PluginManifest,
+    private func accept(_ release: Release, version: PluginVersion, for installed: Target,
                         source: PluginUpdateSource, into directory: URL,
                         budget: inout Budget) throws -> (PluginUpdateOffer, KeptOffer) {
         let name = PluginUpdateSource.assetName(for: installed.id)

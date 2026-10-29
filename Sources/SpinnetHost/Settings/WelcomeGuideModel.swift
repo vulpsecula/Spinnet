@@ -6,7 +6,7 @@ enum WelcomeGuideStep: CaseIterable, Equatable {
     case welcome
     case systemPermissions
     case menuTrigger
-    // The official Plugins step (#120) goes here, before finish.
+    case officialPlugins
     case finish
 }
 
@@ -21,6 +21,8 @@ final class WelcomeGuideModel: ObservableObject {
 
     /// Finishing the guide continues in the Menu Editor.
     var onComplete: (() -> Void)?
+    /// Each opening starts the official Plugins step afresh.
+    var onOpen: (() -> Void)?
 
     private let defaults: UserDefaults
     private let hasInstalledPlugins: () -> Bool
@@ -45,6 +47,7 @@ final class WelcomeGuideModel: ObservableObject {
     }
 
     func open() {
+        onOpen?()
         step = .welcome
         isPresented = true
     }

@@ -234,6 +234,8 @@ final class SettingsWindowModel: ObservableObject {
     let spinnetReleases: SpinnetReleaseChecksModel
     /// The first-run Welcome Guide, also reopened from General.
     let welcomeGuide: WelcomeGuideModel
+    /// The Welcome Guide's checklist of Official Plugins.
+    let officialPlugins: OfficialPluginInstallModel
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onScreenshotSettingsChanged: (() -> Void)?
@@ -293,6 +295,17 @@ final class SettingsWindowModel: ObservableObject {
         welcomeGuide = WelcomeGuideModel(defaults: defaults, hasInstalledPlugins: { [editor] in
             !editor.pluginManifests.isEmpty || !editor.refusedPlugins.isEmpty
         })
+        // Official Plugins install through the Library's review and install.
+        officialPlugins = OfficialPluginInstallModel(
+            isInstalled: { [editor] id in
+                editor.pluginManifests.contains { $0.id == id } || editor.refusedPlugins.contains { $0.id == id }
+            },
+            review: { [weak menuEditor] url in
+                guard let review = menuEditor?.reviewPluginInstallation else { throw CocoaError(.featureUnsupported) }
+                return try review(url)
+            },
+            install: { [weak menuEditor] in try menuEditor?.installReviewed($0) })
+        welcomeGuide.onOpen = { [weak officialPlugins] in officialPlugins?.reset() }
         // The guide's permission step stood in for the first-run banner.
         welcomeGuide.onComplete = { [weak self] in
             self?.privacy.dismissPermissionGuide()
@@ -616,7 +629,7 @@ struct SettingsRootView: View {
             // Closing the sheet any other way counts as skipping it.
             set: { if !$0, welcomeGuide.isPresented { welcomeGuide.skip() } }
         )) {
-            WelcomeGuideSheet(guide: welcomeGuide, privacy: privacy, openURL: openURL,
+            WelcomeGuideSheet(guide: welcomeGuide, officialPlugins: model.officialPlugins, privacy: privacy, openURL: openURL,
                               triggerControls: menuTriggerSettings)
         }
         .overlay(alignment: .topTrailing) {
