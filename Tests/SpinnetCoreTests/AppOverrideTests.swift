@@ -212,6 +212,62 @@ final class AppOverrideTests: XCTestCase {
         XCTAssertTrue(editor.isOverridden(slotAt: 1, for: safari))
     }
 
+    func testReorderingTheDefaultMenuMovesEachAppsOverridesWithTheirSlot() throws {
+        let editor = try makeEditor()
+        try editor.addEmptySlot()
+        try editor.placePreset(pluginID: other, inSlotAt: 1, for: safari)
+        try editor.emptySlot(at: 0, for: finder)
+        let safariItem = try XCTUnwrap(editor.configuration.menu.slots(for: safari)[1].item?.primaryActionID.rawValue)
+
+        // Slots 1, 2, 3 become 3, 1, 2.
+        try editor.reorderSlots(order: [2, 0, 1])
+
+        XCTAssertEqual(presented(editor.configuration, for: nil), [nil, "open", nil])
+        XCTAssertEqual(presented(editor.configuration, for: safari), [nil, "open", safariItem])
+        XCTAssertEqual(presented(editor.configuration, for: finder), [nil, nil, nil])
+        XCTAssertTrue(editor.isOverridden(slotAt: 1, for: finder))
+        XCTAssertTrue(editor.isOverridden(slotAt: 2, for: safari))
+        XCTAssertFalse(editor.isOverridden(slotAt: 1, for: safari))
+    }
+
+    func testAddingADefaultSlotAddsAnInheritedSlotForEveryApp() throws {
+        let editor = try makeEditor()
+        try editor.placePreset(pluginID: other, inSlotAt: 1, for: safari)
+        try editor.emptySlot(at: 0, for: finder)
+        let safariItem = try XCTUnwrap(editor.configuration.menu.slots(for: safari)[1].item?.primaryActionID.rawValue)
+
+        try editor.insertSlot(.empty, at: 1)
+        try editor.placePreset(pluginID: fixture, inSlotAt: 1)
+        try editor.addEmptySlot()
+        let added = try XCTUnwrap(editor.configuration.menu.slots[1].item?.primaryActionID.rawValue)
+
+        XCTAssertEqual(presented(editor.configuration, for: nil), ["open", added, nil, nil])
+        XCTAssertEqual(presented(editor.configuration, for: safari), ["open", added, safariItem, nil])
+        XCTAssertEqual(presented(editor.configuration, for: finder), [nil, added, nil, nil])
+        for app in [safari, finder] {
+            XCTAssertFalse(editor.isOverridden(slotAt: 1, for: app))
+            XCTAssertFalse(editor.isOverridden(slotAt: 3, for: app))
+        }
+    }
+
+    func testRemovingADefaultSlotRemovesItsOverridesAndKeepsTheOthers() throws {
+        let editor = try makeEditor()
+        try editor.addEmptySlot()
+        try editor.emptySlot(at: 0, for: safari)
+        try editor.emptySlot(at: 0, for: finder)
+        try editor.placePreset(pluginID: other, inSlotAt: 2, for: safari)
+        let safariItem = try XCTUnwrap(editor.configuration.menu.slots(for: safari)[2].item?.primaryActionID.rawValue)
+
+        try editor.removeSlot(at: 0)
+
+        XCTAssertEqual(presented(editor.configuration, for: nil), [nil, nil])
+        XCTAssertEqual(presented(editor.configuration, for: safari), [nil, safariItem])
+        XCTAssertEqual(presented(editor.configuration, for: finder), [nil, nil])
+        // Finder's only override went with the Slot.
+        XCTAssertEqual(editor.configuration.menu.overriddenApps, [safari])
+        XCTAssertFalse(editor.isOverridden(slotAt: 0, for: safari))
+    }
+
     func testDefaultMenuEditsKeepAppOverrides() throws {
         let editor = try makeEditor()
         try editor.emptySlot(at: 1, for: safari)
