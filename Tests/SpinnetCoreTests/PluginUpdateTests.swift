@@ -410,6 +410,91 @@ final class PluginUpdateTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: downloads.path))
     }
 
+    // MARK: - Checking every Plugin
+
+    private let sibling = PluginID("com.example.sibling")
+
+    private func installSibling(version: String, updateSource: String = PluginReleaseFixture.repository) throws {
+        try store.install(from: PluginReleaseFixture.package(PluginReleaseFixture.manifest(
+            id: sibling.rawValue, version: version, updateSource: updateSource), in: directory))
+    }
+
+    private func publishSibling(_ version: String, repository: String = PluginReleaseFixture.repository) throws {
+        let tag = "\(sibling.rawValue)/v\(version)", name = "\(sibling.rawValue).spinnetplugin.zip"
+        let asset = PluginReleaseFixture.assetURL(tag: tag, name: name, repository: repository)
+        transport.answer("https://api.github.com/repos/\(repository)/releases/tags/\(tag)",
+                         body: try JSONSerialization.data(withJSONObject: [
+                            "tag_name": tag, "draft": false, "prerelease": false,
+                            "assets": [["name": name, "browser_download_url": asset]]
+                         ] as [String: Any]))
+        transport.answer(asset, body: try PluginReleaseFixture.zipped(PluginReleaseFixture.manifest(
+            id: sibling.rawValue, version: version, updateSource: repository), in: directory))
+    }
+
+    func testCheckingEveryPluginListsTheTagsOfASharedRepositoryOnce() throws {
+        try install(version: "1.0.0")
+        try installSibling(version: "2.0.0")
+        try publish([.init(tag: tag("1.1.0"))])
+        try publishAsset(tag: tag("1.1.0"), PluginReleaseFixture.manifest(version: "1.1.0"))
+        try publishSibling("2.1.0")
+        let sharedTags = "https://api.github.com/repos/example-org/plugins/git/matching-refs/tags/com.example."
+        transport.answer(sharedTags, body: try PluginReleaseFixture.tagList([
+            tag("1.1.0"), tag("1.0.0"), "com.example.sibling/v2.1.0", "com.example.sibling/v2.0.0"
+        ]))
+
+        let run = updater.checkAll([PluginReleaseFixture.pluginID, sibling])
+
+        XCTAssertNil(run.stoppedBy)
+        XCTAssertEqual(run.results.map(\.pluginID), [PluginReleaseFixture.pluginID, sibling])
+        XCTAssertEqual(try run.results.map { try $0.result.get().update?.manifest.version }, ["1.1.0", "2.1.0"])
+        XCTAssertEqual(transport.requestedURLs.filter { $0.contains("/matching-refs/") }, [sharedTags],
+                       "One tag list answers both Plugins")
+        XCTAssertEqual(installedVersion, "1.0.0", "Checking installs nothing")
+    }
+
+    func testCheckingEveryPluginStopsAtGitHubsLimitWithoutAskingAgain() throws {
+        try install(version: "1.0.0")
+        try installSibling(version: "2.0.0", updateSource: "other-org/plugins")
+        transport.answer(PluginReleaseFixture.tagsURL, status: 403, headers: ["x-ratelimit-remaining": "0"])
+
+        let run = updater.checkAll([PluginReleaseFixture.pluginID, sibling])
+
+        XCTAssertEqual(run.stoppedBy, .rateLimited(resetsAt: nil))
+        XCTAssertEqual(run.results.map { $0.result.failure as? PluginUpdateError }, [
+            .rateLimited(resetsAt: nil), .rateLimited(resetsAt: nil)
+        ])
+        XCTAssertEqual(transport.requestedURLs, [PluginReleaseFixture.tagsURL], "Nothing more is asked once the limit is reached")
+    }
+
+    func testATagListTooLargeForSeveralPluginsIsAskedForEachPlugin() throws {
+        try install(version: "1.0.0")
+        try installSibling(version: "2.0.0")
+        transport.answer("https://api.github.com/repos/example-org/plugins/git/matching-refs/tags/com.example.",
+                         body: Data(count: PluginUpdateBudgets.maximumAnswerBytes + 1))
+        try publish([])
+        transport.answer("https://api.github.com/repos/example-org/plugins/git/matching-refs/tags/com.example.sibling/v",
+                         body: try PluginReleaseFixture.tagList([]))
+
+        let run = updater.checkAll([PluginReleaseFixture.pluginID, sibling])
+
+        XCTAssertNil(run.stoppedBy)
+        XCTAssertEqual(try run.results.map { try $0.result.get().update }, [nil, nil])
+    }
+
+    func testCheckingAgainKeepsAnOfferWaitingForReviewAndDoesNotDownloadItAgain() throws {
+        try install(version: "1.0.0")
+        try publish([.init(tag: tag("1.1.0"))])
+        try publishAsset(tag: tag("1.1.0"), PluginReleaseFixture.manifest(version: "1.1.0"))
+        let first = try XCTUnwrap(try updater.check(PluginReleaseFixture.pluginID).update)
+
+        let again = updater.checkAll([PluginReleaseFixture.pluginID])
+
+        XCTAssertEqual(try again.results.first?.result.get().update?.packageURL, first.packageURL)
+        XCTAssertEqual(transport.requestedURLs.filter { $0 == PluginReleaseFixture.assetURL(tag: tag("1.1.0")) }.count, 1)
+        XCTAssertEqual(try updater.apply(first).version, "1.1.0", "The offer under review still applies")
+        XCTAssertEqual(leftoverDownloads(), [])
+    }
+
     /// The published version-selection fixtures are what the Host offers.
     func testThePublishedVersionSelectionFixturesAreWhatACheckOffers() throws {
         struct Case: Decodable { let name: String; let installed: String; let tags: [String]; let offered: String? }
@@ -613,5 +698,12 @@ final class PluginPackageArchiveTests: XCTestCase {
             XCTAssertEqual($0.localizedDescription,
                            "The package archive is damaged: A.spinnetplugin/manifest.json fails its checksum")
         }
+    }
+}
+
+private extension Result {
+    var failure: Failure? {
+        if case .failure(let error) = self { return error }
+        return nil
     }
 }

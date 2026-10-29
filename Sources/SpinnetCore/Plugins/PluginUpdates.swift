@@ -64,6 +64,14 @@ public struct PluginUpdateCheck: Equatable, Sendable {
     public let refusals: [PluginUpdateRefusal]
 }
 
+/// The outcome of checking several installed Plugins at once.
+public struct PluginUpdateRun {
+    /// Each Plugin's check, or why it could not be made, in the order asked.
+    public let results: [(pluginID: PluginID, result: Result<PluginUpdateCheck, Error>)]
+    /// Why the run stopped before checking every Plugin, if it did.
+    public let stoppedBy: PluginUpdateError?
+}
+
 /// Why a check or an update could not be completed at all. The installed
 /// Plugin is untouched and keeps working.
 public enum PluginUpdateError: Error, Equatable, LocalizedError {
@@ -76,6 +84,14 @@ public enum PluginUpdateError: Error, Equatable, LocalizedError {
     case unexpectedStatus(Int)
     case unreadableAnswer(String)
     case changedSinceCheck(String)
+
+    /// Whether asking GitHub about another Plugin now would fail the same way.
+    public var stopsRun: Bool {
+        switch self {
+        case .offline, .timedOut, .rateLimited: return true
+        default: return false
+        }
+    }
 
     public var errorDescription: String? {
         switch self {
@@ -122,9 +138,9 @@ public final class PluginUpdater {
     private let transport: HTTPSTransport
     private let downloads: URL
 
-    /// `downloads` holds unpacked offers until they are applied or the next
-    /// check of the same Plugin replaces them. Whatever an earlier updater
-    /// left there is removed.
+    /// `downloads` holds unpacked offers until their Plugin is updated, so a
+    /// later check never removes one the user is reviewing. Whatever an
+    /// earlier updater left there is removed.
     public init(store: PluginInstallationStore, registry: PluginRegistry, transport: HTTPSTransport, downloads: URL) {
         self.store = store
         self.registry = registry
@@ -150,12 +166,83 @@ public final class PluginUpdater {
     public func check(_ pluginID: PluginID) throws -> PluginUpdateCheck {
         let installed = try installedManifest(pluginID)
         guard let source = installed.updateSource else { throw PluginUpdateError.noUpdateSource(installed.name) }
+        let tags = try listTags(of: source, prefix: Self.tagPrefix(of: pluginID))
+        return try check(installed, source: source, tags: tags)
+    }
+
+    /// Checks each Plugin as `check` does, within the same per-Plugin bounds,
+    /// listing the tags of Plugins that share an Update Source once, by
+    /// their common prefix. Being offline, timing out or reaching GitHub's
+    /// limit stops the run: every Plugin not yet checked reports that error
+    /// and nothing more is asked.
+    public func checkAll(_ pluginIDs: [PluginID]) -> PluginUpdateRun {
+        var results: [PluginID: Result<PluginUpdateCheck, Error>] = [:]
+        var groups: [(source: PluginUpdateSource, plugins: [PluginManifest])] = []
+        for pluginID in pluginIDs where results[pluginID] == nil {
+            do {
+                let installed = try installedManifest(pluginID)
+                guard let source = installed.updateSource else { throw PluginUpdateError.noUpdateSource(installed.name) }
+                if let index = groups.firstIndex(where: { $0.source.isSame(as: source) }) {
+                    groups[index].plugins.append(installed)
+                } else {
+                    groups.append((source, [installed]))
+                }
+            } catch {
+                results[pluginID] = .failure(error)
+            }
+        }
+
+        var stoppedBy: PluginUpdateError?
+        func record(_ pluginID: PluginID, _ check: () throws -> PluginUpdateCheck) {
+            if let stoppedBy { results[pluginID] = .failure(stoppedBy); return }
+            let result = Result(catching: check)
+            if case .failure(let error as PluginUpdateError) = result, error.stopsRun { stoppedBy = error }
+            results[pluginID] = result
+        }
+        for (source, plugins) in groups {
+            guard plugins.count > 1 else {
+                record(plugins[0].id) { try check(plugins[0].id) }
+                continue
+            }
+            let prefix = Self.commonPrefix(plugins.map { Self.tagPrefix(of: $0.id) })
+            let shared: Result<[String], Error> = stoppedBy.map { .failure($0) }
+                ?? Result { try listTags(of: source, prefix: prefix) }
+            for installed in plugins {
+                switch shared {
+                case .success(let tags):
+                    let own = Self.tagPrefix(of: installed.id)
+                    record(installed.id) { try check(installed, source: source, tags: tags.filter { $0.hasPrefix(own) }) }
+                case .failure(PluginUpdateError.unreadableAnswer(Self.tooLarge)):
+                    // Too many tags share the prefix: ask for each Plugin's own.
+                    record(installed.id) { try check(installed.id) }
+                case .failure(let error):
+                    record(installed.id) { throw error }
+                }
+            }
+        }
+        return PluginUpdateRun(results: pluginIDs.compactMap { id in results[id].map { (id, $0) } }, stoppedBy: stoppedBy)
+    }
+
+    private static func tagPrefix(of pluginID: PluginID) -> String {
+        PluginUpdateSource.releaseTag(for: pluginID, version: "")
+    }
+
+    private static func commonPrefix(_ strings: [String]) -> String {
+        guard var prefix = strings.first.map(Array.init) else { return "" }
+        for string in strings.dropFirst() {
+            prefix = Array(zip(prefix, string).prefix { $0 == $1 }.map(\.0))
+        }
+        return String(prefix)
+    }
+
+    private func check(_ installed: PluginManifest, source: PluginUpdateSource, tags: [String]) throws -> PluginUpdateCheck {
+        let pluginID = installed.id
         let current = try PluginVersion(installed.version)
-        let prefix = PluginUpdateSource.releaseTag(for: pluginID, version: "")
+        let prefix = Self.tagPrefix(of: pluginID)
 
         var refusals: [PluginUpdateRefusal] = []
         var newer: [(version: PluginVersion, tag: String)] = []
-        for tag in try listTags(of: source, prefix: prefix) {
+        for tag in tags {
             let written = String(tag.dropFirst(prefix.count))
             guard let version = try? PluginVersion(written) else {
                 refusals.append(.init(tag: tag, version: written, reason: "The release tag does not name a SemVer version."))
@@ -166,7 +253,6 @@ public final class PluginUpdater {
         newer.sort { $0.version > $1.version }
 
         let workspace = workspace(for: pluginID)
-        try? FileManager.default.removeItem(at: workspace)
         var budget = Budget()
         for (version, tag) in newer {
             func refuse(_ reason: String) {
@@ -188,14 +274,13 @@ public final class PluginUpdater {
                 return PluginUpdateCheck(pluginID: pluginID, installedVersion: installed.version,
                                          update: offer, refusals: refusals)
             } catch let error as PluginUpdateError {
-                try? FileManager.default.removeItem(at: workspace)
+                try? FileManager.default.removeItem(at: directory)
                 throw error
             } catch {
                 try? FileManager.default.removeItem(at: directory)
                 refuse(error.localizedDescription)
             }
         }
-        try? FileManager.default.removeItem(at: workspace)
         return PluginUpdateCheck(pluginID: pluginID, installedVersion: installed.version, update: nil, refusals: refusals)
     }
 
@@ -213,11 +298,31 @@ public final class PluginUpdater {
             throw PluginUpdateError.changedSinceCheck("The downloaded package changed.")
         }
         let manifest = try store.install(from: offer.packageURL)
-        try? FileManager.default.removeItem(at: workspace(for: offer.manifest.id))
+        // Every offer kept for the Plugin was made for the version it replaced.
+        let discarded = lock.withLock { kept.removeValue(forKey: offer.manifest.id) ?? [:] }
+        for directory in Set(discarded.values.map(\.directory) + [offer.packageURL.deletingLastPathComponent()]) {
+            try? FileManager.default.removeItem(at: directory)
+        }
         return manifest
     }
 
+    /// An accepted package kept unpacked until its Plugin is updated, so a
+    /// later check never removes an offer the user is reviewing and accepts
+    /// the same release again without downloading it.
+    private struct KeptOffer {
+        let asset: URL
+        let packageURL: URL
+        /// The directory the check unpacked it into.
+        let directory: URL
+    }
+
+    private let lock = NSLock()
+    /// By Plugin, then by release tag.
+    private var kept: [PluginID: [String: KeptOffer]] = [:]
+
     // MARK: - Acceptance
+
+    private static let tooLarge = "GitHub's answer is larger than Spinnet reads."
 
     private struct Refusal: Error, LocalizedError {
         let reason: String
@@ -239,15 +344,20 @@ public final class PluginUpdater {
         guard let url = URL(string: asset.downloadURL), Self.isReleaseAsset(url, of: source, tag: release.tag, named: name) else {
             throw Refusal(reason: "The package is not a release asset of \(source.github) on github.com over HTTPS.")
         }
-        guard budget.downloads < PluginUpdateBudgets.maximumDownloads else {
-            throw Refusal(reason: "Not downloaded: a check downloads at most \(PluginUpdateBudgets.maximumDownloads) packages.")
-        }
-        budget.downloads += 1
         let package: URL
-        do {
-            package = try PluginPackageArchive.unpack(download(url), into: directory)
-        } catch let refusal as PluginPackageArchive.Refusal {
-            throw Refusal(reason: refusal.reason + ".")
+        let previous = lock.withLock { kept[installed.id]?[release.tag] }
+        if let previous, previous.asset == url, FileManager.default.fileExists(atPath: previous.packageURL.path) {
+            package = previous.packageURL
+        } else {
+            guard budget.downloads < PluginUpdateBudgets.maximumDownloads else {
+                throw Refusal(reason: "Not downloaded: a check downloads at most \(PluginUpdateBudgets.maximumDownloads) packages.")
+            }
+            budget.downloads += 1
+            do {
+                package = try PluginPackageArchive.unpack(download(url), into: directory)
+            } catch let refusal as PluginPackageArchive.Refusal {
+                throw Refusal(reason: refusal.reason + ".")
+            }
         }
         let manifest: PluginManifest
         do {
@@ -271,6 +381,11 @@ public final class PluginUpdater {
             review = try store.review(package)
         } catch {
             throw Refusal(reason: error.localizedDescription)
+        }
+        if previous?.packageURL != package {
+            lock.withLock {
+                kept[installed.id, default: [:]][release.tag] = KeptOffer(asset: url, packageURL: package, directory: directory)
+            }
         }
         return PluginUpdateOffer(tag: release.tag, manifest: manifest, review: review, packageURL: package)
     }
@@ -322,7 +437,7 @@ public final class PluginUpdater {
         } catch HTTPSTransportError.timedOut {
             throw PluginUpdateError.timedOut
         } catch HTTPSTransportError.responseTooLarge {
-            throw Refusal(reason: "GitHub's answer is larger than Spinnet reads.")
+            throw Refusal(reason: Self.tooLarge)
         } catch {
             throw PluginUpdateError.offline
         }
