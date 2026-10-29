@@ -222,10 +222,11 @@ final class AppKitPluginHostServiceProvider {
         }
     }
 
-    /// Hands a link the broker has already validated to the default browser.
-    /// Nothing about the page comes back to the Plugin.
+    /// Hands a link the broker has already validated to the browser in front,
+    /// or else the default browser. Nothing about the page comes back to the
+    /// Plugin.
     func openURL(_ url: URL) throws {
-        guard onMain({ NSWorkspace.shared.open(url) }) else {
+        guard onMain({ LinkOpener().open(url) }) else {
             throw PluginHostServiceError.failed("The link could not be opened")
         }
     }

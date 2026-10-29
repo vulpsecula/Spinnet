@@ -715,7 +715,7 @@
     {
       "id": "open.url",
       "namespace": "open",
-      "summary": "Opens a link in the default browser.",
+      "summary": "Opens a link in the browser in front, or else the default browser.",
       "status": "offered",
       "input": "schemas/namespaces.schema.json#/$defs/open.url.input",
       "result": "schemas/namespaces.schema.json#/$defs/open.url.result",

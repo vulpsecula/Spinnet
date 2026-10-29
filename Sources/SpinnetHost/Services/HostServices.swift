@@ -78,7 +78,7 @@ final class AppKitHostCommandAdapter: HostCommandAdapter {
     }
 
     func openURL(_ url: URL) -> Bool {
-        NSWorkspace.shared.open(url)
+        LinkOpener().open(url)
     }
 
     func invokeKeyboardShortcut(_ shortcut: HostKeyboardShortcut) -> Bool {

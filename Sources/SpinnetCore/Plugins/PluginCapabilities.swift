@@ -76,7 +76,7 @@ public enum PluginCapability: String, Codable, CaseIterable, Equatable, Hashable
         case .contactHTTPS: return "Contact only the declared HTTPS hosts through Host Services."
         case .controlExternalApp: return "Send the named External Apps only the operations Spinnet has reviewed for them, and open only the links listed for them."
         case .positionFocusedWindow: return "Read the focused window's frame and its screen, move or resize that window, and move it into or out of full screen."
-        case .openURL: return "Open http and https links in the default browser. The browser, not the Plugin, loads the page."
+        case .openURL: return "Open http and https links in a browser. The browser, not the Plugin, loads the page."
         case .openLocalPath: return "Open local files and folders in Finder or their default app, including launching applications. The receiving app can read the file; the Plugin receives no file contents."
         case .captureScreen: return "Ask the Host to take a screenshot of an area, the full screen, or a window, then copy it or save it to a folder you chose for the Menu Item. The Plugin never receives the image."
         case .insertIntoFocusedApp: return "Replace the selection in the focused App with text the Plugin supplies."
@@ -554,7 +554,7 @@ public enum PluginHostService: String, Codable, CaseIterable, Equatable, Hashabl
     /// Returns the focused window to the frame it had before Spinnet last
     /// moved it. The Host remembers that frame; the Plugin supplies nothing.
     case restoreFocusedWindowFrame = "restore_focused_window_frame"
-    /// Hands one validated http or https link to the default browser. The
+    /// Hands one validated http or https link to a browser. The
     /// Plugin learns nothing back, so opening a page is not fetching it.
     case openURL = "open_url"
     /// Starts one native screen capture with the options the Plugin names,

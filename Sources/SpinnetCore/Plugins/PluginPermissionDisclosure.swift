@@ -212,7 +212,7 @@ public struct PluginPermissionDisclosure {
                 affected.append("Move and resize the focused window. Commands: \(names(.positionFocusedWindow)). No other window or app content is read.\(optionalNote(.positionFocusedWindow))")
             }
             if manifest.capabilities.contains(.openURL), !names(.openURL).isEmpty {
-                affected.append("Open http and https links in the default browser. Commands: \(names(.openURL)). The website receives the link, including any text in it; the Plugin receives nothing back.\(optionalNote(.openURL))")
+                affected.append("Open http and https links in a browser. Commands: \(names(.openURL)). The website receives the link, including any text in it; the Plugin receives nothing back.\(optionalNote(.openURL))")
             }
             if manifest.capabilities.contains(.openLocalPath), !names(.openLocalPath).isEmpty {
                 affected.append("\(PluginCapability.openLocalPath.explanation) Commands: \(names(.openLocalPath)).\(optionalNote(.openLocalPath))")

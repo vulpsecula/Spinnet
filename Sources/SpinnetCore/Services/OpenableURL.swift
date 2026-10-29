@@ -1,7 +1,7 @@
 import Foundation
 
 /// The Host's rule for which text the `open_url` Host Service may hand to the
-/// default browser. It lives Host-side so a Plugin that skips its own checks
+/// browser. It lives Host-side so a Plugin that skips its own checks
 /// still cannot open another scheme, and its messages are the stable
 /// explanations a user sees when a link is refused.
 public enum OpenableURL {

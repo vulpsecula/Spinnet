@@ -720,7 +720,7 @@ export interface ClipboardHistoryNamespace {
 
 /** Handing a link, path or application to the App that opens it. */
 export interface OpenNamespace {
-  /** Opens an http or https link in the default browser. @id open.url @entry call request view_action */
+  /** Opens an http or https link in the browser in front, or else the default browser. @id open.url @entry call request view_action */
   readonly url: Callable<"open.url"> & Performable<"open.url">;
   /** Opens an absolute or `~/` path. @id open.path @entry call request view_action */
   readonly path: Callable<"open.path"> & Performable<"open.path">;

@@ -264,9 +264,11 @@ is looked up for the window focused when the request arrives.
 
 `open.url` requires the `open_url` Capability and no System Permission. Its
 input is a link string and its result is `null`. The Host trims the text and
-opens it in the default browser only if it is an http or https link with a
+opens it only if it is an http or https link with a
 host, no whitespace or control characters inside, and at most 2048 characters;
-anything else fails with `host_service_failed` and nothing opens. The Plugin
+anything else fails with `host_service_failed` and nothing opens. The link opens
+in the App in front when that App can open it, such as a browser, and
+otherwise in the default browser. The Plugin
 learns nothing about the page, so opening a link is not fetching it.
 
 ### open.path
