@@ -207,21 +207,32 @@ struct MenuKeyboardShortcut: Codable, Equatable {
 
 struct MenuTriggerConfiguration: Equatable {
     static let defaultMouseButton = 3
+    /// Seconds the trigger must be held before the Menu opens. Zero opens
+    /// on the press; above zero a shorter press goes back to the Current App.
+    static let openingDelayRange: ClosedRange<TimeInterval> = 0...1
 
     var mouseButton: Int
     var clickDragEnabled: Bool
     var keyboardShortcut: MenuKeyboardShortcut?
+    var openingDelay: TimeInterval
 
     init(
         mouseButton: Int = defaultMouseButton,
         clickDragEnabled: Bool = false,
-        keyboardShortcut: MenuKeyboardShortcut? = nil
+        keyboardShortcut: MenuKeyboardShortcut? = nil,
+        openingDelay: TimeInterval = 0
     ) {
         self.mouseButton = MouseTriggerButton.isSupported(mouseButton)
             ? mouseButton
             : Self.defaultMouseButton
         self.clickDragEnabled = clickDragEnabled
         self.keyboardShortcut = keyboardShortcut
+        self.openingDelay = Self.boundedOpeningDelay(openingDelay)
+    }
+
+    static func boundedOpeningDelay(_ delay: TimeInterval) -> TimeInterval {
+        guard delay.isFinite else { return 0 }
+        return min(max(delay, openingDelayRange.lowerBound), openingDelayRange.upperBound)
     }
 
     init(defaults: UserDefaults) {
@@ -236,6 +247,7 @@ struct MenuTriggerConfiguration: Equatable {
         clickDragEnabled = defaults.bool(forKey: Keys.clickDragEnabled)
         keyboardShortcut = defaults.data(forKey: Keys.keyboardShortcut)
             .flatMap { try? JSONDecoder().decode(MenuKeyboardShortcut.self, from: $0) }
+        openingDelay = Self.boundedOpeningDelay(defaults.double(forKey: Keys.openingDelay))
     }
 
     func save(to defaults: UserDefaults) {
@@ -250,12 +262,14 @@ struct MenuTriggerConfiguration: Equatable {
         } else {
             defaults.removeObject(forKey: Keys.keyboardShortcut)
         }
+        defaults.set(Self.boundedOpeningDelay(openingDelay), forKey: Keys.openingDelay)
     }
 
     private enum Keys {
         static let mouseButton = "trigger.mouse-button"
         static let clickDragEnabled = "trigger.click-drag-enabled"
         static let keyboardShortcut = "trigger.keyboard-shortcut"
+        static let openingDelay = "trigger.opening-delay"
     }
 }
 

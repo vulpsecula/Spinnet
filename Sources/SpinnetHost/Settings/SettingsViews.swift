@@ -229,6 +229,9 @@ final class SettingsWindowModel: ObservableObject {
     /// The Library's Check for Update and Update per Plugin, and General's
     /// checks of every Plugin.
     let pluginUpdates: PluginUpdatesModel
+    /// General's checks for a newer Spinnet release, also shown in the
+    /// Status Item.
+    let spinnetReleases: SpinnetReleaseChecksModel
     /// The first-run Welcome Guide, also reopened from General.
     let welcomeGuide: WelcomeGuideModel
 
@@ -285,6 +288,7 @@ final class SettingsWindowModel: ObservableObject {
             editor.pluginManifests + editor.refusedPlugins.compactMap(\.manifest)
         }, defaults: defaults)
         pluginUpdates.startUpdate = { [weak menuEditor] in menuEditor?.installPluginUpdate($0) }
+        spinnetReleases = SpinnetReleaseChecksModel(defaults: defaults)
         // A Refused Plugin is installed too.
         welcomeGuide = WelcomeGuideModel(defaults: defaults, hasInstalledPlugins: { [editor] in
             !editor.pluginManifests.isEmpty || !editor.refusedPlugins.isEmpty
@@ -469,7 +473,9 @@ final class SettingsWindowModel: ObservableObject {
             ])
         } else if page == .general {
             names.append(contentsOf: launchAtLogin.accessibleNames)
+            names.append(MenuOpeningDelayRow.accessibleName(for: trigger.openingDelay))
             names.append(contentsOf: pluginUpdates.accessibleNames)
+            names.append(contentsOf: spinnetReleases.accessibleNames)
             #if DEBUG
             if developerTools != nil { names.append(contentsOf: DeveloperSettingsSection.accessibleNames) }
             #endif

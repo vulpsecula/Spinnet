@@ -1,0 +1,46 @@
+import SwiftUI
+
+/// General's Menu opening delay. Zero opens the Menu on the trigger press;
+/// above zero a shorter press goes to the Current App as if Spinnet had not
+/// seen it.
+struct MenuOpeningDelayRow: View {
+    @ObservedObject var trigger: MenuTriggerModel
+
+    static let title = "Menu Opening Delay"
+    static let step: TimeInterval = 0.05
+    private static let detail = "Hold the trigger this long to open the Menu. A shorter press goes to the App, so Side Button 1 still goes Back."
+
+    static func valueText(for delay: TimeInterval) -> String {
+        delay <= 0 ? "Opens at once" : "\(Int((delay * 1000).rounded())) ms"
+    }
+
+    static func accessibleName(for delay: TimeInterval) -> String {
+        "\(title): \(valueText(for: delay))"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(Self.title).font(.body.weight(.medium))
+                Spacer(minLength: 12)
+                Text(Self.valueText(for: trigger.openingDelay))
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            Slider(
+                value: $trigger.openingDelay,
+                in: MenuTriggerConfiguration.openingDelayRange,
+                step: Self.step
+            )
+            .accessibilityLabel(Self.title)
+            .accessibilityValue(Self.valueText(for: trigger.openingDelay))
+            .accessibilityHint(Self.detail)
+            Text(Self.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 12)
+    }
+}

@@ -428,6 +428,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             // A single timer for the next due check; nothing is asked at launch.
             settings.startAutomaticPluginUpdateChecks()
+            // Spinnet release checks ask GitHub for the newest release and
+            // only link to it; a development build checks only when asked.
+            let releaseChecker = SpinnetReleaseChecker(transport: URLSessionHTTPSTransport())
+            settings.spinnetReleases.checkRelease = { try releaseChecker.check() }
+            settings.spinnetReleases.startAutomaticChecks()
             settings.removePlugin = { [unowned self] pluginID in
                 try self.pluginInstallation.uninstall(pluginID)
                 pluginUpdater.discardOffers(for: pluginID)
@@ -638,7 +643,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func installStatusItem() {
         let controller = StatusItemController(
             openSettings: { [weak self] in self?.settings.present() },
-            quit: { NSApp.terminate(nil) }, activities: activities
+            quit: { NSApp.terminate(nil) }, activities: activities, releases: settings.spinnetReleases
         )
         controller.setShowsStatusItem(settings.showsStatusItem)
         controller.install()
@@ -681,6 +686,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func installTriggers() throws {
         let controller = GlobalTriggerController()
         controller.onInvoke = { [weak self] in self?.toggleMenu() }
+        controller.isMenuOpen = { [weak self] in self?.menu?.isOpen ?? false }
         controller.onEscape = { [weak self] in self?.menu.dismiss() }
         controller.onMouseDrag = { [weak self] screenPoint in
             self?.menu.updateGesture(at: screenPoint)
