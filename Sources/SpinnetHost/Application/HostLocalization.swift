@@ -1,4 +1,5 @@
 import Foundation
+import SpinnetCore
 
 /// A language the Host's own interface text can appear in. Plugin-supplied
 /// text is always shown as the Plugin provides it.
@@ -77,6 +78,22 @@ enum HostLocalization {
 /// Plugin-supplied text: it is shown as the Plugin provides it.
 func localized(_ key: String.LocalizationValue) -> String {
     HostLocalization.string(key)
+}
+
+/// Host-owned text built outside the Host, such as a Host Confirmation: its
+/// key from the String Catalog with each argument in place; verbatim text
+/// is shown as it is.
+func localized(_ text: HostText) -> String {
+    guard !text.isVerbatim else { return text.key }
+    let format = localized(key: text.key)
+    guard !text.arguments.isEmpty else { return format }
+    return String(format: format, locale: HostLocalization.locale,
+                  arguments: text.arguments.map { localized($0) as NSString as CVarArg })
+}
+
+/// Whole sentences built outside the Host, each localized on its own.
+func localized(sentences: [HostText]) -> String {
+    HostLocalization.joiningSentences(sentences.map { localized($0) })
 }
 
 /// Host-owned English text held in a value, such as a saved option or a

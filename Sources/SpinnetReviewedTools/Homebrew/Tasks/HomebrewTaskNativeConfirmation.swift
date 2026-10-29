@@ -31,45 +31,53 @@ enum HomebrewTaskNativeConfirmation {
         if plan.input.operation == "autoremove" {
             let targets = try selectedPackages(plan)
             let rows = targets.map { target in
-                HostConfirmationDetails.Row(id: "autoremove/" + target.name, title: "Remove " + target.name,
-                    detail: "Installed formula dependency that Homebrew considers unused. No cask App is removed.")
+                HostConfirmationDetails.Row(id: "autoremove/" + target.name, title: HostText("Remove %@", .verbatim(target.name)),
+                    detail: [HostText("Installed formula dependency that Homebrew considers unused. No cask App is removed.")])
             }
-            return try HostConfirmationDetails(title: "Remove Unused Dependencies",
-                summary: "\(targets.count) installed formula dependencies will be uninstalled. Every candidate is listed below. Stopping does not undo removals.", rows: rows)
+            return try HostConfirmationDetails(title: HostText("Remove Unused Dependencies"),
+                summary: [HostText("%@ installed formula dependencies will be uninstalled. Every candidate is listed below. Stopping does not undo removals.", .verbatim(String(targets.count)))], rows: rows)
         }
         var rows: [HostConfirmationDetails.Row] = []
         var totalBytes = 0
-        func add(_ id: String, _ title: String, _ detail: String, presentation: HostConfirmationDetails.Row.Presentation = .action) throws {
+        func add(_ id: String, _ title: HostText, _ detail: [HostText], presentation: HostConfirmationDetails.Row.Presentation = .action) throws {
             guard !cancellation.isCancelled else { throw HomebrewNativeInspection.Failure.authorizationCancelled }
-            let size = id.utf8.count + title.utf8.count + detail.utf8.count
+            let row = HostConfirmationDetails.Row(id: id, title: title, detail: detail, presentation: presentation)
+            let size = id.utf8.count + row.title.utf8.count + row.detail.utf8.count
             guard rows.count < HostConfirmationDetails.maximumRows, size <= HostConfirmationDetails.maximumBytes - totalBytes else {
                 throw PluginHostServiceError.tool(.outputTooLarge)
             }
             totalBytes += size
-            rows.append(.init(id: id, title: title, detail: detail, presentation: presentation))
+            rows.append(row)
         }
         let metadata: [JSONValue] = { if case .array(let values)? = plan.package.value(atPointer: "/packages") { return values }; return [plan.package] }()
         let selectedPackages = try selectedPackages(plan)
         let operation = ["upgrade", "upgradeAll", "upgradeSelected"].contains(plan.input.operation) ? "Upgrade" : plan.input.displayOperation
+        // The Host shows these words in the interface language; versions,
+        // sources, dependencies and warnings stay as Homebrew reports them.
         for target in selectedPackages {
             let record = metadata.first { $0.value(atPointer: "/name") == .string(target.name) && $0.value(atPointer: "/kind") == .string(target.kind) }
             func value(_ field: String) -> String? { if case .string(let text)? = record?.value(atPointer: "/" + field) { return text }; return nil }
-            let from = value("installed_version") ?? "not installed", to = value("version") ?? "unknown"
-            var description = "\(from) → \(to) · \(target.kind)\nSource: \(value("tap") ?? "unknown")"
+            let from = value("installed_version").map(HostText.verbatim) ?? HostText("not installed")
+            let to = value("version").map(HostText.verbatim) ?? HostText("unknown")
+            var description = [HostText("%@ → %@ · %@", from, to, .verbatim(target.kind)),
+                               HostText("Source: %@", value("tap").map(HostText.verbatim) ?? HostText("unknown"))]
             if case .array(let dependencies)? = record?.value(atPointer: "/dependencies"), !dependencies.isEmpty {
-                description += "\nDeclared dependencies: " + dependencies.compactMap { if case .string(let text) = $0 { return text }; return nil }.joined(separator: ", ")
+                description.append(HostText("Declared dependencies: %@", .verbatim(dependencies.compactMap { if case .string(let text) = $0 { return text }; return nil }.joined(separator: ", "))))
             }
             if case .array(let warnings)? = record?.value(atPointer: "/warnings"), !warnings.isEmpty {
-                description += "\nWarnings:\n" + warnings.compactMap { if case .string(let text) = $0 { return text }; return nil }.joined(separator: "\n")
+                description.append(HostText("Warnings:"))
+                description.append(.verbatim(warnings.compactMap { if case .string(let text) = $0 { return text }; return nil }.joined(separator: "\n")))
             }
-            try add("package-target/" + target.kind + "/" + target.name, operation + " " + target.name, description)
+            try add("package-target/" + target.kind + "/" + target.name,
+                    HostText("%@ %@", HostText(key: operation, arguments: []), .verbatim(target.name)), description)
         }
         if case .array(let paths)? = plan.package.value(atPointer: "/repair_directories") {
             for (index, path) in paths.enumerated() {
                 guard case .string(let text) = path else { throw PluginHostServiceError.tool(.planChanged) }
-                try add("repair/\(index)", "Restore reviewed Homebrew directory ownership", text + "\nRestore this reviewed directory's root-owned entries to the requesting account; permissions are not changed.")
+                try add("repair/\(index)", HostText("Restore reviewed Homebrew directory ownership"),
+                        [.verbatim(text), HostText("Restore this reviewed directory's root-owned entries to the requesting account; permissions are not changed.")])
             }
         }
-        return try HostConfirmationDetails(title: "Packages and Changes", summary: "Review the selected packages and any additional changes below.", rows: rows)
+        return try HostConfirmationDetails(title: HostText("Packages and Changes"), summary: [HostText("Review the selected packages and any additional changes below.")], rows: rows)
     }
 }

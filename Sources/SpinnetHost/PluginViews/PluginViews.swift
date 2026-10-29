@@ -103,16 +103,16 @@ final class PluginViewModel: ObservableObject {
     /// The target line the Host draws when the view asks for it.
     var insertionTargetLine: String? {
         guard showsInsertionTargets, description.showsInsertionTarget else { return nil }
-        return insertionTargetName.map { "Inserts into \($0)" } ?? Self.noInsertionTarget
+        return insertionTargetName.map { localized("Inserts into \($0)") } ?? Self.noInsertionTarget
     }
 
     /// The label an insert action carries beside its title.
     func insertionTargetLabel(of action: PluginViewAction) -> String? {
         guard showsInsertionTargets, case .standard(.insertText, _) = action.kind else { return nil }
-        return insertionTargetName.map { "into \($0)" } ?? Self.noInsertionTarget
+        return insertionTargetName.map { localized("into \($0)") } ?? Self.noInsertionTarget
     }
 
-    static let noInsertionTarget = "No App to insert into"
+    static var noInsertionTarget: String { localized("No App to insert into") }
 
     /// What the user could see as where text would go when making a gesture:
     /// the App the view names, if it names one.
@@ -291,7 +291,7 @@ final class PluginViewModel: ObservableObject {
     }
 
     static func swapLabel(_ control: PluginViewSettingControl, with other: PluginViewSettingControl) -> String {
-        "Swap \(control.title) and \(other.title)"
+        localized("Swap \(control.title) and \(other.title)")
     }
 
     // MARK: - Detail
@@ -359,9 +359,9 @@ final class PluginViewModel: ObservableObject {
         return labels
     }
 
-    static let closeLabel = "Close the view"
-    static let busyLabel = "Working"
-    static let operationBusyLabel = "Performing the request"
+    static var closeLabel: String { localized("Close the view") }
+    static var busyLabel: String { localized("Working") }
+    static var operationBusyLabel: String { localized("Performing the request") }
 
     /// What VoiceOver reads for an action: its title, and for an insert
     /// action the App it inserts into.
@@ -369,14 +369,14 @@ final class PluginViewModel: ObservableObject {
         insertionTargetLabel(of: action).map { "\(action.title), \($0)" } ?? action.title
     }
 
-    static func pinLabel(_ isPinned: Bool) -> String { isPinned ? "Unpin the view" : "Pin the view" }
+    static func pinLabel(_ isPinned: Bool) -> String { isPinned ? localized("Unpin the view") : localized("Pin the view") }
 
     static func label(of section: PluginViewSection, at index: Int) -> String {
-        section.title ?? "Details \(index + 1)"
+        section.title ?? localized("Details \(index + 1)")
     }
 
     static func copyLabel(of section: PluginViewSection, at index: Int) -> String {
-        "Copy \(label(of: section, at: index))"
+        localized("Copy \(label(of: section, at: index))")
     }
 }
 
@@ -671,10 +671,10 @@ final class PluginViewWindows: PluginViewRenderer {
         environment.sections.sessionEnded(session)
         environment.images?.sessionEnded(session)
         if reason == .capabilityRevoked {
-            report("Access revoked; \(environment.pluginName(session.pluginID)) window closed.")
+            report(localized("Access revoked; \(environment.pluginName(session.pluginID)) window closed."))
         } else if case .failed(let failure) = reason {
             let title = entry.model?.title ?? entry.page?.title ?? session.action.title
-            report("\(environment.pluginName(session.pluginID)) — \(title) closed: \(failure.message)")
+            report(localized("\(environment.pluginName(session.pluginID)) — \(title) closed: \(failure.message)"))
         }
     }
 }

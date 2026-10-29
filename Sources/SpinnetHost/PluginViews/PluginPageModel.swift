@@ -452,7 +452,7 @@ final class PluginPageModel: ObservableObject {
         guard let collection, let found = memory.window?.item(at: position) else { return [] }
         return collection.actions(of: found).map { action in
             MenuEntry(action: action, title: action.perform == "selection.replace"
-                      ? "\(action.title) \(insertionTargetName.map { "into \($0)" } ?? Self.noInsertionTarget)"
+                      ? "\(action.title) \(insertionTargetName.map { localized("into \($0)") } ?? Self.noInsertionTarget)"
                       : action.title,
                       isChecked: action.isChecked(for: found))
         }
@@ -517,7 +517,7 @@ final class PluginPageModel: ObservableObject {
 
     /// What an `image` component shows now.
     func imageState(of request: PageImageRequest) -> PageImageState {
-        guard let images = environment.images else { return .failed("Images are not available") }
+        guard let images = environment.images else { return .failed(localized("Images are not available")) }
         return images.state(of: request, in: session)
     }
 
@@ -594,7 +594,7 @@ final class PluginPageModel: ObservableObject {
     /// The Host's line at the foot of a page that can insert.
     var insertionTargetLine: String? {
         guard showsInsertionTargets, page.drawsInsertionTarget else { return nil }
-        return insertionTargetName.map { "Inserts into \($0)" } ?? Self.noInsertionTarget
+        return insertionTargetName.map { localized("Inserts into \($0)") } ?? Self.noInsertionTarget
     }
 
     /// The label an insert button carries beside its title.
@@ -602,7 +602,7 @@ final class PluginPageModel: ObservableObject {
         guard showsInsertionTargets, case .perform(let operation) = action.kind, operation.perform == "selection.replace" else {
             return nil
         }
-        return insertionTargetName.map { "into \($0)" } ?? Self.noInsertionTarget
+        return insertionTargetName.map { localized("into \($0)") } ?? Self.noInsertionTarget
     }
 
     static let noInsertionTarget = PluginViewModel.noInsertionTarget
@@ -651,16 +651,16 @@ final class PluginPageModel: ObservableObject {
 
     static func accessibilityName(of entry: MenuEntry) -> String {
         guard entry.action.toggle != nil else { return entry.title }
-        return "\(entry.title), \(entry.isChecked ? "checked" : "not checked")"
+        return "\(entry.title), \(entry.isChecked ? localized("checked") : localized("not checked"))"
     }
 
     /// What VoiceOver reads for a position whose item is still to come.
-    static let placeholderLabel = "Loading"
+    static var placeholderLabel: String { localized("Loading") }
 
     /// The collection's label: its search field's title, else the page's.
     var collectionLabel: String {
         if let field = searchField, case .textField(let declared)? = page.component(field) {
-            return "\(declared.title) results"
+            return localized("\(declared.title) results")
         }
         return page.title
     }

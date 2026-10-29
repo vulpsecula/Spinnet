@@ -28,7 +28,7 @@ struct PluginCommandOutputView: NSViewRepresentable {
         view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         view.textContainer?.containerSize = view.maxSize
         view.textContainer?.widthTracksTextView = false
-        view.setAccessibilityLabel("Command output")
+        view.setAccessibilityLabel(localized("Command output"))
         scroll.documentView = view
         return scroll
     }

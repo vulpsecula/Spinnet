@@ -606,7 +606,7 @@ final class PageCellView: NSView {
 
 /// A grid cell: the item's symbol, or its title, on the selection's colour.
 final class PageGridCell: PageCell {
-    static let identifier = NSUserInterfaceItemIdentifier("PageGridCell")
+    static let identifier = NSUserInterfaceItemIdentifier("PageGridCell") // Not localized: a cell identifier
     private let label = PageCellLabel(labelWithString: "")
 
     override func loadView() {
@@ -698,7 +698,7 @@ private final class PageItemToggleButton: NSButton {
 
 /// A list row: leading toggle controls, symbol, title and subtitle, accessory.
 final class PageListCell: PageCell {
-    static let identifier = NSUserInterfaceItemIdentifier("PageListCell")
+    static let identifier = NSUserInterfaceItemIdentifier("PageListCell") // Not localized: a cell identifier
     static let toggleSide: CGFloat = 18
     private let symbol = PageCellLabel(labelWithString: "")
     /// The item's icon, a system symbol (#81), in the symbol's place.
@@ -810,7 +810,7 @@ final class PageListCell: PageCell {
 
 /// A section's title, pinned while its items scroll.
 final class PageSectionHeader: NSView, NSCollectionViewElement {
-    static let identifier = NSUserInterfaceItemIdentifier("PageSectionHeader")
+    static let identifier = NSUserInterfaceItemIdentifier("PageSectionHeader") // Not localized: a cell identifier
     private let label = NSTextField(labelWithString: "")
 
     override init(frame: NSRect) {

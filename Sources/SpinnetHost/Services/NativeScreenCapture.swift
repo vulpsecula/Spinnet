@@ -84,13 +84,13 @@ final class NativeScreenCapturer {
             do {
                 try capture(request)
             } catch {
-                report("Screenshot failed: \(error.localizedDescription)")
+                report(localized("Screenshot failed: \(error.localizedDescription)"))
             }
         }
     }
 
     private func capture(_ request: ScreenCaptureRequest) throws {
-        let capture = temporaryDirectory.appendingPathComponent("Spinnet Screenshot \(UUID().uuidString).png")
+        let capture = temporaryDirectory.appendingPathComponent("Spinnet Screenshot \(UUID().uuidString).png") // Not localized: a temporary file name
         try runner(Self.executableURL, Self.arguments(for: request.source, output: capture))
         // Esc, or a click away from any window, ends the tool without a file.
         guard FileManager.default.fileExists(atPath: capture.path) else { return }
@@ -119,8 +119,8 @@ final class NativeScreenCapturer {
     private func savedFileURL(in folder: URL, format: ScreenCaptureFormat) -> URL {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        let base = "Screenshot \(formatter.string(from: now()))"
+        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss" // Not localized: a file name date format
+        let base = "Screenshot \(formatter.string(from: now()))" // Not localized: a file name
         var candidate = folder.appendingPathComponent("\(base).\(format.rawValue)")
         var counter = 2
         while FileManager.default.fileExists(atPath: candidate.path) {

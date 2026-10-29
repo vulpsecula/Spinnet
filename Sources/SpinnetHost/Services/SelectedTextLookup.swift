@@ -52,7 +52,7 @@ struct SelectedTextLookup {
         let systemWide = client.systemWideElement()
         if let focusedElement = try valueOrNil(
             client.focusedUIElement(in: systemWide),
-            failureMessage: "Focused application has no accessible text selection"
+            failureMessage: "Focused application has no accessible text selection" // Not localized: a Host Service failure returned to the Plugin
         ), let selectedText = try nonemptySelection(in: focusedElement, using: client) {
             return selectedText
         }
@@ -65,21 +65,21 @@ struct SelectedTextLookup {
             application = client.frontmostApplication()
         case .failure(let error):
             throw PluginHostServiceError.failed(
-                "Focused application could not be read (\(String(describing: error)))"
+                "Focused application could not be read (\(String(describing: error)))" // Not localized: a Host Service failure returned to the Plugin
             )
         }
         guard let application else { return "" }
 
         if let focusedElement = try valueOrNil(
             client.focusedUIElement(in: application),
-            failureMessage: "Focused application has no accessible text selection"
+            failureMessage: "Focused application has no accessible text selection" // Not localized: a Host Service failure returned to the Plugin
         ), let selectedText = try nonemptySelection(in: focusedElement, using: client) {
             return selectedText
         }
 
         guard let window = try valueOrNil(
             client.focusedWindow(in: application),
-            failureMessage: "Focused application has no accessible window"
+            failureMessage: "Focused application has no accessible window" // Not localized: a Host Service failure returned to the Plugin
         ) else {
             return ""
         }
@@ -97,7 +97,7 @@ struct SelectedTextLookup {
             return nil
         case .failure(let error):
             throw PluginHostServiceError.failed(
-                "Focused application has no readable text selection (\(String(describing: error)))"
+                "Focused application has no readable text selection (\(String(describing: error)))" // Not localized: a Host Service failure returned to the Plugin
             )
         }
     }
@@ -169,7 +169,7 @@ struct SelectedTextLookup {
 
         if let lastFailure {
             throw PluginHostServiceError.failed(
-                "Focused application has no readable text selection (\(String(describing: lastFailure)))"
+                "Focused application has no readable text selection (\(String(describing: lastFailure)))" // Not localized: a Host Service failure returned to the Plugin
             )
         }
         return ""

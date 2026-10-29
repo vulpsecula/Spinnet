@@ -8,10 +8,10 @@ struct SpotifyAppleEvents {
     func perform(_ request: AppleEventRequest, allowsPrompt: Bool) throws -> JSONValue {
         guard request.bundleID == SpotifyPlayback.bundleID, request.argument.isEmpty,
               (["playback", "play", "pause", "previous", "next"].contains(request.handler) || SpotifyControls.operationNames.contains(request.handler)) else {
-            throw PluginHostServiceError.externalAppOperationUnsupported("Unsupported Spotify operation")
+            throw PluginHostServiceError.externalAppOperationUnsupported(localized("Unsupported Spotify operation"))
         }
         guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: SpotifyPlayback.bundleID) != nil else {
-            throw PluginHostServiceError.externalAppMissing("Install Spotify to use this panel")
+            throw PluginHostServiceError.externalAppMissing(localized("Install Spotify to use this panel"))
         }
         guard let application = NSRunningApplication.runningApplications(withBundleIdentifier: SpotifyPlayback.bundleID).first else {
             throw PluginHostServiceError.appRead(.notRunning)
@@ -40,14 +40,14 @@ struct SpotifyAppleEvents {
         }
         guard request.integerArgument == nil else { throw PluginHostServiceError.invalidInput("Stable Spotify operations take no arguments") }
         guard let script = NSAppleScript(source: Self.source(request.handler)) else {
-            throw PluginHostServiceError.externalAppOperationUnsupported("Spotify's scripting interface is unavailable")
+            throw PluginHostServiceError.externalAppOperationUnsupported(localized("Spotify's scripting interface is unavailable"))
         }
         var error: NSDictionary?
         let result = script.executeAndReturnError(&error)
         if let error {
-            let number = (error["NSAppleScriptErrorNumber"] as? NSNumber)?.intValue
+            let number = (error["NSAppleScriptErrorNumber"] as? NSNumber)?.intValue // Not localized: an AppleScript error key
             if number == -600 { throw PluginHostServiceError.appRead(.notRunning) }
-            throw AppleEventSender.error(number: number, message: error["NSAppleScriptErrorMessage"] as? String, for: request)
+            throw AppleEventSender.error(number: number, message: error["NSAppleScriptErrorMessage"] as? String, for: request) // Not localized: an AppleScript error key
         }
         guard request.handler == "playback" else { return .null }
         guard result.numberOfItems == 3, let state = result.atIndex(1)?.stringValue,
@@ -81,8 +81,8 @@ struct SpotifyAppleEvents {
         end try
         return {playbackState, playbackPosition, trackValues}
         """
-        case "previous": body = "previous track"
-        case "next": body = "next track"
+        case "previous": body = "previous track" // Not localized: AppleScript source
+        case "next": body = "next track" // Not localized: AppleScript source
         case "play": body = "play"
         default: body = "pause"
         }

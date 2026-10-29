@@ -132,7 +132,7 @@ final class HostActionDispatcher {
                                                       message: refusal.description)
                             } catch {
                                 let violation = error as? PluginRuntimeError
-                                    ?? .protocolViolation("The script's answer is invalid")
+                                    ?? .protocolViolation("The script's answer is invalid") // Not localized: a runtime failure, kept in the Action failure record
                                 outcome = Self.failed(outcome, category: violation.failureCategory,
                                                       message: violation.description)
                             }
@@ -149,7 +149,7 @@ final class HostActionDispatcher {
             executions[action.id] = lifecycle
             sessions.whenOperationSlotFree(for: action.pluginID) { [weak lifecycle] in lifecycle?.start() }
         } catch {
-            feedback.showMessage("Action configuration is unavailable")
+            feedback.showMessage(localized("Action configuration is unavailable"))
         }
     }
 

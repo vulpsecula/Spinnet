@@ -6,11 +6,11 @@ import SwiftUI
 extension WelcomeGuideStep {
     var title: String {
         switch self {
-        case .welcome: return "Welcome to Spinnet"
-        case .systemPermissions: return "System Permissions"
-        case .menuTrigger: return "Open the Menu"
-        case .officialPlugins: return "Install Plugins"
-        case .finish: return "You're Ready"
+        case .welcome: return localized("Welcome to Spinnet")
+        case .systemPermissions: return localized("System Permissions")
+        case .menuTrigger: return localized("Open the Menu")
+        case .officialPlugins: return localized("Install Plugins")
+        case .finish: return localized("You're Ready")
         }
     }
 }
@@ -19,26 +19,26 @@ extension SettingsWindowModel {
     /// What the open Welcome Guide sheet presents, for the Settings seam.
     var welcomeGuideAccessibleNames: [String] {
         let guide = welcomeGuide
-        var names = ["Welcome Guide", guide.step.title]
+        var names = [localized("Welcome Guide"), guide.step.title]
         switch guide.step {
         case .welcome:
             break
         case .systemPermissions:
             for permission in PluginSystemPermission.allCases {
-                names.append("\(permission.title): \(privacy.statusTitle(for: permission))")
+                names.append("\(permission.localizedTitle): \(privacy.statusTitle(for: permission))")
                 names.append(privacy.actionTitle(for: permission).replacingOccurrences(of: "…", with: ""))
             }
         case .menuTrigger:
-            names.append(contentsOf: ["Menu Trigger", "Mouse trigger", "Click & Drag", "Keyboard shortcut optional"])
+            names.append(contentsOf: [localized("Menu Trigger"), localized("Mouse trigger"), localized("Click & Drag"), localized("Keyboard shortcut optional")])
         case .officialPlugins:
             names.append(contentsOf: officialPlugins.accessibleNames)
         case .finish:
-            names.append("Open Menu Editor")
+            names.append(localized("Open Menu Editor"))
         }
-        if guide.canGoBack { names.append("Back") }
+        if guide.canGoBack { names.append(localized("Back")) }
         if guide.step != .finish {
-            names.append("Continue")
-            names.append("Skip Welcome Guide")
+            names.append(localized("Continue"))
+            names.append(localized("Skip Welcome Guide"))
         }
         return names
     }
@@ -76,7 +76,7 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
         }
         .frame(width: 620, height: 600)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Welcome Guide")
+        .accessibilityLabel(localized("Welcome Guide"))
         .onReceive(permissionPoll) { _ in
             guard guide.step == .systemPermissions || guide.step == .menuTrigger else { return }
             privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false)
@@ -95,7 +95,7 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
     private var stepIndicator: some View {
         let steps = WelcomeGuideStep.allCases
         let index = steps.firstIndex(of: guide.step) ?? 0
-        return Text("Step \(index + 1) of \(steps.count)")
+        return Text(localized("Step \(index + 1) of \(steps.count)"))
             .font(.caption)
             .foregroundStyle(.secondary)
     }
@@ -104,13 +104,13 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
     private var stepContent: some View {
         switch guide.step {
         case .welcome:
-            Text("Spinnet opens a radial Menu wherever you are. This guide sets up the System Permissions Spinnet needs and how you open the Menu, and installs Official Plugins.")
+            Text(localized("Spinnet opens a radial Menu wherever you are. This guide sets up the System Permissions Spinnet needs and how you open the Menu, and installs Official Plugins."))
                 .fixedSize(horizontal: false, vertical: true)
-            Text("You can change all of this later in Settings, and reopen this guide from General.")
+            Text(localized("You can change all of this later in Settings, and reopen this guide from General."))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         case .systemPermissions:
-            Text("Accessibility lets Spinnet see the mouse trigger and work with selected text. Screen Recording is needed only for screenshots.")
+            Text(localized("Accessibility lets Spinnet see the mouse trigger and work with selected text. Screen Recording is needed only for screenshots."))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             VStack(spacing: 0) {
@@ -126,14 +126,14 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
         case .officialPlugins:
             officialPluginsStep
         case .finish:
-            Text("Next, add Menu Items to your Slots in the Menu Editor. Plugins from the Library provide them.")
+            Text(localized("Next, add Menu Items to your Slots in the Menu Editor. Plugins from the Library provide them."))
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var officialPluginsStep: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Official Plugins are published in SpinnetPlugins. Choose the ones to install now; installed Plugins wait in the Library until you add them to Slots.")
+            Text(localized("Official Plugins are published in SpinnetPlugins. Choose the ones to install now; installed Plugins wait in the Library until you add them to Slots."))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             ScrollView {
@@ -148,7 +148,7 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
             .settingsCard()
             HStack {
                 Spacer()
-                Button("Install Selected", action: officialPlugins.installSelected)
+                Button(localized("Install Selected"), action: officialPlugins.installSelected)
                     .disabled(!officialPlugins.canInstallSelected)
             }
         }
@@ -176,11 +176,11 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
                 EmptyView()
             case .downloading:
                 ProgressView().controlSize(.small)
-                    .accessibilityLabel("Installing \(plugin.name)")
+                    .accessibilityLabel(localized("Installing \(plugin.name)"))
             case .awaitingReview:
-                Text("Waiting for review").font(.caption).foregroundStyle(.secondary)
+                Text(localized("Waiting for review")).font(.caption).foregroundStyle(.secondary)
             case .installed:
-                Label("Installed", systemImage: "checkmark.circle.fill")
+                Label(localized("Installed"), systemImage: "checkmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(.green)
             case .failed(let message):
@@ -189,9 +189,9 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
                     .foregroundStyle(.orange)
                     .frame(maxWidth: 220, alignment: .trailing)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Retry") { officialPlugins.retry(plugin.id) }
+                Button(localized("Retry")) { officialPlugins.retry(plugin.id) }
                     .controlSize(.small)
-                    .accessibilityLabel("Retry \(plugin.name)")
+                    .accessibilityLabel(localized("Retry \(plugin.name)"))
             }
         }
         .padding(.vertical, 8)
@@ -203,15 +203,15 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
                 .foregroundStyle(privacy.isGranted(permission) ? Color.green : Color.orange)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 3) {
-                Text(permission.title).font(.headline)
-                Text(permission.explanation)
+                Text(permission.localizedTitle).font(.headline)
+                Text(permission.localizedExplanation)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(privacy.statusTitle(for: permission))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("\(permission.title): \(privacy.statusTitle(for: permission))")
+                    .accessibilityLabel("\(permission.localizedTitle): \(privacy.statusTitle(for: permission))")
             }
             Spacer(minLength: 12)
             if !privacy.isGranted(permission) {
@@ -227,18 +227,18 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
     private var controls: some View {
         HStack {
             if guide.step != .finish {
-                Button("Skip Welcome Guide", action: guide.skip)
-                    .accessibilityLabel("Skip Welcome Guide")
+                Button(localized("Skip Welcome Guide"), action: guide.skip)
+                    .accessibilityLabel(localized("Skip Welcome Guide"))
             }
             Spacer()
             if guide.canGoBack {
-                Button("Back", action: guide.back)
+                Button(localized("Back"), action: guide.back)
             }
             if guide.step == .finish {
-                Button("Open Menu Editor", action: guide.complete)
+                Button(localized("Open Menu Editor"), action: guide.complete)
                     .keyboardShortcut(.defaultAction)
             } else {
-                Button("Continue", action: guide.next)
+                Button(localized("Continue"), action: guide.next)
                     .keyboardShortcut(.defaultAction)
             }
         }

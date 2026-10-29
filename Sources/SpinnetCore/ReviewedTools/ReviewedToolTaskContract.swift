@@ -11,7 +11,10 @@ public struct HomebrewTaskInput: Equatable {
     public let kind: String
     public let name: String
     public let fields: [String: JSONValue]
-    public var displayOperation: String {
+    public var displayOperation: String { Self.displayOperation(of: operation) }
+    /// The title of `operation`, which the Host also shows in the interface
+    /// language.
+    public static func displayOperation(of operation: String) -> String {
         switch operation {
         case "update", "refreshCatalog": return "Update Homebrew and Catalogs"
         case "upgradeSelected": return "Upgrade Selected Packages"

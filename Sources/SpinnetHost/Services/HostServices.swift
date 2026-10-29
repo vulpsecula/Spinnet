@@ -10,7 +10,7 @@ enum HostCommandError: Error, CustomStringConvertible, LocalizedError {
     var description: String {
         switch self {
         case .invalidInput:
-            return "The Action input is invalid for this Host Command"
+            return "The Action input is invalid for this Host Command" // Not localized: a Host Command failure, kept in the Action failure record
         case .failed(let message):
             return message
         }
@@ -292,7 +292,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
                          package: PluginPackage?) throws -> JSONValue {
         guard command.isValidInput(input) else {
             throw HostCommandExecutionError.invalidInput(
-                "Input is invalid for \(command.rawValue)"
+                "Input is invalid for \(command.rawValue)" // Not localized: a Host Command failure, kept in the Action failure record
             )
         }
 
@@ -310,7 +310,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
             let value = try requiredString(
                 from: input,
                 keys: ["path", "bundle_id", "bundle_identifier", "bundleIdentifier"],
-                description: "an application path or bundle identifier"
+                description: "an application path or bundle identifier" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.openApplication(value) else {
                 throw HostCommandExecutionError.unavailable("The application is not available")
@@ -320,7 +320,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
             let path = try requiredString(
                 from: input,
                 keys: ["path"],
-                description: "a file path"
+                description: "a file path" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.openFile(path) else {
                 throw HostCommandExecutionError.unavailable("The file is not available")
@@ -330,7 +330,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
             let path = try requiredString(
                 from: input,
                 keys: ["path"],
-                description: "a folder path"
+                description: "a folder path" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.openFolder(path) else {
                 throw HostCommandExecutionError.unavailable("The folder is not available")
@@ -346,7 +346,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
             let request = try namedRequest(
                 from: input,
                 primaryKey: "service",
-                description: "a macOS Service name"
+                description: "a macOS Service name" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.invokeService(name: request.name, input: request.input) else {
                 throw HostCommandExecutionError.failed("The macOS Service could not be invoked")
@@ -356,7 +356,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
             let request = try namedRequest(
                 from: input,
                 primaryKey: "shortcut",
-                description: "a Shortcut name"
+                description: "a Shortcut name" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.invokeShortcut(name: request.name, input: request.input) else {
                 throw HostCommandExecutionError.failed("The Shortcut could not be invoked")
@@ -367,7 +367,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
             if input == .null {
                 guard let selectedTextProvider else {
                     throw HostCommandExecutionError.unavailable(
-                        "Selected text is unavailable from the Host"
+                        "Selected text is unavailable from the Host" // Not localized: a Host Command failure, kept in the Action failure record
                     )
                 }
                 let copyFallbackIsAllowed = package.map { package in
@@ -378,7 +378,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
                 text = try requiredString(
                     from: input,
                     keys: ["text"],
-                    description: "text to copy",
+                    description: "text to copy", // Not localized: a Host Command failure, kept in the Action failure record
                     allowEmpty: true
                 )
             }
@@ -400,7 +400,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
             let message = try requiredString(
                 from: input,
                 keys: ["message", "text"],
-                description: "a feedback message"
+                description: "a feedback message" // Not localized: a Host Command failure, kept in the Action failure record
             )
             feedbackPresenter(message)
             return .object(["presented": .string(message)])
@@ -544,18 +544,18 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
         ]
         if let code = alphaNumeric[key] { return code }
         let named: [String: UInt16] = [
-            "RETURN": UInt16(kVK_Return),
-            "ENTER": UInt16(kVK_Return),
-            "ESCAPE": UInt16(kVK_Escape),
-            "ESC": UInt16(kVK_Escape),
-            "TAB": UInt16(kVK_Tab),
-            "SPACE": UInt16(kVK_Space),
-            "DELETE": UInt16(kVK_Delete),
-            "BACKSPACE": UInt16(kVK_Delete),
-            "LEFT": UInt16(kVK_LeftArrow),
-            "RIGHT": UInt16(kVK_RightArrow),
-            "UP": UInt16(kVK_UpArrow),
-            "DOWN": UInt16(kVK_DownArrow)
+            "RETURN": UInt16(kVK_Return), // Not localized: a key name in Action input
+            "ENTER": UInt16(kVK_Return), // Not localized: a key name in Action input
+            "ESCAPE": UInt16(kVK_Escape), // Not localized: a key name in Action input
+            "ESC": UInt16(kVK_Escape), // Not localized: a key name in Action input
+            "TAB": UInt16(kVK_Tab), // Not localized: a key name in Action input
+            "SPACE": UInt16(kVK_Space), // Not localized: a key name in Action input
+            "DELETE": UInt16(kVK_Delete), // Not localized: a key name in Action input
+            "BACKSPACE": UInt16(kVK_Delete), // Not localized: a key name in Action input
+            "LEFT": UInt16(kVK_LeftArrow), // Not localized: a key name in Action input
+            "RIGHT": UInt16(kVK_RightArrow), // Not localized: a key name in Action input
+            "UP": UInt16(kVK_UpArrow), // Not localized: a key name in Action input
+            "DOWN": UInt16(kVK_DownArrow) // Not localized: a key name in Action input
         ]
         if let code = named[key] { return code }
         let functionKeys: [String: UInt16] = [

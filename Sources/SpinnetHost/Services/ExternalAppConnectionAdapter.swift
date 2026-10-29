@@ -58,8 +58,8 @@ struct ExternalAppConnectionAdapter {
         case OSStatus(-1744): return .permissionNeeded
         case OSStatus(-1743): return .permissionDenied
         // A stopped target with unknown consent cannot establish a connection.
-        case OSStatus(-600): return .failed("Start \(check.interface.name) to check its connection.")
-        default: return .failed("Automation permission could not be checked. Try connecting again.")
+        case OSStatus(-600): return .failed(localized("Start \(check.interface.name) to check its connection."))
+        default: return .failed(localized("Automation permission could not be checked. Try connecting again."))
         }
     }
 }

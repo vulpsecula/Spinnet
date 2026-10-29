@@ -32,7 +32,7 @@ final class HostToastPresenter {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.setAccessibilityLabel("Spinnet toast")
+        panel.setAccessibilityLabel(localized("Spinnet toast"))
 
         let background = NSVisualEffectView()
         background.material = .hudWindow

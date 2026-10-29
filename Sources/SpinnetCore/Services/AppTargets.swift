@@ -372,20 +372,38 @@ public struct AppExitRequest: Equatable {
 /// requires one, in its own words, naming the target it resolved. A Plugin
 /// can neither skip nor word it.
 public struct HostConfirmation: Equatable {
-    public let title: String
-    public let message: String
+    /// Its words, which the Host shows in the interface language. The
+    /// message is whole sentences.
+    public let titleText: HostText
+    public let messageText: [HostText]
+    public let confirmTitleText: HostText
+    public var title: String { titleText.english }
+    public var message: String { HostText.englishSentences(messageText) }
     /// The button that performs the operation. Cancel is the default; Return
     /// never confirms a destructive operation.
-    public let confirmTitle: String
+    public var confirmTitle: String { confirmTitleText.english }
     public let isDestructive: Bool
     public let details: HostConfirmationDetails?
 
-    public init(title: String, message: String, confirmTitle: String, isDestructive: Bool, details: HostConfirmationDetails? = nil) {
-        self.title = title
-        self.message = message
-        self.confirmTitle = confirmTitle
+    public init(title: HostText, message: [HostText], confirmTitle: HostText, isDestructive: Bool,
+                details: HostConfirmationDetails? = nil) {
+        titleText = title
+        messageText = message
+        confirmTitleText = confirmTitle
         self.isDestructive = isDestructive
         self.details = details
+    }
+
+    /// A confirmation shown in the same words in every language.
+    public init(title: String, message: String, confirmTitle: String, isDestructive: Bool, details: HostConfirmationDetails? = nil) {
+        self.init(title: .verbatim(title), message: message.isEmpty ? [] : [.verbatim(message)],
+                  confirmTitle: .verbatim(confirmTitle), isDestructive: isDestructive, details: details)
+    }
+
+    /// The same confirmation with other details.
+    public func with(details: HostConfirmationDetails?) -> HostConfirmation {
+        HostConfirmation(title: titleText, message: messageText, confirmTitle: confirmTitleText,
+                         isDestructive: isDestructive, details: details)
     }
 
     /// How long a confirmation waits on screen for an answer before the
@@ -395,24 +413,26 @@ public struct HostConfirmation: Equatable {
     /// The confirmation of `exit` on the App named `app`, asked for by the
     /// Plugin named `plugin`.
     public static func exit(_ exit: AppExit, of app: String, requestedBy plugin: String) -> HostConfirmation {
+        let app = HostText.verbatim(app), plugin = HostText.verbatim(plugin)
         switch exit {
         case .close:
             return HostConfirmation(
-                title: "Close \(app)'s Front Window?",
-                message: "\(plugin) asks Spinnet to close the front window of \(app), as its Close menu item (⌘W) does. "
-                    + "\(app) may ask you to save your changes first.",
-                confirmTitle: "Close", isDestructive: true)
+                title: HostText("Close %@'s Front Window?", app),
+                message: [HostText("%@ asks Spinnet to close the front window of %@, as its Close menu item (⌘W) does.", plugin, app),
+                          HostText("%@ may ask you to save your changes first.", app)],
+                confirmTitle: HostText("Close"), isDestructive: true)
         case .quit:
             return HostConfirmation(
-                title: "Quit \(app)?",
-                message: "\(plugin) asks Spinnet to quit \(app), as its Quit menu item (⌘Q) does. "
-                    + "\(app) may ask you to save your changes first.",
-                confirmTitle: "Quit", isDestructive: true)
+                title: HostText("Quit %@?", app),
+                message: [HostText("%@ asks Spinnet to quit %@, as its Quit menu item (⌘Q) does.", plugin, app),
+                          HostText("%@ may ask you to save your changes first.", app)],
+                confirmTitle: HostText("Quit"), isDestructive: true)
         case .forceQuit:
             return HostConfirmation(
-                title: "Force Quit \(app)?",
-                message: "\(plugin) asks Spinnet to force quit \(app). Any unsaved changes in \(app) will be lost.",
-                confirmTitle: "Force Quit", isDestructive: true)
+                title: HostText("Force Quit %@?", app),
+                message: [HostText("%@ asks Spinnet to force quit %@.", plugin, app),
+                          HostText("Any unsaved changes in %@ will be lost.", app)],
+                confirmTitle: HostText("Force Quit"), isDestructive: true)
         }
     }
 }

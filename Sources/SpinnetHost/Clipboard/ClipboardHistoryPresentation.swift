@@ -24,7 +24,7 @@ struct ClipboardHistoryCopyPresentation {
             .sorted { ($0.itemIndex ?? 0) < ($1.itemIndex ?? 0) }
     }
     var fileCount: Int { files.count }
-    var fileTitle: String { "\(fileCount) files" }
+    var fileTitle: String { localized("\(fileCount) files") }
     var fileOverview: String { files.map(\.text).joined(separator: "\n") }
     var fileIcon: String? { fileCount > 1 ? "doc.on.doc" : primary?.fileReference?.previewIcon }
 
@@ -91,18 +91,18 @@ struct ClipboardHistoryTextPresentation {
     var text: String {
         // Old source fields contain RTF control words, not display text.
         if entry.contentType == .richText, entry.format == "public.rtf", entry.text.hasPrefix("{\\rtf") {
-            return OfflineClipboardPreview.text(Data(entry.text.utf8), format: "public.rtf") ?? "Rich text"
+            return OfflineClipboardPreview.text(Data(entry.text.utf8), format: "public.rtf") ?? localized("Rich text")
         }
         return entry.text
     }
     var typeLabel: String {
         switch entry.contentType {
-        case .text: return "Text"
-        case .richText: return "Rich text"
-        case .image: return "Image"
-        case .fileReference: return "File"
-        case .url: return "URL"
-        case .binary: return "Binary"
+        case .text: return localized("Text")
+        case .richText: return localized("Rich text")
+        case .image: return localized("Image")
+        case .fileReference: return localized("File")
+        case .url: return localized("URL")
+        case .binary: return localized("Binary")
         }
     }
 }
@@ -115,13 +115,13 @@ struct ClipboardHistoryBrowsing: Equatable {
         var id: Self { self }
         var title: String {
             switch self {
-            case .all: return "All Types"
-            case .text: return "Text"
-            case .richText: return "Rich Text"
-            case .links: return "Links"
-            case .images: return "Images"
-            case .files: return "Files"
-            case .other: return "Other"
+            case .all: return localized("All Types")
+            case .text: return localized("Text")
+            case .richText: return localized("Rich Text")
+            case .links: return localized("Links")
+            case .images: return localized("Images")
+            case .files: return localized("Files")
+            case .other: return localized("Other")
             }
         }
         init(_ type: ClipboardContent.ContentType) {
@@ -141,10 +141,10 @@ struct ClipboardHistoryBrowsing: Equatable {
         var id: Self { self }
         var title: String {
             switch self {
-            case .newest: return "Newest First"
-            case .oldest: return "Oldest First"
-            case .application: return "Source Application"
-            case .type: return "Type"
+            case .newest: return localized("Newest First")
+            case .oldest: return localized("Oldest First")
+            case .application: return localized("Source Application")
+            case .type: return localized("Type")
             }
         }
     }
@@ -207,9 +207,10 @@ struct ClipboardHistoryBrowsing: Equatable {
 enum ClipboardHistoryAge {
     static func label(for date: Date, now: Date = Date()) -> String {
         let age = now.timeIntervalSince(date)
-        if age < 60 { return "Just now" }
+        if age < 60 { return localized("Just now") }
         if age >= 7 * 86_400 { return date.formatted(date: .abbreviated, time: .shortened) }
         let formatter = RelativeDateTimeFormatter()
+        formatter.locale = HostLocalization.locale
         formatter.unitsStyle = .short
         formatter.dateTimeStyle = .named
         return formatter.localizedString(for: date, relativeTo: now)

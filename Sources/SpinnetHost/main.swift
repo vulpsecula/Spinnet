@@ -79,8 +79,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private let currentAppIcons = CurrentAppIcons()
     private let activities = HostActivities()
     private lazy var reviewedTasks = HostReviewedToolTasks(activities: activities,
-        journal: HostDataDirectory.url.appendingPathComponent("ReviewedTasks"),
-        runnerURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner"),
+        journal: HostDataDirectory.url.appendingPathComponent("ReviewedTasks"), // Not localized: a folder name
+        runnerURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner"), // Not localized: a helper path
         targetResolver: HomebrewManagementTargets.shared.resolveTask, recoveryPower: DesktopPowerAssertions())
     private let reviewedServicesWindow = ReviewedServicesWindowController()
     private var reviewedServicesAction: ActionConfiguration?
@@ -148,9 +148,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
         do {
             pluginSettings = try PluginSettingsStore(
-                fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("PluginSettings.json")
+                fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("PluginSettings.json") // Not localized: a file name
             )
-            clipboardStore = try ClipboardHistoryStore(fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("ClipboardHistory/history.json"))
+            clipboardStore = try ClipboardHistoryStore(fileURL: configurationFileURL().deletingLastPathComponent().appendingPathComponent("ClipboardHistory/history.json")) // Not localized: a file path
             try loadCapabilityGrants()
             try pluginInstallation.restore()
             // Every Plugin is an installed one, so anything still holding a
@@ -334,7 +334,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             menu.onPrimaryAction = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onActionMenuSelection = { [weak self] actionID in self?.invoke(actionID: actionID) }
             menu.onEmptySlotActivated = { [weak self] index in
-                self?.feedback.showMessage("Slot \(index + 1) is empty")
+                self?.feedback.showMessage(localized("Slot \(index + 1) is empty"))
             }
             menu.onDismiss = { [weak self] in self?.triggers?.unregisterEscape() }
             feedback = HostFeedbackPresenter()
@@ -415,7 +415,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             let pluginUpdater = PluginUpdater(
                 store: pluginInstallation, registry: registry, transport: URLSessionHTTPSTransport(),
                 downloads: FileManager.default.temporaryDirectory
-                    .appendingPathComponent("Spinnet Plugin Updates", isDirectory: true)
+                    .appendingPathComponent("Spinnet Plugin Updates", isDirectory: true) // Not localized: a folder name
             )
             settings.applyPluginUpdate = { [unowned self] update in
                 try self.finishInstallation(of: pluginUpdater.apply(update), editor: editor)
@@ -501,11 +501,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         if reviewedTasks.hasRunningTasks {
             reviewedTasks.beginExit()
             let alert = NSAlert()
-            alert.messageText = "Homebrew Work Is Still Running"
-            alert.informativeText = "Read-only inspections are cancelled before mutation admission. Wait for Tasks and owned workers to finish, or attempt to stop them before quitting. Stopping does not undo package changes."
-            alert.addButton(withTitle: "Wait and Quit")
-            alert.addButton(withTitle: "Stop and Quit")
-            alert.addButton(withTitle: "Don't Quit")
+            alert.messageText = localized("Homebrew Work Is Still Running")
+            alert.informativeText = localized("Read-only inspections are cancelled before mutation admission. Wait for Tasks and owned workers to finish, or attempt to stop them before quitting. Stopping does not undo package changes.")
+            alert.addButton(withTitle: localized("Wait and Quit"))
+            alert.addButton(withTitle: localized("Stop and Quit"))
+            alert.addButton(withTitle: localized("Don't Quit"))
             taskQuitAlert = alert
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -521,8 +521,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                         timer.invalidate(); self.taskQuitTimer = nil; self.taskQuitAlert = nil
                         self.reviewedTasks.cancelExit(); NSApp.reply(toApplicationShouldTerminate: false); return
                     }
-                    if answer == .alertSecondButtonReturn { self.reviewedTasks.stopAll(); alert.informativeText = "Attempting to stop running Homebrew Tasks. Stopping does not undo package changes." }
-                    else { alert.informativeText = "Waiting for running Homebrew Tasks to finish. You can still choose Stop and Quit." }
+                    if answer == .alertSecondButtonReturn { self.reviewedTasks.stopAll(); alert.informativeText = localized("Attempting to stop running Homebrew Tasks. Stopping does not undo package changes.") }
+                    else { alert.informativeText = localized("Waiting for running Homebrew Tasks to finish. You can still choose Stop and Quit.") }
                 }
                 timer.invalidate(); self.taskQuitTimer = nil; self.taskQuitAlert = nil
                 self.triggers?.stop(); NSApp.reply(toApplicationShouldTerminate: true)
@@ -661,8 +661,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         return DeveloperDiagnostics(
             appPath: Bundle.main.bundleURL.path,
             bundleIdentifier: Bundle.main.bundleIdentifier ?? "(none)",
-            version: info["CFBundleShortVersionString"] as? String ?? "(none)",
-            sourceRevision: info["SpinnetSourceRevision"] as? String ?? "(unknown)",
+            version: info["CFBundleShortVersionString"] as? String ?? "(none)", // Not localized: an Info.plist key
+            sourceRevision: info["SpinnetSourceRevision"] as? String ?? "(unknown)", // Not localized: an Info.plist key
             processIdentifier: ProcessInfo.processInfo.processIdentifier,
             arguments: Array(CommandLine.arguments.dropFirst()),
             dataDirectory: configurationFileURL().deletingLastPathComponent().path,
@@ -1002,13 +1002,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         }, openPluginSettings: { [weak self] in self?.settings.showPluginSettings(package.manifest.id) },
         openIgnoredApplications: { [weak self] in self?.settings.showClipboardIgnoredApplications() },
         clearHistory: { [weak self] completion in
-            guard let self else { completion("Host closed"); return }
+            guard let self else { completion(localized("Host closed")); return }
             self.settings.clearClipboardHistory(completion: completion)
         }, deleteCopies: { [weak self] copyIDs, completion in
-            guard let self else { completion("Host closed"); return }
+            guard let self else { completion(localized("Host closed")); return }
             self.settings.deleteClipboardHistory(copyIDs: copyIDs, completion: completion)
         }, saveText: { [weak self] copyID, text, asNew, completion in
-            guard let self else { completion("Host closed"); return }
+            guard let self else { completion(localized("Host closed")); return }
             self.settings.saveClipboardHistoryText(text, editing: copyID, asNew: asNew, completion: completion)
         }, notify: { [weak self] message in self?.feedback.showMessage(message) })
         clipboardWindow?.present()
@@ -1020,9 +1020,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         // depends on the working directory or on a build system's layout.
         let candidates = [
             Bundle.main.bundleURL
-                .appendingPathComponent("Contents/Helpers/SpinnetPluginHelper"),
+                .appendingPathComponent("Contents/Helpers/SpinnetPluginHelper"), // Not localized: a helper path
             Bundle.main.executableURL?.deletingLastPathComponent()
-                .appendingPathComponent("SpinnetPluginHelper")
+                .appendingPathComponent("SpinnetPluginHelper") // Not localized: a helper name
         ].compactMap { $0 }
         return candidates.first {
             FileManager.default.isExecutableFile(atPath: $0.path)
@@ -1032,7 +1032,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func showStartupFailure(_ error: Error) {
         let alert = NSAlert()
         alert.alertStyle = .critical
-        alert.messageText = "Spinnet could not start"
+        alert.messageText = localized("Spinnet could not start")
         alert.informativeText = error.localizedDescription
         alert.runModal()
         NSApp.terminate(nil)
@@ -1041,7 +1041,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func showConfigurationError(_ error: Error) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Spinnet could not save settings"
+        alert.messageText = localized("Spinnet could not save settings")
         alert.informativeText = error.localizedDescription
         alert.runModal()
     }
@@ -1055,7 +1055,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             try pluginFiles.restoreCapabilityGrants(into: capabilityGrants)
         } catch {
             throw ConfigurationError.persistence(
-                "Capability grants could not be loaded: \(error.localizedDescription)"
+                localized("Capability grants could not be loaded: \(error.localizedDescription)")
             )
         }
     }
@@ -1065,7 +1065,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             try pluginFiles.saveCapabilityGrants(proposed ?? capabilityGrants.allGrants)
         } catch {
             throw ConfigurationError.persistence(
-                "Capability grants could not be saved: \(error.localizedDescription)"
+                localized("Capability grants could not be saved: \(error.localizedDescription)")
             )
         }
     }
@@ -1087,9 +1087,9 @@ enum HostDataDirectory {
 if CommandLine.arguments.contains("--verify-homebrew-transport") {
     do {
         let process = Process()
-        process.executableURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner")
+        process.executableURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner") // Not localized: a helper path
         process.arguments = ["--verify-host-askpass"]
-        process.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
+        process.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"] // Not localized: an environment variable
         process.standardInput = FileHandle.nullDevice
         try process.run()
         let deadline = Date().addingTimeInterval(12)
@@ -1104,7 +1104,7 @@ if CommandLine.arguments.contains("--verify-homebrew-transport") {
 if CommandLine.arguments.contains("--refresh-existing-background-operations") {
     do {
         try HomebrewBackgroundUpdate.refreshEnabledService()
-        print("Spinnet background component update checked")
+        print("Spinnet background component update checked") // Not localized: launcher terminal output
         exit(0)
     } catch {
         FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
@@ -1129,13 +1129,13 @@ HostLocalization.applyPreferredLanguage()
 // resources, so the Host and AppKit can run in each interface language.
 if CommandLine.arguments.contains("--verify-localizations") {
     let chinese = HostLocalization.withLanguage(.simplifiedChinese) { SettingsPage.general.title }
-    guard HostLocalization.bundleURL == Bundle.main.bundleURL, chinese != "General",
+    guard HostLocalization.bundleURL == Bundle.main.bundleURL, chinese != "General", // Not localized: checks the catalog's translation of General
           Set(Bundle.main.localizations).isSuperset(of: InterfaceLanguage.localizations) else {
-        FileHandle.standardError.write(Data("error: the app bundle lacks its localized interface text\n".utf8))
+        FileHandle.standardError.write(Data("error: the app bundle lacks its localized interface text\n".utf8)) // Not localized: launcher terminal output
         exit(1)
     }
-    print("Spinnet interface languages: \(InterfaceLanguage.localizations.joined(separator: ", ")); "
-        + "this launch: \(HostLocalization.locale.identifier), \(SettingsPage.general.title)")
+    print("Spinnet interface languages: \(InterfaceLanguage.localizations.joined(separator: ", ")); " // Not localized: launcher terminal output
+        + "this launch: \(HostLocalization.locale.identifier), \(SettingsPage.general.title)") // Not localized: launcher terminal output
     exit(0)
 }
 

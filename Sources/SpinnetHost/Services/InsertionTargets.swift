@@ -95,7 +95,7 @@ extension InsertionTargetApp {
     init(_ application: NSRunningApplication) {
         self.init(processIdentifier: application.processIdentifier, bundleIdentifier: application.bundleIdentifier,
                   launchDate: application.launchDate,
-                  name: application.localizedName ?? application.bundleIdentifier ?? "the App in front")
+                  name: application.localizedName ?? application.bundleIdentifier ?? localized("the App in front"))
     }
 }
 
@@ -128,30 +128,30 @@ final class TargetedTextInserter {
         tracker.refresh()
         guard let front = tracker.actualTarget() else {
             return completion(InsertionFailure(.noTarget, message: naming
-                ? "Spinnet or no App is in front. Nothing was inserted."
-                : "No App is in front, so nothing was inserted"))
+                ? localized("Spinnet or no App is in front. Nothing was inserted.")
+                : "No App is in front, so nothing was inserted")) // Not localized: a Host Service failure returned to the Plugin
         }
         guard let shownApp else {
             return completion(InsertionFailure(.targetChanged, message: naming
-                ? "Spinnet showed no App, but \(front.name) is in front. Nothing was inserted."
+                ? localized("Spinnet showed no App, but \(front.name) is in front. Nothing was inserted.")
                 : InsertionFailure.changedWithoutNames.message))
         }
         guard shownApp.isSameApp(as: front) else {
             if !tracker.isRunning(shownApp) {
                 return completion(InsertionFailure(.noTarget, message: naming
-                    ? "\(shownApp.name) has quit. Nothing was inserted."
-                    : "The App Spinnet showed has quit, so nothing was inserted"))
+                    ? localized("\(shownApp.name) has quit. Nothing was inserted.")
+                    : "The App Spinnet showed has quit, so nothing was inserted")) // Not localized: a Host Service failure returned to the Plugin
             }
             return completion(InsertionFailure(.targetChanged, message: naming
-                ? "Spinnet showed \(shownApp.name), but \(front.name) is in front. Nothing was inserted."
+                ? localized("Spinnet showed \(shownApp.name), but \(front.name) is in front. Nothing was inserted.")
                 : InsertionFailure.changedWithoutNames.message))
         }
         // Compared only where Accessibility exposed the element when the
         // user acted; elsewhere the App alone is compared (#69).
         if let focus, tracker.focusedElement(of: front) != focus {
             return completion(InsertionFailure(.targetChanged, message: naming
-                ? "Focus moved to another field of \(front.name). Nothing was inserted."
-                : "Focus moved to another field of the App, so nothing was inserted"))
+                ? localized("Focus moved to another field of \(front.name). Nothing was inserted.")
+                : "Focus moved to another field of the App, so nothing was inserted")) // Not localized: a Host Service failure returned to the Plugin
         }
         inserter.insert(text, into: .application(front.processIdentifier)) { error in
             completion(error.map { Self.failure($0, in: front, naming: naming) })
@@ -175,7 +175,7 @@ final class TargetedTextInserter {
         }
         guard finished.wait(timeout: .now() + timeout) == .success else {
             throw PluginHostServiceError.insertion(InsertionFailure(.targetUnresponsive, refused: false,
-                                                                   message: "Inserting the text took too long"))
+                                                                   message: "Inserting the text took too long")) // Not localized: a Requested Host Operation result returned to the Plugin
         }
         if let failure = box.failure { throw PluginHostServiceError.insertion(failure) }
     }
@@ -186,20 +186,28 @@ final class TargetedTextInserter {
 
     /// The reason a failed keyboard-event insertion reports.
     static func failure(_ error: PluginHostServiceError, in app: InsertionTargetApp, naming: Bool) -> InsertionFailure {
-        let name = naming ? app.name : "The App"
+        // Only the Host shows the messages that name the App, in the
+        // interface language; a Plugin's helper carries the English ones.
+        let name = app.name
         switch error {
         case .systemPermissionDenied:
             return InsertionFailure(.systemPermissionDenied, message: error.description)
         case HostTextInserter.passwordField:
-            return InsertionFailure(.secureInput, message: "The focused field is a password field. Nothing was inserted.")
+            return InsertionFailure(.secureInput, message: naming
+                ? localized("The focused field is a password field. Nothing was inserted.")
+                : "The focused field is a password field. Nothing was inserted.") // Not localized: returned to the Plugin
         case HostTextInserter.didNotComeForward:
-            return InsertionFailure(.targetUnresponsive, refused: false,
-                                    message: "\(name) did not come to the front. Nothing was inserted.")
+            return InsertionFailure(.targetUnresponsive, refused: false, message: naming
+                ? localized("\(name) did not come to the front. Nothing was inserted.")
+                : "The App did not come to the front. Nothing was inserted.") // Not localized: returned to the Plugin
         case HostTextInserter.leftTheFront:
-            return InsertionFailure(.targetChanged, refused: false,
-                                    message: "\(name) left the front while the text was typed. Only part of it was inserted.")
+            return InsertionFailure(.targetChanged, refused: false, message: naming
+                ? localized("\(name) left the front while the text was typed. Only part of it was inserted.")
+                : "The App left the front while the text was typed. Only part of it was inserted.") // Not localized: returned to the Plugin
         case HostTextInserter.notOpen, HostTextInserter.noAppInFront, HostTextInserter.intoItself:
-            return InsertionFailure(.noTarget, message: "\(name) is not in front. Nothing was inserted.")
+            return InsertionFailure(.noTarget, message: naming
+                ? localized("\(name) is not in front. Nothing was inserted.")
+                : "The App is not in front. Nothing was inserted.") // Not localized: returned to the Plugin
         default:
             return InsertionFailure(.hostServiceFailed, refused: false, message: error.description)
         }
@@ -313,7 +321,7 @@ final class HostOperationsPerformer: HostOperationPerformer {
             return
         }
         if operation.perform == ReviewedToolTasksAddition.id {
-            guard let tasks, let input = try? HomebrewTaskInput(operation.input) else { return completion(.init(.refused(.hostServiceFailed), message: "Reviewed tool Tasks are unavailable")) }
+            guard let tasks, let input = try? HomebrewTaskInput(operation.input) else { return completion(.init(.refused(.hostServiceFailed), message: "Reviewed tool Tasks are unavailable")) } // Not localized: a Requested Host Operation result returned to the Plugin
             tasks.perform(input, for: action, accepted: accepted, authorize: { [weak self] in
                 guard let self else { throw PluginHostServiceError.unavailable("Host Services") }
                 try self.checkAuthorityAsItStands(operation, for: action)
@@ -322,7 +330,7 @@ final class HostOperationsPerformer: HostOperationPerformer {
         }
         if CurrentAppAddition.exitIDs.contains(operation.perform) {
             guard let exits else {
-                return completion(HostOperationResult(.refused(.hostServiceFailed), message: "This Host cannot close or quit Apps"))
+                return completion(HostOperationResult(.refused(.hostServiceFailed), message: "This Host cannot close or quit Apps")) // Not localized: a Requested Host Operation result returned to the Plugin
             }
             let request: AppExitRequest
             do {
@@ -332,7 +340,7 @@ final class HostOperationsPerformer: HostOperationPerformer {
                 // reaches here.
                 let reason = (error as? PluginHostServiceError)?.description ?? error.localizedDescription
                 return completion(HostOperationResult(.refused(.hostServiceFailed),
-                                                      message: "Spinnet could not read what to close or quit: \(reason)"))
+                                                      message: "Spinnet could not read what to close or quit: \(reason)")) // Not localized: a Requested Host Operation result returned to the Plugin
             }
             let name = registry.package(for: action.pluginID)?.manifest.name ?? action.pluginID.rawValue
             exits.perform(request, accepted: accepted, for: action, pluginName: name, authorize: { [weak self] in
@@ -346,7 +354,7 @@ final class HostOperationsPerformer: HostOperationPerformer {
             return completion(HostOperationResult(.succeeded))
         }
         guard let package = registry.package(for: action.pluginID), let broker = broker() else {
-            return completion(HostOperationResult(.refused(.commandUnavailable), message: "Host Services are unavailable"))
+            return completion(HostOperationResult(.refused(.commandUnavailable), message: "Host Services are unavailable")) // Not localized: a Requested Host Operation result returned to the Plugin
         }
         var request = PluginRuntimeHostServiceRequest(invocationID: UUID().uuidString, actionID: action.id,
                                                       service: implementation.service, input: implementation.input,

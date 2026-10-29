@@ -227,7 +227,7 @@ final class DesktopRunningApps: RunningApps {
     static func identity(of running: RunningApplication) -> RunningAppIdentity {
         RunningAppIdentity(processIdentifier: running.processIdentifier, bundleIdentifier: running.bundleIdentifier,
                            launchDate: running.launchDate ?? running.processStartDate,
-                           name: running.localizedName ?? running.bundleIdentifier ?? "the App in front")
+                           name: running.localizedName ?? running.bundleIdentifier ?? localized("the App in front"))
     }
 }
 
@@ -420,7 +420,7 @@ final class HostConfirmationPanel: HostConfirming {
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             panel.standardWindowButton(button)?.isHidden = true
         }
-        panel.setAccessibilityLabel(confirmation.title)
+        panel.setAccessibilityLabel(confirmation.localizedTitle)
         panel.onCancel = { respond(.declined) }
         shown[token] = panel
         // The window it takes the keyboard from, usually the view whose
@@ -480,22 +480,22 @@ private struct HostConfirmationContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(confirmation.title).font(.headline)
+            Text(confirmation.localizedTitle).font(.headline)
             ScrollView {
-                Text(confirmation.message).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
+                Text(confirmation.localizedMessage).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             }
             .frame(height: min(confirmation.details == nil ? maximumHeight - 140 : 100,
-                               max(44, CGFloat(confirmation.message.count / 40 + 1) * 18)))
+                               max(44, CGFloat(confirmation.localizedMessage.count / 40 + 1) * 18)))
             if let details = confirmation.details {
                 HostConfirmationDetailsContent(details: details, height: max(100, maximumHeight - 270))
             }
             HStack {
                 Spacer()
                 // The default button, so Return declines too.
-                Button("Cancel") { respond(.declined) }
+                Button(localized("Cancel")) { respond(.declined) }
                     .keyboardShortcut(.defaultAction)
-                Button(confirmation.confirmTitle, role: confirmation.isDestructive ? .destructive : nil) {
+                Button(confirmation.localizedConfirmTitle, role: confirmation.isDestructive ? .destructive : nil) {
                     respond(.confirmed)
                 }
             }

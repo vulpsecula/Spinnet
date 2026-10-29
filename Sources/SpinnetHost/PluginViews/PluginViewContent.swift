@@ -101,13 +101,13 @@ struct PluginViewContent: View {
                     .foregroundStyle(model.isPinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
             }
             .buttonStyle(.borderless)
-            .help(model.isPinned ? "Unpin" : "Keep this view open")
+            .help(model.isPinned ? localized("Unpin") : localized("Keep this view open"))
             .accessibilityLabel(PluginViewModel.pinLabel(model.isPinned))
             Button { model.close() } label: {
                 Image(systemName: "xmark").foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .help("Close (Esc)")
+            .help(localized("Close (Esc)"))
             .accessibilityLabel(PluginViewModel.closeLabel)
         }
     }
@@ -355,7 +355,7 @@ struct PluginViewContent: View {
                         .buttonStyle(.borderless)
                         .controlSize(.small)
                         .foregroundStyle(.secondary)
-                        .help("Copy")
+                        .help(localized("Copy"))
                         .accessibilityLabel(PluginViewModel.copyLabel(of: section, at: index))
                 }
             }
@@ -365,10 +365,10 @@ struct PluginViewContent: View {
             case .fetched(.loading):
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text("Loading…").font(.caption).foregroundStyle(.secondary)
+                    Text(localized("Loading…")).font(.caption).foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(label) is loading")
+                .accessibilityLabel(localized("\(label) is loading"))
             case .fetched(.text(let text)), .fetched(.delivered(let text)):
                 Text(text)
                     .textSelection(.enabled)

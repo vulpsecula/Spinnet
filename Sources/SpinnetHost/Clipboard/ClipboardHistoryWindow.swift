@@ -82,13 +82,13 @@ final class ClipboardHistoryWindowModel: ObservableObject {
             if let expiry = result.expiresAt {
                 guard expiry > Date() else {
                     discardSnapshot()
-                    error = "Entries expired. Refresh to see retained history."
+                    error = localized("Entries expired. Refresh to see retained history.")
                     return
                 }
                 expiration?.cancel()
                 let task = DispatchWorkItem { [weak self] in
                     self?.discardSnapshot()
-                    self?.error = "Entries expired. Refresh to see retained history."
+                    self?.error = localized("Entries expired. Refresh to see retained history.")
                 }
                 expiration = task
                 DispatchQueue.main.asyncAfter(deadline: .now() + expiry.timeIntervalSinceNow, execute: task)
@@ -99,7 +99,7 @@ final class ClipboardHistoryWindowModel: ObservableObject {
         catch {
             loadingEveryPage = false
             accessDenied = (error as? PluginHostServiceError) == .capabilityDenied(.readClipboardHistory)
-            self.error = accessDenied ? "Clipboard History access is not granted to this Plugin." : error.localizedDescription
+            self.error = accessDenied ? localized("Clipboard History access is not granted to this Plugin.") : error.localizedDescription
         }
     }
 
@@ -170,13 +170,13 @@ struct ClipboardHistoryView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 4) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Search", text: $browsing.text)
+                    TextField(localized("Search"), text: $browsing.text)
                         .textFieldStyle(.plain)
                         .focused($focus, equals: .search)
                         .onSubmit { pasteSelection() }
                     if !browsing.text.isEmpty {
                         Button { browsing.text = "" } label: { Image(systemName: "xmark.circle.fill") }
-                            .buttonStyle(.plain).foregroundStyle(.secondary).help("Clear Search")
+                            .buttonStyle(.plain).foregroundStyle(.secondary).help(localized("Clear Search"))
                     }
                 }
                 .padding(.horizontal, 8).padding(.vertical, 5)
@@ -188,40 +188,40 @@ struct ClipboardHistoryView: View {
                         .foregroundStyle(model.isPinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                 }
                 .buttonStyle(.borderless)
-                .help(model.isPinned ? "Unpin" : "Keep this view open")
+                .help(model.isPinned ? localized("Unpin") : localized("Keep this view open"))
                 .accessibilityLabel(PluginViewModel.pinLabel(model.isPinned))
                 Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                    .help("Refresh")
+                    .help(localized("Refresh"))
                     .keyboardShortcut("r", modifiers: .command)
                 Menu {
-                    Button("Clear History…") {
+                    Button(localized("Clear History…")) {
                         run { clearHistory($0) }
                     }.disabled(busy)
-                    Button("Ignored Applications…", action: openIgnoredApplications)
+                    Button(localized("Ignored Applications…"), action: openIgnoredApplications)
                     Divider()
-                    Button("Plugin Settings…", action: openPluginSettings)
-                    Button("Privacy Settings…", action: openPrivacy)
+                    Button(localized("Plugin Settings…"), action: openPluginSettings)
+                    Button(localized("Privacy Settings…"), action: openPrivacy)
                 } label: { Image(systemName: "ellipsis.circle") }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
-                    .help("More")
+                    .help(localized("More"))
             }
             HStack(spacing: 12) {
-                Picker("Type", selection: $browsing.kind) {
+                Picker(localized("Type"), selection: $browsing.kind) {
                     ForEach(ClipboardHistoryBrowsing.Kind.allCases) { Text($0.title).tag($0) }
                 }
-                Picker("App", selection: $browsing.application) {
-                    Text("All Applications").tag(String?.none)
+                Picker(localized("App"), selection: $browsing.application) {
+                    Text(localized("All Applications")).tag(String?.none)
                     let applications = ClipboardHistoryBrowsing.applications(in: copies)
                     if !applications.isEmpty { Divider() }
                     ForEach(applications, id: \.self) { Text($0).tag(String?.some($0)) }
                 }
-                Picker("Sort", selection: $browsing.sort) {
+                Picker(localized("Sort"), selection: $browsing.sort) {
                     ForEach(ClipboardHistoryBrowsing.Sort.allCases) { Text($0.title).tag($0) }
                 }
                 Spacer(minLength: 0)
                 if browsing != ClipboardHistoryBrowsing() {
-                    Button("Reset") { browsing = ClipboardHistoryBrowsing() }.buttonStyle(.link)
+                    Button(localized("Reset")) { browsing = ClipboardHistoryBrowsing() }.buttonStyle(.link)
                 }
             }
             .pickerStyle(.menu).fixedSize().controlSize(.small)
@@ -230,27 +230,27 @@ struct ClipboardHistoryView: View {
 
     @ViewBuilder private var content: some View {
         if model.isLoading {
-            ProgressView("Loading Clipboard History…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            ProgressView(localized("Loading Clipboard History…")).frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error = model.error {
             VStack(spacing: 10) {
                 Text(error).foregroundStyle(.secondary)
-                if model.accessDenied { Button("Manage Access in Library…", action: openPluginSettings) }
+                if model.accessDenied { Button(localized("Manage Access in Library…"), action: openPluginSettings) }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let snapshot = model.snapshot {
             if snapshot.state != .collecting {
                 HStack {
                     Label(snapshot.state == .off
-                          ? "Collection is off. Retained entries remain readable until they expire."
-                          : "Collection is paused. No new entries are collected.", systemImage: "pause.circle")
+                          ? localized("Collection is off. Retained entries remain readable until they expire.")
+                          : localized("Collection is paused. No new entries are collected."), systemImage: "pause.circle")
                     Spacer()
-                    Button("Open Privacy Settings…", action: openPrivacy)
+                    Button(localized("Open Privacy Settings…"), action: openPrivacy)
                 }.font(.callout).foregroundStyle(.secondary).padding(.horizontal, 16).padding(.vertical, 8)
                 Divider()
             }
             if snapshot.entries.isEmpty {
                 Text(snapshot.state == .collecting
-                     ? "No retained entries. Copy text, an image, rich text, a file, or other content, then refresh."
-                     : "No retained entries. Enable or resume collection in Privacy Settings to collect new copies.")
+                     ? localized("No retained entries. Copy text, an image, rich text, a file, or other content, then refresh.")
+                     : localized("No retained entries. Enable or resume collection in Privacy Settings to collect new copies."))
                     .foregroundStyle(.secondary).multilineTextAlignment(.center).padding()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -280,15 +280,15 @@ struct ClipboardHistoryView: View {
         .contextMenu(forSelectionType: UUID.self) { ids in
             if ids.count == 1, let id = ids.first {
                 if let copy = copies.first(where: { $0.id == id }), ClipboardHistoryDetail.opens(copy) {
-                    Button("Open") { open(copy) }
+                    Button(localized("Open")) { open(copy) }
                     Divider()
                 }
-                Button("Paste") { restore(id, true) }
-                Button("Copy to Clipboard") { restore(id, false) }
+                Button(localized("Paste")) { restore(id, true) }
+                Button(localized("Copy to Clipboard")) { restore(id, false) }
                 Divider()
             }
             if !ids.isEmpty {
-                Button(ids.count == 1 ? "Delete" : "Delete \(ids.count) Entries") { delete(ids) }
+                Button(ids.count == 1 ? localized("Delete") : localized("Delete \(ids.count) Entries")) { delete(ids) }
             }
         } primaryAction: { ids in
             if ids.count == 1, let id = ids.first { restore(id, true) }
@@ -300,7 +300,7 @@ struct ClipboardHistoryView: View {
         }))
         .focused($focus, equals: .list)
         .overlay {
-            if shown.isEmpty, !model.isLoadingMore { Text("No entries match.").foregroundStyle(.secondary) }
+            if shown.isEmpty, !model.isLoadingMore { Text(localized("No entries match.")).foregroundStyle(.secondary) }
         }
         .onAppear { reconcileSelection() }
     }
@@ -311,20 +311,25 @@ struct ClipboardHistoryView: View {
             Spacer()
             if selection.count > 0 {
                 Button(role: .destructive) { delete(selection) } label: {
-                    Label(selection.count == 1 ? "Delete" : "Delete \(selection.count)", systemImage: "trash")
+                    Label(selection.count == 1 ? localized("Delete") : localized("Delete \(selection.count)"), systemImage: "trash")
                 }.disabled(busy)
             }
-            if selection.count == 1 { Button("Paste") { pasteSelection() } }
+            if selection.count == 1 { Button(localized("Paste")) { pasteSelection() } }
         }
         .font(.caption).controlSize(.small)
         .padding(.horizontal, 16).padding(.vertical, 8)
     }
 
     private var summary: String {
-        var parts = [browsing.isFiltering ? "\(shown.count) of \(copies.count) entries" : "\(copies.count) entries"]
-        if model.canLoadMore { parts[0] += " loaded" }
-        if selection.count > 1 { parts.append("\(selection.count) selected") }
-        parts.append("Double-click or Return to paste · ⌘⌫ to delete")
+        var parts: [String]
+        switch (browsing.isFiltering, model.canLoadMore) {
+        case (true, false): parts = [localized("\(shown.count) of \(copies.count) entries")]
+        case (true, true): parts = [localized("\(shown.count) of \(copies.count) entries loaded")]
+        case (false, false): parts = [localized("\(copies.count) entries")]
+        case (false, true): parts = [localized("\(copies.count) entries loaded")]
+        }
+        if selection.count > 1 { parts.append(localized("\(selection.count) selected")) }
+        parts.append(localized("Double-click or Return to paste · ⌘⌫ to delete"))
         return parts.joined(separator: " · ")
     }
 
@@ -443,7 +448,7 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
         let window = ClipboardHistoryPanel(contentRect: NSRect(x: 0, y: 0, width: 640, height: 620),
                               styleMask: [.titled, .closable, .resizable, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = "Clipboard History"
+        window.title = localized("Clipboard History")
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.hidesOnDeactivate = false
@@ -490,7 +495,7 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
     /// the most recently active external App.
     private func put(_ items: [ClipboardHistoryRestoredItem], paste: Bool) {
         guard paste else {
-            notify(paster.write(items) ? "Copied to the clipboard" : "The clipboard could not be updated")
+            notify(paster.write(items) ? localized("Copied to the clipboard") : localized("The clipboard could not be updated"))
             return
         }
         isPasting = true
@@ -593,7 +598,7 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
                     self.notify(error.localizedDescription)
                 case .success(let items):
                     guard let detail = ClipboardHistoryDetail(restoring: items) else {
-                        self.notify("This entry has nothing to open")
+                        self.notify(localized("This entry has nothing to open"))
                         return
                     }
                     self.present(detail, of: copy.id, title: presentation.title(for: entry),
@@ -612,7 +617,7 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
             restoreOriginal: { [weak self] paste in self?.restore(copyID, paste: paste) },
             restoreText: { [weak self] value, paste in self?.put(text(value), paste: paste) },
             save: { [weak self] value, asNew, completion in
-                guard let self else { completion("Clipboard History closed"); return }
+                guard let self else { completion(localized("Clipboard History closed")); return }
                 self.saveText(copyID, value, asNew) { [weak self] error in
                     if error == nil { self?.model.refresh() }
                     completion(error)

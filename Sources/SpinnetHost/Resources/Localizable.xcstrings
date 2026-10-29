@@ -1,6 +1,46 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    " · Other account": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · 其他账户"
+          }
+        }
+      }
+    },
+    " — idle sleep prevention unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " — 无法阻止闲置睡眠"
+          }
+        }
+      }
+    },
+    " — prevents idle system sleep": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " — 阻止系统闲置睡眠"
+          }
+        }
+      }
+    },
+    "%@ %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "%@ %@ is installed again.": {
       "localizations": {
         "zh-Hans": {
@@ -111,6 +151,46 @@
         }
       }
     },
+    "%@ asks Spinnet to close the front window of %@, as its Close menu item (⌘W) does.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 请求 Spinnet 关闭 %2$@ 的前台窗口，与其“关闭”菜单项（⌘W）的效果相同。"
+          }
+        }
+      }
+    },
+    "%@ asks Spinnet to force quit %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 请求 Spinnet 强制退出 %2$@。"
+          }
+        }
+      }
+    },
+    "%@ asks Spinnet to quit %@, as its Quit menu item (⌘Q) does.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 请求 Spinnet 退出 %2$@，与其“退出”菜单项（⌘Q）的效果相同。"
+          }
+        }
+      }
+    },
+    "%@ completed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已完成"
+          }
+        }
+      }
+    },
     "%@ configuration input": {
       "localizations": {
         "zh-Hans": {
@@ -131,6 +211,36 @@
         }
       }
     },
+    "%@ did not come to the front. Nothing was inserted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 未切换到前台。未插入任何内容。"
+          }
+        }
+      }
+    },
+    "%@ does not open %@: links; update %@ or turn on its URL scheme in its settings, then try again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 不打开 %2$@: 链接；请更新 %3$@，或在其设置中打开它的 URL 协议，然后重试"
+          }
+        }
+      }
+    },
+    "%@ files": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 个文件"
+          }
+        }
+      }
+    },
     "%@ forgets everything it kept for itself. Its settings, access, and Menu Items stay as they are.": {
       "localizations": {
         "zh-Hans": {
@@ -147,6 +257,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "已授予%@"
+          }
+        }
+      }
+    },
+    "%@ has quit. Nothing was inserted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已退出。未插入任何内容。"
+          }
+        }
+      }
+    },
+    "%@ installed formula dependencies will be uninstalled. Every candidate is listed below. Stopping does not undo removals.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将卸载 %@ 个已安装的 formula 依赖项。下方列出了每个候选项。停止不会撤销移除。"
+          }
+        }
+      }
+    },
+    "%@ is loading": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 正在载入"
+          }
+        }
+      }
+    },
+    "%@ is not in front. Nothing was inserted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 不在前台。未插入任何内容。"
           }
         }
       }
@@ -187,6 +337,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ 已更新到 %2$@。"
+          }
+        }
+      }
+    },
+    "%@ left the front while the text was typed. Only part of it was inserted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入文本期间 %@ 离开了前台。只插入了其中一部分。"
+          }
+        }
+      }
+    },
+    "%@ may ask you to save your changes first.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 可能会先要求你存储更改。"
           }
         }
       }
@@ -251,6 +421,16 @@
         }
       }
     },
+    "%@ results": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@结果"
+          }
+        }
+      }
+    },
     "%@ was refused: %@": {
       "localizations": {
         "zh-Hans": {
@@ -267,6 +447,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ · 可选"
+          }
+        }
+      }
+    },
+    "%@ — %@ closed: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ — %2$@ 已关闭：%3$@"
+          }
+        }
+      }
+    },
+    "%@ — %@ failed (%@)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ — %2$@ 失败（%3$@）"
+          }
+        }
+      }
+    },
+    "%@ — %@ failed (%@): %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ — %2$@ 失败（%3$@）：%4$@"
+          }
+        }
+      }
+    },
+    "%@ — %@ running": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ — %2$@ 正在运行"
+          }
+        }
+      }
+    },
+    "%@ — Activity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — 活动"
+          }
+        }
+      }
+    },
+    "%@ — Keep Awake": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — 保持唤醒"
+          }
+        }
+      }
+    },
+    "%@ — Native Inspection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — 原生检查"
+          }
+        }
+      }
+    },
+    "%@ → %@ · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ → %2$@ · %3$@"
           }
         }
       }
@@ -341,12 +601,42 @@
         }
       }
     },
+    "%lld characters · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 个字符 · %2$@"
+          }
+        }
+      }
+    },
     "%lld disabled": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已停用 %lld 个"
+          }
+        }
+      }
+    },
+    "%lld entries": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个条目"
+          }
+        }
+      }
+    },
+    "%lld entries loaded": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已载入 %lld 个条目"
           }
         }
       }
@@ -371,6 +661,36 @@
         }
       }
     },
+    "%lld of %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %1$lld 页，共 %2$lld 页"
+          }
+        }
+      }
+    },
+    "%lld of %lld entries": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 个条目（共 %2$lld 个）"
+          }
+        }
+      }
+    },
+    "%lld of %lld entries loaded": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 个条目（已载入 %2$lld 个）"
+          }
+        }
+      }
+    },
     "%lld of 12 Slots": {
       "localizations": {
         "zh-Hans": {
@@ -387,6 +707,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "被拒 %lld 个"
+          }
+        }
+      }
+    },
+    "%lld selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选择 %lld 个"
+          }
+        }
+      }
+    },
+    "%lld services · Changes require Host Confirmation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个服务 · 更改需要宿主确认"
+          }
+        }
+      }
+    },
+    "%lldh %@m %@s remaining": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩余 %1$lld 小时 %2$@ 分 %3$@ 秒"
+          }
+        }
+      }
+    },
+    "%lldm %@s remaining": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩余 %1$lld 分 %2$@ 秒"
+          }
+        }
+      }
+    },
+    "%llds remaining": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩余 %lld 秒"
           }
         }
       }
@@ -521,6 +891,16 @@
         }
       }
     },
+    "Access revoked; %@ window closed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "访问权限已撤销；%@ 窗口已关闭。"
+          }
+        }
+      }
+    },
     "Accessibility": {
       "localizations": {
         "zh-Hans": {
@@ -561,6 +941,16 @@
         }
       }
     },
+    "Accessibility lets Spinnet see the mouse trigger and work with selected text. Screen Recording is needed only for screenshots.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“辅助功能”让 Spinnet 能识别鼠标触发键并处理所选文本。只有截屏才需要“屏幕录制”。"
+          }
+        }
+      }
+    },
     "Accessibility status": {
       "localizations": {
         "zh-Hans": {
@@ -587,6 +977,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "动作参数"
+          }
+        }
+      }
+    },
+    "Action configuration is unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作配置不可用"
+          }
+        }
+      }
+    },
+    "Action running": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作正在运行"
+          }
+        }
+      }
+    },
+    "Actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作"
+          }
+        }
+      }
+    },
+    "Active activities": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进行中的活动"
+          }
+        }
+      }
+    },
+    "Actual Size": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实际大小"
           }
         }
       }
@@ -627,6 +1067,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "添加行"
+          }
+        }
+      }
+    },
+    "Add Tap": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加 Tap"
           }
         }
       }
@@ -681,12 +1131,52 @@
         }
       }
     },
+    "Adopt App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接管 App"
+          }
+        }
+      }
+    },
     "After Capture": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "截屏后"
+          }
+        }
+      }
+    },
+    "All Applications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有应用程序"
+          }
+        }
+      }
+    },
+    "All Types": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有类型"
+          }
+        }
+      }
+    },
+    "All eligible Homebrew cache downloads and old package versions may be deleted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有符合条件的 Homebrew 缓存下载项和旧软件包版本都可能被删除。"
           }
         }
       }
@@ -767,6 +1257,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "备选动作"
+          }
+        }
+      }
+    },
+    "Any unsaved changes in %@ will be lost.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 中任何未存储的更改都将丢失。"
           }
         }
       }
@@ -901,6 +1401,16 @@
         }
       }
     },
+    "Attempting to stop running Homebrew Tasks. Stopping does not undo package changes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在尝试停止运行中的 Homebrew 任务。停止不会撤销软件包更改。"
+          }
+        }
+      }
+    },
     "Auto-saved": {
       "localizations": {
         "zh-Hans": {
@@ -917,6 +1427,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "自动"
+          }
+        }
+      }
+    },
+    "Automation permission could not be checked. Try connecting again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法检查自动化权限。请再次尝试连接。"
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回"
+          }
+        }
+      }
+    },
+    "Binary": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "二进制"
           }
         }
       }
@@ -941,6 +1481,16 @@
         }
       }
     },
+    "Browses what you copied earlier.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览你之前拷贝的内容。"
+          }
+        }
+      }
+    },
     "Built with Swift and AppKit.": {
       "localizations": {
         "zh-Hans": {
@@ -961,12 +1511,112 @@
         }
       }
     },
+    "Cancel Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消动作"
+          }
+        }
+      }
+    },
+    "Cancelled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消"
+          }
+        }
+      }
+    },
+    "Cancelling…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在取消…"
+          }
+        }
+      }
+    },
+    "Capability grants could not be loaded: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法载入能力授权：%@"
+          }
+        }
+      }
+    },
+    "Capability grants could not be saved: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法存储能力授权：%@"
+          }
+        }
+      }
+    },
     "Capture the Screen": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "截取屏幕"
+          }
+        }
+      }
+    },
+    "Captures an area, a window or the full screen.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截取区域、窗口或整个屏幕。"
+          }
+        }
+      }
+    },
+    "Captures the screen with Shottr.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Shottr 截取屏幕。"
+          }
+        }
+      }
+    },
+    "Cask Apps and packages installed on request are retained. This differs from cleaning old versions and cached downloads.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cask App 和按请求安装的软件包会保留。这不同于清理旧版本和缓存的下载项。"
+          }
+        }
+      }
+    },
+    "Centres, maximises or moves the front window to one half.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将前台窗口居中、最大化或移到一半屏幕。"
+          }
+        }
+      }
+    },
+    "Change App Language": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改 App 语言"
           }
         }
       }
@@ -1007,6 +1657,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "更改会立即生效，并应用于此插件的所有动作。"
+          }
+        }
+      }
+    },
+    "Changes the selected user-owned service at login; this service may continue after Spinnet exits.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改所选用户自有服务在登录时的运行；Spinnet 退出后，此服务可能继续运行。"
           }
         }
       }
@@ -1341,6 +2001,36 @@
         }
       }
     },
+    "Chosen formulae: %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选 formula：%@。"
+          }
+        }
+      }
+    },
+    "Chosen packages: %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选软件包：%@。"
+          }
+        }
+      }
+    },
+    "Clean Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理"
+          }
+        }
+      }
+    },
     "Clear History": {
       "localizations": {
         "zh-Hans": {
@@ -1357,6 +2047,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除历史…"
+          }
+        }
+      }
+    },
+    "Clear Search": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜索"
           }
         }
       }
@@ -1481,6 +2181,36 @@
         }
       }
     },
+    "Clipboard History": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪贴板历史"
+          }
+        }
+      }
+    },
+    "Clipboard History access is not granted to this Plugin.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未授予此插件访问剪贴板历史的权限。"
+          }
+        }
+      }
+    },
+    "Clipboard History closed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪贴板历史已关闭"
+          }
+        }
+      }
+    },
     "Clipboard History error: %@": {
       "localizations": {
         "zh-Hans": {
@@ -1501,12 +2231,62 @@
         }
       }
     },
+    "Close": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        }
+      }
+    },
+    "Close %@'s Front Window?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭“%@”的前台窗口？"
+          }
+        }
+      }
+    },
+    "Close (Esc)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭（Esc）"
+          }
+        }
+      }
+    },
     "Close or Quit the App in Front": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "关闭或退出前台 App"
+          }
+        }
+      }
+    },
+    "Close the view": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭视图"
+          }
+        }
+      }
+    },
+    "Closes the current window or quits the Current App.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭当前窗口或退出当前 App。"
           }
         }
       }
@@ -1527,6 +2307,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "收集剪贴板历史？"
+          }
+        }
+      }
+    },
+    "Collection is off. Retained entries remain readable until they expire.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收集已关闭。保留的条目在过期前仍可读取。"
+          }
+        }
+      }
+    },
+    "Collection is paused. No new entries are collected.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收集已暂停。不会收集新条目。"
           }
         }
       }
@@ -1571,6 +2371,16 @@
         }
       }
     },
+    "Command output": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令输出"
+          }
+        }
+      }
+    },
     "Complete this Plugin's Plugin Settings in the Library": {
       "localizations": {
         "zh-Hans": {
@@ -1607,6 +2417,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "配置槽位 %lld"
+          }
+        }
+      }
+    },
+    "Confirm Homebrew: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认 Homebrew：%@"
           }
         }
       }
@@ -1711,6 +2531,16 @@
         }
       }
     },
+    "Continue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续"
+          }
+        }
+      }
+    },
     "Control": {
       "localizations": {
         "zh-Hans": {
@@ -1741,6 +2571,26 @@
         }
       }
     },
+    "Copied image": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝的图像"
+          }
+        }
+      }
+    },
+    "Copied image preview": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝的图像预览"
+          }
+        }
+      }
+    },
     "Copied screenshots are always lossless.": {
       "localizations": {
         "zh-Hans": {
@@ -1751,12 +2601,52 @@
         }
       }
     },
+    "Copied to the clipboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拷贝到剪贴板"
+          }
+        }
+      }
+    },
+    "Copied to the clipboard. Allow Accessibility to paste automatically.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拷贝到剪贴板。允许“辅助功能”即可自动粘贴。"
+          }
+        }
+      }
+    },
+    "Copies the selected text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝所选文本。"
+          }
+        }
+      }
+    },
     "Copy": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "拷贝"
+          }
+        }
+      }
+    },
+    "Copy %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝%@"
           }
         }
       }
@@ -1831,6 +2721,26 @@
         }
       }
     },
+    "Cut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪切"
+          }
+        }
+      }
+    },
+    "Cuts the selection.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪切所选内容。"
+          }
+        }
+      }
+    },
     "DROP HERE": {
       "localizations": {
         "zh-Hans": {
@@ -1851,6 +2761,16 @@
         }
       }
     },
+    "Declared dependencies: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声明的依赖项：%@"
+          }
+        }
+      }
+    },
     "Default": {
       "localizations": {
         "zh-Hans": {
@@ -1866,7 +2786,27 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "删除键"
+            "value": "删除"
+          }
+        }
+      }
+    },
+    "Delete %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除 %lld 个"
+          }
+        }
+      }
+    },
+    "Delete %lld Entries": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除 %lld 个条目"
           }
         }
       }
@@ -1941,6 +2881,26 @@
         }
       }
     },
+    "Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依赖项和依赖它的软件包也可能更改。停止不会撤销更改。此任务在结束前会阻止系统闲置睡眠。"
+          }
+        }
+      }
+    },
+    "Details %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "详细信息 %lld"
+          }
+        }
+      }
+    },
     "Developer": {
       "localizations": {
         "zh-Hans": {
@@ -1981,12 +2941,32 @@
         }
       }
     },
+    "Don't Quit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不退出"
+          }
+        }
+      }
+    },
     "Done": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "完成"
+          }
+        }
+      }
+    },
+    "Double-click or Return to paste · ⌘⌫ to delete": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连按或按 Return 粘贴 · ⌘⌫ 删除"
           }
         }
       }
@@ -2141,6 +3121,16 @@
         }
       }
     },
+    "Edit the text (Space)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑文本（空格）"
+          }
+        }
+      }
+    },
     "Editor Mode": {
       "localizations": {
         "zh-Hans": {
@@ -2167,6 +3157,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 的编辑模式菜单"
+          }
+        }
+      }
+    },
+    "Eligible files older than the selected threshold and old package versions may be deleted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "早于所选阈值的符合条件的文件和旧软件包版本可能被删除。"
           }
         }
       }
@@ -2321,6 +3321,26 @@
         }
       }
     },
+    "Ended: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已结束：%@"
+          }
+        }
+      }
+    },
+    "Entries expired. Refresh to see retained history.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "条目已过期。刷新即可查看保留的历史。"
+          }
+        }
+      }
+    },
     "Esc": {
       "localizations": {
         "zh-Hans": {
@@ -2337,6 +3357,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esc"
+          }
+        }
+      }
+    },
+    "Every chosen formula is listed in the complete review below.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下方的完整审查列出了每个所选 formula。"
+          }
+        }
+      }
+    },
+    "Every selected package is listed in the complete review below.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下方的完整审查列出了每个所选软件包。"
           }
         }
       }
@@ -2381,12 +3421,62 @@
         }
       }
     },
+    "Existing packages may become unavailable to Homebrew.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现有软件包可能对 Homebrew 不再可用。"
+          }
+        }
+      }
+    },
+    "Failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败"
+          }
+        }
+      }
+    },
     "File": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "文件"
+          }
+        }
+      }
+    },
+    "Files": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件"
+          }
+        }
+      }
+    },
+    "Fit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "适合"
+          }
+        }
+      }
+    },
+    "Focus moved to another field of %@. Nothing was inserted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "焦点已移到 %@ 的另一个字段。未插入任何内容。"
           }
         }
       }
@@ -2417,6 +3507,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "跟随 macOS，或只为菜单选择固定的外观。"
+          }
+        }
+      }
+    },
+    "For %lld seconds": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "持续 %lld 秒"
+          }
+        }
+      }
+    },
+    "Force Quit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强制退出"
+          }
+        }
+      }
+    },
+    "Force Quit %@?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强制退出“%@”？"
           }
         }
       }
@@ -2581,12 +3701,92 @@
         }
       }
     },
+    "Homebrew Services": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 服务"
+          }
+        }
+      }
+    },
+    "Homebrew Work Is Still Running": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 工作仍在运行"
+          }
+        }
+      }
+    },
+    "Homebrew may quit the affected App first.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 可能会先退出受影响的 App。"
+          }
+        }
+      }
+    },
+    "Homebrew runs with your account and manages its own installers and scripts. Cask changes first try system Touch ID when available and configured for sudo. If sudo still needs your login password, Spinnet will ask for it in a separate password window. It is passed to sudo and is never shared with the Plugin or saved by Spinnet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 以你的账户运行，并管理其自身的安装器和脚本。Cask 更改会先尝试使用系统触控 ID（如果可用且已为 sudo 配置）。如果 sudo 仍需要你的登录密码，Spinnet 会在单独的密码窗口中向你询问。密码会传给 sudo，绝不会与插件共享，也不会由 Spinnet 存储。"
+          }
+        }
+      }
+    },
+    "Homebrew will %@ %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 将执行“%1$@”：%2$@。"
+          }
+        }
+      }
+    },
+    "Homebrew will uninstall formulae installed only as dependencies that are no longer needed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 将卸载仅作为依赖项安装且已不再需要的 formula。"
+          }
+        }
+      }
+    },
+    "Homebrew will update Homebrew itself, all configured taps and package catalogs. This is a global change even when requested from one package. Later package actions reload metadata and recheck source trust. Stopping does not undo an update already applied.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 将更新 Homebrew 本身、所有已配置的 tap 和软件包目录。即使是从某一个软件包发起，这也是全局更改。之后的软件包操作会重新载入元数据并重新检查来源信任。停止不会撤销已应用的更新。"
+          }
+        }
+      }
+    },
     "Host": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "宿主"
+          }
+        }
+      }
+    },
+    "Host closed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宿主已关闭"
           }
         }
       }
@@ -2611,6 +3811,46 @@
         }
       }
     },
+    "Ignored Applications…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忽略的应用程序…"
+          }
+        }
+      }
+    },
+    "Image": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图像"
+          }
+        }
+      }
+    },
+    "Images": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图像"
+          }
+        }
+      }
+    },
+    "Images are not available": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图像不可用"
+          }
+        }
+      }
+    },
     "Input Monitoring is not requested. Screen Recording and app-specific Automation are requested only for an explicit feature action.": {
       "localizations": {
         "zh-Hans": {
@@ -2627,6 +3867,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "向聚焦的 App 插入文本"
+          }
+        }
+      }
+    },
+    "Inserts into %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插入到 %@"
+          }
+        }
+      }
+    },
+    "Inspection status unavailable; shared lane retained; no replay": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查状态不可用；共享通道已保留；不重放"
           }
         }
       }
@@ -2671,6 +3931,36 @@
         }
       }
     },
+    "Install Plugins": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装插件"
+          }
+        }
+      }
+    },
+    "Install Selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装所选"
+          }
+        }
+      }
+    },
+    "Install Spotify to use this panel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装 Spotify 以使用此面板"
+          }
+        }
+      }
+    },
     "Install or Update Plugin": {
       "localizations": {
         "zh-Hans": {
@@ -2687,6 +3977,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "安装或更新插件…"
+          }
+        }
+      }
+    },
+    "Installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装"
+          }
+        }
+      }
+    },
+    "Installed formula dependency that Homebrew considers unused. No cask App is removed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 认为未使用的已安装 formula 依赖项。不会移除任何 cask App。"
+          }
+        }
+      }
+    },
+    "Installed version: %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装版本：%@。"
+          }
+        }
+      }
+    },
+    "Installing %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在安装 %@"
           }
         }
       }
@@ -2761,6 +4091,16 @@
         }
       }
     },
+    "Just now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刚刚"
+          }
+        }
+      }
+    },
     "Keep entries for": {
       "localizations": {
         "zh-Hans": {
@@ -2777,6 +4117,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "让 Mac 和显示器保持唤醒"
+          }
+        }
+      }
+    },
+    "Keep this view open": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保持此视图打开"
+          }
+        }
+      }
+    },
+    "Keeps the Mac awake until stopped, for a while or while an App runs.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让 Mac 保持唤醒，直到停止、持续一段时间或在某个 App 运行期间。"
           }
         }
       }
@@ -2981,6 +4341,26 @@
         }
       }
     },
+    "Link": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链接"
+          }
+        }
+      }
+    },
+    "Links": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链接"
+          }
+        }
+      }
+    },
     "List": {
       "localizations": {
         "zh-Hans": {
@@ -2991,12 +4371,42 @@
         }
       }
     },
+    "Loading": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在载入"
+          }
+        }
+      }
+    },
+    "Loading Clipboard History…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在载入剪贴板历史…"
+          }
+        }
+      }
+    },
     "Loading Shortcuts…": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "正在载入快捷指令…"
+          }
+        }
+      }
+    },
+    "Loading…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在载入…"
           }
         }
       }
@@ -3027,6 +4437,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "菜单"
+          }
+        }
+      }
+    },
+    "Mac and display stay awake while idle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 和显示器在闲置时保持唤醒"
+          }
+        }
+      }
+    },
+    "Manage Access in Library…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在资源库中管理访问权限…"
           }
         }
       }
@@ -3301,6 +4731,16 @@
         }
       }
     },
+    "More": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多"
+          }
+        }
+      }
+    },
     "Mouse Button %lld": {
       "localizations": {
         "zh-Hans": {
@@ -3441,6 +4881,46 @@
         }
       }
     },
+    "Newest First": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新的在前"
+          }
+        }
+      }
+    },
+    "Next": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一页"
+          }
+        }
+      }
+    },
+    "Next, add Menu Items to your Slots in the Menu Editor. Plugins from the Library provide them.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接下来，在菜单编辑器中将菜单项添加到槽位。菜单项由资源库中的插件提供。"
+          }
+        }
+      }
+    },
+    "No App to insert into": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可插入的 App"
+          }
+        }
+      }
+    },
     "No Configuration": {
       "localizations": {
         "zh-Hans": {
@@ -3541,6 +5021,16 @@
         }
       }
     },
+    "No entries match.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的条目。"
+          }
+        }
+      }
+    },
     "No installed Plugin declares an Update Source.": {
       "localizations": {
         "zh-Hans": {
@@ -3561,12 +5051,42 @@
         }
       }
     },
+    "No retained entries. Copy text, an image, rich text, a file, or other content, then refresh.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有保留的条目。请拷贝文本、图像、富文本、文件或其他内容，然后刷新。"
+          }
+        }
+      }
+    },
+    "No retained entries. Enable or resume collection in Privacy Settings to collect new copies.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有保留的条目。请在隐私设置中启用或恢复收集，以收集新拷贝的内容。"
+          }
+        }
+      }
+    },
     "No rows yet.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "还没有行。"
+          }
+        }
+      }
+    },
+    "No user-owned Homebrew Services": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有用户拥有的 Homebrew 服务"
           }
         }
       }
@@ -3617,6 +5137,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "未授予"
+          }
+        }
+      }
+    },
+    "Not installed: its access was not allowed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装：其访问权限未获允许。"
           }
         }
       }
@@ -3687,6 +5217,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭 — 不收集新条目"
+          }
+        }
+      }
+    },
+    "Official Plugins are published in SpinnetPlugins. Choose the ones to install now; installed Plugins wait in the Library until you add them to Slots.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "官方插件发布在 SpinnetPlugins 中。请选择现在要安装的插件；已安装的插件会留在资源库中，直到你将它们添加到槽位。"
+          }
+        }
+      }
+    },
+    "Oldest First": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最早的在前"
           }
         }
       }
@@ -3861,6 +5411,46 @@
         }
       }
     },
+    "Open Menu Editor": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开菜单编辑器"
+          }
+        }
+      }
+    },
+    "Open Privacy Settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开隐私设置…"
+          }
+        }
+      }
+    },
+    "Open Settings, stop ongoing activities, or Quit Spinnet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开设置、停止进行中的活动或退出 Spinnet。"
+          }
+        }
+      }
+    },
+    "Open Spinnet Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 Spinnet 设置。"
+          }
+        }
+      }
+    },
     "Open Spinnet when you log in, so the Menu is ready.": {
       "localizations": {
         "zh-Hans": {
@@ -3921,6 +5511,16 @@
         }
       }
     },
+    "Open the Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开菜单"
+          }
+        }
+      }
+    },
     "Open the configuration for this Menu Item.": {
       "localizations": {
         "zh-Hans": {
@@ -3951,12 +5551,72 @@
         }
       }
     },
+    "Open to read service status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开以读取服务状态"
+          }
+        }
+      }
+    },
+    "Opens a file you choose.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开你选择的文件。"
+          }
+        }
+      }
+    },
+    "Opens a folder you choose.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开你选择的文件夹。"
+          }
+        }
+      }
+    },
+    "Opens a web address you choose.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开你选择的网址。"
+          }
+        }
+      }
+    },
+    "Opens an App you choose.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开你选择的 App。"
+          }
+        }
+      }
+    },
     "Opens at once": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "立即打开"
+          }
+        }
+      }
+    },
+    "Opens the link, path or search in the selected text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开所选文本中的链接、路径或搜索。"
           }
         }
       }
@@ -3991,12 +5651,42 @@
         }
       }
     },
+    "Other": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他"
+          }
+        }
+      }
+    },
     "PNG": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "PNG"
+          }
+        }
+      }
+    },
+    "Packages and Changes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "软件包与更改"
+          }
+        }
+      }
+    },
+    "Page": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "页面"
           }
         }
       }
@@ -4027,6 +5717,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "只显示声明支持配置的所选动作的参数。"
+          }
+        }
+      }
+    },
+    "Paste": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴"
+          }
+        }
+      }
+    },
+    "Pastes what is on the clipboard.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴剪贴板上的内容。"
           }
         }
       }
@@ -4081,6 +5791,16 @@
         }
       }
     },
+    "Performing the request": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在执行请求"
+          }
+        }
+      }
+    },
     "Permission changes apply immediately to all Actions from this Plugin. Your Menu Item edits are kept while you manage permissions.": {
       "localizations": {
         "zh-Hans": {
@@ -4101,12 +5821,42 @@
         }
       }
     },
+    "Pin": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "固定"
+          }
+        }
+      }
+    },
+    "Pin the view": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "固定视图"
+          }
+        }
+      }
+    },
     "Pink": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "粉色"
+          }
+        }
+      }
+    },
+    "Plays, pauses and skips songs in Spotify.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Spotify 中播放、暂停和跳过歌曲。"
           }
         }
       }
@@ -4211,6 +5961,16 @@
         }
       }
     },
+    "Plugin Settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件设置…"
+          }
+        }
+      }
+    },
     "Plugin Updated": {
       "localizations": {
         "zh-Hans": {
@@ -4301,12 +6061,32 @@
         }
       }
     },
+    "Presses a keyboard shortcut you choose.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下你选择的键盘快捷键。"
+          }
+        }
+      }
+    },
     "Prevent idle system and display sleep while the Host owns an effect. Explicit Sleep, closing the lid and low-battery sleep still apply. Stop any effect from the Spinnet Status Item.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "宿主持有效果期间，阻止系统和显示器闲置睡眠。手动睡眠、合上盖子和低电量睡眠仍然有效。可从 Spinnet 菜单栏图标停止任何效果。"
+          }
+        }
+      }
+    },
+    "Previous": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一页"
           }
         }
       }
@@ -4341,12 +6121,62 @@
         }
       }
     },
+    "Privacy Settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私设置…"
+          }
+        }
+      }
+    },
+    "Progress": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进度"
+          }
+        }
+      }
+    },
     "Purple": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "紫色"
+          }
+        }
+      }
+    },
+    "Quit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出"
+          }
+        }
+      }
+    },
+    "Quit %@?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出“%@”？"
+          }
+        }
+      }
+    },
+    "Quit Spinnet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出 Spinnet"
           }
         }
       }
@@ -4367,6 +6197,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "退出并重新打开此 App 包。"
+          }
+        }
+      }
+    },
+    "Quit the Spinnet Host.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出 Spinnet 宿主。"
           }
         }
       }
@@ -4481,6 +6321,26 @@
         }
       }
     },
+    "Read-only inspections are cancelled before mutation admission. Wait for Tasks and owned workers to finish, or attempt to stop them before quitting. Stopping does not undo package changes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读检查会在接受更改操作之前取消。请等待任务和所属工作进程完成，或在退出前尝试停止它们。停止不会撤销软件包更改。"
+          }
+        }
+      }
+    },
+    "Reading Homebrew Services…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取 Homebrew 服务…"
+          }
+        }
+      }
+    },
     "Reads": {
       "localizations": {
         "zh-Hans": {
@@ -4507,6 +6367,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "录制键盘快捷键"
+          }
+        }
+      }
+    },
+    "Recovering inspection status; never replaying work": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在恢复检查状态；绝不重放工作"
+          }
+        }
+      }
+    },
+    "Redo": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重做"
           }
         }
       }
@@ -4541,6 +6421,16 @@
         }
       }
     },
+    "Refresh": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新"
+          }
+        }
+      }
+    },
     "Refused Plugins": {
       "localizations": {
         "zh-Hans": {
@@ -4557,6 +6447,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "常规"
+          }
+        }
+      }
+    },
+    "Reinstalls the App with language %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以语言 %@ 重新安装该 App。"
           }
         }
       }
@@ -4701,6 +6601,26 @@
         }
       }
     },
+    "Remove Tap": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 Tap"
+          }
+        }
+      }
+    },
+    "Remove Unused Dependencies": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除未使用的依赖项"
+          }
+        }
+      }
+    },
     "Remove actions and gestures from the same button, or configure the device to emit an unmodified native mouse button.": {
       "localizations": {
         "zh-Hans": {
@@ -4747,6 +6667,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "从资源库中移除此插件"
+          }
+        }
+      }
+    },
+    "Repair Homebrew": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修复 Homebrew"
           }
         }
       }
@@ -4811,6 +6741,16 @@
         }
       }
     },
+    "Reset": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还原"
+          }
+        }
+      }
+    },
     "Reset Appearance": {
       "localizations": {
         "zh-Hans": {
@@ -4827,6 +6767,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "还原为默认"
+          }
+        }
+      }
+    },
+    "Restart": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动"
+          }
+        }
+      }
+    },
+    "Restart Service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动服务"
           }
         }
       }
@@ -4861,6 +6821,56 @@
         }
       }
     },
+    "Restore reviewed Homebrew directory ownership": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复已审查的 Homebrew 目录所有权"
+          }
+        }
+      }
+    },
+    "Restore this reviewed directory's root-owned entries to the requesting account; permissions are not changed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将此已审查目录中归 root 所有的条目恢复给发起请求的账户；权限不会更改。"
+          }
+        }
+      }
+    },
+    "Retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
+    "Retry %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试 %@"
+          }
+        }
+      }
+    },
+    "Retry Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试动作"
+          }
+        }
+      }
+    },
     "Return": {
       "localizations": {
         "zh-Hans": {
@@ -4891,12 +6901,42 @@
         }
       }
     },
+    "Review the selected packages and any additional changes below.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在下方审查所选软件包及任何其他更改。"
+          }
+        }
+      }
+    },
     "Revoke Access": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "撤销访问权限"
+          }
+        }
+      }
+    },
+    "Rich Text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "富文本"
+          }
+        }
+      }
+    },
+    "Rich text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "富文本"
           }
         }
       }
@@ -4951,6 +6991,36 @@
         }
       }
     },
+    "Running: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在运行：%@"
+          }
+        }
+      }
+    },
+    "Runs a macOS Service you choose.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行你选择的 macOS 服务。"
+          }
+        }
+      }
+    },
+    "Runs a shortcut from the Shortcuts app.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行“快捷指令”App 中的快捷指令。"
+          }
+        }
+      }
+    },
     "Save": {
       "localizations": {
         "zh-Hans": {
@@ -4967,6 +7037,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "存储文件夹"
+          }
+        }
+      }
+    },
+    "Save as New": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储为新条目"
           }
         }
       }
@@ -5011,6 +7091,16 @@
         }
       }
     },
+    "Saving keeps only the plain text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储时只保留纯文本。"
+          }
+        }
+      }
+    },
     "Screen Recording": {
       "localizations": {
         "zh-Hans": {
@@ -5051,12 +7141,32 @@
         }
       }
     },
+    "Screenshot failed: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截屏失败：%@"
+          }
+        }
+      }
+    },
     "Screenshot save folder is missing or not writable; choose it again in Screenshot Plugin Settings": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "截屏存储文件夹缺失或不可写入；请在截屏插件设置中重新选择"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索"
           }
         }
       }
@@ -5077,6 +7187,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜索预设和命令"
+          }
+        }
+      }
+    },
+    "Select All": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全选"
           }
         }
       }
@@ -5131,6 +7251,16 @@
         }
       }
     },
+    "Service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务"
+          }
+        }
+      }
+    },
     "Service name from the active app's Services menu": {
       "localizations": {
         "zh-Hans": {
@@ -5167,6 +7297,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "设置导航"
+          }
+        }
+      }
+    },
+    "Settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置…"
           }
         }
       }
@@ -5301,6 +7441,26 @@
         }
       }
     },
+    "Shows how busy the Mac is.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示 Mac 的繁忙程度。"
+          }
+        }
+      }
+    },
+    "Shows, searches and updates Homebrew packages.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示、搜索和更新 Homebrew 软件包。"
+          }
+        }
+      }
+    },
     "Side Button 1": {
       "localizations": {
         "zh-Hans": {
@@ -5331,12 +7491,32 @@
         }
       }
     },
+    "Skip Welcome Guide": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳过欢迎指南"
+          }
+        }
+      }
+    },
     "Skip for now": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "暂时跳过"
+          }
+        }
+      }
+    },
+    "Sleep, lid closure and low battery still apply": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠、合上机盖和电池电量不足仍然有效"
           }
         }
       }
@@ -5367,6 +7547,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已为 %2$@ 清空槽位 %1$lld。"
+          }
+        }
+      }
+    },
+    "Slot %lld is empty": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "槽位 %lld 为空"
           }
         }
       }
@@ -5471,6 +7661,26 @@
         }
       }
     },
+    "Sort": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排序"
+          }
+        }
+      }
+    },
+    "Source Application": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源应用程序"
+          }
+        }
+      }
+    },
     "Source on GitHub": {
       "localizations": {
         "zh-Hans": {
@@ -5481,12 +7691,42 @@
         }
       }
     },
+    "Source: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源：%@"
+          }
+        }
+      }
+    },
+    "Source: %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源：%@。"
+          }
+        }
+      }
+    },
     "Space": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "空格键"
+          }
+        }
+      }
+    },
+    "Spinnet %@ Is Available…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet %@ 现已推出…"
           }
         }
       }
@@ -5561,6 +7801,46 @@
         }
       }
     },
+    "Spinnet Status Item": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 菜单栏图标"
+          }
+        }
+      }
+    },
+    "Spinnet Status Item Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 菜单栏图标的菜单"
+          }
+        }
+      }
+    },
+    "Spinnet could not save settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 无法存储设置"
+          }
+        }
+      }
+    },
+    "Spinnet could not start": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 无法启动"
+          }
+        }
+      }
+    },
     "Spinnet could not turn off Launch at Login: %@": {
       "localizations": {
         "zh-Hans": {
@@ -5587,6 +7867,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spinnet 没有载入这些已安装的插件。它们的菜单项留在菜单中，但不可用。请安装此版本能运行的副本，或将其移除。"
+          }
+        }
+      }
+    },
+    "Spinnet feedback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 反馈"
           }
         }
       }
@@ -5621,6 +7911,56 @@
         }
       }
     },
+    "Spinnet opens a radial Menu wherever you are. This guide sets up the System Permissions Spinnet needs and how you open the Menu, and installs Official Plugins.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无论你在哪里，Spinnet 都能打开环形菜单。本指南会设置 Spinnet 所需的系统权限和打开菜单的方式，并安装官方插件。"
+          }
+        }
+      }
+    },
+    "Spinnet or no App is in front. Nothing was inserted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前台是 Spinnet 或没有 App。未插入任何内容。"
+          }
+        }
+      }
+    },
+    "Spinnet showed %@, but %@ is in front. Nothing was inserted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 显示的是 %1$@，但前台是 %2$@。未插入任何内容。"
+          }
+        }
+      }
+    },
+    "Spinnet showed no App, but %@ is in front. Nothing was inserted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 未显示任何 App，但前台是 %@。未插入任何内容。"
+          }
+        }
+      }
+    },
+    "Spinnet toast": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 提示"
+          }
+        }
+      }
+    },
     "Spinnet will retain text, URLs, images, rich text, file references, and embedded binary content on this Mac. Source application and copy time are recorded, but not window or document titles. Finder files are not cloned. Default retention is 24 hours. Passwords, Keychain Access, excluded applications, and concealed or transient items are skipped. Plugins need separate type-scoped access, including to entries retained before their grant.": {
       "localizations": {
         "zh-Hans": {
@@ -5651,6 +7991,46 @@
         }
       }
     },
+    "SpinnetPlugins has no release of %@ that Spinnet can install.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SpinnetPlugins 中没有 Spinnet 可以安装的 %@ 版本。"
+          }
+        }
+      }
+    },
+    "Spotify's scripting interface is unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify 的脚本接口不可用"
+          }
+        }
+      }
+    },
+    "Start": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动"
+          }
+        }
+      }
+    },
+    "Start %@ to check its connection.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动 %@ 以检查其连接。"
+          }
+        }
+      }
+    },
     "Start %@ to use its Commands": {
       "localizations": {
         "zh-Hans": {
@@ -5671,12 +8051,162 @@
         }
       }
     },
+    "Start Service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动服务"
+          }
+        }
+      }
+    },
+    "Start, stop or restart a selected service after Spinnet confirms its target. Status refreshes while this surface is visible.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spinnet 确认目标后，可启动、停止或重新启动所选服务。此界面可见时，状态会刷新。"
+          }
+        }
+      }
+    },
+    "Starting — prevents idle system sleep": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在开始 — 阻止系统闲置睡眠"
+          }
+        }
+      }
+    },
+    "Status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态"
+          }
+        }
+      }
+    },
+    "Step %lld of %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %1$lld 步，共 %2$lld 步"
+          }
+        }
+      }
+    },
     "Still needed: %@": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "仍需填写：%@"
+          }
+        }
+      }
+    },
+    "Stop": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
+          }
+        }
+      }
+    },
+    "Stop %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止 %@"
+          }
+        }
+      }
+    },
+    "Stop %@, %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止 %1$@，%2$@"
+          }
+        }
+      }
+    },
+    "Stop Service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止服务"
+          }
+        }
+      }
+    },
+    "Stop Trusting Tap": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止信任 Tap"
+          }
+        }
+      }
+    },
+    "Stop and Quit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止并退出"
+          }
+        }
+      }
+    },
+    "Stop this Host-owned activity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止此宿主拥有的活动"
+          }
+        }
+      }
+    },
+    "Stop this Host-owned activity.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止此宿主拥有的活动。"
+          }
+        }
+      }
+    },
+    "Stopping inspection; waiting for owned worker to reap": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在停止检查；正在等待所属工作进程被回收"
+          }
+        }
+      }
+    },
+    "Stopping: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在停止：%@"
           }
         }
       }
@@ -5727,6 +8257,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "支持参数"
+          }
+        }
+      }
+    },
+    "Swap %@ and %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "交换 %1$@ 和 %2$@"
           }
         }
       }
@@ -5841,12 +8381,62 @@
         }
       }
     },
+    "The clipboard could not be updated": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法更新剪贴板"
+          }
+        }
+      }
+    },
+    "The credential cannot be stored": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法储存此凭据"
+          }
+        }
+      }
+    },
+    "The credential could not be removed from the Keychain": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法从钥匙串中移除此凭据"
+          }
+        }
+      }
+    },
+    "The credential could not be saved to the Keychain": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法将此凭据存储到钥匙串"
+          }
+        }
+      }
+    },
     "The current Menu Item and its Actions will be replaced by the selected Preset.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "当前菜单项及其动作将被所选预设替换。"
+          }
+        }
+      }
+    },
+    "The focused field is a password field. Nothing was inserted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聚焦的字段是密码字段。未插入任何内容。"
           }
         }
       }
@@ -5887,6 +8477,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "所选预设不可用。"
+          }
+        }
+      }
+    },
+    "This %@ version does not support the requested operation; update %@ and try again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 %1$@ 版本不支持所请求的操作；请更新 %2$@ 后重试"
           }
         }
       }
@@ -5961,12 +8561,42 @@
         }
       }
     },
+    "This enables third-party code to run with your account's rights. Trust is your explicit choice.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会让第三方代码以你账户的权限运行。是否信任由你明确选择。"
+          }
+        }
+      }
+    },
+    "This entry has nothing to open": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此条目没有可打开的内容"
+          }
+        }
+      }
+    },
     "This folder is missing or cannot be written. Choose another to save screenshots.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "此文件夹缺失或无法写入。请选择其他文件夹来存储截屏。"
+          }
+        }
+      }
+    },
+    "This image could not be read.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取此图像。"
           }
         }
       }
@@ -5991,12 +8621,62 @@
         }
       }
     },
+    "Translates the selection, typed text or the clipboard.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻译所选内容、输入的文本或剪贴板。"
+          }
+        }
+      }
+    },
+    "Translates the selection, typed text, the clipboard or a capture with Bob.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Bob 翻译所选内容、输入的文本、剪贴板或截图。"
+          }
+        }
+      }
+    },
+    "Trust": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信任"
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
     "Try a different search.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "请尝试其他搜索词。"
+          }
+        }
+      }
+    },
+    "Try loading %@ again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再次尝试载入 %@"
           }
         }
       }
@@ -6027,6 +8707,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭剪贴板历史？"
+          }
+        }
+      }
+    },
+    "Type": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "类型"
           }
         }
       }
@@ -6091,6 +8781,16 @@
         }
       }
     },
+    "Undo": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销"
+          }
+        }
+      }
+    },
     "Undo Appearance change": {
       "localizations": {
         "zh-Hans": {
@@ -6107,6 +8807,76 @@
           "stringUnit": {
             "state": "translated",
             "value": "撤销槽位编辑"
+          }
+        }
+      }
+    },
+    "Uninstall": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卸载"
+          }
+        }
+      }
+    },
+    "Unlink": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消链接"
+          }
+        }
+      }
+    },
+    "Unpin": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消固定"
+          }
+        }
+      }
+    },
+    "Unpin the view": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消固定视图"
+          }
+        }
+      }
+    },
+    "Unsupported Spotify control": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支持的 Spotify 控制"
+          }
+        }
+      }
+    },
+    "Unsupported Spotify operation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支持的 Spotify 操作"
+          }
+        }
+      }
+    },
+    "Until stopped": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直到停止"
           }
         }
       }
@@ -6131,12 +8901,52 @@
         }
       }
     },
+    "Update Homebrew and Catalogs": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新 Homebrew 和目录"
+          }
+        }
+      }
+    },
     "Update to %@": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "更新到 %@"
+          }
+        }
+      }
+    },
+    "Upgrade": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "升级"
+          }
+        }
+      }
+    },
+    "Upgrade All Eligible Packages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "升级所有符合条件的软件包"
+          }
+        }
+      }
+    },
+    "Upgrade Selected Packages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "升级所选软件包"
           }
         }
       }
@@ -6211,12 +9021,32 @@
         }
       }
     },
+    "User-owned Homebrew Services": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用户拥有的 Homebrew 服务"
+          }
+        }
+      }
+    },
     "Uses the Plugin Settings.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "使用插件设置。"
+          }
+        }
+      }
+    },
+    "Verification Details (%lld)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证详细信息（%lld）"
           }
         }
       }
@@ -6251,6 +9081,26 @@
         }
       }
     },
+    "Version: %@ → %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本：%1$@ → %2$@。"
+          }
+        }
+      }
+    },
+    "View": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看"
+          }
+        }
+      }
+    },
     "View Release": {
       "localizations": {
         "zh-Hans": {
@@ -6261,12 +9111,62 @@
         }
       }
     },
+    "View the image (Space)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看图像（空格）"
+          }
+        }
+      }
+    },
+    "Wait and Quit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待后退出"
+          }
+        }
+      }
+    },
+    "Waiting for review": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待审查"
+          }
+        }
+      }
+    },
+    "Waiting for running Homebrew Tasks to finish. You can still choose Stop and Quit.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待运行中的 Homebrew 任务完成。你仍可以选择“停止并退出”。"
+          }
+        }
+      }
+    },
     "Walk through System Permissions and how to open the Menu again.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "再次了解系统权限以及如何打开菜单。"
+          }
+        }
+      }
+    },
+    "Warnings:": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "警告："
           }
         }
       }
@@ -6287,6 +9187,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "欢迎指南"
+          }
+        }
+      }
+    },
+    "Welcome to Spinnet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "欢迎使用 Spinnet"
           }
         }
       }
@@ -6321,12 +9231,42 @@
         }
       }
     },
+    "While %@ is running": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %@ 运行期间"
+          }
+        }
+      }
+    },
+    "Working": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在处理"
+          }
+        }
+      }
+    },
     "Write Clipboard": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "写入剪贴板"
+          }
+        }
+      }
+    },
+    "You can change all of this later in Settings, and reopen this guide from General.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你之后可以在设置中更改所有这些选项，也可以从“通用”重新打开本指南。"
           }
         }
       }
@@ -6341,12 +9281,172 @@
         }
       }
     },
+    "You're Ready": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一切就绪"
+          }
+        }
+      }
+    },
+    "Zap deletes related settings and files and may delete files shared by Apps.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zap 会删除相关设置和文件，并可能删除多个 App 共用的文件。"
+          }
+        }
+      }
+    },
+    "Zoom In": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放大"
+          }
+        }
+      }
+    },
+    "Zoom Out": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缩小"
+          }
+        }
+      }
+    },
+    "add tap": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加 tap"
+          }
+        }
+      }
+    },
+    "adopt app": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接管 App"
+          }
+        }
+      }
+    },
+    "change app language": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改 App 语言"
+          }
+        }
+      }
+    },
+    "checked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已勾选"
+          }
+        }
+      }
+    },
+    "clean up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理"
+          }
+        }
+      }
+    },
+    "current": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前版本"
+          }
+        }
+      }
+    },
+    "eligible %@ packages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "符合条件的 %@ 软件包"
+          }
+        }
+      }
+    },
+    "install": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装"
+          }
+        }
+      }
+    },
+    "into %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到 %@"
+          }
+        }
+      }
+    },
+    "link": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链接"
+          }
+        }
+      }
+    },
     "macOS background activity status is unavailable": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法获取 macOS 后台活动状态"
+          }
+        }
+      }
+    },
+    "not checked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未勾选"
+          }
+        }
+      }
+    },
+    "not installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装"
           }
         }
       }
@@ -6361,12 +9461,202 @@
         }
       }
     },
+    "out of date": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已过时"
+          }
+        }
+      }
+    },
+    "pin": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "固定"
+          }
+        }
+      }
+    },
+    "remove tap": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 tap"
+          }
+        }
+      }
+    },
+    "remove unused dependencies": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除未使用的依赖项"
+          }
+        }
+      }
+    },
+    "repair homebrew": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修复 Homebrew"
+          }
+        }
+      }
+    },
+    "restart service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动服务"
+          }
+        }
+      }
+    },
+    "start service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动服务"
+          }
+        }
+      }
+    },
+    "stop service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止服务"
+          }
+        }
+      }
+    },
+    "stop trusting tap": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止信任 tap"
+          }
+        }
+      }
+    },
+    "the App in front": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前台 App"
+          }
+        }
+      }
+    },
     "this App": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "此 App"
+          }
+        }
+      }
+    },
+    "trust": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信任"
+          }
+        }
+      }
+    },
+    "uninstall": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卸载"
+          }
+        }
+      }
+    },
+    "unknown": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知"
+          }
+        }
+      }
+    },
+    "unlink": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消链接"
+          }
+        }
+      }
+    },
+    "unpin": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消固定"
+          }
+        }
+      }
+    },
+    "update homebrew and catalogs": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新 Homebrew 和目录"
+          }
+        }
+      }
+    },
+    "upgrade": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "升级"
+          }
+        }
+      }
+    },
+    "upgrade all eligible packages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "升级所有符合条件的软件包"
+          }
+        }
+      }
+    },
+    "upgrade selected packages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "升级所选软件包"
           }
         }
       }

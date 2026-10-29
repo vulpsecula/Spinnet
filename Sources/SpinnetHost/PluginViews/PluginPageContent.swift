@@ -202,13 +202,13 @@ private struct PageHeader: View {
                     .foregroundStyle(model.isPinned ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
             }
             .buttonStyle(.borderless)
-            .help(model.isPinned ? "Unpin" : "Keep this view open")
+            .help(model.isPinned ? localized("Unpin") : localized("Keep this view open"))
             .accessibilityLabel(PluginViewModel.pinLabel(model.isPinned))
             Button { model.close() } label: {
                 Image(systemName: "xmark").foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .help("Close (Esc)")
+            .help(localized("Close (Esc)"))
             .accessibilityLabel(PluginViewModel.closeLabel)
         }
     }
@@ -280,7 +280,7 @@ struct PageComponentView: View {
                     Text(shown.text)
                         .modifier(PageTextStyle(style: text.style))
                         .opacity(shown.isStale ? 0.5 : 1)
-                        .accessibilityLabel([text.title, shown.text, shown.isStale ? "out of date" : nil].compactMap { $0 }.joined(separator: ", "))
+                        .accessibilityLabel([text.title, shown.text, shown.isStale ? localized("out of date") : nil].compactMap { $0 }.joined(separator: ", "))
                 } else {
                     PluginViewMarkdownText(blocks: PluginViewMarkdown.parse(text.text))
                         .modifier(PageTextStyle(style: text.style))

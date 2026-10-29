@@ -48,10 +48,10 @@ final class HostTextInserter {
     static let intoItself = PluginHostServiceError.unavailable("Spinnet does not insert text into itself")
     static let notOpen = PluginHostServiceError.unavailable("The App to insert into is no longer open")
     static let didNotComeForward = PluginHostServiceError.unavailable(
-        "The App to insert into did not come to the front; nothing was inserted")
+        "The App to insert into did not come to the front; nothing was inserted") // Not localized: a Host Service failure returned to the Plugin
     static let passwordField = PluginHostServiceError.unavailable("The focused field is a password field; nothing was inserted")
     static let leftTheFront = PluginHostServiceError.failed(
-        "The App to insert into left the front while the text was typed; only part of it was inserted")
+        "The App to insert into left the front while the text was typed; only part of it was inserted") // Not localized: a Host Service failure returned to the Plugin
     static let noKeyboardEvents = PluginHostServiceError.failed("The keyboard events could not be created")
 
     /// What the inserter touches of the desktop. Everything but `post` and
@@ -203,7 +203,7 @@ final class HostTextInserter {
             }
             if character.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
                 throw PluginHostServiceError.invalidInput(
-                    "insert_text types tabs and line breaks but no other control characters")
+                    "insert_text types tabs and line breaks but no other control characters") // Not localized: a Host Service failure returned to the Plugin
             }
             let units = character.utf16.count
             if units > maximumUnitsPerEvent {

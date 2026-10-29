@@ -5,7 +5,7 @@ import SpinnetCore
 final class ReviewedServicesMenuController: NSObject, NSMenuDelegate {
     private var model: ReviewedServicesSurface?
     private var owner: PluginID?
-    private let menu = NSMenu(title: "Homebrew Services")
+    private let menu = NSMenu(title: localized("Homebrew Services"))
     private var isOpen = false
     private var generation = UUID()
     private var observers: [NSObjectProtocol] = []
@@ -45,7 +45,7 @@ final class ReviewedServicesMenuController: NSObject, NSMenuDelegate {
         guard model != nil else { return }
         // Transfer the submenu without changing its delegate or its controls.
         menu.supermenu?.items.first(where: { $0.submenu === menu })?.submenu = nil
-        let item = NSMenuItem(title: "Homebrew Services", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: localized("Homebrew Services"), action: nil, keyEquivalent: "")
         item.submenu = menu; parent.addItem(item); parent.addItem(.separator())
     }
     func menuWillOpen(_ menu: NSMenu) {
@@ -65,14 +65,14 @@ final class ReviewedServicesMenuController: NSObject, NSMenuDelegate {
     private func update() {
         menu.removeAllItems()
         guard let model else { return }
-        let message = NSMenuItem(title: model.message.isEmpty ? "Open to read service status" : model.message, action: nil, keyEquivalent: "")
+        let message = NSMenuItem(title: model.message.isEmpty ? localized("Open to read service status") : model.localizedMessage, action: nil, keyEquivalent: "")
         message.isEnabled = false; menu.addItem(message)
         for row in model.rows {
-            let item = NSMenuItem(title: row.name + " · " + row.status + (row.userOwned ? "" : " · Other account"), action: nil, keyEquivalent: "")
+            let item = NSMenuItem(title: row.name + " · " + row.status + (row.userOwned ? "" : localized(" · Other account")), action: nil, keyEquivalent: "")
             if row.userOwned {
                 let controls = NSMenu(title: row.name); controls.autoenablesItems = false
                 for operation in ReviewedServicesSurface.Operation.allCases {
-                    let title = operation == .start ? "Start" : operation == .stop ? "Stop" : "Restart"
+                    let title = operation == .start ? localized("Start") : operation == .stop ? localized("Stop") : localized("Restart")
                     let control = NSMenuItem(title: title, action: #selector(choose(_:)), keyEquivalent: "")
                     control.target = self; control.representedObject = Selection(generation: generation, name: row.name, operation: operation)
                     control.isEnabled = model.canChoose(operation, name: row.name); controls.addItem(control)

@@ -48,9 +48,9 @@ struct ClipboardHistoryCopyRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if let open {
                     let viewsImage = entry.contentType == .image
-                    Button(viewsImage ? "View" : "Edit", action: open)
+                    Button(viewsImage ? localized("View") : localized("Edit"), action: open)
                     .controlSize(.small)
-                    .help(viewsImage ? "View the image (Space)" : "Edit the text (Space)")
+                    .help(viewsImage ? localized("View the image (Space)") : localized("Edit the text (Space)"))
                     .opacity(hovering || isSelected ? 1 : 0)
                 }
             }
@@ -101,7 +101,7 @@ struct ClipboardHistoryRowIcon: View {
                 .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(.quaternary))
                 .frame(width: Self.imageSize.width, height: Self.imageSize.height)
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .accessibilityLabel("Copied image preview")
+                .accessibilityLabel(localized("Copied image preview"))
         } else {
             Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(.secondary)
                 .frame(width: 26, height: 26)

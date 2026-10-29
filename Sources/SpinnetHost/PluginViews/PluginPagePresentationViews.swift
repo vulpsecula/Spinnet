@@ -135,10 +135,10 @@ struct PageImageView: View {
             case .failed(let message):
                 VStack(spacing: 4) {
                     Image(systemName: "photo").foregroundStyle(.secondary)
-                    Button("Try Again") { model.retryImage(image.request) }
+                    Button(localized("Try Again")) { model.retryImage(image.request) }
                         .controlSize(.small)
                         .help(message)
-                        .accessibilityLabel("Try loading \(image.label) again")
+                        .accessibilityLabel(localized("Try loading \(image.label) again"))
                 }
                 .padding(4)
             }
@@ -195,7 +195,7 @@ struct PageProgressView: View {
                 Spacer(minLength: 4)
                 stateLabel
                 if let cancel = progress.cancel, progress.offersCancel || progress.state == .cancelling {
-                    Button(progress.state == .cancelling ? "Cancelling…" : cancel.title) {
+                    Button(progress.state == .cancelling ? localized("Cancelling…") : cancel.title) {
                         model.chooseCancel(of: progress)
                     }
                     .controlSize(.small)
@@ -233,16 +233,16 @@ struct PageProgressView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(progress.title ?? "Progress")
+        .accessibilityLabel(progress.title ?? localized("Progress"))
         .accessibilityValue(progress.accessibilityValue)
         .accessibilityAddTraits(.updatesFrequently)
     }
 
     @ViewBuilder private var stateLabel: some View {
         switch progress.state {
-        case .succeeded: Label("Done", systemImage: "checkmark.circle.fill").labelStyle(.iconOnly).foregroundStyle(.green)
-        case .failed: Label("Failed", systemImage: "exclamationmark.triangle.fill").labelStyle(.iconOnly).foregroundStyle(.orange)
-        case .cancelled: Text("Cancelled").font(.caption).foregroundStyle(.secondary)
+        case .succeeded: Label(localized("Done"), systemImage: "checkmark.circle.fill").labelStyle(.iconOnly).foregroundStyle(.green)
+        case .failed: Label(localized("Failed"), systemImage: "exclamationmark.triangle.fill").labelStyle(.iconOnly).foregroundStyle(.orange)
+        case .cancelled: Text(localized("Cancelled")).font(.caption).foregroundStyle(.secondary)
         case .running, .cancelling: EmptyView()
         }
     }

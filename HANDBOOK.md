@@ -205,10 +205,17 @@ Host-owned interface text comes from
 `localized(...)` (or `localized(key:)` for SpinnetCore's English), never for
 Plugin-supplied text. English source text is the key; each key needs a
 `zh-Hans` translation using the Chinese recorded for its terms in
-[GLOSSARY.md](GLOSSARY.md#simplified-chinese). `LocalizationCompletenessTests`
-fails on a missing translation, a mismatched argument, a different term, or
-interface text in a listed source file that bypasses the catalog; mark a
-literal that is not interface text `// Not localized: <why>`. The launcher
+[GLOSSARY.md](GLOSSARY.md#simplified-chinese). Host-owned text built outside
+the Host, such as a Host Confirmation from SpinnetCore or the Reviewed Tools,
+is a `HostText`: its key is the English with `%@` per argument, and names,
+versions and tool output stay verbatim. Failures a Host Service returns
+through the Plugin interface stay English, as SpinnetCore's do; the Host
+localizes the failures it shows itself. `LocalizationCompletenessTests`
+fails on a missing translation, a mismatched argument, a different term, a
+`HostText` key without a translation, or interface text in a Host source that
+bypasses the catalog; every `Sources/SpinnetHost` file is scanned except those
+it lists as showing no interface text. Mark a literal that is not interface
+text `// Not localized: <why>`. The launcher
 copies the compiled catalog into the app's own resources and checks it with
 `--verify-localizations`. `SPINNET_UI_LANGUAGE=zh-Hans` with
 `SPINNET_UI_ARTIFACT_DIR` renders the Settings pages in Chinese from

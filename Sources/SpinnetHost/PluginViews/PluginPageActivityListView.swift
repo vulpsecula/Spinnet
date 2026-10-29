@@ -15,14 +15,14 @@ struct PluginPageActivityListView: View {
             ForEach(model.rows, id: \.id) { activity in
                 HStack(alignment: .center, spacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(activity.name).font(.headline)
-                        Text(activity.status).font(.caption).monospacedDigit()
+                        Text(activity.localizedName).font(.headline)
+                        Text(activity.localizedStatus).font(.caption).monospacedDigit()
                     }
                     Spacer(minLength: 8)
-                    Button("Stop") { model.stop(activity.id) }
+                    Button(localized("Stop")) { model.stop(activity.id) }
                         .disabled(!activity.canStop)
-                        .accessibilityLabel("Stop \(activity.name), \(activity.status)")
-                        .help("Stop this Host-owned activity")
+                        .accessibilityLabel(localized("Stop \(activity.localizedName), \(activity.localizedStatus)"))
+                        .help(localized("Stop this Host-owned activity"))
                 }
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -32,6 +32,6 @@ struct PluginPageActivityListView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Active activities")
+        .accessibilityLabel(localized("Active activities"))
     }
 }

@@ -120,7 +120,7 @@ final class AppKitPluginHostServiceProvider {
 
     /// macOS's attribute for a window's full-screen state. AppKit windows
     /// support it, but it has no `kAX…` constant in the public headers.
-    private static let fullScreenAttribute = "AXFullScreen" as CFString
+    private static let fullScreenAttribute = "AXFullScreen" as CFString // Not localized: an Accessibility attribute
 
     /// Moves whichever window is focused into or out of full screen. A window
     /// that does not report the state, or does not let it be set, fails before

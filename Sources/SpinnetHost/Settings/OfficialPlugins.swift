@@ -18,37 +18,38 @@ extension OfficialPlugin {
     /// The repository that publishes every Official Plugin.
     static let repository = "vulpsecula/SpinnetPlugins"
 
-    /// The fixed list the Host offers. Adding one is a Host release.
-    static let all: [OfficialPlugin] = {
+    /// The fixed list the Host offers. Adding one is a Host release. Each
+    /// summary is in this launch's language; names are the Plugins' own.
+    static var all: [OfficialPlugin] {
         let source = try! PluginUpdateSource(github: repository)
         func plugin(_ id: String, _ name: String, _ summary: String, starter: Bool = false) -> OfficialPlugin {
             OfficialPlugin(id: PluginID(id), name: name, summary: summary, updateSource: source, isStarter: starter)
         }
         return [
-            plugin("com.spinnet.builtin.copy-selected-text", "Copy Selected Text", "Copies the selected text.", starter: true),
-            plugin("com.spinnet.builtin.cut", "Cut", "Cuts the selection.", starter: true),
-            plugin("com.spinnet.builtin.paste", "Paste", "Pastes what is on the clipboard.", starter: true),
-            plugin("com.spinnet.builtin.open-application", "Open Application", "Opens an App you choose.", starter: true),
-            plugin("com.spinnet.builtin.open-url", "Open URL", "Opens a web address you choose.", starter: true),
-            plugin("com.spinnet.builtin.screenshot", "Screenshot", "Captures an area, a window or the full screen.", starter: true),
-            plugin("com.spinnet.probe.current-app", "Current App", "Closes the current window or quits the Current App.", starter: true),
-            plugin("com.spinnet.coffee", "Keep Awake", "Keeps the Mac awake until stopped, for a while or while an App runs.", starter: true),
-            plugin("com.spinnet.bob", "Bob", "Translates the selection, typed text, the clipboard or a capture with Bob."),
-            plugin("com.spinnet.clipboard-history", "Clipboard History", "Browses what you copied earlier."),
-            plugin("com.spinnet.homebrew", "Homebrew", "Shows, searches and updates Homebrew packages."),
-            plugin("com.spinnet.builtin.open-file", "Open File", "Opens a file you choose."),
-            plugin("com.spinnet.builtin.open-folder", "Open Folder", "Opens a folder you choose."),
-            plugin("com.spinnet.builtin.keyboard-shortcut", "Run Keyboard Shortcut", "Presses a keyboard shortcut you choose."),
-            plugin("com.spinnet.builtin.service", "Run macOS Service", "Runs a macOS Service you choose."),
-            plugin("com.spinnet.builtin.run-shortcut", "Run Shortcut", "Runs a shortcut from the Shortcuts app."),
-            plugin("com.spinnet.shottr", "Shottr", "Captures the screen with Shottr."),
-            plugin("com.spinnet.smart-jump", "Smart Jump", "Opens the link, path or search in the selected text."),
-            plugin("com.spinnet.external.spotify", "Spotify", "Plays, pauses and skips songs in Spotify."),
-            plugin("com.spinnet.system-monitor", "System Monitor", "Shows how busy the Mac is."),
-            plugin("com.spinnet.translator", "Translator", "Translates the selection, typed text or the clipboard."),
-            plugin("com.spinnet.window-position", "Window Position", "Centres, maximises or moves the front window to one half."),
+            plugin("com.spinnet.builtin.copy-selected-text", "Copy Selected Text", localized("Copies the selected text."), starter: true), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.cut", "Cut", localized("Cuts the selection."), starter: true), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.paste", "Paste", localized("Pastes what is on the clipboard."), starter: true), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.open-application", "Open Application", localized("Opens an App you choose."), starter: true), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.open-url", "Open URL", localized("Opens a web address you choose."), starter: true), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.screenshot", "Screenshot", localized("Captures an area, a window or the full screen."), starter: true), // Not localized: the Plugin name
+            plugin("com.spinnet.probe.current-app", "Current App", localized("Closes the current window or quits the Current App."), starter: true), // Not localized: the Plugin name
+            plugin("com.spinnet.coffee", "Keep Awake", localized("Keeps the Mac awake until stopped, for a while or while an App runs."), starter: true), // Not localized: the Plugin name
+            plugin("com.spinnet.bob", "Bob", localized("Translates the selection, typed text, the clipboard or a capture with Bob.")), // Not localized: the Plugin name
+            plugin("com.spinnet.clipboard-history", "Clipboard History", localized("Browses what you copied earlier.")), // Not localized: the Plugin name
+            plugin("com.spinnet.homebrew", "Homebrew", localized("Shows, searches and updates Homebrew packages.")), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.open-file", "Open File", localized("Opens a file you choose.")), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.open-folder", "Open Folder", localized("Opens a folder you choose.")), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.keyboard-shortcut", "Run Keyboard Shortcut", localized("Presses a keyboard shortcut you choose.")), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.service", "Run macOS Service", localized("Runs a macOS Service you choose.")), // Not localized: the Plugin name
+            plugin("com.spinnet.builtin.run-shortcut", "Run Shortcut", localized("Runs a shortcut from the Shortcuts app.")), // Not localized: the Plugin name
+            plugin("com.spinnet.shottr", "Shottr", localized("Captures the screen with Shottr.")), // Not localized: the Plugin name
+            plugin("com.spinnet.smart-jump", "Smart Jump", localized("Opens the link, path or search in the selected text.")), // Not localized: the Plugin name
+            plugin("com.spinnet.external.spotify", "Spotify", localized("Plays, pauses and skips songs in Spotify.")), // Not localized: the Plugin name
+            plugin("com.spinnet.system-monitor", "System Monitor", localized("Shows how busy the Mac is.")), // Not localized: the Plugin name
+            plugin("com.spinnet.translator", "Translator", localized("Translates the selection, typed text or the clipboard.")), // Not localized: the Plugin name
+            plugin("com.spinnet.window-position", "Window Position", localized("Centres, maximises or moves the front window to one half.")), // Not localized: the Plugin name
         ]
-    }()
+    }
 }
 
 /// The Welcome Guide's official Plugins step: a checklist that installs each
@@ -146,7 +147,7 @@ final class OfficialPluginInstallModel: ObservableObject {
             let lookup = try result.get()
             guard let offer = lookup.offer else {
                 let reason = lookup.refusals.first.map { " \($0.version): \($0.reason)" } ?? ""
-                states[plugin.id] = .failed("SpinnetPlugins has no release of \(plugin.name) that Spinnet can install.\(reason)")
+                states[plugin.id] = .failed(localized("SpinnetPlugins has no release of \(plugin.name) that Spinnet can install.") + reason)
                 return
             }
             // Reviewed now, as the Library reviews a package the user chose.
@@ -188,7 +189,7 @@ final class OfficialPluginInstallModel: ObservableObject {
     func cancelReview() {
         guard let pending = pendingReview else { return }
         pendingReview = nil
-        states[pending.review.manifest.id] = .failed("Not installed: its access was not allowed.")
+        states[pending.review.manifest.id] = .failed(localized("Not installed: its access was not allowed."))
         showNextReview()
     }
 
@@ -197,9 +198,9 @@ final class OfficialPluginInstallModel: ObservableObject {
         var names: [String] = []
         for plugin in plugins {
             names.append(plugin.name)
-            if case .failed = state(for: plugin.id) { names.append("Retry \(plugin.name)") }
+            if case .failed = state(for: plugin.id) { names.append(localized("Retry \(plugin.name)")) }
         }
-        names.append("Install Selected")
+        names.append(localized("Install Selected"))
         return names
     }
 }

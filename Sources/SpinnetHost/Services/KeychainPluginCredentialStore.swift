@@ -72,7 +72,7 @@ final class KeychainPluginCredentialStore: PluginCredentialStore, CredentialSave
 
     func setSecret(_ secret: String, for pluginID: PluginID, reference: String) throws {
         guard PluginCredentialReference.isValid(reference), PluginCredentialReference.isValidSecret(secret) else {
-            throw ConfigurationError.invalidAction("The credential cannot be stored")
+            throw ConfigurationError.invalidAction(localized("The credential cannot be stored"))
         }
         let item = query(pluginID, reference)
         let data = Data(secret.utf8)
@@ -81,11 +81,11 @@ final class KeychainPluginCredentialStore: PluginCredentialStore, CredentialSave
             var added = item
             added[kSecValueData as String] = data
             added[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            added[kSecAttrLabel as String] = "Spinnet Plugin credential"
+            added[kSecAttrLabel as String] = "Spinnet Plugin credential" // Not localized: the Keychain item label macOS stores
             status = SecItemAdd(added as CFDictionary, nil)
         }
         guard status == errSecSuccess else {
-            throw ConfigurationError.invalidAction("The credential could not be saved to the Keychain")
+            throw ConfigurationError.invalidAction(localized("The credential could not be saved to the Keychain"))
         }
         changed(pluginID)
     }
@@ -93,7 +93,7 @@ final class KeychainPluginCredentialStore: PluginCredentialStore, CredentialSave
     func removeSecret(for pluginID: PluginID, reference: String) throws {
         let status = SecItemDelete(query(pluginID, reference) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw ConfigurationError.invalidAction("The credential could not be removed from the Keychain")
+            throw ConfigurationError.invalidAction(localized("The credential could not be removed from the Keychain"))
         }
         changed(pluginID)
     }

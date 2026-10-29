@@ -9,9 +9,9 @@ struct HostConfirmationDetailsContent: View {
     @State private var showsVerification = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(details.title).font(.headline)
+            Text(details.localizedTitle).font(.headline)
             List {
-                Text(details.summary).font(.callout).foregroundStyle(.secondary)
+                Text(details.localizedSummary).font(.callout).foregroundStyle(.secondary)
                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                     .listRowSeparator(.hidden)
                 HostConfirmationPagedRows(rows: details.actionRows)
@@ -19,7 +19,7 @@ struct HostConfirmationDetailsContent: View {
                     DisclosureGroup(isExpanded: $showsVerification) {
                         HostConfirmationPagedRows(rows: details.verificationRows)
                     } label: {
-                        Text("Verification Details (\(details.verificationRows.count))")
+                        Text(localized("Verification Details (\(details.verificationRows.count))"))
                             .font(.callout).foregroundStyle(.secondary)
                     }
                 }
@@ -28,7 +28,7 @@ struct HostConfirmationDetailsContent: View {
             .frame(height: max(60, height - 30))
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(details.title)
+        .accessibilityLabel(details.localizedTitle)
     }
 }
 
@@ -49,15 +49,15 @@ private struct HostConfirmationPagedRows: View {
         }
         if pageCount > 1 {
             HStack {
-                Button("Previous") { page -= 1 }.disabled(page == 0)
-                Picker("Page", selection: $page) {
+                Button(localized("Previous")) { page -= 1 }.disabled(page == 0)
+                Picker(localized("Page"), selection: $page) {
                     ForEach(0..<pageCount, id: \.self) { number in
-                        Text("\(number + 1) of \(pageCount)").tag(number)
+                        Text(localized("\(number + 1) of \(pageCount)")).tag(number)
                     }
                 }.frame(maxWidth: 170)
-                Button("Next") { page += 1 }.disabled(page + 1 == pageCount)
+                Button(localized("Next")) { page += 1 }.disabled(page + 1 == pageCount)
                 Spacer()
-                Text("\(rows.count) entries").font(.caption).foregroundStyle(.secondary)
+                Text(localized("\(rows.count) entries")).font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -66,8 +66,8 @@ private struct HostConfirmationDetailRow: View {
     let row: HostConfirmationDetails.Row
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(row.title).font(.callout).fontWeight(.medium)
-            Text(row.detail).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(row.localizedTitle).font(.callout).fontWeight(.medium)
+            Text(row.localizedDetail).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

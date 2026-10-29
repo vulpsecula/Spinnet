@@ -84,3 +84,95 @@ extension ActionUnavailableReason {
         }
     }
 }
+
+extension HostConfirmation {
+    var localizedTitle: String { localized(titleText) }
+    var localizedMessage: String { localized(sentences: messageText) }
+    var localizedConfirmTitle: String { localized(confirmTitleText) }
+}
+
+extension HostConfirmationDetails {
+    var localizedTitle: String { localized(titleText) }
+    var localizedSummary: String { localized(sentences: summaryText) }
+}
+
+extension HostConfirmationDetails.Row {
+    var localizedTitle: String { localized(titleText) }
+    var localizedDetail: String { detailText.map { localized($0) }.joined(separator: "\n") }
+}
+
+extension HostActivity {
+    /// The Plugin's name and a Task's package stay as they are.
+    var localizedName: String {
+        let plugin = String(pluginName.prefix(128))
+        switch kind {
+        case "inspection": return localized("\(plugin) — Native Inspection")
+        case "task":
+            // A Task is named by its operation, then its package.
+            guard case .string(let task)? = detail?.value(atPointer: "/name") else { return name }
+            var package = ""
+            if case .string(let name)? = detail?.value(atPointer: "/package/name") { package = name }
+            let operation = String(task.dropLast(package.count)).trimmingCharacters(in: .whitespaces)
+            let shown = package.isEmpty ? localized(key: operation) : "\(localized(key: operation)) \(package)"
+            return "\(plugin) — \(shown.prefix(128))"
+        case "keep_awake": return localized("\(pluginName) — Keep Awake")
+        default: return localized("\(pluginName) — Activity")
+        }
+    }
+
+    /// A Task's stage and outcome stay as the Host's Task runner reports them.
+    var localizedStatus: String {
+        if let remainingSeconds { return Self.localizedRemaining(remainingSeconds) }
+        if kind == "task", case .string(let state)? = detail?.value(atPointer: "/status") {
+            var stage = ""
+            if case .string(let value)? = detail?.value(atPointer: "/stage") { stage = value }
+            switch state {
+            case "ended":
+                var outcome = ""
+                if case .string(let value)? = detail?.value(atPointer: "/result/outcome") { outcome = value }
+                return localized("Ended: \(outcome)")
+            case "running", "stopping":
+                let progress = state == "running" ? localized("Running: \(stage)") : localized("Stopping: \(stage)")
+                let sleep = detail?.value(atPointer: "/prevents_idle_sleep") == .bool(true)
+                    ? localized(" — prevents idle system sleep") : localized(" — idle sleep prevention unavailable")
+                return progress + sleep
+            default: break
+            }
+        }
+        if kind == "keep_awake", let app = status.between("While ", and: " is running") { // Not localized: SpinnetCore's English
+            return localized("While \(app) is running")
+        }
+        if kind == "keep_awake", let seconds = status.between("For ", and: " seconds").flatMap({ Int($0) }) { // Not localized: SpinnetCore's English
+            return localized("For \(seconds) seconds")
+        }
+        // Fixed statuses are catalog keys; anything else stays as it is.
+        return localized(key: status)
+    }
+
+    static func localizedRemaining(_ seconds: Int) -> String {
+        let secondsPart = String(format: "%02d", seconds % 60)
+        if seconds >= 3_600 {
+            let minutesPart = String(format: "%02d", (seconds / 60) % 60)
+            return localized("\(seconds / 3_600)h \(minutesPart)m \(secondsPart)s remaining")
+        }
+        if seconds >= 60 { return localized("\(seconds / 60)m \(secondsPart)s remaining") }
+        return localized("\(seconds)s remaining")
+    }
+}
+
+private extension String {
+    func between(_ prefix: String, and suffix: String) -> String? {
+        guard hasPrefix(prefix), hasSuffix(suffix), count >= prefix.count + suffix.count else { return nil }
+        return String(dropFirst(prefix.count).dropLast(suffix.count))
+    }
+}
+
+extension ReviewedServicesSurface {
+    /// Its status line; a read failure stays as it is.
+    var localizedMessage: String {
+        if !rows.isEmpty, message.hasSuffix(" services · Changes require Host Confirmation") { // Not localized: SpinnetCore's English
+            return localized("\(rows.count) services · Changes require Host Confirmation")
+        }
+        return localized(key: message)
+    }
+}

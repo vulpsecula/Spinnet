@@ -14,8 +14,8 @@ struct AppleEventSender {
         var errorInfo: NSDictionary?
         guard script.executeAndReturnError(&errorInfo) as NSAppleEventDescriptor? == nil else { return }
         throw Self.error(
-            number: (errorInfo?["NSAppleScriptErrorNumber"] as? NSNumber)?.intValue,
-            message: errorInfo?["NSAppleScriptErrorMessage"] as? String,
+            number: (errorInfo?["NSAppleScriptErrorNumber"] as? NSNumber)?.intValue, // Not localized: an AppleScript error key
+            message: errorInfo?["NSAppleScriptErrorMessage"] as? String, // Not localized: an AppleScript error key
             for: request
         )
     }
@@ -29,23 +29,23 @@ struct AppleEventSender {
             return .automationPermissionDenied(application)
         case -1708:
             return .externalAppOperationUnsupported(
-                "This \(application) version does not support the requested operation; update \(application) and try again"
+                localized("This \(application) version does not support the requested operation; update \(application) and try again")
             )
         case -600, -10814:
-            return .externalAppMissing("Install \(application) to use \(application) Commands")
+            return .externalAppMissing(localized("Install \(application) to use \(application) Commands"))
         default:
             let message = (message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             return .failed(message.isEmpty
-                ? "\(application) did not accept the request"
-                : "\(application) rejected the request: \(message)")
+                ? "\(application) did not accept the request" // Not localized: a Host Service failure returned to the Plugin
+                : "\(application) rejected the request: \(message)") // Not localized: a Host Service failure returned to the Plugin
         }
     }
 
     /// The handler comes from the Host's own Reviewed App Interface; the
     /// bundle identifier and the argument are string literals.
     static func appleScriptSource(for request: AppleEventRequest) -> String {
-        let source = "tell application id \(appleScriptLiteral(request.bundleID)) to \(request.handler) \(appleScriptLiteral(request.argument))"
-        return request.activatesApplication ? source + "\ntell application id \(appleScriptLiteral(request.bundleID)) to activate" : source
+        let source = "tell application id \(appleScriptLiteral(request.bundleID)) to \(request.handler) \(appleScriptLiteral(request.argument))" // Not localized: AppleScript source
+        return request.activatesApplication ? source + "\ntell application id \(appleScriptLiteral(request.bundleID)) to activate" : source // Not localized: AppleScript source
     }
 
     /// AppleScript text literals use backslash escapes for quotes, backslashes,

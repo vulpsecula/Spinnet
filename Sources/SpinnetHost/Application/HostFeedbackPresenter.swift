@@ -6,7 +6,7 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
     private let panel: NSPanel
     private let label: NSTextField
     private let progress = NSProgressIndicator()
-    private let actionButton = NSButton(title: "Cancel", target: nil, action: nil)
+    private let actionButton = NSButton(title: localized("Cancel"), target: nil, action: nil)
     private var onAction: (() -> Void)?
     private let displayDuration: TimeInterval
     private var dismissalWorkItem: DispatchWorkItem?
@@ -27,7 +27,7 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = .singleDesktop
-        panel.setAccessibilityLabel("Spinnet feedback")
+        panel.setAccessibilityLabel(localized("Spinnet feedback"))
 
         label.font = NSFont.systemFont(ofSize: 14, weight: .medium)
         label.setAccessibilityRole(.staticText)
@@ -36,7 +36,7 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
         label.lineBreakMode = .byWordWrapping
         progress.style = .spinning
         progress.controlSize = .small
-        progress.setAccessibilityLabel("Action running")
+        progress.setAccessibilityLabel(localized("Action running"))
         progress.isHidden = true
         actionButton.target = self
         actionButton.action = #selector(performAction)
@@ -55,22 +55,23 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
     }
 
     func showProgress(for action: ActionConfiguration, cancel: @escaping () -> Void) {
-        showMessage("\(action.pluginID.rawValue) — \(action.title) running")
+        showMessage(localized("\(action.pluginID.rawValue) — \(action.title) running"))
         dismissalWorkItem?.cancel()
         dismissalWorkItem = nil
         panel.standardWindowButton(.closeButton)?.isEnabled = false
         progress.isHidden = false
         progress.startAnimation(nil)
-        configureButton("Cancel", action: cancel)
+        configureButton(localized("Cancel"), accessibilityLabel: localized("Cancel Action"), cancels: true, action: cancel)
         panel.makeKeyAndOrderFront(nil)
     }
 
     @objc private func performAction() { onAction?() }
 
-    private func configureButton(_ title: String, action: @escaping () -> Void) {
+    private func configureButton(_ title: String, accessibilityLabel: String, cancels: Bool,
+                                 action: @escaping () -> Void) {
         actionButton.title = title
-        actionButton.keyEquivalent = title == "Cancel" ? "\u{1b}" : "\r"
-        actionButton.setAccessibilityLabel(title + " Action")
+        actionButton.keyEquivalent = cancels ? "\u{1b}" : "\r"
+        actionButton.setAccessibilityLabel(accessibilityLabel)
         actionButton.isHidden = false
         onAction = action
     }
@@ -78,19 +79,16 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
     func showOutcome(_ outcome: ActionOutcome, retry: (() -> Void)? = nil) {
         switch outcome.terminal {
         case .succeeded:
-            showMessage(outcome.title + " completed")
+            showMessage(localized("\(outcome.title) completed"))
         case .failed(let failure):
             if [.automationPermissionDenied, .externalAppMissing, .externalAppOperationUnsupported]
                 .contains(failure.category) {
-                showMessage(
-                    "\(outcome.pluginID.rawValue) — \(outcome.title) failed "
-                        + "(\(failure.category.rawValue)): \(failure.message)"
-                )
+                showMessage(localized("\(outcome.pluginID.rawValue) — \(outcome.title) failed (\(failure.category.rawValue)): \(failure.message)"))
             } else {
-                showMessage("\(outcome.pluginID.rawValue) — \(outcome.title) failed (\(failure.category.rawValue))")
+                showMessage(localized("\(outcome.pluginID.rawValue) — \(outcome.title) failed (\(failure.category.rawValue))"))
             }
             if let retry {
-                configureButton("Retry", action: retry)
+                configureButton(localized("Retry"), accessibilityLabel: localized("Retry Action"), cancels: false, action: retry)
                 dismissalWorkItem?.cancel()
                 dismissalWorkItem = nil
             }

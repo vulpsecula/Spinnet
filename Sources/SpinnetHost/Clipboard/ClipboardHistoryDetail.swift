@@ -196,7 +196,7 @@ private struct ClipboardHistoryImageDetailView: View {
             if let image {
                 ClipboardHistoryImageScrollView(image: image, zoom: zoom)
             } else {
-                Text("This image could not be read.").foregroundStyle(.secondary)
+                Text(localized("This image could not be read.")).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             Divider()
@@ -210,15 +210,15 @@ private struct ClipboardHistoryImageDetailView: View {
                 }.foregroundStyle(.secondary).lineLimit(1)
                 Spacer()
                 Button { zoom.zoom(by: 1 / 1.25) } label: { Image(systemName: "minus.magnifyingglass") }
-                    .help("Zoom Out").keyboardShortcut("-", modifiers: .command)
+                    .help(localized("Zoom Out")).keyboardShortcut("-", modifiers: .command)
                 Text("\(Int((zoom.magnification * 100).rounded()))%").monospacedDigit().frame(minWidth: 44)
                 Button { zoom.zoom(by: 1.25) } label: { Image(systemName: "plus.magnifyingglass") }
-                    .help("Zoom In").keyboardShortcut("=", modifiers: .command)
-                Button("Fit") { zoom.fit() }.keyboardShortcut("9", modifiers: .command)
-                Button("Actual Size") { zoom.zoom(to: 1) }.keyboardShortcut("0", modifiers: .command)
+                    .help(localized("Zoom In")).keyboardShortcut("=", modifiers: .command)
+                Button(localized("Fit")) { zoom.fit() }.keyboardShortcut("9", modifiers: .command)
+                Button(localized("Actual Size")) { zoom.zoom(to: 1) }.keyboardShortcut("0", modifiers: .command)
                 Divider().frame(height: 16)
-                Button("Copy") { restore(false) }
-                Button("Paste") { restore(true) }.keyboardShortcut(.return, modifiers: .command)
+                Button(localized("Copy")) { restore(false) }
+                Button(localized("Paste")) { restore(true) }.keyboardShortcut(.return, modifiers: .command)
             }
             .controlSize(.small).disabled(image == nil)
             .padding(.horizontal, 12).padding(.vertical, 8)
@@ -244,7 +244,7 @@ private struct ClipboardHistoryImageScrollView: NSViewRepresentable {
         let imageView = NSImageView(frame: NSRect(origin: .zero, size: Self.pointSize(of: image)))
         imageView.image = image
         imageView.imageScaling = .scaleProportionallyUpOrDown
-        imageView.setAccessibilityLabel("Copied image")
+        imageView.setAccessibilityLabel(localized("Copied image"))
         scrollView.documentView = imageView
         zoom.scrollView = scrollView
         context.coordinator.observe(scrollView, zoom: zoom)
@@ -328,18 +328,18 @@ private struct ClipboardHistoryTextDetailView: View {
                 if let error {
                     Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red)
                 } else if dropsOtherFormats {
-                    Text("Saving keeps only the plain text.").foregroundStyle(.secondary)
+                    Text(localized("Saving keeps only the plain text.")).foregroundStyle(.secondary)
                 }
                 HStack(spacing: 8) {
-                    Text("\(text.count) characters · \(source)").foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
+                    Text(localized("\(text.count) characters · \(source)")).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
                     if saving { ProgressView().controlSize(.small) }
                     Spacer()
-                    Button("Copy") { restore(text, false) }.disabled(isBlank)
-                    Button("Paste") { restore(text, true) }.disabled(isBlank)
+                    Button(localized("Copy")) { restore(text, false) }.disabled(isBlank)
+                    Button(localized("Paste")) { restore(text, true) }.disabled(isBlank)
                         .keyboardShortcut(.return, modifiers: .command)
-                    Button("Save as New") { run(asNew: true) }.disabled(isBlank || saving)
+                    Button(localized("Save as New")) { run(asNew: true) }.disabled(isBlank || saving)
                         .keyboardShortcut("s", modifiers: [.command, .shift])
-                    Button("Save") { run(asNew: false) }.disabled(isBlank || saving || text == original)
+                    Button(localized("Save")) { run(asNew: false) }.disabled(isBlank || saving || text == original)
                         .keyboardShortcut("s", modifiers: .command)
                 }
             }

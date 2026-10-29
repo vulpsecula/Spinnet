@@ -21,7 +21,7 @@ struct SpotifyControlAppleEvents {
     func perform(_ request: AppleEventRequest) throws -> JSONValue {
         guard request.bundleID == SpotifyPlayback.bundleID, request.argument.isEmpty,
               SpotifyControls.operationNames.contains(request.handler) else {
-            throw PluginHostServiceError.externalAppOperationUnsupported("Unsupported Spotify control")
+            throw PluginHostServiceError.externalAppOperationUnsupported(localized("Unsupported Spotify control"))
         }
         let key = request.handler == "set_volume" ? "volume" : "delta"
         _ = try SpotifyControls.integerArgument(operation: request.handler,

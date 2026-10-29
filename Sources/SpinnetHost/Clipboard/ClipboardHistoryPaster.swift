@@ -12,12 +12,12 @@ struct ClipboardHistoryPaster {
     /// the clipboard, or nil once the paste keystroke was sent.
     func paste(_ items: [ClipboardHistoryRestoredItem], into target: NSRunningApplication?,
                completion: @escaping (String?) -> Void) {
-        guard write(items) else { completion("The clipboard could not be updated"); return }
-        guard let target, !target.isTerminated else { completion("Copied to the clipboard"); return }
+        guard write(items) else { completion(localized("The clipboard could not be updated")); return }
+        guard let target, !target.isTerminated else { completion(localized("Copied to the clipboard")); return }
         guard isTrusted() else {
             target.activate()
             if NSApp.keyWindow != nil { NSApp.deactivate() }
-            completion("Copied to the clipboard. Allow Accessibility to paste automatically.")
+            completion(localized("Copied to the clipboard. Allow Accessibility to paste automatically."))
             return
         }
         target.activate()
@@ -25,8 +25,8 @@ struct ClipboardHistoryPaster {
         // the target is already frontmost. Give it up before sending Paste.
         if NSApp.keyWindow != nil { NSApp.deactivate() }
         waitUntilFrontmost(target, deadline: Date().addingTimeInterval(1)) { active in
-            guard active else { completion("Copied to the clipboard"); return }
-            completion(sendPaste() ? nil : "Copied to the clipboard")
+            guard active else { completion(localized("Copied to the clipboard")); return }
+            completion(sendPaste() ? nil : localized("Copied to the clipboard"))
         }
     }
 

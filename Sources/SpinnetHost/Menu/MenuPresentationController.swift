@@ -299,7 +299,7 @@ final class MenuPresentationController {
             return nil
         }
 
-        let menu = NSMenu(title: "Actions")
+        let menu = NSMenu(title: localized("Actions"))
         menu.autoenablesItems = false
         let actions = [item.primaryAction] + item.alternateActions
         for (index, action) in actions.enumerated() {

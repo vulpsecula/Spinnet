@@ -130,48 +130,54 @@ public final class HostReviewedToolTasks {
             let resolved = try resolvedInput(resolvedTarget, package: package)
             guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The Task preparation was cancelled") }
             try authorize()
-            let target = resolved.name.isEmpty ? "eligible \(resolved.kind) packages" : resolved.name
+            // The Host shows these words in the interface language; names,
+            // versions and sources stay as Homebrew reports them.
+            let target = resolved.name.isEmpty ? HostText("eligible %@ packages", .verbatim(resolved.kind)) : .verbatim(resolved.name)
             let from = Self.text(package, "installed_version"), to = Self.text(package, "version"), tap = Self.text(package, "tap")
-            var disclosure = "Homebrew will \(input.displayOperation.lowercased()) \(target)."
+            var disclosure = [HostText("Homebrew will %@ %@.", HostText(key: input.displayOperation.lowercased(), arguments: []), target)]
             if ["link", "unlink"].contains(input.operation) {
-                if !from.isEmpty { disclosure += " Installed version: \(from)." }
-            } else if !from.isEmpty || !to.isEmpty { disclosure += " Version: \(from.isEmpty ? "not installed" : from) → \(to.isEmpty ? "current" : to)." }
-            if !tap.isEmpty { disclosure += " Source: \(tap)." }
-            if ["update", "refreshCatalog"].contains(input.operation) { disclosure = "Homebrew will update Homebrew itself, all configured taps and package catalogs. This is a global change even when requested from one package. Later package actions reload metadata and recheck source trust. Stopping does not undo an update already applied." }
-            if ["trust", "tap"].contains(input.operation) { disclosure += " This enables third-party code to run with your account's rights. Trust is your explicit choice." }
-            if input.operation == "untap" || input.operation == "untrust" { disclosure += " Existing packages may become unavailable to Homebrew." }
-            if case .string(let language)? = input.fields["language"] { disclosure += " Reinstalls the App with language \(language)." }
-            if input.fields["zap"] == .bool(true) { disclosure += " Zap deletes related settings and files and may delete files shared by Apps." }
+                if !from.isEmpty { disclosure.append(HostText("Installed version: %@.", .verbatim(from))) }
+            } else if !from.isEmpty || !to.isEmpty {
+                disclosure.append(HostText("Version: %@ → %@.", from.isEmpty ? HostText("not installed") : .verbatim(from),
+                                           to.isEmpty ? HostText("current") : .verbatim(to)))
+            }
+            if !tap.isEmpty { disclosure.append(HostText("Source: %@.", .verbatim(tap))) }
+            if ["update", "refreshCatalog"].contains(input.operation) { disclosure = [HostText("Homebrew will update Homebrew itself, all configured taps and package catalogs. This is a global change even when requested from one package. Later package actions reload metadata and recheck source trust. Stopping does not undo an update already applied.")] }
+            if ["trust", "tap"].contains(input.operation) { disclosure.append(HostText("This enables third-party code to run with your account's rights. Trust is your explicit choice.")) }
+            if input.operation == "untap" || input.operation == "untrust" { disclosure.append(HostText("Existing packages may become unavailable to Homebrew.")) }
+            if case .string(let language)? = input.fields["language"] { disclosure.append(HostText("Reinstalls the App with language %@.", .verbatim(language))) }
+            if input.fields["zap"] == .bool(true) { disclosure.append(HostText("Zap deletes related settings and files and may delete files shared by Apps.")) }
             if input.operation == "autoremove", case .array(let packages)? = package.value(atPointer: "/packages") {
                 let names = packages.compactMap { item -> String? in if case .string(let name)? = item.value(atPointer: "/name") { return name }; return nil }
-                disclosure = "Homebrew will uninstall formulae installed only as dependencies that are no longer needed. "
-                    + (names.count <= 100 ? "Chosen formulae: " + names.joined(separator: ", ") + "." : "Every chosen formula is listed in the complete review below.")
-                    + " Cask Apps and packages installed on request are retained. This differs from cleaning old versions and cached downloads."
+                disclosure = [HostText("Homebrew will uninstall formulae installed only as dependencies that are no longer needed."),
+                              names.count <= 100 ? HostText("Chosen formulae: %@.", .verbatim(names.joined(separator: ", ")))
+                                  : HostText("Every chosen formula is listed in the complete review below."),
+                              HostText("Cask Apps and packages installed on request are retained. This differs from cleaning old versions and cached downloads.")]
             }
-            if input.operation == "cleanup" { disclosure += input.fields["pruneAll"] == .bool(true) ? " All eligible Homebrew cache downloads and old package versions may be deleted." : " Eligible files older than the selected threshold and old package versions may be deleted." }
-            if input.operation.hasPrefix("service") { disclosure += " Changes the selected user-owned service at login; this service may continue after Spinnet exits." }
+            if input.operation == "cleanup" { disclosure.append(input.fields["pruneAll"] == .bool(true) ? HostText("All eligible Homebrew cache downloads and old package versions may be deleted.") : HostText("Eligible files older than the selected threshold and old package versions may be deleted.")) }
+            if input.operation.hasPrefix("service") { disclosure.append(HostText("Changes the selected user-owned service at login; this service may continue after Spinnet exits.")) }
             let reviewedPackages: [JSONValue] = { if case .array(let values)? = package.value(atPointer: "/packages") { return values }; return [package] }()
-            if case .string(let summary)? = package.value(atPointer: "/repair_summary") { disclosure += " " + summary }
-            disclosure += " Homebrew runs with your account and manages its own installers and scripts. Cask changes first try system Touch ID when available and configured for sudo. If sudo still needs your login password, Spinnet will ask for it in a separate password window. It is passed to sudo and is never shared with the Plugin or saved by Spinnet."
-            if ["upgrade", "upgradeAll", "upgradeSelected", "uninstall", "changeLanguage"].contains(input.operation), reviewedPackages.contains(where: { $0.value(atPointer: "/quits_app") == .bool(true) }) { disclosure += " Homebrew may quit the affected App first." }
-            disclosure += " Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends."
+            if case .string(let summary)? = package.value(atPointer: "/repair_summary") { disclosure.append(.verbatim(summary)) }
+            disclosure.append(HostText("Homebrew runs with your account and manages its own installers and scripts. Cask changes first try system Touch ID when available and configured for sudo. If sudo still needs your login password, Spinnet will ask for it in a separate password window. It is passed to sudo and is never shared with the Plugin or saved by Spinnet."))
+            if ["upgrade", "upgradeAll", "upgradeSelected", "uninstall", "changeLanguage"].contains(input.operation), reviewedPackages.contains(where: { $0.value(atPointer: "/quits_app") == .bool(true) }) { disclosure.append(HostText("Homebrew may quit the affected App first.")) }
+            disclosure.append(HostText("Dependencies and dependents may also change. Stopping does not undo changes. This Task prevents idle system sleep until it ends."))
             var plan = HomebrewTaskPlan(id: id, owner: owner, pluginName: String(pluginName.prefix(256)), input: input,
                 resolvedInput: resolved, package: package, executable: executable,
-                confirmation: .init(title: "Confirm Homebrew: \(input.displayOperation)", message: disclosure, confirmTitle: "Continue", isDestructive: true), generation: generation)
+                confirmation: .init(title: HostText("Confirm Homebrew: %@", HostText(key: input.displayOperation, arguments: [])), message: disclosure,
+                                    confirmTitle: HostText("Continue"), isDestructive: true), generation: generation)
             plan.scope = scope
             plan.steps = try steps(resolved, package: package)
             if (!plan.steps.isEmpty || input.operation == "upgradeSelected"), input.operation != "doctorFix" {
                 let targets = try HomebrewTaskNativeConfirmation.selectedPackages(plan).map(\.name)
-                let concrete = targets.count <= 100 ? targets.joined(separator: ", ") : "Every selected package is listed in the complete review below."
+                let concrete = targets.count <= 100 ? HostText.verbatim(targets.joined(separator: ", ")) : HostText("Every selected package is listed in the complete review below.")
                 plan = HomebrewTaskPlan(id: plan.id, owner: plan.owner, pluginName: plan.pluginName, input: plan.input,
                     resolvedInput: plan.resolvedInput, package: plan.package, executable: plan.executable,
-                    confirmation: .init(title: plan.confirmation.title, message: "Chosen packages: \(concrete). " + plan.confirmation.message,
-                        confirmTitle: plan.confirmation.confirmTitle, isDestructive: true), scope: plan.scope, steps: plan.steps, generation: plan.generation)
+                    confirmation: .init(title: plan.confirmation.titleText, message: [HostText("Chosen packages: %@.", concrete)] + plan.confirmation.messageText,
+                        confirmTitle: plan.confirmation.confirmTitleText, isDestructive: true), scope: plan.scope, steps: plan.steps, generation: plan.generation)
             }
             if (!plan.steps.isEmpty || ["upgradeSelected", "autoremove"].contains(input.operation)), plan.confirmation.details == nil {
                 let details = try HomebrewTaskNativeConfirmation.details(plan, cancellation: cancellation)
-                plan.confirmation = .init(title: plan.confirmation.title, message: plan.confirmation.message,
-                    confirmTitle: plan.confirmation.confirmTitle, isDestructive: true, details: details)
+                plan.confirmation = plan.confirmation.with(details: details)
             }
             lock.lock(); defer { lock.unlock() }
             guard pending?.id == id, generations[owner, default: 0] == generation, !exiting else { throw PluginHostServiceError.unavailable("The admitted Task owner changed") }

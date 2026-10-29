@@ -26,7 +26,7 @@ final class ReviewedServicesWindowController: NSObject, NSWindowDelegate, NSTabl
         self.model = model; self.owner = owner; selectedName = nil
         if panel == nil { makePanel() }
         model.onChange = { [weak self] in self?.update() }
-        panel?.title = "Homebrew Services"
+        panel?.title = localized("Homebrew Services")
         panel?.center(); panel?.makeKeyAndOrderFront(nil)
         model.setVisible(true); update()
     }
@@ -37,7 +37,7 @@ final class ReviewedServicesWindowController: NSObject, NSWindowDelegate, NSTabl
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard let model, model.rows.indices.contains(row) else { return nil }
         let service = model.rows[row]
-        let text = tableColumn?.identifier.rawValue == "name" ? service.name : service.status + (service.userOwned ? "" : " · Other account")
+        let text = tableColumn?.identifier.rawValue == "name" ? service.name : service.status + (service.userOwned ? "" : localized(" · Other account"))
         let label = NSTextField(labelWithString: text)
         label.lineBreakMode = .byTruncatingTail
         return label
@@ -55,14 +55,14 @@ final class ReviewedServicesWindowController: NSObject, NSWindowDelegate, NSTabl
         panel.minSize = NSSize(width: 440, height: 280)
         let root = NSStackView(); root.orientation = .vertical; root.alignment = .leading; root.spacing = 12
         root.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
-        let heading = NSTextField(labelWithString: "User-owned Homebrew Services")
+        let heading = NSTextField(labelWithString: localized("User-owned Homebrew Services"))
         heading.font = .boldSystemFont(ofSize: 15)
         root.addArrangedSubview(heading)
-        let detail = NSTextField(wrappingLabelWithString: "Start, stop or restart a selected service after Spinnet confirms its target. Status refreshes while this surface is visible.")
+        let detail = NSTextField(wrappingLabelWithString: localized("Start, stop or restart a selected service after Spinnet confirms its target. Status refreshes while this surface is visible."))
         detail.textColor = .secondaryLabelColor
         root.addArrangedSubview(detail)
         table.delegate = self; table.dataSource = self; table.allowsMultipleSelection = false
-        for (id, title, width) in [("name", "Service", 320.0), ("status", "Status", 200.0)] {
+        for (id, title, width) in [("name", localized("Service"), 320.0), ("status", localized("Status"), 200.0)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id)); column.title = title; column.width = width
             table.addTableColumn(column)
         }
@@ -71,12 +71,12 @@ final class ReviewedServicesWindowController: NSObject, NSWindowDelegate, NSTabl
         root.addArrangedSubview(scroll)
         let actions = NSStackView(); actions.orientation = .horizontal; actions.spacing = 8
         for operation in ReviewedServicesSurface.Operation.allCases {
-            let title: String = operation == .start ? "Start" : operation == .stop ? "Stop" : "Restart"
+            let title: String = operation == .start ? localized("Start") : operation == .stop ? localized("Stop") : localized("Restart")
             let button = NSButton(title: title, target: self, action: #selector(changeService(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(operation.rawValue)
             buttons[operation] = button; actions.addArrangedSubview(button)
         }
-        let refresh = NSButton(title: "Refresh", target: self, action: #selector(refresh(_:)))
+        let refresh = NSButton(title: localized("Refresh"), target: self, action: #selector(refresh(_:)))
         refreshButton = refresh; actions.addArrangedSubview(refresh)
         root.addArrangedSubview(actions)
         root.addArrangedSubview(status)
@@ -103,7 +103,7 @@ final class ReviewedServicesWindowController: NSObject, NSWindowDelegate, NSTabl
         if let selected, let index = model?.rows.firstIndex(where: { $0.name == selected }) { table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false) }
         else { table.deselectAll(nil) }
         selectedName = selected
-        status.stringValue = model?.message ?? ""
+        status.stringValue = model?.localizedMessage ?? ""
         refreshButton?.isEnabled = model?.isLoading == false
         updateButtons()
     }

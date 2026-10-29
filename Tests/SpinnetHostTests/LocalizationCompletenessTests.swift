@@ -6,8 +6,8 @@ import XCTest
 
 /// Host-owned interface text comes from `Localizable.xcstrings` with a
 /// Simplified Chinese translation, and Plugin-supplied text is shown as the
-/// Plugin provides it. #121 extends `LocalizedSurfaces.sourceFiles` and the
-/// rendered surfaces from the Settings window to the remaining Host surfaces.
+/// Plugin provides it: every Host source, the Host text SpinnetCore and the
+/// Reviewed Tools build, and the rendered Host surfaces.
 final class LocalizationCompletenessTests: XCTestCase {
     // MARK: The String Catalog
 
@@ -26,8 +26,13 @@ final class LocalizationCompletenessTests: XCTestCase {
 
     // MARK: Sources
 
-    func testSettingsStringsGoThroughTheCatalog() throws {
+    func testHostStringsGoThroughTheCatalog() throws {
         let catalog = try LocalizedSurfaces.catalog()
+        XCTAssertGreaterThan(LocalizedSurfaces.sourceFiles.count, 100)
+        for file in LocalizedSurfaces.nonInterfaceFiles.keys {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: LocalizedSurfaces.hostSources.appendingPathComponent(file).path),
+                          "\(file) is listed as showing no interface text but does not exist")
+        }
         for file in LocalizedSurfaces.sourceFiles {
             let source = try String(contentsOf: LocalizedSurfaces.hostSources.appendingPathComponent(file), encoding: .utf8)
             let literals = try SwiftStringLiterals(source)
@@ -51,6 +56,8 @@ final class LocalizationCompletenessTests: XCTestCase {
         case english = "English"
         let app = "Mac Mouse Fix" // Not localized: an app name
         fatalError("Not decoded from a nib")
+        throw PluginHostServiceError.failed("The link could not be opened")
+        HostLog.menu.error("Global Menu trigger registration failed")
         """#
         let literals = try SwiftStringLiterals(source)
         XCTAssertEqual(literals.bypassingTheCatalog.map(\.raw), ["Launch at Login", "Empty"])
@@ -143,6 +150,184 @@ final class LocalizationCompletenessTests: XCTestCase {
             XCTAssertTrue(shown.contains("资源库"))
         }
     }
+
+    // MARK: Host text built outside the Host
+
+    /// Host Confirmations and Task text that SpinnetCore and the Reviewed
+    /// Tools build: every `HostText` key, and every Homebrew operation title.
+    func testEveryHostTextBuiltOutsideTheHostIsInTheCatalog() throws {
+        let catalog = try LocalizedSurfaces.catalog()
+        var keys = Set<String>()
+        for folder in ["Sources/SpinnetCore", "Sources/SpinnetReviewedTools"] {
+            let root = TestRepository.root.appendingPathComponent(folder)
+            let files = (FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?.allObjects as? [URL] ?? [])
+                .filter { $0.pathExtension == "swift" }
+            for file in files {
+                let source = try String(contentsOf: file, encoding: .utf8)
+                keys.formUnion(LocalizedSurfaces.hostTextKeys(in: source))
+            }
+        }
+        XCTAssertGreaterThan(keys.count, 40)
+        for operation in HomebrewTaskInput.operations {
+            let title = HomebrewTaskInput.displayOperation(of: operation)
+            keys.formUnion([title, title.lowercased()])
+        }
+        keys.insert("Upgrade")
+        for exit in AppExit.allCases {
+            let confirmation = HostConfirmation.exit(exit, of: "TextEdit", requestedBy: "Fixture")
+            keys.formUnion(([confirmation.titleText, confirmation.confirmTitleText] + confirmation.messageText)
+                .flatMap(\.catalogKeys))
+        }
+        keys.formUnion(LocalizedSurfaces.fixedCoreTexts)
+        for key in keys.sorted() {
+            XCTAssertNotNil(catalog[key] ?? nil, "\"\(key)\" has no zh-Hans translation")
+        }
+    }
+
+    func testTheHostTextScannerFindsKeysAndSkipsVerbatimText() {
+        let source = #"""
+        HostText("Quit %@?", app)
+        HostText("Source: %@.", .verbatim(tap))
+        .verbatim("wget")
+        HostText(key: input.displayOperation, arguments: [])
+        """#
+        XCTAssertEqual(LocalizedSurfaces.hostTextKeys(in: source), ["Quit %@?", "Source: %@."])
+    }
+
+    /// A Host Confirmation names the Plugin and the App as they are and loses
+    /// no disclosed effect: each English sentence has its own translation.
+    func testHostConfirmationsInSimplifiedChineseKeepEverySentenceAndName() throws {
+        try HostLocalization.withLanguage(.simplifiedChinese) {
+            let quit = HostConfirmation.exit(.quit, of: "TextEdit", requestedBy: "Fixture")
+            XCTAssertEqual(quit.localizedTitle, "退出“TextEdit”？")
+            XCTAssertEqual(quit.localizedMessage, "Fixture 请求 Spinnet 退出 TextEdit，与其“退出”菜单项（⌘Q）的效果相同。"
+                + "TextEdit 可能会先要求你存储更改。")
+            XCTAssertEqual(quit.localizedConfirmTitle, "退出")
+            for exit in AppExit.allCases {
+                let confirmation = HostConfirmation.exit(exit, of: "TextEdit", requestedBy: "Fixture")
+                XCTAssertEqual(confirmation.messageText.count, 2)
+                let shown = [confirmation.localizedTitle, confirmation.localizedMessage, confirmation.localizedConfirmTitle]
+                    .map { $0.replacingOccurrences(of: "TextEdit", with: "").replacingOccurrences(of: "Fixture", with: "") }
+                XCTAssertEqual(shown.filter(LocalizedSurfaces.containsUntranslatedEnglish), [], "\(exit)")
+            }
+            let details = try HostConfirmationDetails(
+                title: HostText("Packages and Changes"),
+                summary: [HostText("Review the selected packages and any additional changes below.")],
+                rows: [.init(id: "wget", title: HostText("%@ %@", HostText("Upgrade"), .verbatim("wget")),
+                             detail: [HostText("%@ → %@ · %@", .verbatim("1.0"), HostText("unknown"), .verbatim("formula")),
+                                      HostText("Source: %@", .verbatim("homebrew/core"))])])
+            XCTAssertEqual(details.localizedTitle, "软件包与更改")
+            XCTAssertEqual(details.rows[0].localizedTitle, "升级 wget")
+            XCTAssertEqual(details.rows[0].localizedDetail, "1.0 → 未知 · formula\n来源：homebrew/core")
+        }
+        let english = HostConfirmation.exit(.close, of: "TextEdit", requestedBy: "Fixture")
+        XCTAssertEqual(english.localizedMessage, english.message)
+        XCTAssertEqual(english.message, "Fixture asks Spinnet to close the front window of TextEdit, as its Close menu item (⌘W) does. "
+            + "TextEdit may ask you to save your changes first.")
+    }
+
+    // MARK: The other rendered Host surfaces
+
+    func testTheStatusItemMenuInSimplifiedChineseShowsNoHostOwnedEnglish() throws {
+        _ = NSApplication.shared
+        try HostLocalization.withLanguage(.simplifiedChinese) {
+            let activities = HostActivities()
+            try activities.register(owner: PluginID("clock"), pluginName: "Clock", kind: "keep_awake",
+                                    status: "Until stopped", stop: {})
+            try activities.register(owner: PluginID("clock"), pluginName: "Clock", kind: "keep_awake",
+                                    status: "While TextEdit is running", stop: {})
+            try activities.register(owner: PluginID("timer"), pluginName: "Timer", kind: "keep_awake", status: "",
+                                    remainingSeconds: { 3_725 }, stop: {})
+            let task = try activities.register(owner: PluginID("brew"), pluginName: "Homebrew", kind: "task",
+                                               status: "Starting — prevents idle system sleep", stop: {})
+            activities.updateTask(task.id, status: "Running: fetching — prevents idle system sleep", detail: .object([
+                "name": .string("Upgrade Selected Packages wget"), "status": .string("running"),
+                "operation": .string("upgradeSelected"), "stage": .string("fetching"),
+                "package": .object(["name": .string("wget")]), "prevents_idle_sleep": .bool(true)]))
+            let menu = StatusItemController(openSettings: {}, quit: {}, activities: activities).makeMenu()
+            let shown = menu.items.flatMap { [$0.title, $0.accessibilityLabel(), $0.accessibilityHelp()].compactMap { $0 } }
+                + [menu.title, menu.accessibilityLabel()].compactMap { $0 }
+            let english = shown.map { LocalizedSurfaces.removing(["Clock", "Timer", "TextEdit", "wget", "fetching", "Homebrew"], from: $0) }
+                .filter(LocalizedSurfaces.containsUntranslatedEnglish)
+            XCTAssertEqual(english, [])
+            XCTAssertTrue(shown.contains("Clock — 保持唤醒"), "\(shown)")
+            XCTAssertTrue(shown.contains("在 TextEdit 运行期间"), "\(shown)")
+            XCTAssertTrue(shown.contains("剩余 1 小时 02 分 05 秒"), "\(shown)")
+            XCTAssertTrue(shown.contains("Homebrew — 升级所选软件包 wget"), "\(shown)")
+            XCTAssertTrue(shown.contains("正在运行：fetching — 阻止系统闲置睡眠"), "\(shown)")
+        }
+    }
+
+    func testHostFeedbackInSimplifiedChineseNamesThePluginAndActionAsProvided() throws {
+        _ = NSApplication.shared
+        try HostLocalization.withLanguage(.simplifiedChinese) {
+            let action = try ActionConfiguration(id: ActionID("visible-action"), pluginID: PluginID("test.plugin"),
+                command: CommandDeclaration(id: CommandID("run"), title: "Run", execution: .javascript, script: "run.js"),
+                input: .null)
+            let presenter = HostFeedbackPresenter()
+            defer { presenter.dismiss() }
+            presenter.showProgress(for: action) {}
+            XCTAssertEqual(presenter.presentationSnapshot.message, "test.plugin — Run 正在运行")
+            let failure = ActionFailure(pluginID: action.pluginID, actionID: action.id, category: .cancelled, message: "")
+            presenter.showOutcome(ActionOutcome(actionID: action.id, pluginID: action.pluginID, title: action.title,
+                                                terminal: .failed(failure)), retry: {})
+            XCTAssertEqual(presenter.presentationSnapshot.message, "test.plugin — Run 失败（cancelled）")
+        }
+    }
+
+    func testTheClipboardHistoryWindowOpensWithItsTitleInSimplifiedChinese() throws {
+        _ = NSApplication.shared
+        try HostLocalization.withLanguage(.simplifiedChinese) {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let store = try ClipboardHistoryStore(fileURL: directory.appendingPathComponent("history.json"))
+            try store.applyControl(.configure(enabled: true, paused: true, retentionDays: 1))
+            try store.observe(changeCount: 1, content: .init(text: "alpha", type: .text), sourceName: "Notes", sourceBundleID: "notes")
+            let controller = ClipboardHistoryWindow(
+                pluginID: PluginID("com.example.history"), grants: PluginCapabilityGrantStore(),
+                query: { try store.query(dataTypes: ["text"], offset: $0) }, restoration: { _ in [] },
+                openPrivacy: {}, openPluginSettings: {}, openIgnoredApplications: {},
+                clearHistory: { $0(nil) }, deleteCopies: { $1(nil) }, notify: { _ in })
+            defer { controller.close() }
+            controller.present()
+            let deadline = Date().addingTimeInterval(3)
+            while controller.model.snapshot == nil, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            let window = try XCTUnwrap(controller.window)
+            XCTAssertEqual(window.title, "剪贴板历史")
+            // SwiftUI builds no accessibility tree without an assistive
+            // client, so the source scan covers the window's text.
+            XCTAssertEqual(controller.model.snapshot?.state, .paused)
+        }
+    }
+
+    func testEveryWelcomeGuideStepInSimplifiedChineseShowsNoHostOwnedEnglish() throws {
+        let suite = "SpinnetHostTests.Localization.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        try HostLocalization.withLanguage(.simplifiedChinese) {
+            let model = SettingsWindowModel(
+                editor: HostConfigurationEditor(registry: PluginRegistry(),
+                                                configuration: try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))),
+                metadata: .current, defaults: defaults, accessibilityPermissionCheck: { false },
+                mouseInputConflictCheck: { _ in [] })
+            model.openWelcomeGuideAtLaunchIfNeeded()
+            let pluginNames = model.officialPlugins.plugins.map(\.name) + ["SpinnetPlugins"]
+            while true {
+                let english = model.welcomeGuideAccessibleNames
+                    .map { LocalizedSurfaces.removing(pluginNames, from: $0) }
+                    .filter(LocalizedSurfaces.containsUntranslatedEnglish)
+                XCTAssertEqual(english, [], "\(model.welcomeGuide.step)")
+                guard model.welcomeGuide.step != .finish else { break }
+                model.welcomeGuide.next()
+            }
+            for plugin in model.officialPlugins.plugins {
+                XCTAssertFalse(LocalizedSurfaces.containsUntranslatedEnglish(
+                    LocalizedSurfaces.removing(pluginNames + ["Bob", "Shottr", "Spotify", "Homebrew"], from: plugin.summary)),
+                    plugin.summary)
+            }
+        }
+    }
 }
 
 /// The Host surfaces whose text must come from the String Catalog, and what
@@ -150,58 +335,36 @@ final class LocalizationCompletenessTests: XCTestCase {
 enum LocalizedSurfaces {
     static let hostSources = TestRepository.root.appendingPathComponent("Sources/SpinnetHost")
 
-    /// The Settings window's sources, relative to `Sources/SpinnetHost`.
-    /// #121 adds the remaining Host surfaces.
-    static let sourceFiles = [
-        "Application/CoreTextLocalization.swift",
-        "Application/HostLocalization.swift",
-        "Clipboard/ClipboardHistoryClearButton.swift",
-        "Clipboard/ClipboardHistorySettingsModel.swift",
-        "Menu/MenuAppearanceConfiguration.swift",
-        "Menu/MenuEditorModel.swift",
-        "Menu/MenuEditorView.swift",
-        "Menu/MenuFontPopUp.swift",
-        "Menu/MenuItemPresentation.swift",
-        "Menu/MenuPresentationFactory.swift",
-        "Menu/MenuSizeSlider.swift",
-        "Menu/MenuTriggerConfiguration.swift",
-        "Menu/MenuTriggerModel.swift",
-        "Menu/RadialMenuView.swift",
-        "Menu/SlotDeletionDropZone.swift",
-        "Settings/ConfigurationSave.swift",
-        "Settings/DeveloperSettingsSection.swift",
-        "Settings/EndpointConsentBox.swift",
-        "Settings/ExternalAppConnectionSettings.swift",
-        "Settings/GeneralSettingsView.swift",
-        "Settings/HostBackgroundOperationsPermissionView.swift",
-        "Settings/HostBackgroundOperationsStatus.swift",
-        "Settings/InterfaceLanguageModel.swift",
-        "Settings/InterfaceLanguageRow.swift",
-        "Settings/KeyboardShortcutRecorder.swift",
-        "Settings/LaunchAtLoginModel.swift",
-        "Settings/MenuOpeningDelayRow.swift",
-        "Settings/MouseButtonRecorder.swift",
-        "Settings/MouseInputConflictDetector.swift",
-        "Settings/PluginAccessView.swift",
-        "Settings/PluginSettingsForm.swift",
-        "Settings/PluginSettingsModel.swift",
-        "Settings/PluginStorageSection.swift",
-        "Settings/PluginUpdateControls.swift",
-        "Settings/PluginUpdatesModel.swift",
-        "Settings/PrivacyPermissionsModel.swift",
-        "Settings/ScreenshotSettingsModel.swift",
-        "Settings/ScreenshotSettingsView.swift",
-        "Settings/SettingsPage.swift",
-        "Settings/SettingsViews.swift",
-        "Settings/SettingsWindowController.swift",
-        "Settings/SpinnetReleaseChecksModel.swift",
-        "Settings/SpinnetReleaseChecksSection.swift"
+    /// Every Host source, relative to `Sources/SpinnetHost`, except those
+    /// that show no interface text.
+    static var sourceFiles: [String] {
+        let enumerator = FileManager.default.enumerator(at: hostSources, includingPropertiesForKeys: nil)
+        let prefix = hostSources.standardizedFileURL.path + "/"
+        return (enumerator?.allObjects as? [URL] ?? [])
+            .filter { $0.pathExtension == "swift" }
+            .map { String($0.standardizedFileURL.path.dropFirst(prefix.count)) }
+            .filter { nonInterfaceFiles[$0] == nil }
+            .sorted()
+    }
+
+    /// Host sources that show no interface text, and why.
+    static let nonInterfaceFiles: [String: String] = [
+        "Application/DeveloperTools.swift": "developer diagnostics, copied into bug reports in English",
+        "Application/DevelopmentPluginInstall.swift": "the launcher's --install-plugins terminal output",
+        "Application/HostPluginFiles.swift": "folder names",
+        "Application/HostRelaunch.swift": "a shell command",
+        "Application/LifecycleTestWindow.swift": "a Debug-only developer window",
+        "Application/Migrations/ScreenshotPluginMigration.swift": "the Screenshot Plugin's manifest Command titles",
+        "Application/UIPreviewRenderer.swift": "the developer --render-ui option and its fixtures",
+        "Clipboard/ClipboardHistoryPreview.swift": "Xcode preview fixtures",
+        "Services/StageManagerStrip.swift": "system defaults keys",
+        "Services/URLSessionHTTPSTransport.swift": "an HTTP header"
     ]
 
     /// Names that stay as they are in every language, and the Plugin-supplied
     /// text of the Settings test fixtures.
     static let untranslatedNames: [String] = [
-        "Spinnet", "GitHub", "macOS", "Mac", "GPL-3.0-only", "Swift", "AppKit", "vulpsecula",
+        "Spinnet", "GitHub", "macOS", "Mac", "App", "GPL-3.0-only", "Swift", "AppKit", "vulpsecula",
         "English", "Fixture", "Open URL", "Transform Text", "https://example.com",
         "Command", "Option", "Shift", "Control", "Return", "Esc", "Home", "End", "Page Up", "Page Down", "Help"
     ]
@@ -212,11 +375,35 @@ enum LocalizedSurfaces {
         "Command": ["Command"],
         "Contact HTTPS Hosts": ["Host"],
         "Enable Collection": ["Collection"],
+        "Collection is off. Retained entries remain readable until they expire.": ["Collection"],
+        "Collection is paused. No new entries are collected.": ["Collection"],
         "This cannot be undone. Collection and Plugin grants do not change.": ["Collection"],
         "Collection stops. Retained entries still expire on schedule and remain available to authorized Plugins. Plugin grants do not change.": ["Collection"],
         "Left-click a Slot to focus it. Use its Edit button, double-click, or Command-E to configure a Menu Item; press Return or Space after focusing it. Right-click for details and Slot actions. Slot configuration stays attached to the Menu instead of the Library.": ["Command"],
         "Left-click a Menu Slot to focus it. Use the in-slot Edit button to configure an occupied Slot, double-click an occupied Slot, or right-click for details and actions. Press Return, Space, or Command-E to edit the focused Slot. Actions do not execute in Editor Mode.": ["Command"]
     ]
+
+    /// Host Activity statuses and Homebrew Services lines SpinnetCore and the
+    /// Reviewed Tools set as they are; the Host shows each from the catalog.
+    static let fixedCoreTexts = [
+        "Reading Homebrew Services…", "No user-owned Homebrew Services",
+        "%lld services · Changes require Host Confirmation",
+        "Until stopped", "Starting — prevents idle system sleep", "Recovering inspection status; never replaying work",
+        "Inspection status unavailable; shared lane retained; no replay",
+        "Stopping inspection; waiting for owned worker to reap"
+    ]
+
+    /// The catalog keys `HostText("…")` literals in `source` name.
+    static func hostTextKeys(in source: String) -> Set<String> {
+        let pattern = try! NSRegularExpression(pattern: #"HostText\("((?:[^"\\]|\\.)*)""#)
+        let matches = pattern.matches(in: source, range: NSRange(source.startIndex..., in: source))
+        return Set(matches.map { String(source[Range($0.range(at: 1), in: source)!]).replacingOccurrences(of: "\\\"", with: "\"") })
+    }
+
+    /// `text` without the given Plugin-supplied or tool-reported names.
+    static func removing(_ names: [String], from text: String) -> String {
+        names.sorted { $0.count > $1.count }.reduce(text) { $0.replacingOccurrences(of: $1, with: " ") }
+    }
 
     static func containsUntranslatedEnglish(_ label: String) -> Bool {
         var remaining = label
@@ -332,6 +519,11 @@ struct SwiftStringLiterals {
     /// Names that stay as they are in every language.
     static let names = ["Spinnet", "GitHub", "macOS", "English", "Homebrew"]
 
+    /// Calls whose text is not interface text: the log, and the failures a
+    /// Host Service returns through the Plugin interface, which stay English
+    /// as SpinnetCore's do. The Host localizes the failures it shows itself.
+    static let notInterfaceCalls = #"(\bHostLog\.\w+\.\w+|\b(PluginHostServiceError|HostCommandExecutionError|HostCommandError)\.\w+)\($"#
+
     init(_ source: String) throws {
         let characters = Array(source)
         var index = 0
@@ -407,6 +599,7 @@ struct SwiftStringLiterals {
                 continue
             }
             guard Self.isInterfaceText(literal.outside), !trimmed.hasSuffix("fatalError("),
+                  trimmed.range(of: Self.notInterfaceCalls, options: .regularExpression) == nil,
                   before.range(of: #"\bcase\s+\w+\s*=\s*$"#, options: .regularExpression) == nil else { continue }
             let lineEnd = characters[start...].firstIndex(of: "\n") ?? characters.count
             let lineStart = characters[..<start].lastIndex(of: "\n").map { $0 + 1 } ?? 0

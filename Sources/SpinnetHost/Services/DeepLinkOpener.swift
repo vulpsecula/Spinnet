@@ -45,14 +45,13 @@ struct DeepLinkOpener {
     func open(_ link: DeepLink) throws {
         let application = link.applicationName
         guard applicationURL(link.bundleID) != nil else {
-            throw PluginHostServiceError.externalAppMissing("Install \(application) to use \(application) Commands")
+            throw PluginHostServiceError.externalAppMissing(localized("Install \(application) to use \(application) Commands"))
         }
         // The scheme must belong to the declared app, so a template cannot
         // reach whichever other app registered it.
         guard handlerBundleIdentifier(link.url) == link.bundleID else {
             throw PluginHostServiceError.externalAppOperationUnsupported(
-                "\(application) does not open \(link.url.scheme ?? ""): links; update \(application) or turn on "
-                    + "its URL scheme in its settings, then try again"
+                localized("\(application) does not open \(link.url.scheme ?? ""): links; update \(application) or turn on its URL scheme in its settings, then try again")
             )
         }
         // Preserve the frontmost application, so a link that acts on its

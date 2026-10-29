@@ -53,14 +53,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func install() {
         guard statusItem == nil else { return }
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.autosaveName = "Spinnet Status Item"
+        statusItem.autosaveName = "Spinnet Status Item" // Not localized: the saved position's name
         statusItem.button?.image = NSImage(
             systemSymbolName: "circle.hexagongrid.fill",
             accessibilityDescription: "Spinnet"
         )
-        statusItem.button?.setAccessibilityLabel("Spinnet Status Item")
-        statusItem.button?.setAccessibilityHelp("Open Settings, stop ongoing activities, or Quit Spinnet.")
-        statusItem.button?.toolTip = "Spinnet Status Item"
+        statusItem.button?.setAccessibilityLabel(localized("Spinnet Status Item"))
+        statusItem.button?.setAccessibilityHelp(localized("Open Settings, stop ongoing activities, or Quit Spinnet."))
+        statusItem.button?.toolTip = localized("Spinnet Status Item")
         statusItem.menu = makeMenu()
         self.statusItem = statusItem
         reconcileVisibility()
@@ -105,50 +105,50 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func makeMenu() -> NSMenu {
-        let menu = NSMenu(title: "Spinnet Status Item")
+        let menu = NSMenu(title: localized("Spinnet Status Item"))
         menu.autoenablesItems = false
         menu.delegate = self
-        menu.setAccessibilityLabel("Spinnet Status Item Menu")
+        menu.setAccessibilityLabel(localized("Spinnet Status Item Menu"))
 
         if let release = releases?.availableRelease {
-            let releaseItem = NSMenuItem(title: "Spinnet \(release.version) Is Available…",
+            let releaseItem = NSMenuItem(title: localized("Spinnet \(release.version) Is Available…"),
                                          action: #selector(StatusItemActionTarget.openRelease(_:)), keyEquivalent: "")
             releaseItem.target = actionTarget
-            releaseItem.setAccessibilityHelp("Open the release page on GitHub. Nothing is downloaded.")
+            releaseItem.setAccessibilityHelp(localized("Open the release page on GitHub. Nothing is downloaded."))
             menu.addItem(releaseItem)
             menu.addItem(.separator())
         }
 
         let settingsItem = NSMenuItem(
-            title: "Settings…",
+            title: localized("Settings…"),
             action: #selector(StatusItemActionTarget.openSettings(_:)),
             keyEquivalent: ","
         )
         settingsItem.target = actionTarget
-        settingsItem.setAccessibilityLabel("Settings")
-        settingsItem.setAccessibilityHelp("Open Spinnet Settings.")
+        settingsItem.setAccessibilityLabel(localized("Settings"))
+        settingsItem.setAccessibilityHelp(localized("Open Spinnet Settings."))
         menu.addItem(settingsItem)
         menu.addItem(.separator())
 
         for activity in ongoingActivities {
-            let heading = NSMenuItem(title: activity.name, action: nil, keyEquivalent: "")
+            let heading = NSMenuItem(title: activity.localizedName, action: nil, keyEquivalent: "")
             heading.isEnabled = false
             menu.addItem(heading)
-            let status = NSMenuItem(title: activity.status, action: nil, keyEquivalent: "")
+            let status = NSMenuItem(title: activity.localizedStatus, action: nil, keyEquivalent: "")
             status.isEnabled = false; status.indentationLevel = 1
             status.identifier = NSUserInterfaceItemIdentifier("activity-status:" + activity.id)
             menu.addItem(status)
             if activity.kind == "keep_awake" {
-                let scope = NSMenuItem(title: "Mac and display stay awake while idle", action: nil, keyEquivalent: "")
+                let scope = NSMenuItem(title: localized("Mac and display stay awake while idle"), action: nil, keyEquivalent: "")
                 scope.isEnabled = false; scope.indentationLevel = 1
                 menu.addItem(scope)
-                let limit = NSMenuItem(title: "Sleep, lid closure and low battery still apply", action: nil, keyEquivalent: "")
+                let limit = NSMenuItem(title: localized("Sleep, lid closure and low battery still apply"), action: nil, keyEquivalent: "")
                 limit.isEnabled = false; limit.indentationLevel = 1
                 menu.addItem(limit)
             }
-            let stop = NSMenuItem(title: "Stop \(activity.name)", action: #selector(StatusItemActionTarget.stop(_:)), keyEquivalent: "")
+            let stop = NSMenuItem(title: localized("Stop \(activity.localizedName)"), action: #selector(StatusItemActionTarget.stop(_:)), keyEquivalent: "")
             stop.target = actionTarget; stop.representedObject = activity.id
-            stop.setAccessibilityHelp("Stop this Host-owned activity.")
+            stop.setAccessibilityHelp(localized("Stop this Host-owned activity."))
             stop.isEnabled = activity.canStop
             menu.addItem(stop)
             menu.addItem(.separator())
@@ -156,13 +156,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         services.append(to: menu)
         let quitItem = NSMenuItem(
-            title: "Quit Spinnet",
+            title: localized("Quit Spinnet"),
             action: #selector(StatusItemActionTarget.quit(_:)),
             keyEquivalent: "q"
         )
         quitItem.target = actionTarget
-        quitItem.setAccessibilityLabel("Quit Spinnet")
-        quitItem.setAccessibilityHelp("Quit the Spinnet Host.")
+        quitItem.setAccessibilityLabel(localized("Quit Spinnet"))
+        quitItem.setAccessibilityHelp(localized("Quit the Spinnet Host."))
         menu.addItem(quitItem)
         return menu
     }
@@ -195,7 +195,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func refreshCountdowns() {
         guard let menu = openMenu else { return }
-        let statuses = Dictionary(uniqueKeysWithValues: (activities?.list() ?? []).map { ("activity-status:" + $0.id, $0.status) })
+        let statuses = Dictionary(uniqueKeysWithValues: (activities?.list() ?? []).map { ("activity-status:" + $0.id, $0.localizedStatus) })
         // Update titles in place: a second tick must not replace the menu
         // or disturb the user pointing at its Stop control.
         for item in menu.items {

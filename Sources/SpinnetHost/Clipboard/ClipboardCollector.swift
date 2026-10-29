@@ -26,7 +26,7 @@ final class ClipboardCollector {
          readContents: @escaping () -> [ClipboardContent] = { ClipboardCollector.readAll() },
          sourceApplication: @escaping () -> (name: String, bundleID: String) = {
              let app = NSWorkspace.shared.frontmostApplication
-             return (app?.localizedName ?? "Unknown application", app?.bundleIdentifier ?? "")
+             return (app?.localizedName ?? "Unknown application", app?.bundleIdentifier ?? "") // Not localized: stored with the entry, which Plugins read
          },
          observationGate: ClipboardObservationGate = ClipboardObservationGate()) {
         self.store = store
@@ -159,11 +159,11 @@ final class ClipboardCollector {
                     continue
                 }
                 guard format != .fileURL,
-                      !["public.url-name", "CorePasteboardFlavorType 0x75726C6E"].contains(format.rawValue),
+                      !["public.url-name", "CorePasteboardFlavorType 0x75726C6E"].contains(format.rawValue), // Not localized: pasteboard types
                       !format.rawValue.hasPrefix("org.nspasteboard."),
                       !format.rawValue.hasPrefix("com.apple.pasteboard."),
                       let data = item.data(forType: format), !data.isEmpty else { continue }
-                contents.append(ClipboardContent(text: type == .image ? imageName(in: item) : type == .richText ? (OfflineClipboardPreview.text(data, format: format.rawValue) ?? "Rich text") : "Binary content", type: type, data: data, format: format.rawValue,
+                contents.append(ClipboardContent(text: type == .image ? imageName(in: item) : type == .richText ? (OfflineClipboardPreview.text(data, format: format.rawValue) ?? "Rich text") : "Binary content", type: type, data: data, format: format.rawValue, // Not localized: stored with the entry, which Plugins read
                     imagePreview: type == .image ? imagePreview(data) : nil, itemIndex: itemIndex))
             }
         }
