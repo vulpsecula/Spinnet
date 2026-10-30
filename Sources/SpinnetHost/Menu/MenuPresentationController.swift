@@ -62,6 +62,7 @@ final class MenuPresentationController {
     private var menuView: RadialMenuView
     private var slots: [MenuSlotPresentation]
     private var appearanceConfiguration: MenuAppearanceConfiguration
+    private var alternateActionMode: AlternateActionMode
     private var menuViewAppearanceNeedsSync = false
     private var outsideClickMonitor: Any?
     private var localMouseMonitor: Any?
@@ -75,6 +76,8 @@ final class MenuPresentationController {
     private var currentAppIcon: NSImage?
 
     private(set) var isOpen = false
+    /// A registered Carbon hot key owns Escape; monitors are its fallback.
+    var escapeHotkeyRegistered = false
     var onPrimaryAction: ((ActionID) -> Void)?
     var onActionMenuSelection: ((ActionID) -> Void)?
     var onEmptySlotActivated: ((Int) -> Void)?
@@ -87,14 +90,17 @@ final class MenuPresentationController {
     init(
         items: [MenuSlotPresentation],
         appearance: MenuAppearanceConfiguration = MenuAppearanceConfiguration(),
+        alternateActionMode: AlternateActionMode = .rightClick,
         icons: CurrentAppIcons = CurrentAppIcons()
     ) {
         self.icons = icons
         self.slots = items
         self.appearanceConfiguration = appearance
+        self.alternateActionMode = alternateActionMode
         self.layout = appearance.layout(slotCount: items.count)
         self.menuView = RadialMenuView(slots: items)
         menuView.applyAppearance(appearance)
+        menuView.alternateActionMode = alternateActionMode
         self.panel = NSPanel(
             contentRect: menuView.bounds,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -122,6 +128,7 @@ final class MenuPresentationController {
         self.layout = appearanceConfiguration.layout(slotCount: items.count)
         self.menuView = RadialMenuView(slots: items)
         menuView.applyAppearance(appearanceConfiguration)
+        menuView.alternateActionMode = alternateActionMode
         menuViewAppearanceNeedsSync = false
         panel.appearance = appearanceConfiguration.appearance
         panel.contentView = MenuBackdropView(menuView: menuView)
@@ -150,6 +157,13 @@ final class MenuPresentationController {
         // Settings can produce many Appearance samples while the Runtime Mode
         // panel is hidden. Defer AppKit layout and drawing until the next open.
         menuViewAppearanceNeedsSync = true
+    }
+
+    func applyAlternateActionMode(_ mode: AlternateActionMode) {
+        guard mode != alternateActionMode else { return }
+        if isOpen { dismiss() }
+        alternateActionMode = mode
+        menuView.alternateActionMode = mode
     }
 
     var presentationSnapshot: (
@@ -183,6 +197,12 @@ final class MenuPresentationController {
     private func configureMenuView() {
         menuView.onPrimarySelection = { [weak self] index in self?.activateSlot(at: index) }
         menuView.onAlternateSelection = { [weak self] index in self?.showActions(for: index) }
+        menuView.onAlternateActionSelection = { [weak self] index, action in self?.activateAlternate(action, in: index) }
+        menuView.onPrepareAlternateRing = { [weak self] in
+            guard let self else { return false }
+            self.refreshAvailability()
+            return self.isOpen
+        }
         menuView.onCancel = { [weak self] in self?.dismiss() }
     }
 
@@ -203,7 +223,13 @@ final class MenuPresentationController {
         let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main
         showCurrentApp(currentApp, backingScale: screen?.backingScaleFactor ?? 2)
         guard let screen else { return }
-        let frame = layout.overlayFrame(for: pointer, in: screen.visibleFrame)
+        layout = appearanceConfiguration.layout(slotCount: slots.count)
+        if alternateActionMode == .alternateRing {
+            layout = layout.fittingAlternateRing(in: screen.visibleFrame)
+        }
+        menuView.setRuntimeLayout(layout)
+        let padding = alternateActionMode == .alternateRing ? layout.alternateRingPadding : RadialMenuLayout.defaultOverlayPadding
+        let frame = layout.overlayFrame(for: pointer, in: screen.visibleFrame, padding: padding)
         menuView.clearSelection()
         panel.setFrame(frame, display: false)
         panel.alphaValue = 1
@@ -252,6 +278,11 @@ final class MenuPresentationController {
         onDismiss?()
     }
 
+    func cancel() {
+        guard isOpen else { return }
+        if !menuView.cancelAlternateRing() { dismiss() }
+    }
+
     func updateGesture(at screenPoint: CGPoint) {
         guard isOpen else { return }
         let windowPoint = panel.convertPoint(fromScreen: screenPoint)
@@ -261,11 +292,26 @@ final class MenuPresentationController {
     func finishGesture(at screenPoint: CGPoint) {
         guard isOpen else { return }
         updateGesture(at: screenPoint)
+        if menuView.alternateRingItemIndex != nil {
+            menuView.commitRuntimeSelection()
+            if isOpen { dismiss() }
+            return
+        }
         guard let index = menuView.selectedIndex else {
             dismiss()
             return
         }
         activateSlot(at: index)
+    }
+
+    private func activateAlternate(_ actionID: ActionID, in index: Int) {
+        let originalConfiguration = slots.indices.contains(index) ? slots[index].item?.configuration : nil
+        if let onRefresh { slots = onRefresh(currentApp) }
+        guard slots.indices.contains(index), let item = slots[index].item,
+              item.configuration == originalConfiguration,
+              item.alternateActions.contains(where: { $0.actionID == actionID && $0.isAvailable }) else { return }
+        dismiss()
+        onActionMenuSelection?(actionID)
     }
 
     func activateSlot(at index: Int) {
@@ -355,11 +401,7 @@ final class MenuPresentationController {
         ) { [weak self] event in
             guard let self, self.isOpen else { return event }
             let point = self.menuView.convert(event.locationInWindow, from: nil)
-            let center = CGPoint(
-                x: self.menuView.bounds.midX,
-                y: self.menuView.bounds.midY
-            )
-            guard self.layout.hitTest(point: point, center: center) != nil else {
+            guard self.menuView.containsRuntimeAction(at: point) else {
                 self.dismiss()
                 return nil
             }
@@ -368,15 +410,16 @@ final class MenuPresentationController {
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.isOpen else { return event }
             if event.keyCode == UInt16(kVK_Escape) {
-                self.dismiss()
+                if !self.escapeHotkeyRegistered { self.cancel() }
                 return nil
             }
             return event
         }
         globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) {
             [weak self] event in
-            guard let self, self.isOpen, event.keyCode == UInt16(kVK_Escape) else { return }
-            self.dismiss()
+            guard let self, self.isOpen, !self.escapeHotkeyRegistered,
+                  event.keyCode == UInt16(kVK_Escape) else { return }
+            self.cancel()
         }
         spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification,

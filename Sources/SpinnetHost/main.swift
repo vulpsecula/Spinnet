@@ -325,6 +325,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             menu = MenuPresentationController(
                 items: menuSlots,
                 appearance: MenuAppearanceConfiguration(defaults: .standard),
+                alternateActionMode: MenuTriggerConfiguration(defaults: .standard).alternateActionMode,
                 icons: currentAppIcons
             )
             menu.onRefresh = { [weak self] currentApp in
@@ -470,6 +471,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 self?.menu.applyAppearance(appearance)
             }
             settings.onTriggerChanged = { [weak self] configuration in
+                self?.menu.applyAlternateActionMode(configuration.alternateActionMode)
                 guard self?.triggers?.apply(configuration) == true else {
                     HostLog.trigger.error("Keyboard shortcut registration failed; mouse trigger remains active")
                     return
@@ -690,7 +692,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let controller = GlobalTriggerController()
         controller.onInvoke = { [weak self] in self?.toggleMenu() }
         controller.isMenuOpen = { [weak self] in self?.menu?.isOpen ?? false }
-        controller.onEscape = { [weak self] in self?.menu.dismiss() }
+        controller.onEscape = { [weak self] in self?.menu.cancel() }
         controller.onMouseDrag = { [weak self] screenPoint in
             self?.menu.updateGesture(at: screenPoint)
         }
@@ -733,7 +735,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         if menu.isOpen {
             menu.dismiss()
         } else {
-            if triggers?.registerEscape() != true {
+            let registeredEscape = triggers?.registerEscape() == true
+            menu.escapeHotkeyRegistered = registeredEscape
+            if !registeredEscape {
                 HostLog.trigger.notice("Global Escape registration unavailable; using panel-local fallback")
             }
             menu.open(at: NSEvent.mouseLocation, currentApp: runningApps.currentApp())

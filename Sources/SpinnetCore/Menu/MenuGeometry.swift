@@ -46,12 +46,42 @@ public struct RadialMenuLayout: Equatable {
             return nil
         }
 
+        return itemIndex(inDirectionOf: point, center: center)
+    }
+
+    /// The Slot in the direction of a point, even beyond the Menu's rim.
+    public func itemIndex(inDirectionOf point: CGPoint, center: CGPoint) -> Int {
+        let dx = point.x - center.x
+        let dy = point.y - center.y
         var clockwiseFromTop = (.pi / 2) - atan2(dy, dx)
         if clockwiseFromTop < 0 {
             clockwiseFromTop += 2 * .pi
         }
         let itemIndex = Int(floor((clockwiseFromTop / (2 * .pi)) * CGFloat(itemCount) + 0.5))
         return itemIndex % itemCount
+    }
+
+    /// Reserves the same space for every Alternate Ring, regardless of which
+    /// Slot opens it, so neither the window nor the Menu moves during a gesture.
+    public var alternateRingOuterRadius: CGFloat { outerRadius * 1.55 }
+    public var alternateRingPadding: CGFloat {
+        alternateRingOuterRadius - outerRadius + Self.defaultOverlayPadding
+    }
+
+    /// Fits the complete Menu and Alternate Ring to the screen before the
+    /// center is clamped, including on a small display at a large Menu Size.
+    public func fittingAlternateRing(in visibleFrame: CGRect) -> RadialMenuLayout {
+        let availableRadius = max(0.01, min(visibleFrame.width, visibleFrame.height) / 2
+                                  - Self.defaultOverlayPadding - 0.01)
+        let scale = min(1, availableRadius / alternateRingOuterRadius)
+        guard scale < 1 else { return self }
+        return RadialMenuLayout(itemCount: itemCount, innerRadius: innerRadius * scale,
+                                outerRadius: outerRadius * scale, itemCenterRadius: itemCenterRadius * scale)
+    }
+
+    public func alternateRing(itemIndex: Int, actionCount: Int) -> AlternateRingLayout? {
+        guard (0..<itemCount).contains(itemIndex), actionCount > 0 else { return nil }
+        return AlternateRingLayout(menu: self, itemIndex: itemIndex, actionCount: actionCount)
     }
 
     public func itemCenter(index: Int, center: CGPoint) -> CGPoint {
@@ -103,5 +133,50 @@ public struct RadialMenuLayout: Equatable {
             width: radius * 2,
             height: radius * 2
         )
+    }
+}
+
+/// An arc of Alternate Actions centred on their Menu Item. Angles use the
+/// Menu's clockwise-from-top convention in the same coordinates as hitTest.
+public struct AlternateRingLayout: Equatable {
+    public let innerRadius: CGFloat
+    public let outerRadius: CGFloat
+    public let actionCount: Int
+    public let centerAngle: CGFloat
+    public let span: CGFloat
+
+    fileprivate init(menu: RadialMenuLayout, itemIndex: Int, actionCount: Int) {
+        innerRadius = menu.outerRadius
+        outerRadius = menu.alternateRingOuterRadius
+        self.actionCount = actionCount
+        centerAngle = CGFloat(itemIndex) * 2 * .pi / CGFloat(menu.itemCount)
+        // Give each Action room for a label where possible. Large sets can
+        // use the complete circumference without overlapping themselves.
+        span = min(2 * .pi, max(2 * .pi / CGFloat(menu.itemCount), CGFloat(actionCount) * 0.55))
+    }
+
+    public func angleRange(for index: Int) -> ClosedRange<CGFloat> {
+        precondition((0..<actionCount).contains(index), "Alternate Action index is out of range")
+        let step = span / CGFloat(actionCount)
+        let start = centerAngle - span / 2 + CGFloat(index) * step
+        return start...(start + step)
+    }
+
+    public func actionCenter(index: Int, center: CGPoint) -> CGPoint {
+        let range = angleRange(for: index)
+        let angle = (range.lowerBound + range.upperBound) / 2
+        let radius = (innerRadius + outerRadius) / 2
+        return CGPoint(x: center.x + sin(angle) * radius, y: center.y + cos(angle) * radius)
+    }
+
+    public func hitTest(point: CGPoint, center: CGPoint) -> Int? {
+        let dx = point.x - center.x
+        let dy = point.y - center.y
+        let distance = hypot(dx, dy)
+        guard distance > innerRadius, distance <= outerRadius else { return nil }
+        let angle = atan2(dx, dy)
+        let relative = atan2(sin(angle - centerAngle), cos(angle - centerAngle))
+        guard relative >= -span / 2, relative < span / 2 else { return nil }
+        return min(Int((relative + span / 2) / span * CGFloat(actionCount)), actionCount - 1)
     }
 }
