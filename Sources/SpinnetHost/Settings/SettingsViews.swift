@@ -211,6 +211,18 @@ final class SettingsWindowModel: ObservableObject {
             onShowsStatusItemChanged?(showsStatusItem)
         }
     }
+    static let endedTaskRetentionKey = "general.ended-task-retention"
+    @Published var endedTaskRetention: EndedTaskRetention {
+        didSet {
+            guard endedTaskRetention != oldValue else { return }
+            defaults.set(endedTaskRetention.rawValue, forKey: Self.endedTaskRetentionKey)
+            onEndedTaskRetentionChanged?(endedTaskRetention)
+        }
+    }
+    var onEndedTaskRetentionChanged: ((EndedTaskRetention) -> Void)?
+    static func savedEndedTaskRetention(_ defaults: UserDefaults) -> EndedTaskRetention {
+        defaults.string(forKey: endedTaskRetentionKey).flatMap(EndedTaskRetention.init(rawValue:)) ?? .oneHour
+    }
     static let showsStatusItemKey = "general.show-status-item"
     var onShowsStatusItemChanged: ((Bool) -> Void)?
     /// The Menu Editor owns Slot selection, composition edits and their undo
@@ -278,6 +290,7 @@ final class SettingsWindowModel: ObservableObject {
         launchAtLogin = LaunchAtLoginModel(service: loginItem)
         self.interfaceLanguage = interfaceLanguage ?? InterfaceLanguageModel(defaults: defaults)
         showsStatusItem = defaults.object(forKey: Self.showsStatusItemKey) as? Bool ?? true
+        endedTaskRetention = Self.savedEndedTaskRetention(defaults)
         menuEditor = MenuEditorModel(editor: editor)
         privacy = PrivacyPermissionsModel(
             grantStore: capabilityGrantStore,
