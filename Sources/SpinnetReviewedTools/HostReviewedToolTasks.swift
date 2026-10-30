@@ -323,7 +323,8 @@ public final class HostReviewedToolTasks {
     public func stopAll() { cancelPending(); lock.lock(); let ids = records.values.filter { executionHeld($0) }.map(\.id); lock.unlock(); ids.forEach { try? stop($0) } }
     public func refresh() {
         legacyRecovery.refreshInspection()
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
+        var expiredUnlisted: [String] = []
         for (id, held) in records {
             let directory = root.appendingPathComponent(id)
             guard var current = try? HomebrewTaskJournal.load(from: directory) else { continue }
@@ -352,8 +353,21 @@ public final class HostReviewedToolTasks {
                 try? current.save(to: directory)
             }
             records[id] = current; publish(current)
+            if !executionHeld(current), let ended = current.ended, activities.shouldExpireEndedTask(at: ended) {
+                expiredUnlisted.append(id)
+            }
             if !executionHeld(current), suddenTerminationAssertions.remove(id) != nil { ProcessInfo.processInfo.enableSuddenTermination() }
             if !executionHeld(current) { recoveryPowerReleases.removeValue(forKey: id)?(); orphanedTasks.remove(id); orphanStopTimes[id] = nil }
+        }
+        lock.unlock()
+        activities.expireEndedTasks()
+        // Recovery can hold more journal records than fit in the Activity
+        // inventory. Expire those records too, without touching held work.
+        expiredUnlisted.forEach { id in
+            lock.lock()
+            let ended = records[id]?.ended
+            if let ended, activities.shouldExpireEndedTask(at: ended) { clearHistory(id) }
+            lock.unlock()
         }
     }
     private func register(_ record: HomebrewTaskJournal) throws {
@@ -386,7 +400,7 @@ public final class HostReviewedToolTasks {
             detail["output_truncated"] = .bool(record.outputTruncated ?? false)
         }
         if !held, let result = record.result { detail["result"] = result }
-        activities.updateTask(record.id, status: held ? "\(state.capitalized): \(record.stage)" + (preventsSleep ? " — prevents idle system sleep" : " — idle sleep prevention unavailable") : "Ended: \(Self.text(record.result ?? .null, "outcome"))", detail: .object(detail), detached: record.detached)
+        activities.updateTask(record.id, status: held ? "\(state.capitalized): \(record.stage)" + (preventsSleep ? " — prevents idle system sleep" : " — idle sleep prevention unavailable") : "Ended: \(Self.text(record.result ?? .null, "outcome"))", detail: .object(detail), detached: record.detached, endedAt: record.ended)
     }
     private func recover() {
         var info = stat()

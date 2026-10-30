@@ -77,7 +77,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// The Current App's icon for the Menu's centre (#111), read the first
     /// time the Menu is invoked over an App.
     private let currentAppIcons = CurrentAppIcons()
-    private let activities = HostActivities()
+    private let activities = HostActivities(retention: SettingsWindowModel.savedEndedTaskRetention(.standard))
     private lazy var reviewedTasks = HostReviewedToolTasks(activities: activities,
         journal: HostDataDirectory.url.appendingPathComponent("ReviewedTasks"), // Not localized: a folder name
         runnerURL: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetToolTaskRunner"), // Not localized: a helper path
@@ -366,6 +366,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 pluginSettingsStore: pluginSettings,
                 pluginStorage: pluginStorage
             )
+            settings.onEndedTaskRetentionChanged = { [activities] in activities.setEndedTaskRetention($0) }
             #if DEBUG
             settings.developerTools = DeveloperTools(
                 diagnostics: { [unowned self] in self.developerDiagnostics() },

@@ -144,6 +144,11 @@ final class SettingsWindowController: NSWindowController {
         set { model.onShowsStatusItemChanged = newValue }
     }
 
+    var onEndedTaskRetentionChanged: ((EndedTaskRetention) -> Void)? {
+        get { model.onEndedTaskRetentionChanged }
+        set { model.onEndedTaskRetentionChanged = newValue }
+    }
+
     var permissionGuidePresented: Bool { model.privacy.permissionGuidePresented }
     var welcomeGuidePresented: Bool { model.welcomeGuide.isPresented }
     /// Opens the Welcome Guide when no Plugin is installed and the guide was

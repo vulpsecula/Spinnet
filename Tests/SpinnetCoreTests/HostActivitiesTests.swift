@@ -104,7 +104,7 @@ final class HostActivitiesTests: XCTestCase {
             "executable": "/opt/homebrew/bin/brew", "started": old, "ended": old, "detached": false,
             "stage": "finished", "log": [], "result": ["outcome": "completed"]]
         try JSONSerialization.data(withJSONObject: journal).write(to: directory.appendingPathComponent("task.json"))
-        let activities = HostActivities()
+        let activities = HostActivities(retention: .never)
         let host = HostReviewedToolTasks(activities: activities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil)
         host.refresh()
         XCTAssertEqual(activities.list().first?.json.value(atPointer: "/result/outcome"), .string("completed"))
@@ -115,6 +115,50 @@ final class HostActivitiesTests: XCTestCase {
         let restored = HostReviewedToolTasks(activities: restoredActivities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil)
         restored.refresh()
         XCTAssertTrue(restoredActivities.list().isEmpty, "Cleared Task history does not return from its journal")
+    }
+
+    func testRetentionExpiresEndedTasksByTheirEndTimeAndLeavesRunningWork() throws {
+        var now = Date(timeIntervalSince1970: 10_000)
+        let activities = HostActivities(now: { now }), owner = PluginID("owner")
+        var clears = 0
+        let ended = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", onClear: { clears += 1 }, stop: {})
+        let running = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", stop: {})
+        activities.updateTask(ended.id, status: "Ended", detail: .object(["status": .string("ended")]), endedAt: now)
+        now.addTimeInterval(3599)
+        activities.expireEndedTasks()
+        XCTAssertEqual(activities.list().count, 2)
+        now.addTimeInterval(1)
+        activities.expireEndedTasks()
+        XCTAssertEqual(activities.list().map(\.id), [running.id])
+        XCTAssertEqual(clears, 1)
+    }
+
+    func testNeverRetentionKeepsHistoryAndChangingRetentionClearsExpiredHistory() throws {
+        let now = Date(timeIntervalSince1970: 100_000)
+        let activities = HostActivities(retention: .never, now: { now })
+        let task = try activities.register(owner: PluginID("owner"), pluginName: "Packages", kind: "task", status: "Running", stop: {})
+        activities.updateTask(task.id, status: "Ended", detail: .object(["status": .string("ended")]), endedAt: now.addingTimeInterval(-86_400))
+        activities.expireEndedTasks()
+        XCTAssertEqual(activities.list().count, 1)
+        activities.setEndedTaskRetention(.sevenDays)
+        XCTAssertEqual(activities.list().count, 1)
+        activities.setEndedTaskRetention(.oneDay)
+        XCTAssertTrue(activities.list().isEmpty)
+    }
+
+    func testRecoveryExpiresOldEndedTaskAndRemovesItsJournal() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let id = "activity_old_task", directory = root.appendingPathComponent(id)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let old = Date().addingTimeInterval(-7200).timeIntervalSinceReferenceDate
+        let journal: [String: Any] = ["id": id, "owner": "brew", "pluginName": "Homebrew", "input": ["tool": "homebrew", "operation": "cleanup"], "package": [:], "executable": "/opt/homebrew/bin/brew", "started": old, "ended": old, "detached": false, "stage": "finished", "log": [], "result": ["outcome": "completed"]]
+        try JSONSerialization.data(withJSONObject: journal).write(to: directory.appendingPathComponent("task.json"))
+        let activities = HostActivities()
+        let host = HostReviewedToolTasks(activities: activities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil)
+        host.refresh()
+        XCTAssertTrue(activities.list().isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     }
 
     func testReadOnlyInspectionHasAHostStopControlWithoutPluginVisibility() throws {

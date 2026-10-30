@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import SpinnetCore
 
 /// The General page: app-wide preferences, and in a DEBUG Host the
 /// Developer section last.
@@ -20,8 +21,10 @@ struct GeneralSettingsView: View {
                     Divider()
                     toggleRow(
                         localized("Show Status Item"), isOn: $model.showsStatusItem,
-                        detail: localized("When off, the Status Item appears for ongoing Tasks and Effects, and for ended Tasks until cleared. Open Spinnet again to show Settings.")
+                        detail: localized("When off, the Status Item appears for ongoing Tasks and Effects, and for retained ended Tasks. Open Spinnet again to show Settings.")
                     )
+                    Divider()
+                    endedTaskRetentionRow
                     Divider()
                     InterfaceLanguageRow(language: interfaceLanguage)
                     Divider()
@@ -51,6 +54,24 @@ struct GeneralSettingsView: View {
             .frame(maxWidth: 680, alignment: .leading)
         }
         .onAppear { launchAtLogin.refreshAsynchronously() }
+    }
+
+    private var endedTaskRetentionRow: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(localized("Remove Ended Tasks")).font(.body.weight(.medium))
+                Text(localized("Automatically clear ended Tasks after this time. History is also limited to make room for new Host Activities."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Picker(localized("Remove Ended Tasks"), selection: $model.endedTaskRetention) {
+                Text(localized("After 1 hour")).tag(EndedTaskRetention.oneHour)
+                Text(localized("After 1 day")).tag(EndedTaskRetention.oneDay)
+                Text(localized("After 7 days")).tag(EndedTaskRetention.sevenDays)
+                Text(localized("Never")).tag(EndedTaskRetention.never)
+            }.labelsHidden()
+            .accessibilityLabel(localized("Remove Ended Tasks"))
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
     }
 
     private var launchAtLoginRow: some View {

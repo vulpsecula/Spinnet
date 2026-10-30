@@ -30,17 +30,60 @@ public struct HostActivity: Equatable {
 /// Thread-safe, in-memory ownership and Status Item controls. The Host may
 /// stop any entry; Plugins can see/stop only their own. Registration is
 /// bounded and explicit. Nothing is recovered when the Host starts again.
+public enum EndedTaskRetention: String, CaseIterable {
+    case oneHour, oneDay, sevenDays, never
+
+    public var interval: TimeInterval? {
+        switch self {
+        case .oneHour: return 3_600
+        case .oneDay: return 86_400
+        case .sevenDays: return 604_800
+        case .never: return nil
+        }
+    }
+}
+
 public final class HostActivities {
     public static let maximumPerPlugin = 8
     public static let maximumTotal = 64
     public static let visibleRefreshInterval: TimeInterval = 1
-    private struct Entry { var activity: HostActivity; let remainingSeconds: (() -> Int)?; let stop: () -> Void; var visibleToOwner = true; let removesOnStop: Bool; let onClear: (() -> Void)?; var endedOrder: UInt64? = nil }
+    private struct Entry { var activity: HostActivity; let remainingSeconds: (() -> Int)?; let stop: () -> Void; var visibleToOwner = true; let removesOnStop: Bool; let onClear: (() -> Void)?; var endedOrder: UInt64? = nil; var endedAt: Date? = nil }
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
     private var observers: [UUID: () -> Void] = [:]
     private var nextEndedOrder: UInt64 = 0
 
-    public init() {}
+    private let now: () -> Date
+    private var retention: EndedTaskRetention
+
+    public init(retention: EndedTaskRetention = .oneHour, now: @escaping () -> Date = Date.init) {
+        self.retention = retention
+        self.now = now
+    }
+
+    public func setEndedTaskRetention(_ value: EndedTaskRetention) {
+        lock.lock(); retention = value; lock.unlock()
+        expireEndedTasks()
+    }
+
+    public func shouldExpireEndedTask(at endedAt: Date) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard let interval = retention.interval else { return false }
+        return endedAt <= now().addingTimeInterval(-interval)
+    }
+
+    /// Remove expired history through the same adapter as explicit clearing.
+    public func expireEndedTasks() {
+        lock.lock()
+        guard let interval = retention.interval else { lock.unlock(); return }
+        let cutoff = now().addingTimeInterval(-interval)
+        let expired = entries.values.filter { $0.endedAt.map { $0 <= cutoff } ?? false }
+        expired.forEach { entries[$0.activity.id] = nil }
+        let changed = expired.isEmpty ? [] : Array(observers.values)
+        lock.unlock()
+        expired.forEach { $0.onClear?() }
+        changed.forEach { $0() }
+    }
 
     @discardableResult
     public func register(owner: PluginID, pluginName: String, kind: String, status: String,
@@ -130,7 +173,7 @@ public final class HostActivities {
         list(for: owner).forEach { stop($0.id, for: owner) }
     }
 
-    public func updateTask(_ id: String, status: String, detail: JSONValue, detached: Bool = false) {
+    public func updateTask(_ id: String, status: String, detail: JSONValue, detached: Bool = false, endedAt: Date? = nil) {
         lock.lock()
         guard var entry = entries[id], entry.activity.kind == "task" else { lock.unlock(); return }
         let held = entry.activity
@@ -139,7 +182,8 @@ public final class HostActivities {
         entry.visibleToOwner = !detached
         if detail.value(atPointer: "/status") == .string("ended") {
             if entry.endedOrder == nil { nextEndedOrder &+= 1; entry.endedOrder = nextEndedOrder }
-        } else { entry.endedOrder = nil }
+            entry.endedAt = endedAt ?? entry.endedAt ?? now()
+        } else { entry.endedOrder = nil; entry.endedAt = nil }
         entries[id] = entry
         let changed = Array(observers.values); lock.unlock(); changed.forEach { $0() }
     }

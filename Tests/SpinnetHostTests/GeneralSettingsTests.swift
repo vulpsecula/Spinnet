@@ -120,6 +120,21 @@ final class GeneralSettingsTests: XCTestCase {
         XCTAssertTrue(controller.launchAtLogin.isOn)
     }
 
+    func testEndedTaskRetentionDefaultsToOneHourAndPersists() throws {
+        let suite = "GeneralSettingsTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, defaults: defaults)
+        XCTAssertEqual(model.endedTaskRetention, .oneHour)
+        var heard: [EndedTaskRetention] = []
+        model.onEndedTaskRetentionChanged = { heard.append($0) }
+        model.endedTaskRetention = .never
+        XCTAssertEqual(heard, [.never])
+        XCTAssertEqual(SettingsWindowModel.savedEndedTaskRetention(defaults), .never)
+        defaults.set("unrecognized", forKey: SettingsWindowModel.endedTaskRetentionKey)
+        XCTAssertEqual(SettingsWindowModel.savedEndedTaskRetention(defaults), .oneHour)
+    }
+
     // MARK: Show Status Item
 
     func testShowStatusItemIsASavedPreferenceThatDefaultsOn() throws {
