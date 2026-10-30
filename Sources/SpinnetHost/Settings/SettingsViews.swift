@@ -878,12 +878,6 @@ struct SettingsRootView: View {
                 .toggleStyle(.switch)
                 .accessibilityHint(localized("When enabled, hold the mouse trigger, drag to a Menu Item, and release to run it."))
 
-            Picker(localized("Alternate Actions"), selection: $trigger.alternateActionMode) {
-                Text(localized("Right Click")).tag(AlternateActionMode.rightClick)
-                Text(localized("Alternate Ring")).tag(AlternateActionMode.alternateRing)
-            }
-            .pickerStyle(.segmented)
-
             HStack {
                 Text(localized("Keyboard"))
                     .frame(width: 68, alignment: .leading)
@@ -1017,6 +1011,7 @@ struct SettingsRootView: View {
                 .onAppear { privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false) }
             case .appearance:
                 AppearanceSettingsView(
+                    alternateActionMode: $trigger.alternateActionMode,
                     theme: $appearance.theme,
                     accent: $appearance.accent,
                     menuSize: $appearance.menuSize,
@@ -2359,6 +2354,7 @@ private struct ShortcutNameField: View {
 }
 
 private struct AppearanceSettingsView: View {
+    @Binding var alternateActionMode: AlternateActionMode
     @Binding var theme: String
     @Binding var accent: String
     @Binding var menuSize: String
@@ -2376,6 +2372,18 @@ private struct AppearanceSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 pageHeader(title: SettingsPage.appearance.title, description: localized("Shape the shared look of the Menu in Editor and Runtime modes."))
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(localized("Alternate Actions")).font(.headline)
+                    Picker(localized("Alternate Actions"), selection: $alternateActionMode) {
+                        Text(localized("Right Click")).tag(AlternateActionMode.rightClick)
+                        Text(localized("Alternate Ring")).tag(AlternateActionMode.alternateRing)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .accessibilityLabel(localized("Alternate Actions"))
+                    .frame(maxWidth: 320)
+                }
 
                 settingsSection(title: localized("Menu Theme"), description: localized("Follow macOS or choose a fixed appearance for the Menu only.")) {
                     Picker(localized("Menu Theme"), selection: $theme) {

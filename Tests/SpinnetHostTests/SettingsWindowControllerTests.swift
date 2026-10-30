@@ -343,6 +343,20 @@ final class SettingsWindowControllerTests: XCTestCase {
         XCTAssertTrue(unavailableMenu.items.first?.title.contains("Unavailable") == true)
     }
 
+    func testAlternateActionsSettingIsOnAppearanceAndKeepsItsSavedValue() throws {
+        let suiteName = "SpinnetHostTests.AlternateActions.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current, defaults: defaults)
+        model.selectPage(.menu)
+        XCTAssertFalse(model.accessibleNames.contains("Alternate Actions"))
+        model.selectPage(.appearance)
+        XCTAssertTrue(model.accessibleNames.contains("Alternate Actions"))
+        model.trigger.alternateActionMode = .alternateRing
+        let reopened = SettingsWindowModel(editor: try makeEditor(), metadata: .current, defaults: defaults)
+        XCTAssertEqual(reopened.trigger.alternateActionMode, .alternateRing)
+    }
+
     func testSettingsAppearanceUpdatesTheRuntimeMenu() throws {
         let editor = try makeEditor()
         let suiteName = "SpinnetHostTests.RuntimeAppearance.\(UUID().uuidString)"

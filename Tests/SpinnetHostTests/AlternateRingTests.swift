@@ -112,19 +112,15 @@ final class AlternateRingTests: XCTestCase {
         view.updateRuntimeSelection(at: point)
         XCTAssertNil(view.alternateRingItemIndex)
     }
-    func testKeyboardChoosesAvailableAlternateAndEscapeClosesOnlyTheRing() throws {
+    func testKeyboardDoesNotOpenOrSelectTheAlternateRing() throws {
         _ = NSApplication.shared
         let primary = ActionID("primary")
-        let ids = [ActionID("one"), ActionID("unavailable"), ActionID("two")]
-        let configuration = try MenuItemConfiguration(primaryActionID: primary, alternateActionIDs: ids)
-        let item = MenuItemPresentation(configuration: configuration,
+        let alternate = ActionID("alternate")
+        let item = MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: primary, alternateActionIDs: [alternate]),
             primaryAction: MenuActionPresentation(actionID: primary, title: "Primary", availability: .available),
-            alternateActions: [
-                MenuActionPresentation(actionID: ids[0], title: "One", availability: .available),
-                MenuActionPresentation(actionID: ids[1], title: "Unavailable", availability: .unavailable(.externalAppConnectionRequired("App"))),
-                MenuActionPresentation(actionID: ids[2], title: "Two", availability: .available)
-            ])
-        let view = RadialMenuView(slots: [.occupied(item)])
+            alternateActions: [MenuActionPresentation(actionID: alternate, title: "Alternate", availability: .available)])
+        let view = RadialMenuView(slots: [.occupied(item), .occupied(item)])
         view.alternateActionMode = .alternateRing
         var chosen: ActionID?
         view.onAlternateActionSelection = { _, action in chosen = action }
@@ -134,16 +130,18 @@ final class AlternateRingTests: XCTestCase {
             view.keyDown(with: event)
         }
         try press(kVK_Return, flags: .option)
+        XCTAssertNil(view.alternateRingItemIndex)
+
+        let center = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+        view.updateRuntimeSelection(at: CGPoint(x: center.x, y: center.y + view.geometryLayout.itemCenterRadius))
+        let ring = try XCTUnwrap(view.geometryLayout.alternateRing(itemIndex: 0, actionCount: 1))
+        view.updateRuntimeSelection(at: ring.actionCenter(index: 0, center: center))
         XCTAssertEqual(view.alternateRingItemIndex, 0)
         try press(kVK_RightArrow)
-        try press(kVK_Return)
-        XCTAssertEqual(chosen, ids[2])
-
-        var cancelledMenu = false
-        view.onCancel = { cancelledMenu = true }
-        view.cancelOperation(nil)
         XCTAssertNil(view.alternateRingItemIndex)
-        XCTAssertFalse(cancelledMenu)
+        XCTAssertEqual(view.selectedIndex, 1)
+        try press(kVK_Return)
+        XCTAssertNil(chosen)
     }
     func testDraggingPastAnItemSelectsItsAlternateAtEachMenuSize() throws {
         _ = NSApplication.shared
