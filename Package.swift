@@ -43,6 +43,7 @@ let package = Package(
         .executableTarget(name: "SpinnetPathInventory", dependencies: ["SpinnetReviewedTools", "SpinnetCore"]),
         .executableTarget(name: "SpinnetVendorOrigin", dependencies: ["SpinnetReviewedTools", "SpinnetCore", "SpinnetPathCancellation"]),
         .executableTarget(name: "SpinnetVendorOriginFixture", dependencies: ["SpinnetReviewedTools", "SpinnetCore"], path: "Tests/Fixtures/Executables/SpinnetVendorOriginFixture"),
+        .executableTarget(name: "SpinnetTaskLogFixture", dependencies: ["SpinnetReviewedTools"], path: "Tests/Fixtures/Executables/SpinnetTaskLogFixture"),
         .executableTarget(name: "SpinnetLaunchServiceInventory", dependencies: ["SpinnetReviewedTools", "SpinnetCore", "SpinnetPathCancellation"]),
         .executableTarget(name: "SpinnetLaunchServiceFixture", dependencies: ["SpinnetReviewedTools", "SpinnetCore"], path: "Tests/Fixtures/Executables/SpinnetLaunchServiceFixture"),
         .executableTarget(name: "SpinnetPathRemoval", dependencies: ["SpinnetReviewedTools", "SpinnetCore", "SpinnetPathCancellation"]),
@@ -100,7 +101,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SpinnetCoreTests",
-            dependencies: ["SpinnetReviewedTools", "SpinnetTestSupport", "SpinnetCore", "SpinnetPluginHelper", "SpinnetPluginTestKit", "SpinnetPrivilegedToolHelper", "SpinnetReceiptInventory", "SpinnetArchiveBootstrap", "SpinnetArchiveDecoder", "SpinnetPathInventory", "SpinnetPathRemoval", "SpinnetVendorOrigin", "SpinnetVendorOriginFixture", "SpinnetLaunchServiceInventory", "SpinnetLaunchServiceFixture"],
+            dependencies: ["SpinnetReviewedTools", "SpinnetTestSupport", "SpinnetCore", "SpinnetPluginHelper", "SpinnetPluginTestKit", "SpinnetPrivilegedToolHelper", "SpinnetReceiptInventory", "SpinnetArchiveBootstrap", "SpinnetArchiveDecoder", "SpinnetPathInventory", "SpinnetPathRemoval", "SpinnetVendorOrigin", "SpinnetVendorOriginFixture", "SpinnetTaskLogFixture", "SpinnetLaunchServiceInventory", "SpinnetLaunchServiceFixture"],
             resources: [.copy("ArchiveFixtures")]
         ),
         .testTarget(

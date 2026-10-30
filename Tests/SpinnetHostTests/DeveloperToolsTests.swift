@@ -89,6 +89,19 @@ final class DeveloperToolsTests: XCTestCase {
         XCTAssertFalse(first.taskLogRecordingFailed)
     }
 
+    func testTaskLogRecordingReportsAnUnwritableStoreWithoutChangingTheSwitch() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let target = root.appendingPathComponent("external")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("TaskLogs"), withDestinationURL: target)
+        let tools = DeveloperTools(diagnostics: { Self.minimalDiagnostics }, dataDirectory: root,
+                                   showLifecycleTestWindow: {}, canRelaunch: false, relaunch: {})
+        tools.setTaskLogRecording(true)
+        XCTAssertFalse(tools.taskLogRecordingEnabled)
+        XCTAssertTrue(tools.taskLogRecordingFailed)
+    }
+
     private static let minimalDiagnostics = DeveloperDiagnostics(
         appPath: "/A.app", bundleIdentifier: "b", version: "1", sourceRevision: "r", processIdentifier: 1,
         arguments: ["--lifecycle-check"], dataDirectory: "/d", plugins: [], refused: []

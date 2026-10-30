@@ -7441,12 +7441,12 @@
         }
       }
     },
-    "Save up to 20 sanitized lines per Task in TaskLogs in the data folder. Changes affect running Tasks on their next output or end; enabling can include recent earlier output. Up to 64 files of 64 KiB are kept even after Tasks are cleared.": {
+    "Save up to 20 sanitized lines per Task in TaskLogs in the data folder. Changes affect running Tasks from this development build on their next output or end; enabling can include recent earlier output. Up to 64 files of 64 KiB are kept even after Tasks are cleared.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "每项任务在数据文件夹的 TaskLogs 中最多保存 20 行经脱敏的内容。更改会在运行中任务的下一次输出或结束时生效；启用后可能包含最近的早期输出。最多保留 64 个文件，每个最多 64 KiB，即使任务已清除也会保留。"
+            "value": "每项任务在数据文件夹的 TaskLogs 中最多保存 20 行经脱敏的内容。更改会在此开发版本中运行的任务下一次输出或结束时生效；启用后可能包含最近的早期输出。最多保留 64 个文件，每个最多 64 KiB，即使任务已清除也会保留。"
           }
         }
       }

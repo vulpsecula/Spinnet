@@ -255,8 +255,8 @@ is reused by the callers.
 In a development build, General → Developer offers Record Task logs, off by
 default. When on, the runner saves a snapshot of up to 20 sanitized lines per
 Task in the data folder's `TaskLogs/<activity_id>.log`; Reveal Data Folder
-opens its parent. Each file is at most 64 KiB, the folder and files are
-owner-only, and the 64 most recently updated files are kept. These snapshots
+locates the data folder in Finder. Each file is at most 64 KiB, the folder and
+files are owner-only, and the 64 most recently updated files are kept. These snapshots
 survive clearing Tasks and can be deleted from Finder. Turning the setting on
 or off affects Tasks already running under this version on their next output
 or when they end. Enabling can include recent output from before the change;

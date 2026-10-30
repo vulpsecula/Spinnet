@@ -91,6 +91,72 @@ final class DeveloperTaskLogTests: XCTestCase {
         XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? NSNumber)?.intValue, 0o600)
     }
 
+    func testImmediateCleanupDoesNotPreventTheFinalDeveloperSnapshot() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let id = "activity_00000000000000000000000000000004"
+        let journalRoot = root.appendingPathComponent("ReviewedTasks")
+        let directory = journalRoot.appendingPathComponent(id)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let record: [String: Any] = ["id": id, "owner": "brew", "pluginName": "Homebrew",
+            "input": ["tool": "homebrew", "operation": "cleanup"], "package": [:],
+            "executable": "/opt/homebrew/bin/brew", "started": Date().timeIntervalSinceReferenceDate,
+            "ended": Date().timeIntervalSinceReferenceDate, "detached": false, "stage": "finished",
+            "log": [], "result": ["outcome": "completed"]]
+        try JSONSerialization.data(withJSONObject: record).write(to: directory.appendingPathComponent("task.json"))
+        let logs = DeveloperTaskLogs(directory: root.appendingPathComponent("TaskLogs"))
+        try logs.setEnabled(true)
+        let output = HomebrewTaskLog()
+        output.append(Data("completed output\n".utf8))
+
+        // The Host may clear the ended journal after the runner publishes its
+        // result but before it finishes writing the independent snapshot.
+        let activities = HostActivities(retention: .immediately)
+        let host = HostReviewedToolTasks(activities: activities, journal: journalRoot,
+            runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil)
+        host.refresh()
+        XCTAssertTrue(activities.list().isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        try logs.record(output, taskID: id)
+        XCTAssertEqual(try String(contentsOf: root.appendingPathComponent("TaskLogs/\(id).log")), "completed output\n")
+    }
+
+    func testRunningRecorderInAnotherProcessObservesSettingChanges() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let id = "activity_00000000000000000000000000000005"
+        let logs = DeveloperTaskLogs(directory: root.appendingPathComponent("TaskLogs"))
+        let file = root.appendingPathComponent("TaskLogs/\(id).log")
+        let runner = Process(), input = Pipe(), acknowledgements = Pipe()
+        runner.executableURL = Bundle(for: Self.self).bundleURL.deletingLastPathComponent().appendingPathComponent("SpinnetTaskLogFixture")
+        runner.arguments = [root.appendingPathComponent("TaskLogs").path, id]
+        runner.standardInput = input; runner.standardOutput = acknowledgements; runner.standardError = FileHandle.nullDevice
+        try runner.run()
+        defer {
+            try? input.fileHandleForWriting.close()
+            if runner.isRunning { runner.terminate(); runner.waitUntilExit() }
+        }
+        func emit(_ line: String) throws {
+            try input.fileHandleForWriting.write(contentsOf: Data((line + "\n").utf8))
+            XCTAssertEqual(acknowledgements.fileHandleForReading.readData(ofLength: 3), Data("OK\n".utf8))
+        }
+
+        try emit("before enabling")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        try logs.setEnabled(true)
+        try emit("API_TOKEN=secret")
+        XCTAssertEqual(try String(contentsOf: file), "before enabling\nAPI_TOKEN=…\n")
+        try logs.setEnabled(false)
+        try emit("after disabling")
+        XCTAssertEqual(try String(contentsOf: file), "before enabling\nAPI_TOKEN=…\n")
+        try logs.setEnabled(true)
+        try emit("enabled again")
+        XCTAssertEqual(try String(contentsOf: file), "before enabling\nAPI_TOKEN=…\nafter disabling\nenabled again\n")
+        try input.fileHandleForWriting.close()
+        runner.waitUntilExit()
+        XCTAssertEqual(runner.terminationStatus, 0)
+    }
+
     func testRecordedFilesAreBoundedAndOldestFilesMakeRoom() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

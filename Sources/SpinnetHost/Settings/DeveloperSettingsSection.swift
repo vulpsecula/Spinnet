@@ -83,7 +83,7 @@ struct DeveloperSettingsSection: View {
 
     private var taskLogRecordingRow: some View {
         let title = localized("Record Task logs")
-        let detail = localized("Save up to 20 sanitized lines per Task in TaskLogs in the data folder. Changes affect running Tasks on their next output or end; enabling can include recent earlier output. Up to 64 files of 64 KiB are kept even after Tasks are cleared.")
+        let detail = localized("Save up to 20 sanitized lines per Task in TaskLogs in the data folder. Changes affect running Tasks from this development build on their next output or end; enabling can include recent earlier output. Up to 64 files of 64 KiB are kept even after Tasks are cleared.")
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
