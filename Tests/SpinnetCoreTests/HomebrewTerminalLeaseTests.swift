@@ -45,6 +45,63 @@ final class HomebrewTerminalLeaseTests: XCTestCase {
         XCTAssertEqual(try HomebrewTaskJournal.load(from: directory).result, .object(["outcome": .string("unknown")]))
     }
 
+    func testImmediateRetentionKeepsTerminalTaskUntilExecutionIsReleased() throws {
+        let directory = try fixture(terminal: true)
+        let root = directory.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let activities = HostActivities(retention: .immediately)
+        let host = HostReviewedToolTasks(activities: activities, journal: root,
+            runnerURL: root.appendingPathComponent("must-not-launch"), nativeInspection: nil, hostIsCurrent: {})
+
+        XCTAssertTrue(host.hasRunningTasks)
+        XCTAssertEqual(activities.list().first?.json.value(atPointer: "/status"), .string("running"))
+        XCTAssertFalse(activities.clearEndedTask(directory.lastPathComponent))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path))
+
+        let previous = try HomebrewTaskProcessLease.load(from: directory)
+        try HomebrewTaskProcessLease(taskID: previous.taskID, runnerPID: previous.runnerPID,
+                                    runnerIdentity: previous.runnerIdentity).save(to: directory)
+        host.refresh()
+
+        XCTAssertFalse(host.hasRunningTasks)
+        XCTAssertTrue(activities.list().isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        let restoredActivities = HostActivities()
+        let restored = HostReviewedToolTasks(activities: restoredActivities, journal: root,
+            runnerURL: root.appendingPathComponent("must-not-launch"), nativeInspection: nil, hostIsCurrent: {})
+        XCTAssertFalse(restored.hasRunningTasks)
+        XCTAssertTrue(restoredActivities.list().isEmpty)
+    }
+
+    func testImmediateRetentionClearsUnlistedRecoveredHistoryWithoutAnEndTime() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let birth = try XCTUnwrap(HomebrewTaskProcess.startIdentity(getpid()))
+        for index in 0...HostActivities.maximumPerPlugin {
+            let ended = index == HostActivities.maximumPerPlugin
+            let id = ended ? "activity_ended" : "activity_running_\(index)"
+            let directory = root.appendingPathComponent(id)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            var record: [String: Any] = ["id": id, "owner": "brew", "pluginName": "Homebrew",
+                "input": ["tool": "homebrew", "operation": "cleanup"], "package": [:],
+                "executable": "/opt/homebrew/bin/brew", "started": Date().timeIntervalSinceReferenceDate,
+                "detached": false, "stage": ended ? "finished" : "running", "log": []]
+            if ended { record["result"] = ["outcome": "completed"] }
+            else { record["runnerPID"] = getpid(); record["runnerIdentity"] = birth }
+            try JSONSerialization.data(withJSONObject: record).write(to: directory.appendingPathComponent("task.json"))
+        }
+        let activities = HostActivities(retention: .immediately)
+        let host = HostReviewedToolTasks(activities: activities, journal: root,
+            runnerURL: root.appendingPathComponent("must-not-launch"), nativeInspection: nil, hostIsCurrent: {})
+        host.refresh()
+
+        XCTAssertTrue(host.hasRunningTasks)
+        XCTAssertEqual(activities.list().count, HostActivities.maximumPerPlugin)
+        XCTAssertTrue(activities.list().allSatisfy { $0.json.value(atPointer: "/status") == .string("running") })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("activity_ended").path))
+    }
+
     private func makeHost(journal: URL) -> HostReviewedToolTasks {
         HostReviewedToolTasks(activities: .init(), journal: journal,
             runnerURL: journal.appendingPathComponent("must-not-launch"),

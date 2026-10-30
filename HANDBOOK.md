@@ -139,8 +139,8 @@ data there, and the Plugin learns nothing from the window.
 The Status Item shows ongoing Effects and Tasks and offers their Stop
 controls. Open a Task there to see its live status, stage, log and output in
 a Host window. Ended Tasks stay listed with their outcome for one hour by default.
-General can change this to one day, seven days, or never; clear one Task or use
-Clear Ended Tasks at any time. Retained history is bounded, and the
+General can change this to immediately, one day, seven days, or never; clear one
+Task or use Clear Ended Tasks at any time. Retained history is bounded, and the
 oldest ended entries make room for new Host Activities. A hidden Status Item
 appears for ongoing work and remains visible while ended Tasks are retained.
 Reviewed Homebrew Tasks use typed, scoped requests and Host

@@ -65,6 +65,7 @@ struct GeneralSettingsView: View {
             }
             Spacer(minLength: 12)
             Picker(localized("Remove Ended Tasks"), selection: $model.endedTaskRetention) {
+                Text(localized("Immediately")).tag(EndedTaskRetention.immediately)
                 Text(localized("After 1 hour")).tag(EndedTaskRetention.oneHour)
                 Text(localized("After 1 day")).tag(EndedTaskRetention.oneDay)
                 Text(localized("After 7 days")).tag(EndedTaskRetention.sevenDays)
