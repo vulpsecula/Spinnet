@@ -7,6 +7,11 @@ enum RadialMenuPresentationMode {
     case editor
 }
 
+enum AlternateActionMode: String, CaseIterable {
+    case rightClick
+    case alternateRing
+}
+
 private final class RadialMenuEditButton: NSButton {
     var contextMenuProvider: (() -> NSMenu?)?
     var draggingEnteredProvider: ((NSDraggingInfo) -> NSDragOperation)?
@@ -101,8 +106,21 @@ final class RadialMenuView: NSView {
         }
     }
 
+    var alternateActionMode: AlternateActionMode = .rightClick {
+        didSet {
+            guard oldValue != alternateActionMode else { return }
+            clearSelection()
+            updateFrameSize(for: layout)
+            needsDisplay = true
+        }
+    }
+    private(set) var alternateRingItemIndex: Int?
+    private(set) var selectedAlternateIndex: Int?
+
     var onPrimarySelection: ((Int) -> Void)?
     var onAlternateSelection: ((Int) -> Void)?
+    var onAlternateActionSelection: ((Int, ActionID) -> Void)?
+    var onPrepareAlternateRing: (() -> Bool)?
     var onCancel: (() -> Void)?
     var onEditorSelection: ((Int) -> Void)?
     var onEditorEditRequested: ((Int) -> Void)?
@@ -343,10 +361,12 @@ final class RadialMenuView: NSView {
 
     override func cancelOperation(_ sender: Any?) {
         guard presentationMode == .runtime else { return }
+        if cancelAlternateRing() { return }
         onCancel?()
     }
 
     func clearSelection() {
+        closeAlternateRing()
         selectedIndex = nil
         if hoveredIndex != nil {
             hoveredIndex = nil
@@ -492,8 +512,17 @@ final class RadialMenuView: NSView {
     }
 
     private func previewFrameSize(for layout: RadialMenuLayout) -> NSSize {
-        let diameter = previewCanvasDiameter ?? layout.contentDiameter
+        let diameter = previewCanvasDiameter ?? (presentationMode == .runtime && alternateActionMode == .alternateRing
+            ? (layout.outerRadius + layout.alternateRingPadding) * 2 : layout.contentDiameter)
         return NSSize(width: diameter, height: diameter)
+    }
+
+    func setRuntimeLayout(_ fittedLayout: RadialMenuLayout) {
+        guard presentationMode == .runtime else { return }
+        layout = fittedLayout
+        invalidateSlotPaths()
+        updateFrameSize(for: layout)
+        needsDisplay = true
     }
 
     private func updateFrameSize(for layout: RadialMenuLayout) {
@@ -517,8 +546,15 @@ final class RadialMenuView: NSView {
     }
 
     func commitRuntimeSelection() {
-        guard presentationMode == .runtime, let selectedIndex else { return }
-        onPrimarySelection?(selectedIndex)
+        guard presentationMode == .runtime else { return }
+        if let itemIndex = alternateRingItemIndex {
+            guard let actionIndex = selectedAlternateIndex,
+                  let actions = slots[itemIndex].item?.alternateActions,
+                  actions.indices.contains(actionIndex), actions[actionIndex].isAvailable else { return }
+            onAlternateActionSelection?(itemIndex, actions[actionIndex].actionID)
+        } else if let selectedIndex {
+            onPrimarySelection?(selectedIndex)
+        }
     }
 
     /// Resolves the payload emitted by both native AppKit drags and SwiftUI's
@@ -613,8 +649,7 @@ final class RadialMenuView: NSView {
     override func mouseUp(with event: NSEvent) {
         guard presentationMode == .editor else {
             updateSelection(at: convert(event.locationInWindow, from: nil))
-            guard let selectedIndex else { return }
-            onPrimarySelection?(selectedIndex)
+            commitRuntimeSelection()
             return
         }
         guard allowsEditing else {
@@ -644,11 +679,30 @@ final class RadialMenuView: NSView {
         guard presentationMode == .runtime else { return }
         updateSelection(at: convert(event.locationInWindow, from: nil))
         guard let selectedIndex else { return }
-        onAlternateSelection?(selectedIndex)
+        if alternateActionMode == .alternateRing {
+            openAlternateRing(for: selectedIndex)
+        } else {
+            onAlternateSelection?(selectedIndex)
+        }
     }
 
     override func keyDown(with event: NSEvent) {
         guard presentationMode == .runtime || allowsEditing else { return }
+        if presentationMode == .runtime, alternateRingItemIndex != nil {
+            switch event.keyCode {
+            case UInt16(kVK_Escape):
+                _ = cancelAlternateRing()
+            case UInt16(kVK_LeftArrow), UInt16(kVK_UpArrow):
+                moveAlternateSelection(by: -1)
+            case UInt16(kVK_RightArrow), UInt16(kVK_DownArrow):
+                moveAlternateSelection(by: 1)
+            case UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter), UInt16(kVK_Space):
+                commitRuntimeSelection()
+            default:
+                super.keyDown(with: event)
+            }
+            return
+        }
         if presentationMode == .editor,
            event.keyCode == UInt16(kVK_ANSI_E),
            event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.command],
@@ -673,7 +727,11 @@ final class RadialMenuView: NSView {
                 onEditorSelection?(index)
                 if slots[index].item != nil { onEditorEditRequested?(index) }
             } else if event.modifierFlags.contains(.option) {
-                onAlternateSelection?(index)
+                if alternateActionMode == .alternateRing {
+                    openAlternateRing(for: index, keyboard: true)
+                } else {
+                    onAlternateSelection?(index)
+                }
             } else {
                 onPrimarySelection?(index)
             }
@@ -1033,8 +1091,79 @@ final class RadialMenuView: NSView {
 
     private func updateSelection(at point: CGPoint) {
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        if alternateActionMode == .alternateRing,
+           hypot(point.x - center.x, point.y - center.y) > layout.outerRadius {
+            let itemIndex = alternateRingItemIndex ?? selectedIndex
+                ?? layout.itemIndex(inDirectionOf: point, center: center)
+            if alternateRingItemIndex == nil { openAlternateRing(for: itemIndex) }
+            if let itemIndex = alternateRingItemIndex,
+               let actions = slots[itemIndex].item?.alternateActions,
+               let ring = layout.alternateRing(itemIndex: itemIndex, actionCount: actions.count) {
+                selectedAlternateIndex = ring.hitTest(point: point, center: center)
+                toolTip = selectedAlternateIndex.map { actions[$0].toolTip }
+                updateAccessibilityValue()
+                needsDisplay = true
+                return
+            }
+        } else {
+            closeAlternateRing()
+        }
         selectedIndex = layout.hitTest(point: point, center: center)
         updateAccessibilityValue()
+    }
+
+    private func openAlternateRing(for index: Int, keyboard: Bool = false) {
+        guard slots.indices.contains(index),
+              let actions = slots[index].item?.alternateActions, !actions.isEmpty else { return }
+        guard onPrepareAlternateRing?() != false,
+              slots.indices.contains(index), let refreshedActions = slots[index].item?.alternateActions,
+              !refreshedActions.isEmpty else { return }
+        selectedIndex = index
+        alternateRingItemIndex = index
+        selectedAlternateIndex = keyboard ? refreshedActions.firstIndex(where: \.isAvailable) : nil
+        updateAccessibilityValue()
+        needsDisplay = true
+    }
+
+    @discardableResult
+    func cancelAlternateRing() -> Bool {
+        guard alternateRingItemIndex != nil else { return false }
+        closeAlternateRing()
+        return true
+    }
+
+    private func closeAlternateRing() {
+        guard alternateRingItemIndex != nil else { return }
+        alternateRingItemIndex = nil
+        selectedAlternateIndex = nil
+        toolTip = nil
+        updateAccessibilityValue()
+        needsDisplay = true
+    }
+
+    func containsRuntimeAction(at point: CGPoint) -> Bool {
+        guard presentationMode == .runtime else { return false }
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        if layout.hitTest(point: point, center: center) != nil { return true }
+        guard let itemIndex = alternateRingItemIndex,
+              let actions = slots[itemIndex].item?.alternateActions,
+              let ring = layout.alternateRing(itemIndex: itemIndex, actionCount: actions.count) else { return false }
+        return ring.hitTest(point: point, center: center) != nil
+    }
+
+    private func moveAlternateSelection(by offset: Int) {
+        guard let itemIndex = alternateRingItemIndex,
+              let actions = slots[itemIndex].item?.alternateActions, !actions.isEmpty else { return }
+        var index = selectedAlternateIndex ?? (offset < 0 ? 0 : actions.count - 1)
+        for _ in actions.indices {
+            index = (index + offset + actions.count) % actions.count
+            if actions[index].isAvailable {
+                selectedAlternateIndex = index
+                updateAccessibilityValue()
+                needsDisplay = true
+                return
+            }
+        }
     }
 
     private func slotDrawingBounds(at index: Int) -> NSRect {
@@ -1070,7 +1199,10 @@ final class RadialMenuView: NSView {
     }
 
     private func updateAccessibilityValue() {
-        if let selectedIndex, slots.indices.contains(selectedIndex) {
+        if let itemIndex = alternateRingItemIndex, let actionIndex = selectedAlternateIndex,
+           let actions = slots[itemIndex].item?.alternateActions, actions.indices.contains(actionIndex) {
+            setAccessibilityValue(actions[actionIndex].accessibilityLabel)
+        } else if let selectedIndex, slots.indices.contains(selectedIndex) {
             let slot = slots[selectedIndex]
             setAccessibilityValue(slot.isInherited ? localized("\(slot.title), from the default Menu") : slot.title)
         } else {
@@ -1093,6 +1225,56 @@ final class RadialMenuView: NSView {
             drawPreviewBackground()
         }
         drawMenuContents(using: layout, in: bounds, dirtyRect: dirtyRect)
+        drawAlternateRing()
+    }
+
+    private func drawAlternateRing() {
+        guard let itemIndex = alternateRingItemIndex,
+              let actions = slots[itemIndex].item?.alternateActions,
+              let ring = layout.alternateRing(itemIndex: itemIndex, actionCount: actions.count) else { return }
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let scale = layout.outerRadius / 142
+        for (index, action) in actions.enumerated() {
+            let range = ring.angleRange(for: index)
+            let path = NSBezierPath()
+            path.appendArc(withCenter: center, radius: ring.outerRadius - 1,
+                           startAngle: 90 - range.upperBound * 180 / .pi,
+                           endAngle: 90 - range.lowerBound * 180 / .pi)
+            path.appendArc(withCenter: center, radius: ring.innerRadius + 1,
+                           startAngle: 90 - range.lowerBound * 180 / .pi,
+                           endAngle: 90 - range.upperBound * 180 / .pi, clockwise: true)
+            path.close()
+            let selected = index == selectedAlternateIndex && action.isAvailable
+            (selected ? editorAccentColor : palette.raised).setFill()
+            path.fill()
+            palette.separator.setStroke()
+            path.lineWidth = 1
+            path.stroke()
+
+            let location = ring.actionCenter(index: index, center: center)
+            let arcWidth = (ring.innerRadius + ring.outerRadius) / 2 * ring.span / CGFloat(actions.count)
+            let width = max(12, min(arcWidth * 0.84, 145 * scale))
+            let height = max(12, (ring.outerRadius - ring.innerRadius) - 8)
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            paragraph.lineBreakMode = .byWordWrapping
+            let color = !action.isAvailable ? palette.secondaryLabel : (selected ? NSColor.white : palette.label)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: max(9, min(14, 11 * scale)), weight: .medium),
+                .foregroundColor: color,
+                .paragraphStyle: paragraph
+            ]
+            let text = NSAttributedString(string: action.title, attributes: attributes)
+            let options: NSString.DrawingOptions = [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
+            let textHeight = min(height, ceil(text.boundingRect(with: NSSize(width: width, height: height),
+                                                                options: options).height))
+            let rect = NSRect(x: location.x - width / 2, y: location.y - textHeight / 2,
+                              width: width, height: textHeight)
+            NSGraphicsContext.saveGraphicsState()
+            path.addClip()
+            text.draw(with: rect, options: options)
+            NSGraphicsContext.restoreGraphicsState()
+        }
     }
 
     override func viewDidChangeEffectiveAppearance() {

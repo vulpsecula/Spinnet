@@ -1291,6 +1291,16 @@
         }
       }
     },
+    "Alternate Ring": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备选环"
+          }
+        }
+      }
+    },
     "Any unsaved changes in %@ will be lost.": {
       "localizations": {
         "zh-Hans": {
@@ -7137,6 +7147,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "右箭头"
+          }
+        }
+      }
+    },
+    "Right Click": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右键点击"
           }
         }
       }

@@ -215,12 +215,14 @@ struct MenuTriggerConfiguration: Equatable {
     var clickDragEnabled: Bool
     var keyboardShortcut: MenuKeyboardShortcut?
     var openingDelay: TimeInterval
+    var alternateActionMode: AlternateActionMode
 
     init(
         mouseButton: Int = defaultMouseButton,
         clickDragEnabled: Bool = false,
         keyboardShortcut: MenuKeyboardShortcut? = nil,
-        openingDelay: TimeInterval = 0
+        openingDelay: TimeInterval = 0,
+        alternateActionMode: AlternateActionMode = .rightClick
     ) {
         self.mouseButton = MouseTriggerButton.isSupported(mouseButton)
             ? mouseButton
@@ -228,6 +230,7 @@ struct MenuTriggerConfiguration: Equatable {
         self.clickDragEnabled = clickDragEnabled
         self.keyboardShortcut = keyboardShortcut
         self.openingDelay = Self.boundedOpeningDelay(openingDelay)
+        self.alternateActionMode = alternateActionMode
     }
 
     static func boundedOpeningDelay(_ delay: TimeInterval) -> TimeInterval {
@@ -248,6 +251,8 @@ struct MenuTriggerConfiguration: Equatable {
         keyboardShortcut = defaults.data(forKey: Keys.keyboardShortcut)
             .flatMap { try? JSONDecoder().decode(MenuKeyboardShortcut.self, from: $0) }
         openingDelay = Self.boundedOpeningDelay(defaults.double(forKey: Keys.openingDelay))
+        alternateActionMode = defaults.string(forKey: Keys.alternateActionMode)
+            .flatMap(AlternateActionMode.init(rawValue:)) ?? .rightClick
     }
 
     func save(to defaults: UserDefaults) {
@@ -263,6 +268,7 @@ struct MenuTriggerConfiguration: Equatable {
             defaults.removeObject(forKey: Keys.keyboardShortcut)
         }
         defaults.set(Self.boundedOpeningDelay(openingDelay), forKey: Keys.openingDelay)
+        defaults.set(alternateActionMode.rawValue, forKey: Keys.alternateActionMode)
     }
 
     private enum Keys {
@@ -270,6 +276,7 @@ struct MenuTriggerConfiguration: Equatable {
         static let clickDragEnabled = "trigger.click-drag-enabled"
         static let keyboardShortcut = "trigger.keyboard-shortcut"
         static let openingDelay = "trigger.opening-delay"
+        static let alternateActionMode = "menu.alternate-action-mode"
     }
 }
 
