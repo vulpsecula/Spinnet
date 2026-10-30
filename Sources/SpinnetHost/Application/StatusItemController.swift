@@ -5,6 +5,7 @@ import SpinnetCore
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let actionTarget: StatusItemActionTarget
     private let activities: HostActivities?
+    private let taskWindows: TaskDetailWindows?
     /// A newer Spinnet release is listed first and opens its release page.
     private let releases: SpinnetReleaseChecksModel?
     private var releaseObservation: AnyCancellable?
@@ -28,8 +29,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.scheduleTick = scheduleTick
         self.activities = activities
         self.releases = releases
+        let taskWindows = activities.map { TaskDetailWindows(activities: $0) }
+        self.taskWindows = taskWindows
         actionTarget = StatusItemActionTarget(openSettings: openSettings, quit: quit,
                                               stop: { activities?.stop($0) },
+                                              openTask: { taskWindows?.show($0) },
+                                              clearTask: { activities?.clearEndedTask($0) },
+                                              clearEndedTasks: { activities?.clearEndedTasks() },
                                               openRelease: { releases?.openAvailableRelease() })
         super.init()
         releaseObservation = releases?.$status.dropFirst().removeDuplicates().sink { [weak self] _ in
@@ -80,8 +86,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         else if openMenu == nil { statusItem.isVisible = false }
     }
 
-    /// Host Activities the Status Item lists: an ended Task is history, not
-    /// ongoing.
+    /// Ended Tasks remain listed but do not keep a hidden Status Item visible.
     private var ongoingActivities: [HostActivity] {
         (activities?.list() ?? []).filter {
             !($0.kind == "task" && $0.detail?.value(atPointer: "/status") == .string("ended"))
@@ -130,9 +135,16 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(settingsItem)
         menu.addItem(.separator())
 
-        for activity in ongoingActivities {
-            let heading = NSMenuItem(title: activity.localizedName, action: nil, keyEquivalent: "")
-            heading.isEnabled = false
+        let listedActivities = activities?.list() ?? []
+        for activity in listedActivities {
+            let ended = activity.kind == "task" && activity.detail?.value(atPointer: "/status") == .string("ended")
+            let heading = NSMenuItem(title: activity.localizedName,
+                action: activity.kind == "task" ? #selector(StatusItemActionTarget.openTask(_:)) : nil, keyEquivalent: "")
+            heading.isEnabled = activity.kind == "task"
+            if activity.kind == "task" {
+                heading.target = actionTarget; heading.representedObject = activity.id
+                heading.setAccessibilityLabel(localized("Open Task details for \(activity.localizedName)"))
+            }
             menu.addItem(heading)
             let status = NSMenuItem(title: activity.localizedStatus, action: nil, keyEquivalent: "")
             status.isEnabled = false; status.indentationLevel = 1
@@ -146,12 +158,26 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                 limit.isEnabled = false; limit.indentationLevel = 1
                 menu.addItem(limit)
             }
-            let stop = NSMenuItem(title: localized("Stop \(activity.localizedName)"), action: #selector(StatusItemActionTarget.stop(_:)), keyEquivalent: "")
-            stop.target = actionTarget; stop.representedObject = activity.id
-            stop.setAccessibilityHelp(localized("Stop this Host-owned activity."))
-            stop.isEnabled = activity.canStop
-            menu.addItem(stop)
+            if ended {
+                let clear = NSMenuItem(title: localized("Clear \(activity.localizedName)"), action: #selector(StatusItemActionTarget.clearTask(_:)), keyEquivalent: "")
+                clear.target = actionTarget; clear.representedObject = activity.id
+                clear.setAccessibilityHelp(localized("Clear this ended Task."))
+                menu.addItem(clear)
+            } else {
+                let stop = NSMenuItem(title: localized("Stop \(activity.localizedName)"), action: #selector(StatusItemActionTarget.stop(_:)), keyEquivalent: "")
+                stop.target = actionTarget; stop.representedObject = activity.id
+                stop.setAccessibilityHelp(localized("Stop this Host-owned activity."))
+                stop.isEnabled = activity.canStop
+                menu.addItem(stop)
+            }
             menu.addItem(.separator())
+        }
+
+        if listedActivities.contains(where: { $0.kind == "task" && $0.detail?.value(atPointer: "/status") == .string("ended") }) {
+            let clear = NSMenuItem(title: localized("Clear Ended Tasks"), action: #selector(StatusItemActionTarget.clearEndedTasks(_:)), keyEquivalent: "")
+            clear.target = actionTarget
+            clear.setAccessibilityHelp(localized("Clear all ended Tasks."))
+            menu.addItem(clear); menu.addItem(.separator())
         }
 
         services.append(to: menu)
@@ -210,13 +236,20 @@ private final class StatusItemActionTarget: NSObject {
     private let openSettingsAction: () -> Void
     private let quitAction: () -> Void
     private let stopAction: (String) -> Void
+    private let openTaskAction: (String) -> Void
+    private let clearTaskAction: (String) -> Void
+    private let clearEndedTasksAction: () -> Void
     private let openReleaseAction: () -> Void
 
     init(openSettings: @escaping () -> Void, quit: @escaping () -> Void, stop: @escaping (String) -> Void,
+         openTask: @escaping (String) -> Void, clearTask: @escaping (String) -> Void, clearEndedTasks: @escaping () -> Void,
          openRelease: @escaping () -> Void) {
         openSettingsAction = openSettings
         quitAction = quit
         stopAction = stop
+        openTaskAction = openTask
+        clearTaskAction = clearTask
+        clearEndedTasksAction = clearEndedTasks
         openReleaseAction = openRelease
     }
 
@@ -236,4 +269,13 @@ private final class StatusItemActionTarget: NSObject {
         guard let id = sender.representedObject as? String else { return }
         stopAction(id)
     }
+    @objc func openTask(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        openTaskAction(id)
+    }
+    @objc func clearTask(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        clearTaskAction(id)
+    }
+    @objc func clearEndedTasks(_ sender: Any?) { clearEndedTasksAction() }
 }
