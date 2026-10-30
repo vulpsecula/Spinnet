@@ -71,7 +71,9 @@ The start outcome reports only whether the Task started. Reopening calls
 {every: 1, deliver: true})`. This visible-page source reads own activity
 state at least one second apart, without a resident Plugin helper.
 The latest result may show stages, elapsed seconds and at most 20 redacted
-lines of 200 characters. Task stages are hints, progress is indeterminate.
+lines of 200 characters, summarized from retained Task Output. If the output
+tail is truncated, fewer earlier lines may be available. Task stages are
+hints, progress is indeterminate.
 When Homebrew emits a download progress bar, its latest completed
 carriage-return frame replaces the current log line. Printable characters
 are retained and terminal control sequences are removed before publication.

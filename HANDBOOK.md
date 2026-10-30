@@ -137,7 +137,7 @@ Plugin to open the Host-rendered history window: the user reads their own
 data there, and the Plugin learns nothing from the window.
 
 The Status Item shows ongoing Effects and Tasks and offers their Stop
-controls. Open a Task there to see its live status, stage, log and output in
+controls. Open a Task there to see its live status, stage and output in
 a Host window. Ended Tasks stay listed with their outcome for one hour by default.
 General can change this to one day, seven days, or never; clear one Task or use
 Clear Ended Tasks at any time. Retained history is bounded, and the
@@ -251,6 +251,17 @@ the window is excluded from release builds.
 `Tools/` holds the Swift implementations of developer-only probes. Shared
 validation such as [background-helper signature checks](script/check_background_helper.sh)
 is reused by the callers.
+
+In a development build, General → Developer offers Record Task logs, off by
+default. When on, the runner saves a snapshot of up to 20 sanitized lines per
+Task in the data folder's `TaskLogs/<activity_id>.log`; Reveal Data Folder
+opens its parent. Each file is at most 64 KiB, the folder and files are
+owner-only, and the 64 most recently updated files are kept. These snapshots
+survive clearing Tasks and can be deleted from Finder. Turning the setting on
+or off affects Tasks already running under this version on their next output
+or when they end. Enabling can include recent output from before the change;
+disabling leaves previously recorded files intact. Task Output and recovery
+continue independently. Release builds do not record these developer files.
 
 | Entry point | Implementation | Purpose |
 | --- | --- | --- |

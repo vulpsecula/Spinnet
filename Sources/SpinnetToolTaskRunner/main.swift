@@ -144,6 +144,12 @@ do {
           record.steps == nil || steps.allSatisfy({ $0.operation == "upgradeSelected" }) || (record.stepMetadata?.count == steps.count && steps.count <= 8 && steps.allSatisfy({ ["cleanup", "link"].contains($0.operation) })),
           try HomebrewReadProfile.discover().path == record.executable else { exit(77) }
     let lock = NSLock(), finished = DispatchSemaphore(value: 0), log = HomebrewTaskLog()
+    #if DEBUG
+    let developerLogs = DeveloperTaskLogs(directory: directory.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("TaskLogs"))
+    func saveDeveloperLog() { try? developerLogs.record(log, taskID: record.id) }
+    #else
+    func saveDeveloperLog() {}
+    #endif
     var sleepAssertion: IOPMAssertionID = 0
     guard IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleSystemSleep as CFString,
         IOPMAssertionLevel(kIOPMAssertionLevelOn), "Spinnet Homebrew Task" as CFString, &sleepAssertion) == kIOReturnSuccess else { exit(70) }
@@ -209,7 +215,7 @@ do {
             }
             log.append(Data("Reviewed operation: brew autoremove\n".utf8))
             if case .string(let output)? = metadata.value(atPointer: "/stdout") { log.append(Data(output.utf8)) }
-            record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; try record.save(to: directory)
+            record.captureOutput(log); try record.save(to: directory); saveDeveloperLog()
         }
         let adopt = metadata.value(atPointer: "/adopt") == .bool(true)
         let arguments = step.nativeArguments(adopt: adopt)
@@ -227,9 +233,9 @@ do {
         try reserveProcess()
         do { try process.start(output: { data in
             lock.lock(); defer { lock.unlock() }
-            log.append(data); record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated
+            log.append(data); record.captureOutput(log)
             record.stage = server.isRequestingPassword ? "waiting for administrator password" : log.stage
-            try? record.save(to: directory)
+            try? record.save(to: directory); saveDeveloperLog()
         }, finished: { result in
             reapedProcess(result)
         }) } catch { noSpawn(process); throw error }
@@ -246,11 +252,11 @@ do {
         if lastResult?.outcome != "completed" { break }
     }
     lock.lock()
-    log.finish(); record.log = log.lines; record.output = log.output; record.outputTruncated = log.outputTruncated; record.stage = log.stage
+    log.finish(); record.captureOutput(log); record.stage = log.stage
     var outcome: [String: JSONValue] = ["outcome": .string(lastResult?.outcome ?? "unknown")]
     if let stop = lastResult?.stop { outcome["stop"] = .string(stop) }
     if lastResult?.outcome == "failed" { outcome["reason"] = .string("tool_failed") }
     record.result = .object(outcome); record.ended = Date()
-    try record.save(to: directory); lock.unlock()
+    try record.save(to: directory); saveDeveloperLog(); lock.unlock()
 
 } catch { exit(70) }

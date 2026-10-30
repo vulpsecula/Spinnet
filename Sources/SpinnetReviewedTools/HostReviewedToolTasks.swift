@@ -389,11 +389,22 @@ public final class HostReviewedToolTasks {
         let state = held ? stopping ? "stopping" : "running" : "ended"
         let input = try? HomebrewTaskInput(record.input)
         let preventsSleep = held && (!orphanedTasks.contains(record.id) || recoveryPowerReleases[record.id] != nil)
+        // New journals keep just the sanitized output, so the Plugin-facing
+        // short summary does not require a second copy on disk. Legacy
+        // journals keep their original summary, including those without output.
+        let summary: [String]
+        if !record.log.isEmpty {
+            summary = record.log
+        } else if let output = record.output, !output.isEmpty {
+            summary = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        } else {
+            summary = []
+        }
         var detail: [String: JSONValue] = ["id": .string(record.id), "kind": .string("task"), "tool": .string("homebrew"),
             "name": .string(String("\(input?.displayOperation ?? "Task") \(input?.name ?? "")".prefix(256))), "status": .string(state),
             "operation": .string(input?.operation ?? "unknown"), "stage": .string(stopping && held ? "stopping" : record.stage),
             "elapsed_seconds": .number(max(0, (held ? Date() : record.ended ?? Date()).timeIntervalSince(record.started)).rounded(.down)),
-            "log": .array(record.log.suffix(20).map { .string(String($0.prefix(200))) }), "prevents_idle_sleep": .bool(preventsSleep)]
+            "log": .array(summary.suffix(20).map { .string(String($0.prefix(200))) }), "prevents_idle_sleep": .bool(preventsSleep)]
         if let input, !input.name.isEmpty { detail["package"] = .object(["name": .string(input.name), "kind": .string(input.kind)]) }
         if let output = record.output {
             detail["output"] = .string(HomebrewCommandOutput.tail(output))
@@ -695,6 +706,13 @@ public struct HomebrewTaskJournal: Codable {
     public var executionModel: String? = nil
     public var privilegePlan: HomebrewPrivilegePlan? = nil
     public var stepMetadata: [JSONValue]? = nil
+    /// Store the full bounded transcript once; the short Plugin summary is
+    /// projected from it by the Host rather than duplicated in new journals.
+    public mutating func captureOutput(_ taskLog: HomebrewTaskLog) {
+        log = []
+        output = taskLog.output
+        outputTruncated = taskLog.outputTruncated
+    }
     public func save(to directory: URL) throws {
         let data = try JSONEncoder().encode(self)
         guard data.count <= 2 * 1024 * 1024 else { throw PluginHostServiceError.tool(.outputTooLarge) }

@@ -9,12 +9,13 @@ struct DeveloperSettingsSection: View {
         localized("Developer"),
         localized("Relaunch Spinnet"),
         localized("Lifecycle Test Window"),
+        localized("Record Task logs"),
         localized("Copy Diagnostics"),
         localized("Reveal Data Folder"),
         localized("Copy Log Stream Command")
     ] }
 
-    let tools: DeveloperTools
+    @ObservedObject var tools: DeveloperTools
     @State private var diagnostics: DeveloperDiagnostics?
     @State private var notice: String?
 
@@ -42,6 +43,8 @@ struct DeveloperSettingsSection: View {
                 }
 
                 section(localized("Diagnostics")) {
+                    taskLogRecordingRow
+                    Divider()
                     if let diagnostics {
                         valueRow(localized("App"), diagnostics.appPath)
                         Divider()
@@ -76,6 +79,29 @@ struct DeveloperSettingsSection: View {
                 }
             }
         .onAppear { diagnostics = tools.diagnostics() }
+    }
+
+    private var taskLogRecordingRow: some View {
+        let title = localized("Record Task logs")
+        let detail = localized("Save up to 20 sanitized lines per Task in TaskLogs in the data folder. Changes affect running Tasks on their next output or end; enabling can include recent earlier output. Up to 64 files of 64 KiB are kept even after Tasks are cleared.")
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.body.weight(.medium))
+                    Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 12)
+                Toggle(title, isOn: Binding(get: { tools.taskLogRecordingEnabled }, set: { tools.setTaskLogRecording($0) }))
+                    .toggleStyle(.switch).labelsHidden()
+                    .accessibilityLabel(title).accessibilityHint(detail)
+            }
+            if tools.taskLogRecordingFailed {
+                Text(localized("Could not change Task log recording."))
+                    .font(.caption).foregroundStyle(.red)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
     }
 
     private func run(_ confirmation: String, _ action: () -> Void) {

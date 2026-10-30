@@ -72,6 +72,23 @@ final class DeveloperToolsTests: XCTestCase {
         XCTAssertFalse(relaunched)
     }
 
+    func testTaskLogRecordingCanBeChangedAndPersists() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        func tools() -> DeveloperTools {
+            DeveloperTools(diagnostics: { Self.minimalDiagnostics }, dataDirectory: root,
+                           showLifecycleTestWindow: {}, canRelaunch: false, relaunch: {})
+        }
+        let first = tools()
+        XCTAssertFalse(first.taskLogRecordingEnabled)
+        first.setTaskLogRecording(true)
+        XCTAssertTrue(first.taskLogRecordingEnabled)
+        XCTAssertTrue(tools().taskLogRecordingEnabled)
+        first.setTaskLogRecording(false)
+        XCTAssertFalse(tools().taskLogRecordingEnabled)
+        XCTAssertFalse(first.taskLogRecordingFailed)
+    }
+
     private static let minimalDiagnostics = DeveloperDiagnostics(
         appPath: "/A.app", bundleIdentifier: "b", version: "1", sourceRevision: "r", processIdentifier: 1,
         arguments: ["--lifecycle-check"], dataDirectory: "/d", plugins: [], refused: []

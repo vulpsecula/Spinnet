@@ -2851,6 +2851,16 @@
         }
       }
     },
+    "Could not change Task log recording.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法更改任务日志记录设置。"
+          }
+        }
+      }
+    },
     "Credential": {
       "localizations": {
         "zh-Hans": {
@@ -6701,6 +6711,16 @@
         }
       }
     },
+    "Record Task logs": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录任务日志"
+          }
+        }
+      }
+    },
     "Record keyboard shortcut": {
       "localizations": {
         "zh-Hans": {
@@ -7407,6 +7427,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "存储到文件夹"
+          }
+        }
+      }
+    },
+    "Save up to 20 sanitized lines per Task in TaskLogs in the data folder. Changes affect running Tasks on their next output or end; enabling can include recent earlier output. Up to 64 files of 64 KiB are kept even after Tasks are cleared.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每项任务在数据文件夹的 TaskLogs 中最多保存 20 行经脱敏的内容。更改会在运行中任务的下一次输出或结束时生效；启用后可能包含最近的早期输出。最多保留 64 个文件，每个最多 64 KiB，即使任务已清除也会保留。"
           }
         }
       }

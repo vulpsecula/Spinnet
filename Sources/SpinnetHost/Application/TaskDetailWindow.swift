@@ -83,14 +83,9 @@ private struct TaskDetailContent: View {
         let detail = activity.detail
         let stage = detail?.value(atPointer: "/stage")?.taskText ?? ""
         let output = detail?.value(atPointer: "/output")?.taskText ?? ""
-        let log: String = {
-            guard case .array(let lines)? = detail?.value(atPointer: "/log") else { return "" }
-            return lines.compactMap(\.taskText).joined(separator: "\n")
-        }()
         VStack(alignment: .leading, spacing: 12) {
             TaskDetailSummary(name: activity.localizedName, plugin: activity.pluginName,
                               status: activity.localizedStatus, stage: stage)
-            TaskDetailLog(text: log)
             TaskDetailOutput(text: output, truncated: detail?.value(atPointer: "/output_truncated") == .bool(true))
             HStack {
                 Spacer()
@@ -123,21 +118,6 @@ private struct TaskDetailSummary: View {
             HStack { Text(localized("Stage")); Text(stage) }
         }
         .textSelection(.enabled)
-    }
-}
-
-private struct TaskDetailLog: View {
-    let text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(localized("Task log")).font(.headline)
-            ScrollView {
-                Text(text).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
-            }
-            .frame(maxHeight: 100)
-            .accessibilityLabel(localized("Task log"))
-        }
     }
 }
 
