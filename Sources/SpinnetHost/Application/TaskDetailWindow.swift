@@ -82,7 +82,11 @@ private struct TaskDetailContent: View {
         let activity = model.activity
         let detail = activity.detail
         let stage = detail?.value(atPointer: "/stage")?.taskText ?? ""
-        let output = detail?.value(atPointer: "/output")?.taskText ?? ""
+        let output: String = {
+            if let text = detail?.value(atPointer: "/output")?.taskText, !text.isEmpty { return text }
+            guard case .array(let lines)? = detail?.value(atPointer: "/log") else { return "" }
+            return lines.compactMap(\.taskText).joined(separator: "\n")
+        }()
         VStack(alignment: .leading, spacing: 12) {
             TaskDetailSummary(name: activity.localizedName, plugin: activity.pluginName,
                               status: activity.localizedStatus, stage: stage)

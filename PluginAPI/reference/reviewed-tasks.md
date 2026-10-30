@@ -100,11 +100,14 @@ Stop control for detached work after revocation, disable or removal; the
 Plugin receives nothing more. Same-scope updates may retain ownership;
 scope changes detach it. Normal exit offers Wait and Quit (default), Stop
 and Quit, or Don't Quit, with no logout timeout. Waiting keeps Stop
-available. Ended Tasks remain available in the Status Item until the user
-clears them or the Host quits. The Host may evict the oldest ended entries to
-make room for new work within the existing 8-activity-per-Plugin and 64 total
-activity limits. A Plugin may list or stop only its own entries; clearing is
-controlled by the user.
+available. General retains ended Tasks for one hour by default; the user can
+choose to clear them immediately, after one hour, one day, seven days, or
+never. Never means no time-based expiry. While retained, ended Tasks remain
+available in the Status Item across Host launches. The user can clear one
+ended Task or all ended Tasks. The Host may also evict the oldest ended
+entries to make room for new Host Activities within the existing
+8-activity-per-Plugin and 64 total activity limits. A Plugin may list or
+stop only its own entries; it cannot clear ended Tasks.
 
 Output removes ANSI/control sequences, home paths, URL userinfo/query
 strings and credential-key/Authorization forms before journal publication.

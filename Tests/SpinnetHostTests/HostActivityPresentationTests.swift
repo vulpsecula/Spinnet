@@ -1,6 +1,7 @@
 import AppKit
 import SpinnetCore
 import SpinnetPluginTestKit
+import SpinnetReviewedTools
 import XCTest
 @testable import SpinnetHost
 
@@ -109,7 +110,9 @@ final class HostActivityPresentationTests: XCTestCase {
         defer { window.close() }
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
-        let output = try XCTUnwrap(descendants(try XCTUnwrap(window.contentView)).compactMap { $0 as? NSTextView }.first)
+        let outputViews = descendants(try XCTUnwrap(window.contentView)).compactMap { $0 as? NSTextView }
+        XCTAssertEqual(outputViews.count, 1, "The Task has one output region even when a log is present")
+        let output = try XCTUnwrap(outputViews.first)
         XCTAssertTrue(output.isSelectable)
         XCTAssertFalse(output.isEditable)
         XCTAssertEqual(output.string, "first output")
@@ -118,6 +121,46 @@ final class HostActivityPresentationTests: XCTestCase {
         activities.updateTask(task.id, status: "Running", detail: detail("installing", "new output"))
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         XCTAssertEqual(output.string, "new output")
+        activities.updateTask(task.id, status: "Running", detail: detail("finishing", ""))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertEqual(output.string, "latest log")
+    }
+
+    func testTaskWindowShowsRecoveredLegacyLogWhenOutputIsMissing() throws {
+        _ = NSApplication.shared
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let id = "activity_legacy_log", directory = root.appendingPathComponent(id)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ended = Date().timeIntervalSinceReferenceDate
+        let journal: [String: Any] = [
+            "id": id, "owner": "brew", "pluginName": "Homebrew",
+            "input": ["tool": "homebrew", "operation": "cleanup"], "package": [:],
+            "executable": "/opt/homebrew/bin/brew", "started": ended, "ended": ended,
+            "detached": false, "stage": "finished", "log": ["First legacy line", "Second legacy line"],
+            "result": ["outcome": "completed"]
+        ]
+        try JSONSerialization.data(withJSONObject: journal).write(to: directory.appendingPathComponent("task.json"))
+
+        let activities = HostActivities(retention: .never)
+        let host = HostReviewedToolTasks(activities: activities, journal: root,
+                                         runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil)
+        let activity = try XCTUnwrap(activities.list().first { $0.id == id })
+        let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
+        let item = try XCTUnwrap(controller.makeMenu().items.first { $0.representedObject as? String == id && $0.action != nil })
+        NSApp.sendAction(try XCTUnwrap(item.action), to: item.target, from: item)
+        let window = try XCTUnwrap(NSApp.windows.first { $0.title == activity.localizedName && $0.isVisible })
+        defer { window.close() }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        let outputs = descendants(try XCTUnwrap(window.contentView)).compactMap { $0 as? NSTextView }
+        XCTAssertEqual(outputs.count, 1)
+        let output = try XCTUnwrap(outputs.first)
+        XCTAssertEqual(output.string, "First legacy line\nSecond legacy line")
+        XCTAssertTrue(output.isSelectable)
+        XCTAssertFalse(output.isEditable)
+        withExtendedLifetime(host) {}
     }
 
     func testTaskWindowStopUsesTheHostActivityStopControl() throws {
