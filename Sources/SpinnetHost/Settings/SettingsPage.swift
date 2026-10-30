@@ -104,7 +104,7 @@ extension SettingsPage {
                 accessibilityIdentifier: NSUserInterfaceItemIdentifier("settings.page.appearance"),
                 contentAccessibilityNames: { _ in
                     [
-                        localized("Appearance"), localized("Menu Theme"), localized("Accent Colour"), localized("Menu Size"), localized("Menu Font"), localized("Menu Font Weight"),
+                        localized("Appearance"), localized("Alternate Actions"), localized("Menu Theme"), localized("Accent Colour"), localized("Menu Size"), localized("Menu Font"), localized("Menu Font Weight"),
                         localized("Undo Appearance change"), localized("Redo Appearance change"), localized("Reset Appearance")
                     ]
                 }

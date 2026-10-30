@@ -309,7 +309,7 @@ final class RadialMenuView: NSView {
             setAccessibilityRole(.menu)
             setAccessibilityLabel(localized("Spinnet Menu"))
             setAccessibilityHelp(
-                localized("Use the arrow keys and Return for a Primary Action. Right-click or Option-Return to choose from the configured Actions.")
+                localized("Use the arrow keys and Return for a Primary Action. Right-click to choose from the configured Actions.")
             )
         case .editor:
             setAccessibilityRole(.group)
@@ -689,19 +689,17 @@ final class RadialMenuView: NSView {
     override func keyDown(with event: NSEvent) {
         guard presentationMode == .runtime || allowsEditing else { return }
         if presentationMode == .runtime, alternateRingItemIndex != nil {
-            switch event.keyCode {
-            case UInt16(kVK_Escape):
+            if event.keyCode == UInt16(kVK_Escape) {
                 _ = cancelAlternateRing()
-            case UInt16(kVK_LeftArrow), UInt16(kVK_UpArrow):
-                moveAlternateSelection(by: -1)
-            case UInt16(kVK_RightArrow), UInt16(kVK_DownArrow):
-                moveAlternateSelection(by: 1)
-            case UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter), UInt16(kVK_Space):
-                commitRuntimeSelection()
-            default:
-                super.keyDown(with: event)
+                return
             }
-            return
+            switch event.keyCode {
+            case UInt16(kVK_LeftArrow), UInt16(kVK_UpArrow), UInt16(kVK_RightArrow), UInt16(kVK_DownArrow),
+                 UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter), UInt16(kVK_Space):
+                closeAlternateRing()
+            default:
+                break
+            }
         }
         if presentationMode == .editor,
            event.keyCode == UInt16(kVK_ANSI_E),
@@ -727,9 +725,7 @@ final class RadialMenuView: NSView {
                 onEditorSelection?(index)
                 if slots[index].item != nil { onEditorEditRequested?(index) }
             } else if event.modifierFlags.contains(.option) {
-                if alternateActionMode == .alternateRing {
-                    openAlternateRing(for: index, keyboard: true)
-                } else {
+                if alternateActionMode == .rightClick {
                     onAlternateSelection?(index)
                 }
             } else {
@@ -1112,7 +1108,7 @@ final class RadialMenuView: NSView {
         updateAccessibilityValue()
     }
 
-    private func openAlternateRing(for index: Int, keyboard: Bool = false) {
+    private func openAlternateRing(for index: Int) {
         guard slots.indices.contains(index),
               let actions = slots[index].item?.alternateActions, !actions.isEmpty else { return }
         guard onPrepareAlternateRing?() != false,
@@ -1120,7 +1116,7 @@ final class RadialMenuView: NSView {
               !refreshedActions.isEmpty else { return }
         selectedIndex = index
         alternateRingItemIndex = index
-        selectedAlternateIndex = keyboard ? refreshedActions.firstIndex(where: \.isAvailable) : nil
+        selectedAlternateIndex = nil
         updateAccessibilityValue()
         needsDisplay = true
     }
@@ -1149,21 +1145,6 @@ final class RadialMenuView: NSView {
               let actions = slots[itemIndex].item?.alternateActions,
               let ring = layout.alternateRing(itemIndex: itemIndex, actionCount: actions.count) else { return false }
         return ring.hitTest(point: point, center: center) != nil
-    }
-
-    private func moveAlternateSelection(by offset: Int) {
-        guard let itemIndex = alternateRingItemIndex,
-              let actions = slots[itemIndex].item?.alternateActions, !actions.isEmpty else { return }
-        var index = selectedAlternateIndex ?? (offset < 0 ? 0 : actions.count - 1)
-        for _ in actions.indices {
-            index = (index + offset + actions.count) % actions.count
-            if actions[index].isAvailable {
-                selectedAlternateIndex = index
-                updateAccessibilityValue()
-                needsDisplay = true
-                return
-            }
-        }
     }
 
     private func slotDrawingBounds(at index: Int) -> NSRect {

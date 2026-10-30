@@ -9511,12 +9511,12 @@
         }
       }
     },
-    "Use the arrow keys and Return for a Primary Action. Right-click or Option-Return to choose from the configured Actions.": {
+    "Use the arrow keys and Return for a Primary Action. Right-click to choose from the configured Actions.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用方向键和 Return 键执行主要动作。右键点按或按 Option-Return 从已配置的动作中选择。"
+            "value": "使用方向键和 Return 键执行主要动作。右键点按从已配置的动作中选择。"
           }
         }
       }
