@@ -17,14 +17,23 @@ enum LoginItemStatus: Equatable {
 /// The system's login item service for Spinnet's own app bundle.
 protocol LoginItemService: AnyObject {
     var status: LoginItemStatus { get }
+    func requestStatus(completion: @escaping (LoginItemStatus) -> Void)
     func register() throws
     func unregister() throws
     func openSystemSettingsLoginItems()
 }
 
+extension LoginItemService {
+    func requestStatus(completion: @escaping (LoginItemStatus) -> Void) { completion(status) }
+}
+
 /// `SMAppService.mainApp`: the login item for this app bundle itself.
 final class AppBundleLoginItemService: LoginItemService {
+    private let statusQueue = DispatchQueue(label: "com.vulpsecula.Spinnet.login-item-status", qos: .utility)
+    private let serviceLock = NSLock()
     var status: LoginItemStatus {
+        serviceLock.lock()
+        defer { serviceLock.unlock() }
         switch SMAppService.mainApp.status {
         case .enabled: return .enabled
         case .requiresApproval: return .requiresApproval
@@ -34,8 +43,20 @@ final class AppBundleLoginItemService: LoginItemService {
         }
     }
 
-    func register() throws { try SMAppService.mainApp.register() }
-    func unregister() throws { try SMAppService.mainApp.unregister() }
+    func requestStatus(completion: @escaping (LoginItemStatus) -> Void) {
+        statusQueue.async { completion(self.status) }
+    }
+
+    func register() throws {
+        serviceLock.lock()
+        defer { serviceLock.unlock() }
+        try SMAppService.mainApp.register()
+    }
+    func unregister() throws {
+        serviceLock.lock()
+        defer { serviceLock.unlock() }
+        try SMAppService.mainApp.unregister()
+    }
     func openSystemSettingsLoginItems() { SMAppService.openSystemSettingsLoginItems() }
 }
 
@@ -44,6 +65,13 @@ final class AppBundleLoginItemService: LoginItemService {
 /// reported rather than shown as done.
 final class LaunchAtLoginModel: ObservableObject {
     private let service: LoginItemService
+    private lazy var backgroundRefresh = BackgroundStatusRefresh<LoginItemStatus>(
+        request: { [service] completion in service.requestStatus(completion: completion) },
+        apply: { [weak self] status in
+            guard let self, self.status != status else { return }
+            self.status = status
+        }
+    )
     @Published private(set) var status: LoginItemStatus
     @Published private(set) var failure: String?
 
@@ -64,9 +92,15 @@ final class LaunchAtLoginModel: ObservableObject {
 
     var needsApproval: Bool { status == .requiresApproval }
 
-    func refresh() { status = service.status }
+    func refresh() {
+        backgroundRefresh.invalidate()
+        status = service.status
+    }
+
+    func refreshAsynchronously() { backgroundRefresh.refresh() }
 
     func setEnabled(_ enabled: Bool) {
+        backgroundRefresh.invalidate()
         do {
             if enabled { try service.register() } else { try service.unregister() }
             failure = nil

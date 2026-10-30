@@ -60,8 +60,19 @@ final class PrivacyPermissionsModel: ObservableObject {
     private let screenRecordingPermissionCheck: () -> Bool
     private let screenRecordingPermissionRequest: () -> Bool
     private let backgroundOperationsCheck: () -> HostBackgroundOperationsStatus
+    private let backgroundOperationsRequest: (@escaping (HostBackgroundOperationsStatus) -> Void) -> Void
     private let backgroundOperationsEnable: () throws -> Void
     private let openBackgroundOperationsSettings: () -> Void
+    private lazy var backgroundStatusRefresh = BackgroundStatusRefresh<HostBackgroundOperationsStatus>(
+        request: backgroundOperationsRequest,
+        apply: { [weak self] status in
+            guard let self else { return }
+            if status == .enabled { self.backgroundOperationsError = nil }
+            guard status != self.backgroundOperationsStatus else { return }
+            self.backgroundOperationsStatus = status
+            self.onAuthorityChanged?()
+        }
+    )
 
     init(
         grantStore: PluginCapabilityGrantStore,
@@ -71,10 +82,12 @@ final class PrivacyPermissionsModel: ObservableObject {
         screenRecordingPermissionCheck: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
         screenRecordingPermissionRequest: @escaping () -> Bool = { CGRequestScreenCaptureAccess() },
         backgroundOperationsCheck: @escaping () -> HostBackgroundOperationsStatus = HostBackgroundOperationsStatus.current,
+        backgroundOperationsRequest: ((@escaping (HostBackgroundOperationsStatus) -> Void) -> Void)? = nil,
         backgroundOperationsEnable: @escaping () throws -> Void = HomebrewSystemAuthorization.prepareService,
         openBackgroundOperationsSettings: @escaping () -> Void = { SMAppService.openSystemSettingsLoginItems() }
     ) {
         self.backgroundOperationsCheck = backgroundOperationsCheck
+        self.backgroundOperationsRequest = backgroundOperationsRequest ?? { completion in completion(backgroundOperationsCheck()) }
         self.backgroundOperationsEnable = backgroundOperationsEnable
         self.openBackgroundOperationsSettings = openBackgroundOperationsSettings
         backgroundOperationsStatus = backgroundOperationsCheck()
@@ -111,6 +124,13 @@ final class PrivacyPermissionsModel: ObservableObject {
 
     // MARK: System Permissions
 
+    /// Reads the background component without waiting in the App activation
+    /// callback. Production supplies the worker request; direct model callers
+    /// retain their injected synchronous check unless they supply one too.
+    func refreshBackgroundOperationsStatusAsynchronously() {
+        backgroundStatusRefresh.refresh()
+    }
+
     /// Reads the System Permissions again and signals `onAuthorityChanged`
     /// only when one of them changed. The background component's status is
     /// a synchronous query to macOS that only the Privacy & Permissions page
@@ -122,6 +142,7 @@ final class PrivacyPermissionsModel: ObservableObject {
         screenRecordingPermissionGranted = screenRecordingPermissionCheck()
         if screenRecordingPermissionGranted { screenRecordingAwaitsRestart = false }
         if includingBackgroundOperations {
+            backgroundStatusRefresh.invalidate()
             backgroundOperationsStatus = backgroundOperationsCheck()
             if backgroundOperationsStatus == .enabled { backgroundOperationsError = nil }
         }
@@ -133,6 +154,7 @@ final class PrivacyPermissionsModel: ObservableObject {
     /// Only an explicit action enables background work. Initialization, focus
     /// changes and permission refreshes never register a service or open Settings.
     func manageBackgroundOperations() {
+        backgroundStatusRefresh.invalidate()
         backgroundOperationsError = nil
         // Preserve the action the user actually clicked. A stale "Open Settings"
         // or "Check Again" button must never become an enable request.

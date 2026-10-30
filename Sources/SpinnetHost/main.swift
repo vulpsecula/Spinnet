@@ -543,9 +543,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         triggers?.retryMouseInterceptionIfAuthorized()
-        settings?.refreshSystemPermissionStatus()
-        // Coming back from Login Items settings after approving Spinnet.
-        settings?.launchAtLogin.refresh()
+        settings?.refreshForApplicationActivation()
         if let configuration = currentConfiguration { menu?.reload(items: makeMenuSlots(from: configuration)) }
     }
 

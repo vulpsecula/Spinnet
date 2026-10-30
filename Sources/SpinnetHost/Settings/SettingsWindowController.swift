@@ -206,6 +206,8 @@ final class SettingsWindowController: NSWindowController {
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         window.title = localized("Spinnet Settings")
         window.isReleasedWhenClosed = false
+        // Mark Settings as an auxiliary window for Stage Manager.
+        window.collectionBehavior.insert(.auxiliary)
         window.minSize = NSSize(width: 1_280, height: 720)
         window.setAccessibilityLabel(localized("Spinnet Settings"))
         window.setAccessibilityHelp(
@@ -270,8 +272,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func present() {
-        model.launchAtLogin.refresh()
-        model.privacy.refreshSystemPermissionStatus()
+        refreshForApplicationActivation()
         model.trigger.refreshConflicts()
         model.menuEditor.refreshMenuSlots()
         showWindow(nil)
@@ -285,7 +286,15 @@ final class SettingsWindowController: NSWindowController {
     func refreshMenuSlots() { model.menuEditor.refreshMenuSlots() }
 
     func refreshSystemPermissionStatus() {
-        model.privacy.refreshSystemPermissionStatus()
+        model.privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false)
+        model.privacy.refreshBackgroundOperationsStatusAsynchronously()
+    }
+
+    /// Permission changes take effect immediately; service status reads must
+    /// not hold up the window activation and input event loop.
+    func refreshForApplicationActivation() {
+        refreshSystemPermissionStatus()
+        model.launchAtLogin.refreshAsynchronously()
     }
 
     /// The observable Settings window seam used by host-level UI tests.

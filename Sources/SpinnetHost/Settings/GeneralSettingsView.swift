@@ -50,7 +50,7 @@ struct GeneralSettingsView: View {
             }
             .frame(maxWidth: 680, alignment: .leading)
         }
-        .onAppear { launchAtLogin.refresh() }
+        .onAppear { launchAtLogin.refreshAsynchronously() }
     }
 
     private var launchAtLoginRow: some View {

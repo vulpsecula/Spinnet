@@ -283,7 +283,8 @@ final class SettingsWindowModel: ObservableObject {
             grantStore: capabilityGrantStore,
             manifests: { [editor] in editor.pluginManifests },
             accessibilityPermissionCheck: accessibilityPermissionCheck,
-            defaults: defaults
+            defaults: defaults,
+            backgroundOperationsRequest: HostBackgroundOperationsStatus.requestCurrent
         )
         trigger = MenuTriggerModel(defaults: defaults, conflictCheck: mouseInputConflictCheck)
         appearance = MenuAppearanceModel(defaults: defaults)
@@ -1047,7 +1048,10 @@ struct SettingsRootView: View {
                     backgroundOperationsError: privacy.backgroundOperationsError,
                     manageBackgroundOperations: privacy.manageBackgroundOperations
                 )
-                .onAppear { privacy.refreshSystemPermissionStatus() }
+                .onAppear {
+                    privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false)
+                    privacy.refreshBackgroundOperationsStatusAsynchronously()
+                }
             case .about:
                 AboutSettingsView(metadata: model.metadata)
             }
