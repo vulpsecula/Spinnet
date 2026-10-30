@@ -928,7 +928,7 @@ struct SettingsRootView: View {
                     Label(localized("Potential mouse input conflict"), systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)
-                    Text(localized("\(trigger.mouseInputConflicts.map(\.applicationName).joined(separator: ", ")) may monitor \(MouseTriggerButton.displayName(for: trigger.mouseButton)). Remove that button's click, drag, and scroll assignments in the other utility."))
+                    Text(localized("\(trigger.mouseInputConflicts.map(\.applicationName).joined(separator: ", ")) may also handle \(MouseTriggerButton.displayName(for: trigger.mouseButton)). Use Menu Opening Delay to share short presses. If the Menu does not open, restart Spinnet after the other utility or remove overlapping assignments."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

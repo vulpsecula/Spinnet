@@ -31,7 +31,7 @@ struct MouseInputConflictDetector {
                 "com.nuebling.mac-mouse-fix.helper"
             ],
             processNames: ["Mac Mouse Fix", "Mac Mouse Fix Helper"], // Not localized: an app or process name
-            guidance: localized("Remove every Click, Click and Drag, and Click and Scroll action for the same mouse button in Mac Mouse Fix.")
+            guidance: localized("Keep the Click action in Mac Mouse Fix and set a Menu Opening Delay for long presses. If the Menu does not open, restart Spinnet after Mac Mouse Fix or remove overlapping assignments.")
         ),
         MouseInputConflictDefinition(
             id: "better-touch-tool",

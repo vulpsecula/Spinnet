@@ -666,6 +666,22 @@ final class GlobalTriggerController {
     /// Marks events the trigger re-delivers to the Current App ("SPNTRDLV").
     private static let redeliveryMarker: Int64 = 0x5350_4E54_5244_4C56
 
+    /// Read the physical button before HID-stage remappers (Mac Mouse Fix,
+    /// for example) consume it. A session tap is already downstream of them.
+    static let mouseEventTapLocation = CGEventTapLocation.cghidEventTap
+
+    /// A short mouse press must traverse those same HID remappers again.
+    /// Posting at the session stage would bypass their click assignments.
+    /// Keyboard replay retains its existing session-stage path.
+    static func redeliveryLocation(for event: CGEvent) -> CGEventTapLocation {
+        switch event.type {
+        case .otherMouseDown, .otherMouseUp, .otherMouseDragged:
+            return mouseEventTapLocation
+        default:
+            return .cgSessionEventTap
+        }
+    }
+
     var configuration = MenuTriggerConfiguration()
     private(set) var keyboardShortcutRegistered = true
     private(set) var mouseInterceptionAvailable = false
@@ -715,7 +731,7 @@ final class GlobalTriggerController {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
             return { item.cancel() }
         },
-        postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: .cgSessionEventTap) }
+        postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: GlobalTriggerController.redeliveryLocation(for: $0)) }
     ) {
         self.accessibilityPermission = accessibilityPermission
         self.mouseButtonStateCheck = mouseButtonStateCheck
@@ -1042,7 +1058,7 @@ final class GlobalTriggerController {
             | (CGEventMask(1) << CGEventType.otherMouseDragged.rawValue)
             | (CGEventMask(1) << CGEventType.mouseMoved.rawValue)
         guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
+            tap: Self.mouseEventTapLocation,
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: eventMask,

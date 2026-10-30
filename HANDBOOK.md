@@ -56,8 +56,16 @@ keep its usual job. At 0 the Menu opens on the press, as it always has. Above
 pointer is then and the press never reaches the App; released sooner, the
 original press, any motion and the release go to the Current App in their
 original order, so a short Side Button 1 press still goes Back. Re-delivered
-events are marked, and Spinnet's own trigger lets them through. A trigger
-press while the Menu is open closes it at once; the delay governs opening only.
+events are marked, and Spinnet's own trigger lets them through. Mouse presses
+are intercepted at the HID stage, before utilities such as Mac Mouse Fix can
+consume them, and short presses are re-delivered at that same stage so those
+utilities can still perform their click assignments. This lets a short press
+go Back through Mac Mouse Fix while holding the same button opens the Menu
+without also going Back. Another utility starting or reinstalling its event
+tap after Spinnet can take priority; restart Spinnet after that utility if the
+Menu no longer opens. This does not cover drivers that consume input before
+the Quartz event stream. A trigger press while the Menu is open closes it
+at once; the delay governs opening only.
 
 The keyboard shortcut follows the same rule with its original key events,
 autorepeats included. With a delay it is read from Spinnet's event tap

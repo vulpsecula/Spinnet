@@ -471,12 +471,13 @@
         }
       }
     },
-    "%@ may monitor %@. Remove that button's click, drag, and scroll assignments in the other utility.": {
+    "%@ may also handle %@. Use Menu Opening Delay to share short presses. If the Menu does not open, restart Spinnet after the other utility or remove overlapping assignments.": {
+      "comment": "Mouse trigger compatibility guidance. The first argument names the other utilities; the second names the configured mouse button.",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ 可能在监视%2$@。请在该工具中移除这个按键的点按、拖移和滚动分配。"
+            "value": "%1$@ 也可能在处理%2$@。设置菜单打开延迟即可共用短按操作。如果菜单无法打开，请在另一工具启动后重新启动 Spinnet，或移除重叠的按键设置。"
           }
         }
       }
@@ -7001,12 +7002,12 @@
         }
       }
     },
-    "Remove every Click, Click and Drag, and Click and Scroll action for the same mouse button in Mac Mouse Fix.": {
+    "Keep the Click action in Mac Mouse Fix and set a Menu Opening Delay for long presses. If the Menu does not open, restart Spinnet after Mac Mouse Fix or remove overlapping assignments.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 Mac Mouse Fix 中移除同一鼠标按键的所有“点按”“点按并拖移”和“点按并滚动”操作。"
+            "value": "保留 Mac Mouse Fix 中的“点按”操作，并设置菜单打开延迟以使用长按。如果菜单无法打开，请在 Mac Mouse Fix 启动后重新启动 Spinnet，或移除重叠的按键设置。"
           }
         }
       }

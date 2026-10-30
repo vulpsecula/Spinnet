@@ -341,7 +341,8 @@ final class MenuTriggerInputTests: XCTestCase {
 
         XCTAssertEqual(conflicts.count, 1)
         XCTAssertEqual(conflicts.first?.applicationName, "Mac Mouse Fix")
-        XCTAssertTrue(conflicts.first?.guidance.contains("Click and Drag") == true)
+        XCTAssertTrue(conflicts.first?.guidance.contains("Keep the Click action") == true)
+        XCTAssertTrue(conflicts.first?.guidance.contains("Menu Opening Delay") == true)
     }
 
     func testMouseInputConflictDetectorDoesNotWarnWithoutVerifiedButtonClaim() {
