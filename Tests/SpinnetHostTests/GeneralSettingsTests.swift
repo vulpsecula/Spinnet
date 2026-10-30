@@ -292,6 +292,7 @@ final class GeneralSettingsTests: XCTestCase {
             "Developer",
             "Relaunch Spinnet",
             "Lifecycle Test Window",
+            "Record Task logs",
             "Copy Diagnostics",
             "Reveal Data Folder",
             "Copy Log Stream Command"

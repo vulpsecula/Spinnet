@@ -15,7 +15,10 @@ A read source never grants access.
 Own Homebrew Tasks additionally expose a bounded sanitized `output` transcript and
 `output_truncated` in `activities.list`. The transcript keeps up to 64 KiB; earlier
 text may be dropped. Across an activity list, transcript JSON is limited to 256 KiB,
-with ongoing work ahead of ended history. The original `log` remains its 20-line/200-character summary.
+with ongoing work ahead of ended history. The original `log` remains a summary
+of up to 20 lines of 200 characters, projected from the retained Task Output.
+When that transcript is truncated, older lines may no longer be available
+for the summary. Older journals retain their original recorded summaries.
 Grants, owner isolation,
 Host Confirmation, Stop and no-replay semantics are unchanged by this addition.
 Task authorization follows the current [Homebrew profile](homebrew-system-authorization.md).
