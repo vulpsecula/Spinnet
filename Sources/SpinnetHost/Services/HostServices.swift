@@ -628,20 +628,23 @@ final class GlobalTriggerController {
     private var eventHandler: EventHandlerRef?
     private var invokeHotKey: EventHotKeyRef?
     private var escapeHotKey: EventHotKeyRef?
-    private var mouseEventTap: CFMachPort?
-    private var mouseEventTapSource: CFRunLoopSource?
+    private var mouseEventTap: MouseEventTapConnection?
     private var keyEventTap: CFMachPort?
     private var keyEventTapSource: CFRunLoopSource?
-    private var permissionRetryTimer: Timer?
+    private var mouseInterceptionTimer: Timer?
+    private var knownOtherMouseEventTapIDs: Set<UInt32>?
     private var mouseGestureOrigin: CGPoint?
     private var mouseGestureDidDrag = false
     private var isCapturingMouseButton = false
     private var mouseButtonCaptureHandler: ((Int) -> Void)?
+    private var capturedButtonAwaitingRelease: Int?
     private let signature = OSType(0x53504E54) // SPNT
     private let accessibilityPermission: AccessibilityPermissionController
     private let mouseButtonStateCheck: (Int) -> Bool
     private let scheduleDelay: (TimeInterval, @escaping () -> Void) -> () -> Void
     private let postEvent: (CGEvent) -> Void
+    private let createMouseEventTap: (@escaping MouseEventTapHandler) -> MouseEventTapConnection?
+    private let otherMouseEventTapIDs: () -> Set<UInt32>?
 
     /// A trigger press the opening delay is holding back from the Current
     /// App: the press and everything recorded since, in arrival order.
@@ -685,9 +688,8 @@ final class GlobalTriggerController {
     var configuration = MenuTriggerConfiguration()
     private(set) var keyboardShortcutRegistered = true
     private(set) var mouseInterceptionAvailable = false
-    /// False once stopped. A stopped controller installs nothing, so a
-    /// permission retry or a trigger edit cannot bring listening back while
-    /// Spinnet is switched off.
+    /// Runtime triggers stay off once stopped. Only an explicit Settings
+    /// recording session may temporarily listen while Spinnet is switched off.
     private(set) var isRunning = false
 
     var onInvoke: (() -> Void)?
@@ -731,12 +733,16 @@ final class GlobalTriggerController {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
             return { item.cancel() }
         },
-        postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: GlobalTriggerController.redeliveryLocation(for: $0)) }
+        postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: GlobalTriggerController.redeliveryLocation(for: $0)) },
+        createMouseEventTap: @escaping (@escaping MouseEventTapHandler) -> MouseEventTapConnection? = QuartzMouseEventTap.connect,
+        otherMouseEventTapIDs: @escaping () -> Set<UInt32>? = QuartzMouseEventTap.otherButtonTapIDs
     ) {
         self.accessibilityPermission = accessibilityPermission
         self.mouseButtonStateCheck = mouseButtonStateCheck
         self.scheduleDelay = scheduleDelay
         self.postEvent = postEvent
+        self.createMouseEventTap = createMouseEventTap
+        self.otherMouseEventTapIDs = otherMouseEventTapIDs
     }
 
     func start(configuration: MenuTriggerConfiguration) -> Bool {
@@ -777,13 +783,10 @@ final class GlobalTriggerController {
 
         mouseInterceptionAvailable = installMouseEventTap()
         onAccessibilityPermissionChanged?(accessibilityPermission.isAuthorized)
-        if !mouseInterceptionAvailable {
-            // Do not trigger a macOS prompt during launch. The Settings
-            // permission guide is the explicit user action that opens the
-            // Accessibility pane, so users can skip it and still use any
-            // permission-free Menu Actions.
-            schedulePermissionRetry()
-        }
+        // Poll connection health and active button-filter changes, not the
+        // mouse model. Drivers may recreate or enable taps on a device change.
+        // No permission prompt is opened by this recovery path.
+        scheduleMouseInterceptionChecks()
 
         keyboardShortcutRegistered = registerInvokeShortcut()
         return true
@@ -815,7 +818,7 @@ final class GlobalTriggerController {
         event: CGEvent
     ) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let mouseEventTap { CGEvent.tapEnable(tap: mouseEventTap, enable: true) }
+            mouseEventTap?.enable()
             return Unmanaged.passUnretained(event)
         }
         guard type == .mouseMoved
@@ -824,20 +827,37 @@ final class GlobalTriggerController {
                 || type == .otherMouseDragged else {
             return Unmanaged.passUnretained(event)
         }
+        if Self.isRedelivered(event) { return Unmanaged.passUnretained(event) }
+        if let capturedButtonAwaitingRelease {
+            let button = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+            // Some drivers emit ordinary motion while an extra button is
+            // down. It can move the pointer but must not recover a gesture.
+            if type == .mouseMoved { return Unmanaged.passUnretained(event) }
+            if button == capturedButtonAwaitingRelease {
+                if type == .otherMouseUp {
+                    self.capturedButtonAwaitingRelease = nil
+                    // Never invalidate the native connection in its callback.
+                    DispatchQueue.main.async { [weak self] in self?.endIdleMouseCapture() }
+                }
+                return nil
+            }
+        }
         if isCapturingMouseButton, type == .otherMouseDown {
             let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
             guard MouseTriggerButton.isSupported(buttonNumber) else {
                 return Unmanaged.passUnretained(event)
             }
             let captureHandler = mouseButtonCaptureHandler
+            capturedButtonAwaitingRelease = buttonNumber
             isCapturingMouseButton = false
             mouseButtonCaptureHandler = nil
             captureHandler?(buttonNumber)
             return nil
         }
-        if isCapturingMouseButton || Self.isRedelivered(event) {
+        if isCapturingMouseButton {
             return Unmanaged.passUnretained(event)
         }
+        if !isRunning, mouseEventTap != nil { return Unmanaged.passUnretained(event) }
         if let handedBackButton, type != .mouseMoved {
             let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
             if type == .otherMouseDragged || buttonNumber == handedBackButton {
@@ -1029,54 +1049,69 @@ final class GlobalTriggerController {
         _ isActive: Bool,
         onCapture: ((Int) -> Void)? = nil
     ) {
+        if isActive { handHeldPressBack() }
         isCapturingMouseButton = isActive
         mouseButtonCaptureHandler = isActive ? onCapture : nil
         mouseGestureOrigin = nil
         mouseGestureDidDrag = false
+        if isActive {
+            // A fresh head insertion is required even when the old tap is
+            // healthy: another utility may have inserted ahead of it.
+            _ = installMouseEventTap()
+            scheduleMouseInterceptionChecks()
+        } else {
+            endIdleMouseCapture()
+        }
+    }
+
+    private func endIdleMouseCapture() {
+        guard !isRunning, !isCapturingMouseButton, capturedButtonAwaitingRelease == nil else { return }
+        mouseInterceptionTimer?.invalidate()
+        mouseInterceptionTimer = nil
+        mouseEventTap?.invalidate()
+        mouseEventTap = nil
+        mouseInterceptionAvailable = false
+        knownOtherMouseEventTapIDs = nil
     }
 
     func retryMouseInterceptionIfAuthorized() {
-        guard isRunning, !mouseInterceptionAvailable, accessibilityPermission.isAuthorized else { return }
-        mouseInterceptionAvailable = installMouseEventTap()
+        guard isRunning || isCapturingMouseButton,
+              accessibilityPermission.isAuthorized else { return }
+        let otherTapIDs = otherMouseEventTapIDs()
+        let filtersChanged = otherTapIDs != nil && otherTapIDs != knownOtherMouseEventTapIDs
+        guard mouseEventTap?.isEnabled != true || filtersChanged else { return }
+        // Replacing a tap mid-press can split its down/up across different
+        // filters. Let that press finish, then recover on the next check.
+        guard heldPress == nil, mouseGestureOrigin == nil,
+              handedBackButton == nil, capturedButtonAwaitingRelease == nil else { return }
+        _ = installMouseEventTap()
         onAccessibilityPermissionChanged?(accessibilityPermission.isAuthorized)
-        if mouseInterceptionAvailable {
-            permissionRetryTimer?.invalidate()
-            permissionRetryTimer = nil
-        }
     }
 
-    private func schedulePermissionRetry() {
-        guard permissionRetryTimer == nil else { return }
-        permissionRetryTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+    private func scheduleMouseInterceptionChecks() {
+        guard mouseInterceptionTimer == nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             self?.retryMouseInterceptionIfAuthorized()
         }
+        timer.tolerance = 0.1
+        RunLoop.main.add(timer, forMode: .common)
+        mouseInterceptionTimer = timer
     }
 
+    @discardableResult
     private func installMouseEventTap() -> Bool {
-        let eventMask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
-            | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
-            | (CGEventMask(1) << CGEventType.otherMouseDragged.rawValue)
-            | (CGEventMask(1) << CGEventType.mouseMoved.rawValue)
-        guard let tap = CGEvent.tapCreate(
-            tap: Self.mouseEventTapLocation,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: eventMask,
-            callback: { _, type, event, context in
-                guard let context else { return Unmanaged.passUnretained(event) }
-                let controller = Unmanaged<GlobalTriggerController>
-                    .fromOpaque(context)
-                    .takeUnretainedValue()
-                return controller.interceptMouseEvent(type: type, event: event)
-            },
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else { return false }
-
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
+        guard let tap = createMouseEventTap({ [weak self] type, event in
+            guard let self else { return Unmanaged.passUnretained(event) }
+            return self.interceptMouseEvent(type: type, event: event)
+        }) else {
+            // Keep an existing connection when refreshing priority fails.
+            mouseInterceptionAvailable = mouseEventTap?.isEnabled == true
+            return false
+        }
+        mouseEventTap?.invalidate()
         mouseEventTap = tap
-        mouseEventTapSource = source
+        mouseInterceptionAvailable = true
+        knownOtherMouseEventTapIDs = otherMouseEventTapIDs()
         return true
     }
 
@@ -1163,25 +1198,23 @@ final class GlobalTriggerController {
         swallowedKeyCode = nil
         removeKeyEventTap()
         isRunning = false
-        permissionRetryTimer?.invalidate()
-        permissionRetryTimer = nil
+        mouseInterceptionTimer?.invalidate()
+        mouseInterceptionTimer = nil
+        knownOtherMouseEventTapIDs = nil
         unregisterEscape()
         if let invokeHotKey { UnregisterEventHotKey(invokeHotKey) }
         if let eventHandler { RemoveEventHandler(eventHandler) }
-        if let mouseEventTapSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), mouseEventTapSource, .commonModes)
-        }
-        if let mouseEventTap { CFMachPortInvalidate(mouseEventTap) }
+        mouseEventTap?.invalidate()
         invokeHotKey = nil
         eventHandler = nil
         mouseEventTap = nil
-        mouseEventTapSource = nil
         keyboardShortcutRegistered = true
         mouseInterceptionAvailable = false
         mouseGestureOrigin = nil
         mouseGestureDidDrag = false
         isCapturingMouseButton = false
         mouseButtonCaptureHandler = nil
+        capturedButtonAwaitingRelease = nil
     }
 
     deinit { stop() }

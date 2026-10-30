@@ -87,11 +87,14 @@ are intercepted at the HID stage, before utilities such as Mac Mouse Fix can
 consume them, and short presses are re-delivered at that same stage so those
 utilities can still perform their click assignments. This lets a short press
 go Back through Mac Mouse Fix while holding the same button opens the Menu
-without also going Back. Another utility starting or reinstalling its event
-tap after Spinnet can take priority; restart Spinnet after that utility if the
-Menu no longer opens. This does not cover drivers that consume input before
-the Quartz event stream. A trigger press while the Menu is open closes it
-at once; the delay governs opening only.
+without also going Back. Spinnet checks for newly installed or enabled
+HID button filters and recovers its listening order after the current press
+finishes. Starting mouse-button recording in Settings immediately inserts a
+fresh listener ahead of existing filters, even while runtime triggers are
+switched off. The recording press, its drag and its release never open the
+Menu or run another utility's mapping. This does not cover drivers that
+consume input before the Quartz event stream. A trigger press while the Menu
+is open closes it at once; the delay governs opening only.
 
 The keyboard shortcut follows the same rule with its original key events,
 autorepeats included. With a delay it is read from Spinnet's event tap
