@@ -130,7 +130,12 @@ Plugin to open the Host-rendered history window: the user reads their own
 data there, and the Plugin learns nothing from the window.
 
 The Status Item shows ongoing Effects and Tasks and offers their Stop
-controls. Reviewed Homebrew Tasks use typed, scoped requests and Host
+controls. Open a Task there to see its live status, stage, log and output in
+a Host window. Ended Tasks stay listed with their outcome until cleared;
+clear one Task or use Clear Ended Tasks. Retained history is bounded, and the
+oldest ended entries make room for new Host Activities. A hidden Status Item
+still appears for ongoing work, but ended Tasks alone do not keep it visible.
+Reviewed Homebrew Tasks use typed, scoped requests and Host
 confirmation before package changes. Native Homebrew runs as the current
 user; system sudo/PAM owns authentication where needed. Spinnet does not save
 passwords or share them with Plugins; when sudo needs one, its signed askpass

@@ -34,29 +34,45 @@ public final class HostActivities {
     public static let maximumPerPlugin = 8
     public static let maximumTotal = 64
     public static let visibleRefreshInterval: TimeInterval = 1
-    private struct Entry { var activity: HostActivity; let remainingSeconds: (() -> Int)?; let stop: () -> Void; var visibleToOwner = true; let removesOnStop: Bool }
+    private struct Entry { var activity: HostActivity; let remainingSeconds: (() -> Int)?; let stop: () -> Void; var visibleToOwner = true; let removesOnStop: Bool; let onClear: (() -> Void)?; var endedOrder: UInt64? = nil }
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
     private var observers: [UUID: () -> Void] = [:]
+    private var nextEndedOrder: UInt64 = 0
 
     public init() {}
 
     @discardableResult
     public func register(owner: PluginID, pluginName: String, kind: String, status: String,
                          expiresAt: Date? = nil, remainingSeconds: (() -> Int)? = nil,
-                         id: String? = nil, visibleToOwner: Bool = true, removesOnStop: Bool = true, stop: @escaping () -> Void) throws -> HostActivity {
+                         id: String? = nil, visibleToOwner: Bool = true, removesOnStop: Bool = true,
+                         onClear: (() -> Void)? = nil, stop: @escaping () -> Void) throws -> HostActivity {
         lock.lock()
-        guard entries.count < Self.maximumTotal,
-              entries.values.filter({ $0.activity.owner == owner }).count < Self.maximumPerPlugin else {
+        let active = entries.values.filter { $0.endedOrder == nil }
+        guard active.count < Self.maximumTotal,
+              active.filter({ $0.activity.owner == owner }).count < Self.maximumPerPlugin else {
             lock.unlock()
             throw PluginHostServiceError.failed("The Host activity limit was reached")
+        }
+        var evicted: [() -> Void] = []
+        if entries.values.filter({ $0.activity.owner == owner }).count >= Self.maximumPerPlugin,
+           let oldest = entries.values.filter({ $0.activity.owner == owner && $0.endedOrder != nil })
+                .min(by: { $0.endedOrder! < $1.endedOrder! }) {
+            entries[oldest.activity.id] = nil
+            if let clear = oldest.onClear { evicted.append(clear) }
+        }
+        if entries.count >= Self.maximumTotal,
+           let oldest = entries.values.filter({ $0.endedOrder != nil }).min(by: { $0.endedOrder! < $1.endedOrder! }) {
+            entries[oldest.activity.id] = nil
+            if let clear = oldest.onClear { evicted.append(clear) }
         }
         let activity = HostActivity(id: id ?? "activity_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(),
                                     owner: owner, pluginName: String(pluginName.prefix(256)), kind: kind,
                                     status: status, expiresAt: expiresAt, remainingSeconds: remainingSeconds?())
-        entries[activity.id] = Entry(activity: activity, remainingSeconds: remainingSeconds, stop: stop, visibleToOwner: visibleToOwner, removesOnStop: removesOnStop)
+        entries[activity.id] = Entry(activity: activity, remainingSeconds: remainingSeconds, stop: stop, visibleToOwner: visibleToOwner, removesOnStop: removesOnStop, onClear: onClear)
         let changed = Array(observers.values)
         lock.unlock()
+        evicted.forEach { $0() }
         changed.forEach { $0() }
         return activity
     }
@@ -121,6 +137,9 @@ public final class HostActivities {
         entry.activity = HostActivity(id: id, owner: held.owner, pluginName: held.pluginName, kind: "task", status: status, expiresAt: nil, remainingSeconds: nil)
         entry.activity.detail = detail
         entry.visibleToOwner = !detached
+        if detail.value(atPointer: "/status") == .string("ended") {
+            if entry.endedOrder == nil { nextEndedOrder &+= 1; entry.endedOrder = nextEndedOrder }
+        } else { entry.endedOrder = nil }
         entries[id] = entry
         let changed = Array(observers.values); lock.unlock(); changed.forEach { $0() }
     }
@@ -138,7 +157,32 @@ public final class HostActivities {
         let changed = Array(observers.values); lock.unlock(); changed.forEach { $0() }
     }
 
-    public func removeEndedTask(_ id: String) { lock.lock(); entries[id] = nil; lock.unlock() }
+    public func removeEndedTask(_ id: String) {
+        lock.lock()
+        guard entries.removeValue(forKey: id) != nil else { lock.unlock(); return }
+        let changed = Array(observers.values); lock.unlock(); changed.forEach { $0() }
+    }
+
+    /// Clearing history is a Host control, not a Plugin Stop request.
+    @discardableResult
+    public func clearEndedTask(_ id: String) -> Bool {
+        lock.lock()
+        guard let entry = entries[id], entry.activity.kind == "task",
+              entry.activity.detail?.value(atPointer: "/status") == .string("ended") else {
+            lock.unlock(); return false
+        }
+        entries[id] = nil
+        let changed = Array(observers.values)
+        lock.unlock()
+        entry.onClear?()
+        changed.forEach { $0() }
+        return true
+    }
+
+    public func clearEndedTasks() {
+        list().filter { $0.kind == "task" && $0.detail?.value(atPointer: "/status") == .string("ended") }
+            .forEach { clearEndedTask($0.id) }
+    }
 
     public func shutdown() { list().forEach { stop($0.id) } }
 

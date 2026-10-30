@@ -258,11 +258,6 @@ public final class HostReviewedToolTasks {
                 runnerIdentity: HomebrewTaskProcess.startIdentity(getpid()) ?? 1, runnerLaunchPending: true).save(to: directory)
             // Reserve a visible bounded Host control before spawning. A
             // resource-limit error must never leave a mutating orphan.
-            let ended = records.values.filter { $0.owner == record.owner && !executionHeld($0) }.sorted { ($0.ended ?? $0.started) < ($1.ended ?? $1.started) }
-            if activities.list(for: plan.owner).count >= HostActivities.maximumPerPlugin, let oldest = ended.first {
-                activities.removeEndedTask(oldest.id); records[oldest.id] = nil
-                try? FileManager.default.removeItem(at: root.appendingPathComponent(oldest.id))
-            }
             records[id] = record
             do { try register(record) } catch { records[id] = nil; try? FileManager.default.removeItem(at: directory); throw error }
             let process = Process(); process.executableURL = runnerURL; process.arguments = ["--task-directory", directory.path]
@@ -359,16 +354,20 @@ public final class HostReviewedToolTasks {
             records[id] = current; publish(current)
             if !executionHeld(current), suddenTerminationAssertions.remove(id) != nil { ProcessInfo.processInfo.enableSuddenTermination() }
             if !executionHeld(current) { recoveryPowerReleases.removeValue(forKey: id)?(); orphanedTasks.remove(id); orphanStopTimes[id] = nil }
-            if !executionHeld(current), let ended = current.ended, Date().timeIntervalSince(ended) > 3600 {
-                activities.removeEndedTask(id); records[id] = nil; try? FileManager.default.removeItem(at: directory)
-            }
         }
     }
     private func register(_ record: HomebrewTaskJournal) throws {
+        let id = record.id
         _ = try activities.register(owner: PluginID(record.owner), pluginName: record.pluginName, kind: "task", status: "Starting — prevents idle system sleep",
-            id: record.id, removesOnStop: false) { [weak self] in try? self?.stop(record.id) }
+            id: id, removesOnStop: false, onClear: { [weak self] in self?.clearHistory(id) }) { [weak self] in try? self?.stop(id) }
         publish(record)
         if executionHeld(record), suddenTerminationAssertions.insert(record.id).inserted { ProcessInfo.processInfo.disableSuddenTermination() }
+    }
+    private func clearHistory(_ id: String) {
+        lock.lock(); defer { lock.unlock() }
+        guard let record = records[id], !executionHeld(record) else { return }
+        records[id] = nil
+        try? FileManager.default.removeItem(at: root.appendingPathComponent(id))
     }
     private func publish(_ record: HomebrewTaskJournal) {
         let stopping = FileManager.default.fileExists(atPath: root.appendingPathComponent(record.id).appendingPathComponent("stop").path)

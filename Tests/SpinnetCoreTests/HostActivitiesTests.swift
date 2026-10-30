@@ -1,10 +1,122 @@
 import XCTest
 import SpinnetCore
 import SpinnetPluginTestKit
+import SpinnetReviewedTools
 
 /// Tests the approved resource/OS boundary: callers observe Host activities
 /// and the resource they own, without reaching into registry storage.
 final class HostActivitiesTests: XCTestCase {
+    func testEndedTaskRemainsVisibleUntilTheHostClearsIt() throws {
+        let activities = HostActivities(), owner = PluginID("task-owner"), other = PluginID("other")
+        var stops = 0
+        let task = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running",
+                                           removesOnStop: false, stop: { stops += 1 })
+        activities.updateTask(task.id, status: "Ended: completed", detail: .object([
+            "name": .string("Upgrade"), "status": .string("ended"),
+            "result": .object(["outcome": .string("completed")])]))
+
+        XCTAssertEqual(activities.list().map(\.id), [task.id])
+        XCTAssertEqual(activities.list(for: owner).map(\.id), [task.id])
+        XCTAssertTrue(activities.list(for: other).isEmpty)
+        XCTAssertTrue(activities.clearEndedTask(task.id))
+        XCTAssertTrue(activities.list().isEmpty)
+        XCTAssertEqual(stops, 0, "Clearing history does not stop a resource")
+    }
+
+    func testClearEndedTasksLeavesRunningTasksAndEffectsAlone() throws {
+        let activities = HostActivities(), owner = PluginID("owner")
+        let ended = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", stop: {})
+        let running = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", stop: {})
+        let effect = try activities.register(owner: owner, pluginName: "Coffee", kind: "keep_awake", status: "On", stop: {})
+        activities.updateTask(ended.id, status: "Ended: failed", detail: .object(["status": .string("ended")]))
+        activities.updateTask(running.id, status: "Running", detail: .object(["status": .string("running")]))
+
+        XCTAssertFalse(activities.clearEndedTask(running.id))
+        XCTAssertFalse(activities.clearEndedTask(effect.id))
+        activities.clearEndedTasks()
+        XCTAssertEqual(Set(activities.list().map(\.id)), Set([running.id, effect.id]))
+    }
+
+    func testEndedHistoryMakesRoomForANewActivityOwnedByTheSamePlugin() throws {
+        let activities = HostActivities(), owner = PluginID("owner")
+        var stopped = 0
+        for index in 0..<HostActivities.maximumPerPlugin {
+            let id = "task-\(index)"
+            try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running",
+                                    id: id, removesOnStop: false, stop: { stopped += 1 })
+            activities.updateTask(id, status: "Ended: completed", detail: .object(["status": .string("ended")]))
+        }
+        let effect = try activities.register(owner: owner, pluginName: "Coffee", kind: "keep_awake", status: "On", stop: {})
+        XCTAssertEqual(activities.list().count, HostActivities.maximumPerPlugin)
+        XCTAssertFalse(activities.list().contains { $0.id == "task-0" })
+        XCTAssertTrue(activities.list().contains { $0.id == effect.id })
+        XCTAssertEqual(stopped, 0)
+    }
+
+    func testEndedHistoryMakesRoomAtTheGlobalActivityLimit() throws {
+        let activities = HostActivities()
+        for index in 0..<HostActivities.maximumTotal {
+            let id = "task-\(index)", owner = PluginID("owner-\(index / HostActivities.maximumPerPlugin)")
+            try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", id: id, stop: {})
+            activities.updateTask(id, status: "Ended: completed", detail: .object(["status": .string("ended")]))
+        }
+        let effect = try activities.register(owner: PluginID("new-owner"), pluginName: "Coffee", kind: "keep_awake", status: "On", stop: {})
+        XCTAssertEqual(activities.list().count, HostActivities.maximumTotal)
+        XCTAssertFalse(activities.list().contains { $0.id == "task-0" })
+        XCTAssertTrue(activities.list().contains { $0.id == effect.id })
+    }
+
+    func testClearingEndedTaskReleasesItsRetainedHistoryOnce() throws {
+        let activities = HostActivities(), owner = PluginID("owner")
+        var retainedHistory = true, stops = 0
+        let task = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running",
+                                           removesOnStop: false, onClear: { retainedHistory = false }, stop: { stops += 1 })
+        XCTAssertFalse(activities.clearEndedTask(task.id))
+        XCTAssertTrue(retainedHistory)
+        activities.updateTask(task.id, status: "Ended: completed", detail: .object(["status": .string("ended")]))
+        XCTAssertTrue(activities.clearEndedTask(task.id))
+        XCTAssertFalse(retainedHistory)
+        XCTAssertFalse(activities.clearEndedTask(task.id))
+        XCTAssertEqual(stops, 0)
+    }
+
+    func testEvictingEndedHistoryReleasesOnlyTheOldestHistory() throws {
+        let activities = HostActivities(), owner = PluginID("owner")
+        var released: [String] = []
+        for index in 0..<HostActivities.maximumPerPlugin {
+            let id = "task-\(index)"
+            try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", id: id,
+                                    onClear: { released.append(id) }, stop: {})
+            activities.updateTask(id, status: "Ended: completed", detail: .object(["status": .string("ended")]))
+        }
+        try activities.register(owner: owner, pluginName: "Coffee", kind: "keep_awake", status: "On", stop: {})
+        XCTAssertEqual(released, ["task-0"])
+    }
+
+    func testOldEndedTaskRemainsUntilClearedAcrossTaskRefresh() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let id = "activity_old_task", directory = root.appendingPathComponent(id)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let old = Date().addingTimeInterval(-7200).timeIntervalSinceReferenceDate
+        let journal: [String: Any] = ["id": id, "owner": "brew", "pluginName": "Homebrew",
+            "input": ["tool": "homebrew", "operation": "cleanup"], "package": [:],
+            "executable": "/opt/homebrew/bin/brew", "started": old, "ended": old, "detached": false,
+            "stage": "finished", "log": [], "result": ["outcome": "completed"]]
+        try JSONSerialization.data(withJSONObject: journal).write(to: directory.appendingPathComponent("task.json"))
+        let activities = HostActivities()
+        let host = HostReviewedToolTasks(activities: activities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil)
+        host.refresh()
+        XCTAssertEqual(activities.list().first?.json.value(atPointer: "/result/outcome"), .string("completed"))
+        XCTAssertTrue(activities.clearEndedTask(id))
+        host.refresh()
+        XCTAssertTrue(activities.list().isEmpty)
+        let restoredActivities = HostActivities()
+        let restored = HostReviewedToolTasks(activities: restoredActivities, journal: root, runnerURL: URL(fileURLWithPath: "/missing"), nativeInspection: nil)
+        restored.refresh()
+        XCTAssertTrue(restoredActivities.list().isEmpty, "Cleared Task history does not return from its journal")
+    }
+
     func testReadOnlyInspectionHasAHostStopControlWithoutPluginVisibility() throws {
         let activities = HostActivities(), owner = PluginID("com.example.brew")
         var stopped = false

@@ -5,21 +5,135 @@ import XCTest
 @testable import SpinnetHost
 
 final class HostActivityPresentationTests: XCTestCase {
-    func testStatusMenuDropsEndedTasksAndKeepsOwnerHistoryAndLiveStopControls() throws {
+    func testStatusMenuKeepsEndedTasksOpenableAndLetsTheUserClearThem() throws {
         _ = NSApplication.shared
         let activities = HostActivities(), owner = PluginID("task-owner")
         let task = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", stop: {})
         let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
-        XCTAssertTrue(controller.makeMenu().items.contains { $0.representedObject as? String == task.id })
+        activities.updateTask(task.id, status: "Running", detail: .object([
+            "id": .string(task.id), "name": .string("Upgrade"), "status": .string("running")]))
+        let running = controller.makeMenu()
+        XCTAssertNotNil(running.items.first { $0.title == "Packages — Upgrade" }?.action)
+        XCTAssertTrue(running.items.contains { $0.title == "Stop Packages — Upgrade" && $0.isEnabled })
         activities.updateTask(task.id, status: "Completed", detail: .object([
             "id": .string(task.id), "name": .string("Upgrade"), "status": .string("ended"),
             "result": .object(["outcome": .string("completed")])]))
         XCTAssertEqual(activities.list(for: owner).count, 1, "Keep task history available to the Plugin")
         let menu = controller.makeMenu()
-        XCTAssertFalse(menu.items.contains { $0.representedObject as? String == task.id })
-        XCTAssertFalse(menu.items.contains { $0.title == "Completed" })
+        XCTAssertNotNil(menu.items.first { $0.title == "Packages — Upgrade" }?.action)
+        XCTAssertTrue(menu.items.contains { $0.title == "Ended: completed" })
+        let clear = try XCTUnwrap(menu.items.first { $0.title == "Clear Packages — Upgrade" })
+        XCTAssertNotNil(clear.action)
+        XCTAssertTrue(menu.items.contains { $0.title == "Clear Ended Tasks" })
+        NSApp.sendAction(try XCTUnwrap(clear.action), to: clear.target, from: clear)
+        XCTAssertTrue(activities.list().isEmpty)
         let recovery = try activities.register(owner: owner, pluginName: "Packages", kind: "native_lane", status: "Awaiting reap proof", stop: {})
         XCTAssertTrue(controller.makeMenu().items.contains { $0.representedObject as? String == recovery.id }, "Keep unresolved resource supervision visible")
+    }
+
+    func testOpeningATaskFromTheStatusMenuReusesItsWindowWithoutStoppingIt() throws {
+        _ = NSApplication.shared
+        let activities = HostActivities(), owner = PluginID("task-owner")
+        var stops = 0
+        let task = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running",
+                                           removesOnStop: false, stop: { stops += 1 })
+        activities.updateTask(task.id, status: "Running", detail: .object([
+            "name": .string("Upgrade"), "status": .string("running"), "stage": .string("fetching")]))
+        let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
+        let item = try XCTUnwrap(controller.makeMenu().items.first { $0.title == "Packages — Upgrade" })
+        let action = try XCTUnwrap(item.action)
+        NSApp.sendAction(action, to: item.target, from: item)
+        let window = try XCTUnwrap(NSApp.windows.first { $0.title == "Packages — Upgrade" && $0.isVisible })
+        defer { window.close() }
+        NSApp.sendAction(action, to: item.target, from: item)
+        XCTAssertEqual(NSApp.windows.filter { $0.title == "Packages — Upgrade" && $0.isVisible }.count, 1)
+        XCTAssertTrue(window.isVisible)
+        XCTAssertEqual(stops, 0)
+    }
+
+    func testTaskWindowShowsSelectableOutputAndUpdatesWhileRunning() throws {
+        _ = NSApplication.shared
+        let activities = HostActivities(), owner = PluginID("task-owner")
+        let task = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", stop: {})
+        func detail(_ stage: String, _ output: String) -> JSONValue {
+            .object(["name": .string("Upgrade"), "status": .string("running"), "stage": .string(stage),
+                     "log": .array([.string("latest log")]), "output": .string(output)])
+        }
+        activities.updateTask(task.id, status: "Running", detail: detail("fetching", "first output"))
+        let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
+        let item = try XCTUnwrap(controller.makeMenu().items.first { $0.title == "Packages — Upgrade" })
+        NSApp.sendAction(try XCTUnwrap(item.action), to: item.target, from: item)
+        let window = try XCTUnwrap(NSApp.windows.first { $0.title == "Packages — Upgrade" && $0.isVisible })
+        defer { window.close() }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        let output = try XCTUnwrap(descendants(try XCTUnwrap(window.contentView)).compactMap { $0 as? NSTextView }.first)
+        XCTAssertTrue(output.isSelectable)
+        XCTAssertFalse(output.isEditable)
+        XCTAssertEqual(output.string, "first output")
+        XCTAssertEqual(window.accessibilityLabel(), "Task details for Packages — Upgrade")
+        XCTAssertEqual(output.accessibilityLabel(), "Command output")
+        activities.updateTask(task.id, status: "Running", detail: detail("installing", "new output"))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertEqual(output.string, "new output")
+    }
+
+    func testTaskWindowStopUsesTheHostActivityStopControl() throws {
+        _ = NSApplication.shared
+        let activities = HostActivities(), owner = PluginID("task-owner")
+        var stops = 0
+        let task = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running",
+                                           removesOnStop: false, stop: { stops += 1 })
+        activities.updateTask(task.id, status: "Running", detail: .object(["name": .string("Upgrade"), "status": .string("running")]))
+        let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
+        let item = try XCTUnwrap(controller.makeMenu().items.first { $0.title == "Packages — Upgrade" })
+        NSApp.sendAction(try XCTUnwrap(item.action), to: item.target, from: item)
+        let window = try XCTUnwrap(NSApp.windows.first { $0.title == "Packages — Upgrade" && $0.isVisible })
+        defer { window.close() }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        func children(_ object: NSObject) -> [NSObject] {
+            let selector = NSSelectorFromString("accessibilityChildren")
+            let accessible = object.responds(to: selector)
+                ? object.perform(selector)?.takeUnretainedValue() as? [NSObject] ?? [] : []
+            return accessible + ((object as? NSView)?.subviews ?? [])
+        }
+        func stopButton(_ object: NSObject, visited: inout Set<ObjectIdentifier>) -> (any NSAccessibilityButton)? {
+            guard visited.insert(ObjectIdentifier(object)).inserted else { return nil }
+            let label = NSSelectorFromString("accessibilityLabel")
+            if object.responds(to: label), object.perform(label)?.takeUnretainedValue() as? String == "Stop Packages — Upgrade",
+               let button = object as? any NSAccessibilityButton { return button }
+            for child in children(object) { if let button = stopButton(child, visited: &visited) { return button } }
+            return nil
+        }
+        var visited = Set<ObjectIdentifier>()
+        let button = try XCTUnwrap(stopButton(try XCTUnwrap(window.contentView), visited: &visited))
+        _ = button.accessibilityPerformPress()
+        XCTAssertEqual(stops, 1)
+        XCTAssertEqual(activities.list().map(\.id), [task.id], "Stopping a Task waits for its actual completion")
+    }
+
+    func testTaskWindowRemainsOpenAfterEndingAndClosesWhenCleared() throws {
+        _ = NSApplication.shared
+        let activities = HostActivities(), owner = PluginID("task-owner")
+        let task = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", stop: {})
+        activities.updateTask(task.id, status: "Running", detail: .object(["name": .string("Upgrade"), "status": .string("running")]))
+        let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
+        let item = try XCTUnwrap(controller.makeMenu().items.first { $0.title == "Packages — Upgrade" })
+        NSApp.sendAction(try XCTUnwrap(item.action), to: item.target, from: item)
+        let window = try XCTUnwrap(NSApp.windows.first { $0.title == "Packages — Upgrade" && $0.isVisible })
+        defer { window.close() }
+        activities.updateTask(task.id, status: "Ended: completed", detail: .object([
+            "name": .string("Upgrade"), "status": .string("ended"), "result": .object(["outcome": .string("completed")])]))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertTrue(window.isVisible)
+        let menu = controller.makeMenu()
+        let ended = try XCTUnwrap(menu.items.first { $0.title == "Packages — Upgrade" })
+        NSApp.sendAction(try XCTUnwrap(ended.action), to: ended.target, from: ended)
+        XCTAssertTrue(window.isVisible)
+        let clear = try XCTUnwrap(menu.items.first { $0.title == "Clear Packages — Upgrade" })
+        NSApp.sendAction(try XCTUnwrap(clear.action), to: clear.target, from: clear)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertFalse(window.isVisible)
     }
 
     func testVisibleRowsRefreshWithTheActualRunLoopTimerAndPauseWhenHidden() throws {

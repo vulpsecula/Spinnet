@@ -2061,6 +2061,46 @@
         }
       }
     },
+    "Clear %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除%@"
+          }
+        }
+      }
+    },
+    "Clear Ended Tasks": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除已结束的任务"
+          }
+        }
+      }
+    },
+    "Clear all ended Tasks.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除所有已结束的任务。"
+          }
+        }
+      }
+    },
+    "Clear this ended Task.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除此已结束的任务。"
+          }
+        }
+      }
+    },
     "Clear History": {
       "localizations": {
         "zh-Hans": {
@@ -3077,6 +3117,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "每个插件只获得你授予它的能力。"
+          }
+        }
+      }
+    },
+    "Earlier output was truncated.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "较早的输出已截断。"
           }
         }
       }
@@ -5621,6 +5671,16 @@
         }
       }
     },
+    "Open Task details for %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开%@的任务详情"
+          }
+        }
+      }
+    },
     "Open Settings, stop ongoing activities, or Quit Spinnet.": {
       "localizations": {
         "zh-Hans": {
@@ -6047,6 +6107,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 Spotify 中播放、暂停和跳过歌曲。"
+          }
+        }
+      }
+    },
+    "Plugin": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件"
           }
         }
       }
@@ -8281,6 +8351,16 @@
         }
       }
     },
+    "Stage": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阶段"
+          }
+        }
+      }
+    },
     "Status": {
       "localizations": {
         "zh-Hans": {
@@ -8517,6 +8597,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tab"
+          }
+        }
+      }
+    },
+    "Task details for %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@的任务详情"
+          }
+        }
+      }
+    },
+    "Task log": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务日志"
+          }
+        }
+      }
+    },
+    "Task output": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务输出"
           }
         }
       }

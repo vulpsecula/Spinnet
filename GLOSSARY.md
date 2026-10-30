@@ -147,7 +147,7 @@ Spinnet's icon in the macOS menu bar, distinct from the radial Menu.
 _Avoid_: Menu, tray icon
 
 **Host Activity**:
-A Host-generated entry for an ongoing resource owned by a Plugin, such as a keep-awake Effect or a Task. The Status Item names its owner and current state and offers the resource's Stop control; a Plugin can list and stop only its own entries.
+A Host-generated entry for a resource owned by a Plugin, such as a keep-awake Effect or a Task, including an ended Task retained until the user clears it or the Host quits. The Status Item names its owner and state and offers the resource's Stop control; a Plugin can list and stop only its own entries. Retained ended Tasks are bounded and may be evicted to admit new Host Activities.
 _Avoid_: Plugin menu-bar content, background Plugin, status widget
 
 **Effect**:
