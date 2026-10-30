@@ -1,6 +1,123 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Source unknown": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "来源未知" } } }
+    },
+    "Local package": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "本地插件包" } } }
+    },
+    "GitHub: %@": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "GitHub：%@" } } }
+    },
+    "Remove and Keep Data": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "移除并保留数据" } } }
+    },
+    "Remove and Delete Data": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "移除并删除数据" } } }
+    },
+    "Its access is forgotten. Choose whether to keep its settings, storage and credentials.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "其访问权限会被清除。请选择是否保留其设置、插件存储和凭据。" } } }
+    },
+    "Plugin Access & Data": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "插件访问权限与数据" } } }
+    },
+    "Manage each Plugin's access and stored data. Removed Plugins appear here when their data was kept.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "管理每个插件的访问权限和存储的数据。移除时保留了数据的插件也会显示在这里。" } } }
+    },
+    "Manage access and stored data": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "管理访问权限和存储的数据" } } }
+    },
+    "Show More Plugins": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示更多插件" } } }
+    },
+    "Clear Plugin Data?": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "清理插件数据？" } } }
+    },
+    "Clear Plugin Data": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "清理插件数据" } } }
+    },
+    "Clear settings, Plugin Storage, credentials, access decisions and view preferences for %@? Its Menu Items and installed package remain.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "清理 %@ 的设置、插件存储、凭据、访问权限决定和视图偏好设置？其菜单项和已安装的插件包会保留。" } } }
+    },
+    "Could Not Clear Plugin Data": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法清理插件数据" } } }
+    },
+    "Could Not Manage Plugin Data": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法管理插件数据" } } }
+    },
+    "Hide Access": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "隐藏访问权限" } } }
+    },
+    "Manage Access": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "管理访问权限" } } }
+    },
+    "Clear Plugin Data: %@": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "清理插件数据：%@" } } }
+    },
+    "Removed · Data Kept": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "已移除 · 数据已保留" } } }
+    },
+    "Refused Plugin": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "被拒插件" } } }
+    },
+    "Browse Plugins": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "浏览插件" } } }
+    },
+    "Browse Plugins…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "浏览插件…" } } }
+    },
+    "Browse published Plugins from a public GitHub repository. Installing checks compatibility and any requested access.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "从公开的 GitHub 仓库浏览已发布的插件。安装时会检查兼容性和插件请求的权限。" } } }
+    },
+    "Repository": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "仓库" } } }
+    },
+    "Remove Repository": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "移除仓库" } } }
+    },
+    "GitHub repository (owner/name or URL)": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "GitHub 仓库（所有者/名称或 URL）" } } }
+    },
+    "Add Repository": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "添加仓库" } } }
+    },
+    "Enter a public GitHub repository as owner/name or a github.com URL.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "输入公开 GitHub 仓库，格式为“所有者/名称”或 github.com URL。" } } }
+    },
+    "Search Plugins": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "搜索插件" } } }
+    },
+    "Loading Plugins…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在载入插件…" } } }
+    },
+    "Showing the first 1,000 releases; more may exist.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示前 1,000 个发布版本，可能还有更多。" } } }
+    },
+    "No published Plugins found in this repository.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "此仓库中没有找到已发布的插件。" } } }
+    },
+    "No matching Plugins.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "没有匹配的插件。" } } }
+    },
+    "Install %@": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "安装 %@" } } }
+    },
+    "No compatible release of %@ could be installed.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法安装与 %@ 兼容的发布版本。" } } }
+    },
+    "GitHub's Plugin releases could not be read: %@": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法读取 GitHub 上的插件发布版本：%@" } } }
+    },
+    "GitHub's request limit is reached. Try again later.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "已达到 GitHub 的请求上限，请稍后再试。" } } }
+    },
+    "GitHub's request limit is reached. Try again after %@.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "已达到 GitHub 的请求上限，请在 %@ 后再试。" } } }
+    },
+    "it is not a list of releases.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "它不是发布版本列表。" } } }
+    },
     "Immediately": {
       "localizations": {
         "zh-Hans": {

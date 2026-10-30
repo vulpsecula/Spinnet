@@ -48,7 +48,7 @@ final class OfficialPluginInstallTests: XCTestCase {
                                        defaults: defaults, accessibilityPermissionCheck: { true },
                                        mouseInputConflictCheck: { _ in [] })
         settings.menuEditor.reviewPluginInstallation = { [store] in try store!.review($0) }
-        settings.menuEditor.installPlugin = { [store] in try store!.install(from: $0) }
+        settings.menuEditor.installPluginWithSource = { [store] in try store!.install(from: $0, source: $1) }
         settings.officialPlugins.lookUpRelease = { try updater.newestRelease(of: $0.id, named: $0.name, from: $0.updateSource) }
         settings.officialPlugins.runInBackground = { $0() }
         settings.officialPlugins.deliver = { $0() }
@@ -141,6 +141,7 @@ final class OfficialPluginInstallTests: XCTestCase {
         }
         XCTAssertEqual(Set(reviewed), ["Copy Selected Text", "Screenshot", "Current App", "Keep Awake"])
         XCTAssertEqual(installedNames, Set(starterNames))
+        XCTAssertEqual(store.installationSource(for: try id("Cut")), .github(try PluginUpdateSource(github: repository)))
         for name in starterNames { XCTAssertEqual(official.state(for: try id(name)), .installed, name) }
         let keepAwake = try id("Keep Awake")
         XCTAssertEqual(registry.package(for: keepAwake)?.manifest.version,

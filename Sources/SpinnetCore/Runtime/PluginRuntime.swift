@@ -1432,17 +1432,22 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
             )
         }
         let helper: PluginHelperProcess
+        var storageGeneration: UInt64?
         do {
             if let registry {
                 while true {
                     do {
                         let started = try registry.withCurrentPackage(package) {
-                            try helpers.start(
+                            let generation = (hostServiceBroker as? CapabilityCheckedHostServiceBroker)?
+                                .storageGeneration(for: action.pluginID)
+                            let started = try helpers.start(
                                 lease,
                                 control: control,
                                 create: create,
                                 allowLeaseReplacement: false
                             )
+                            storageGeneration = generation
+                            return started
                         }
                         lease = started.lease
                         helper = started.helper
@@ -1452,6 +1457,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                     }
                 }
             } else {
+                storageGeneration = (hostServiceBroker as? CapabilityCheckedHostServiceBroker)?
+                    .storageGeneration(for: action.pluginID)
                 let started = try helpers.start(lease, control: control, create: create)
                 lease = started.lease
                 helper = started.helper
@@ -1477,7 +1484,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                 action: action,
                 hostServiceBroker: hostServiceBroker,
                 helper: helper,
-                delivery: delivery
+                delivery: delivery,
+                storageGeneration: storageGeneration
             )
         } catch {
             let helperError = helper.invalidationError()
@@ -1557,7 +1565,8 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
         action: ActionConfiguration,
         hostServiceBroker: PluginHostServiceBroker?,
         helper: PluginHelperProcess,
-        delivery: ViewEventDelivery
+        delivery: ViewEventDelivery,
+        storageGeneration: UInt64?
     ) throws -> PluginRuntimeTerminal {
         while true {
             try control.check()
@@ -1583,7 +1592,11 @@ public final class PluginRuntimeSupervisor: ScriptedActionExecutor {
                         )
                     }
                     let result = try resolvedRequest.namingItsOperation {
-                        try hostServiceBroker.execute(request: resolvedRequest, for: package, action: action)
+                        if let broker = hostServiceBroker as? CapabilityCheckedHostServiceBroker {
+                            return try broker.execute(request: resolvedRequest, for: package, action: action,
+                                                      storageGeneration: storageGeneration)
+                        }
+                        return try hostServiceBroker.execute(request: resolvedRequest, for: package, action: action)
                     }
                     response = PluginRuntimeHostServiceResponse(
                         invocationID: request.invocationID,

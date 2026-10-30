@@ -437,8 +437,8 @@ Host Command instead, so it needs no script.
 Each Plugin has its own key-value store of JSON values, kept between
 invocations and launches, which no other Plugin can reach (ADR 0015). It needs
 no Capability and no consent: a Plugin keeps there only what it already holds.
-The Library shows how much each Plugin keeps and offers Clear Stored Data;
-removing a Plugin deletes its store, so installing it again starts empty, and
+The Library shows how much each Plugin keeps and offers Clear Stored Data.
+On removal the user chooses whether to keep the store for a later install;
 an update keeps it. It is not the Keychain and never the place for a secret.
 [`schemas/plugin-storage.schema.json`](../schemas/plugin-storage.schema.json)
 publishes the inputs and results.

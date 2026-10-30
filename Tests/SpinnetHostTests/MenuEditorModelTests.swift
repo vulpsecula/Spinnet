@@ -362,7 +362,7 @@ final class MenuEditorModelTests: XCTestCase {
 
         XCTAssertEqual(
             model.removalMessage,
-            "Its access is forgotten and it leaves the Library. "
+            "Its access is forgotten. Choose whether to keep its settings, storage and credentials. "
                 + "The Menu Item in Slot 1 uses it; it stays in the Menu and is marked unavailable."
         )
     }
@@ -376,7 +376,7 @@ final class MenuEditorModelTests: XCTestCase {
 
         XCTAssertEqual(
             model.removalMessage,
-            "Its access is forgotten and it leaves the Library. "
+            "Its access is forgotten. Choose whether to keep its settings, storage and credentials. "
                 + "The Menu Items in Slots 1 and 3 use it; they stay in the Menu and are marked unavailable."
         )
     }
@@ -392,7 +392,7 @@ final class MenuEditorModelTests: XCTestCase {
 
         model.requestPluginRemoval(unused)
 
-        XCTAssertEqual(model.removalMessage, "Its access is forgotten and it leaves the Library.")
+        XCTAssertEqual(model.removalMessage, "Its access is forgotten. Choose whether to keep its settings, storage and credentials.")
     }
 
     func testLibrarySearchMatchesPresetAndCommandTitles() throws {

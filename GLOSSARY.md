@@ -23,7 +23,7 @@ An installed Plugin whose package or interface declaration the Host cannot load.
 _Avoid_: Unavailable Plugin, broken Plugin, disabled Plugin
 
 **Plugin Removal**:
-Removing a Plugin from the Library and forgetting its data, grants and Host view preferences, while retaining its Menu Items as unavailable. It stays removed until the user installs a Plugin with the same identity again.
+Removing a Plugin from the Library while retaining its Menu Items as unavailable. The user chooses whether to keep its Plugin Settings, Plugin Storage and credentials; Capability decisions are always forgotten.
 _Avoid_: Delete Plugin, uninstall preset, clear Plugin
 
 **Plugin Update**:
@@ -34,8 +34,16 @@ _Avoid_: Reinstall, upgrade
 The GitHub repository a Plugin declares as where newer versions of it are published. The Host accepts a Plugin Update from it only for the same Plugin identity, and it grants no authority.
 _Avoid_: Registry, update URL, marketplace
 
+**Plugin Installation Source**:
+Where the installed Plugin package was obtained, such as a local package or a GitHub repository. It is independent of the Plugin's Update Source and grants no authority.
+_Avoid_: Plugin origin, publisher
+
+**Plugin Data Clearing**:
+Forgetting the Plugin Settings, Plugin Storage, credentials, Capability decisions and Host view preferences of a Plugin while keeping its Menu Items and any installed package.
+_Avoid_: Plugin Removal, reset menu
+
 **Plugin Storage**:
-Data a Plugin keeps for itself between invocations and launches, which only that Plugin can reach and which is deleted when the Plugin is removed. It holds the Plugin's own data, never the user's choices or a secret.
+Data a Plugin keeps for itself between invocations and launches, which only that Plugin can reach. It holds the Plugin's own data, never the user's choices or a secret.
 _Avoid_: LocalStorage, cache, Plugin data, Plugin Settings
 
 ### Commands and Actions
@@ -337,6 +345,8 @@ The Chinese for each term, chosen once for the interface's 简体中文. Host-ow
 | Plugin Removal | 移除插件 |
 | Plugin Update | 插件更新 |
 | Update Source | 更新源 |
+| Plugin Installation Source | 插件安装来源 |
+| Plugin Data Clearing | 清理插件数据 |
 | Plugin Storage | 插件存储 |
 | Command | 命令 |
 | Host Command | 宿主命令 |

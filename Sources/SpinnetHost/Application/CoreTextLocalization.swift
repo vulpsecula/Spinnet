@@ -93,6 +93,7 @@ func localizedFailure(_ error: Error) -> String {
     switch error {
     case let failure as PluginUpdateError: return localized(failure.text(resetTime: localizedResetTime))
     case let failure as SpinnetReleaseCheckError: return localized(failure.text(resetTime: localizedResetTime))
+    case let failure as PluginRepositoryError: return localized(failure.text(resetTime: localizedResetTime))
     default: return error.localizedDescription
     }
 }

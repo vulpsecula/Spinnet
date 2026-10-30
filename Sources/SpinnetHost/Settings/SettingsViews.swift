@@ -250,6 +250,10 @@ final class SettingsWindowModel: ObservableObject {
     let welcomeGuide: WelcomeGuideModel
     /// The Welcome Guide's checklist of Official Plugins.
     let officialPlugins: OfficialPluginInstallModel
+    /// The Library's browser for public GitHub Plugin repositories.
+    let pluginRepositories: PluginRepositoryModel
+    let pluginData: PluginDataManagementModel
+    var pluginInstallationSource: (PluginID) -> PluginInstallationSource = { _ in .unknown }
 
     var onConfigurationChanged: ((HostConfiguration) -> Void)?
     var onScreenshotSettingsChanged: (() -> Void)?
@@ -303,6 +307,8 @@ final class SettingsWindowModel: ObservableObject {
         appearance = MenuAppearanceModel(defaults: defaults)
         clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
         screenshots = ScreenshotSettingsModel(defaults: defaults)
+        pluginData = PluginDataManagementModel(manifests: { [editor] in editor.pluginManifests },
+                                               refused: { [editor] in editor.refusedPlugins })
         // A refused Plugin can be updated too, to a version this Host runs.
         pluginUpdates = PluginUpdatesModel(manifests: { [editor] in
             editor.pluginManifests + editor.refusedPlugins.compactMap(\.manifest)
@@ -323,6 +329,25 @@ final class SettingsWindowModel: ObservableObject {
                 return try review(url)
             },
             install: { [weak menuEditor] in try menuEditor?.installReviewed($0) })
+        pluginRepositories = PluginRepositoryModel(
+            defaults: defaults,
+            isInstalled: { [editor] id in
+                editor.pluginManifests.contains { $0.id == id } || editor.refusedPlugins.contains { $0.id == id }
+            },
+            review: { [weak menuEditor] url in
+                guard let review = menuEditor?.reviewPluginInstallation else { throw CocoaError(.featureUnsupported) }
+                return try review(url)
+            },
+            install: { [weak menuEditor] pending in
+                guard let menuEditor, try menuEditor.installReviewed(pending) != nil else {
+                    throw CocoaError(.featureUnsupported)
+                }
+            })
+        pluginRepositories.observeInstalledPlugins(menuEditor.$refreshToken.dropFirst())
+        pluginData.afterClear = { [weak privacy, weak menuEditor] in
+            privacy?.refreshCapabilityGrants()
+            menuEditor?.refreshMenuSlots()
+        }
         welcomeGuide.onOpen = { [weak officialPlugins] in officialPlugins?.reset() }
         welcomeGuide.hasInstallsUnderWay = { [weak officialPlugins] in officialPlugins?.hasInstallsUnderWay ?? false }
         // The guide's permission step stood in for the first-run banner.
@@ -549,6 +574,7 @@ struct SettingsRootView: View {
     @ObservedObject var menuEditor: MenuEditorModel
     @ObservedObject var screenshots: ScreenshotSettingsModel
     @ObservedObject var welcomeGuide: WelcomeGuideModel
+    @ObservedObject var pluginRepositories: PluginRepositoryModel
     let openURL: (URL) -> Bool
 
     init(model: SettingsWindowModel, openURL: @escaping (URL) -> Bool) {
@@ -560,6 +586,7 @@ struct SettingsRootView: View {
         self.privacy = model.privacy
         self.screenshots = model.screenshots
         self.welcomeGuide = model.welcomeGuide
+        self.pluginRepositories = model.pluginRepositories
         self.openURL = openURL
     }
     @FocusState private var focusedPage: SettingsPage?
@@ -612,6 +639,12 @@ struct SettingsRootView: View {
                                onCancel: menuEditor.cancelPendingInstallation,
                                onInstall: menuEditor.confirmPendingInstallation)
         }
+        .sheet(isPresented: Binding(
+            get: { pluginRepositories.isPresented },
+            set: { if !$0 { pluginRepositories.close() } }
+        )) {
+            PluginRepositorySheet(model: pluginRepositories)
+        }
         .alert(menuEditor.installationResult?.title ?? "", isPresented: Binding(
             get: { menuEditor.installationResult != nil },
             set: { if !$0 { menuEditor.installationResult = nil } }
@@ -634,7 +667,8 @@ struct SettingsRootView: View {
             set: { if !$0 { menuEditor.cancelPluginRemoval() } }
         )) {
             Button(localized("Cancel"), role: .cancel, action: menuEditor.cancelPluginRemoval)
-            Button(localized("Remove Plugin"), role: .destructive, action: menuEditor.confirmPluginRemoval)
+            Button(localized("Remove and Keep Data")) { menuEditor.confirmPluginRemoval(keepingData: true) }
+            Button(localized("Remove and Delete Data"), role: .destructive) { menuEditor.confirmPluginRemoval(keepingData: false) }
         } message: {
             Text(menuEditor.removalMessage)
         }
@@ -1013,6 +1047,8 @@ struct SettingsRootView: View {
                     libraryPresetsForQuery: menuEditor.libraryPresets(matching:),
                     onPresetPlacement: menuEditor.placePreset,
                     onInstallPlugin: menuEditor.choosePluginPackage,
+                    onBrowsePlugins: model.pluginRepositories.open,
+                    pluginSource: model.pluginInstallationSource,
                     onPluginSettings: privacy.showPluginSettings,
                     onRemovePlugin: menuEditor.requestPluginRemoval,
                     refusedPluginsForQuery: menuEditor.libraryRefusedPlugins(matching:),
@@ -1041,8 +1077,8 @@ struct SettingsRootView: View {
             case .privacyAndPermissions:
                 PrivacySettingsView(
                     accessibilityPermissionGranted: privacy.accessibilityPermissionGranted,
-                    pluginManifests: model.editor.pluginManifests,
-                    capabilityGrants: privacy.capabilityGrants,
+                    pluginData: model.pluginData,
+                    privacy: privacy,
                     clipboardCollectionEnabled: $clipboardHistory.collectionEnabled,
                     clipboardCollectionPaused: $clipboardHistory.collectionPaused,
                     clipboardRetention: $clipboardHistory.retention,
@@ -1053,7 +1089,6 @@ struct SettingsRootView: View {
                     addExcludedApplication: clipboardHistory.addExcludedApplication,
                     removeExcludedApplication: clipboardHistory.removeExcludedApplication,
                     exclusionsFocus: clipboardHistory.exclusionsFocus,
-                    setCapabilityDecision: privacy.setCapabilityDecision,
                     openURL: openURL,
                     screenRecordingPermissionGranted: privacy.screenRecordingPermissionGranted,
                     screenRecordingAwaitsRestart: privacy.screenRecordingAwaitsRestart,
@@ -2597,8 +2632,8 @@ private struct MenuSizeControl: View {
 
 private struct PrivacySettingsView: View {
     let accessibilityPermissionGranted: Bool
-    let pluginManifests: [PluginManifest]
-    let capabilityGrants: [PluginCapabilityGrant]
+    @ObservedObject var pluginData: PluginDataManagementModel
+    @ObservedObject var privacy: PrivacyPermissionsModel
     @Binding var clipboardCollectionEnabled: Bool
     @Binding var clipboardCollectionPaused: Bool
     @Binding var clipboardRetention: ClipboardRetention
@@ -2612,12 +2647,6 @@ private struct PrivacySettingsView: View {
     @State private var confirmEnable = false
     @State private var confirmDisable = false
     let exclusionsFocus: UUID?
-    let setCapabilityDecision: (
-        PluginCapabilityGrantDecision,
-        PluginID,
-        String,
-        PluginCapability
-    ) -> Void
     let openURL: (URL) -> Bool
     var screenRecordingPermissionGranted = false
     var screenRecordingAwaitsRestart = false
@@ -2729,15 +2758,13 @@ private struct PrivacySettingsView: View {
                         icon: "puzzlepiece.extension",
                         title: localized("Plugin Access"),
                         body: localized("Each Plugin receives only the Capabilities you grant to it."),
-                        status: capabilityGrants.isEmpty
-                            ? localized("No declared Capability requests")
-                            : localized("\(capabilityGrants.count) Capability decisions")
+                        status: localized("Manage access and stored data")
                     )
                 }
                 .padding(.horizontal, 18)
                 .settingsCard()
 
-                pluginCapabilityControls
+                PluginDataManagementView(model: pluginData, privacy: privacy)
             }
             .frame(maxWidth: 760, alignment: .leading)
         }
@@ -2754,30 +2781,6 @@ private struct PrivacySettingsView: View {
         panel.prompt = localized("Exclude Application")
         if panel.runModal() == .OK, let url = panel.url, let bundleID = Bundle(url: url)?.bundleIdentifier {
             addExcludedApplication(bundleID)
-        }
-    }
-
-    @ViewBuilder
-    private var pluginCapabilityControls: some View {
-        if pluginManifests.contains(where: { !$0.capabilities.isEmpty }) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(localized("Plugin Capability Grants"))
-                    .font(.headline)
-                Text(localized("Changes take effect immediately and apply to all Actions from each Plugin. Access is checked again when an Action runs."))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                // Lazy, so a switch to this page builds only the grant
-                // controls that are on screen, not every Plugin's toggles.
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    ForEach(pluginManifests.filter { !$0.capabilities.isEmpty }, id: \.id) { manifest in
-                        PluginAccessView(manifest: manifest, grants: capabilityGrants,
-                                         setDecision: setCapabilityDecision)
-                    }
-                }
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(localized("Plugin Capability Grants"))
         }
     }
 

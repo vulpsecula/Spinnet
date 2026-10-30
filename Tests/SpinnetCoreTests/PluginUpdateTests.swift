@@ -89,6 +89,7 @@ final class PluginUpdateTests: XCTestCase {
         let applied = try updater.apply(XCTUnwrap(check.update))
 
         XCTAssertEqual(applied.version, "1.2.0")
+        XCTAssertEqual(store.installationSource(for: applied.id), .github(try PluginUpdateSource(github: PluginReleaseFixture.repository)))
         XCTAssertEqual(installedVersion, "1.2.0")
         XCTAssertEqual(leftoverDownloads(), [], "Applying removes the downloaded package")
     }

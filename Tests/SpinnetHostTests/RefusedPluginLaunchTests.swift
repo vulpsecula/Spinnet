@@ -114,7 +114,7 @@ final class RefusedPluginLaunchTests: XCTestCase {
 
         model.requestPluginRemoval(try XCTUnwrap(model.libraryRefusedPlugins(matching: "").first))
         XCTAssertEqual(model.removalTitle, "Remove Candidate Probe?")
-        XCTAssertEqual(model.removalMessage, "Its access is forgotten and it leaves the Library. "
+        XCTAssertEqual(model.removalMessage, "Its access is forgotten. Choose whether to keep its settings, storage and credentials. "
             + "The Menu Item in Slot 1 uses it; it stays in the Menu and is marked unavailable.")
         model.confirmPluginRemoval()
 

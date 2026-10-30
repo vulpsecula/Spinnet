@@ -136,6 +136,10 @@ public final class PluginSettingsStore {
         lock.withLock { values[pluginID.rawValue] != nil }
     }
 
+    public func pluginIDsWithValues() -> [PluginID] {
+        lock.withLock { values.keys.map { PluginID($0) } }
+    }
+
     public func setValues(_ newValues: [String: JSONValue], for pluginID: PluginID) throws {
         try restoreValues(newValues, for: pluginID)
     }

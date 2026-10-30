@@ -47,6 +47,10 @@ final class SettingsWindowController: NSWindowController {
         get { model.menuEditor.installPlugin }
         set { model.menuEditor.installPlugin = newValue }
     }
+    var installPluginWithSource: ((URL, PluginInstallationSource) throws -> PluginManifest)? {
+        get { model.menuEditor.installPluginWithSource }
+        set { model.menuEditor.installPluginWithSource = newValue }
+    }
     var applyPluginUpdate: ((PluginUpdateOffer) throws -> PluginManifest)? {
         get { model.menuEditor.applyPluginUpdate }
         set { model.menuEditor.applyPluginUpdate = newValue }
@@ -64,6 +68,14 @@ final class SettingsWindowController: NSWindowController {
         get { model.officialPlugins.lookUpRelease }
         set { model.officialPlugins.lookUpRelease = newValue }
     }
+    var listPluginRepository: ((PluginUpdateSource, HostFetchedSections.Cancellation) throws -> PluginRepositoryListing)? {
+        get { model.pluginRepositories.listReleases }
+        set { model.pluginRepositories.listReleases = newValue }
+    }
+    var lookUpRepositoryPluginRelease: ((PublishedPlugin, PluginUpdateSource, HostFetchedSections.Cancellation) throws -> PluginReleaseLookup)? {
+        get { model.pluginRepositories.lookUpRelease }
+        set { model.pluginRepositories.lookUpRelease = newValue }
+    }
     /// Schedules General's daily check of every Plugin; asks nothing until due.
     func startAutomaticPluginUpdateChecks() { model.pluginUpdates.startAutomaticChecks() }
     /// General's Spinnet release checks, also shown in the Status Item.
@@ -71,6 +83,22 @@ final class SettingsWindowController: NSWindowController {
     var removePlugin: ((PluginID) throws -> Void)? {
         get { model.menuEditor.removePlugin }
         set { model.menuEditor.removePlugin = newValue }
+    }
+    var removePluginKeepingData: ((PluginID, Bool) throws -> Void)? {
+        get { model.menuEditor.removePluginKeepingData }
+        set { model.menuEditor.removePluginKeepingData = newValue }
+    }
+    var pluginInstallationSource: (PluginID) -> PluginInstallationSource {
+        get { model.pluginInstallationSource }
+        set { model.pluginInstallationSource = newValue }
+    }
+    var retainedPluginData: () throws -> [RetainedPluginData] {
+        get { model.pluginData.retainedPluginData }
+        set { model.pluginData.retainedPluginData = newValue }
+    }
+    var clearPluginData: ((PluginID) throws -> Void)? {
+        get { model.pluginData.clearPluginData }
+        set { model.pluginData.clearPluginData = newValue }
     }
 
     var connectionSettings: ((PluginID) -> ExternalAppConnectionsModel)? {

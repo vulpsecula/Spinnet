@@ -10,6 +10,7 @@ import SpinnetCore
 struct PendingPluginInstallation: Identifiable, Equatable {
     let source: URL
     let review: PluginInstallationReview
+    var installationSource: PluginInstallationSource = .localFile
     /// Set when this is a Plugin Update found at the Plugin's Update Source.
     var update: PluginUpdateOffer? = nil
 
@@ -73,6 +74,8 @@ final class MenuEditorModel: ObservableObject {
     @Published private(set) var pendingInstallation: PendingPluginInstallation?
     @Published var installationResult: PluginInstallationResult?
     var reviewPluginInstallation: ((URL) throws -> PluginInstallationReview)?
+    var installPluginWithSource: ((URL, PluginInstallationSource) throws -> PluginManifest)?
+    var removePluginKeepingData: ((PluginID, Bool) throws -> Void)?
     var installPlugin: ((URL) throws -> PluginManifest)?
     /// Applies a Plugin Update through the same install-and-replace path.
     var applyPluginUpdate: ((PluginUpdateOffer) throws -> PluginManifest)?
@@ -218,7 +221,7 @@ final class MenuEditorModel: ObservableObject {
     /// Names the Menu Slots whose Menu Items use the Plugin, in the default
     /// Menu and in App Overrides, since those stay and stop working.
     var removalMessage: String {
-        let base = localized("Its access is forgotten and it leaves the Library.")
+        let base = localized("Its access is forgotten. Choose whether to keep its settings, storage and credentials.")
         guard let plugin = pluginPendingRemoval else { return base }
         let usage = slotNumbers(usingPlugin: plugin.pluginID)
         var message = [base]
@@ -284,15 +287,20 @@ final class MenuEditorModel: ObservableObject {
         pluginPendingRemoval = nil
     }
 
-    func confirmPluginRemoval() {
-        guard let plugin = pluginPendingRemoval, let removePlugin else { return }
+    func confirmPluginRemoval(keepingData: Bool = false) {
+        guard let plugin = pluginPendingRemoval, removePluginKeepingData != nil || removePlugin != nil else { return }
         pluginPendingRemoval = nil
         do {
-            try removePlugin(plugin.pluginID)
+            if let removePluginKeepingData { try removePluginKeepingData(plugin.pluginID, keepingData) }
+            else { try removePlugin?(plugin.pluginID) }
             refreshMenuSlots()
             refreshToken += 1
             placementMessage = localized("\(plugin.name) removed. Menu Items that used it are kept and marked unavailable.")
         } catch {
+            // Removal can have unregistered the Plugin before a later cleanup
+            // failed. Reflect that state while the retained data stays retryable.
+            refreshMenuSlots()
+            refreshToken += 1
             placementMessage = localized("Removal failed: \(error.localizedDescription)")
         }
     }
@@ -391,8 +399,12 @@ final class MenuEditorModel: ObservableObject {
             guard let applyPluginUpdate else { return nil }
             perform = { try applyPluginUpdate(update) }
         } else {
-            guard let installPlugin else { return nil }
-            perform = { try installPlugin(pending.source) }
+            if let installPluginWithSource {
+                perform = { try installPluginWithSource(pending.source, pending.installationSource) }
+            } else {
+                guard let installPlugin else { return nil }
+                perform = { try installPlugin(pending.source) }
+            }
         }
         let manifest = try perform()
         // Inheritance notifications precede registration. Even an update

@@ -12,11 +12,22 @@ public protocol PluginCredentialStore: AnyObject {
     func secret(for pluginID: PluginID, reference: String) throws -> String?
     func setSecret(_ secret: String, for pluginID: PluginID, reference: String) throws
     func removeSecret(for pluginID: PluginID, reference: String) throws
+    /// Removes every credential belonging to the Plugin, including references
+    /// no longer declared by its current package.
+    func removeAllSecrets(for pluginID: PluginID) throws
+    /// Plugin identities with stored credentials, without reading the secrets.
+    func pluginIDsWithSecrets() throws -> [PluginID]
     /// Whether a secret is stored, for Settings to show without reading it.
     func hasSecret(for pluginID: PluginID, reference: String) -> Bool
 }
 
 public extension PluginCredentialStore {
+    func removeAllSecrets(for pluginID: PluginID) throws {
+        throw ConfigurationError.persistence("This credential store cannot remove every Plugin credential")
+    }
+
+    func pluginIDsWithSecrets() throws -> [PluginID] { [] }
+
     func hasSecret(for pluginID: PluginID, reference: String) -> Bool {
         ((try? secret(for: pluginID, reference: reference)) ?? nil) != nil
     }
@@ -58,5 +69,13 @@ public final class InMemoryPluginCredentialStore: PluginCredentialStore {
 
     public func removeSecret(for pluginID: PluginID, reference: String) throws {
         _ = lock.withLock { secrets[pluginID]?.removeValue(forKey: reference) }
+    }
+
+    public func removeAllSecrets(for pluginID: PluginID) throws {
+        _ = lock.withLock { secrets.removeValue(forKey: pluginID) }
+    }
+
+    public func pluginIDsWithSecrets() throws -> [PluginID] {
+        lock.withLock { secrets.filter { !$0.value.isEmpty }.map(\.key) }
     }
 }
