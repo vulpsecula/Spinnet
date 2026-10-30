@@ -20,7 +20,7 @@ struct GeneralSettingsView: View {
                     Divider()
                     toggleRow(
                         localized("Show Status Item"), isOn: $model.showsStatusItem,
-                        detail: localized("When off, the Status Item still appears while a Task or Effect is ongoing. Open Spinnet again to show Settings.")
+                        detail: localized("When off, the Status Item appears for ongoing Tasks and Effects, and for ended Tasks until cleared. Open Spinnet again to show Settings.")
                     )
                     Divider()
                     InterfaceLanguageRow(language: interfaceLanguage)

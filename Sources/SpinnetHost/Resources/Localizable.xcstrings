@@ -9681,12 +9681,12 @@
         }
       }
     },
-    "When off, the Status Item still appears while a Task or Effect is ongoing. Open Spinnet again to show Settings.": {
+    "When off, the Status Item appears for ongoing Tasks and Effects, and for ended Tasks until cleared. Open Spinnet again to show Settings.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "关闭后，任务或效果进行时仍会显示菜单栏图标。再次打开 Spinnet 可显示设置。"
+            "value": "关闭后，任务或效果进行时仍会显示菜单栏图标；已结束的任务在清除前也会让菜单栏图标保持显示。再次打开 Spinnet 可显示设置。"
           }
         }
       }

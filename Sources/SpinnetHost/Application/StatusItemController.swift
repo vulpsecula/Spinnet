@@ -19,8 +19,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// place the user Command-dragged it to.
     private(set) var statusItem: NSStatusItem?
     /// The saved Show Status Item preference. While it is off the Status Item
-    /// still shows whenever a Host Activity is ongoing, so its Stop control
-    /// stays reachable.
+    /// still shows while any Host Activity is retained, so its controls stay
+    /// reachable.
     private var showsStatusItem = true
 
     init(openSettings: @escaping () -> Void, quit: @escaping () -> Void, activities: HostActivities? = nil,
@@ -81,16 +81,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// the Status Item hides once the menu closes.
     private func reconcileVisibility() {
         guard let statusItem else { return }
-        let shown = showsStatusItem || !ongoingActivities.isEmpty
+        let shown = showsStatusItem || !(activities?.list() ?? []).isEmpty
         if shown { statusItem.isVisible = true }
         else if openMenu == nil { statusItem.isVisible = false }
-    }
-
-    /// Ended Tasks remain listed but do not keep a hidden Status Item visible.
-    private var ongoingActivities: [HostActivity] {
-        (activities?.list() ?? []).filter {
-            !($0.kind == "task" && $0.detail?.value(atPointer: "/status") == .string("ended"))
-        }
     }
 
     func showServices(_ model: ReviewedServicesSurface, owner: PluginID) {

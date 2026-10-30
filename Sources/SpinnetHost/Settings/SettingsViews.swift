@@ -203,7 +203,7 @@ final class SettingsWindowModel: ObservableObject {
     let launchAtLogin: LaunchAtLoginModel
     /// General's interface language, applied when Spinnet relaunches.
     let interfaceLanguage: InterfaceLanguageModel
-    /// Whether the Status Item shows while no Host Activity is ongoing.
+    /// Whether the Status Item shows while there are no Host Activities.
     @Published var showsStatusItem: Bool {
         didSet {
             guard showsStatusItem != oldValue else { return }

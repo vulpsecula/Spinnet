@@ -141,7 +141,7 @@ final class GeneralSettingsTests: XCTestCase {
         XCTAssertFalse(try make().showsStatusItem, "The choice survives a relaunch")
     }
 
-    func testAHiddenStatusItemIsRemovedExceptWhileHostActivityIsOngoing() throws {
+    func testAnEffectKeepsAHiddenStatusItemUntilStopped() throws {
         _ = NSApplication.shared
         let activities = HostActivities()
         let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
@@ -168,7 +168,7 @@ final class GeneralSettingsTests: XCTestCase {
                       "The same Status Item returns, keeping the place the user dragged it to")
     }
 
-    func testAnEndedTaskDoesNotKeepAHiddenStatusItem() throws {
+    func testAnEndedTaskKeepsAHiddenStatusItemUntilCleared() throws {
         _ = NSApplication.shared
         let activities = HostActivities()
         let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
@@ -184,6 +184,10 @@ final class GeneralSettingsTests: XCTestCase {
 
         activities.updateTask(task.id, status: "Completed", detail: .object([
             "id": .string(task.id), "status": .string("ended")]))
+        drainMainQueue()
+        XCTAssertTrue(item.isVisible, "An ended Task remains reachable until cleared")
+
+        XCTAssertTrue(activities.clearEndedTask(task.id))
         drainMainQueue()
         XCTAssertFalse(item.isVisible)
     }

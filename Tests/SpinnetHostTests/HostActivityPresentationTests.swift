@@ -5,6 +5,48 @@ import XCTest
 @testable import SpinnetHost
 
 final class HostActivityPresentationTests: XCTestCase {
+    func testEndedTasksRemainReachableWithStatusItemPreferenceOffUntilCleared() throws {
+        _ = NSApplication.shared
+        let activities = HostActivities(), owner = PluginID("task-owner")
+        let controller = StatusItemController(openSettings: {}, quit: {}, activities: activities)
+        controller.install()
+        defer { controller.setShowsStatusItem(true) }
+        controller.setShowsStatusItem(false)
+        let statusItem = try XCTUnwrap(controller.statusItem)
+        XCTAssertFalse(statusItem.isVisible)
+
+        let first = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", stop: {})
+        let second = try activities.register(owner: owner, pluginName: "Packages", kind: "task", status: "Running", stop: {})
+        for (task, name) in [(first, "Upgrade"), (second, "Remove")] {
+            activities.updateTask(task.id, status: "Completed", detail: .object([
+                "id": .string(task.id), "name": .string(name), "status": .string("ended"),
+                "result": .object(["outcome": .string("completed")])]))
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertTrue(statusItem.isVisible, "Retained Tasks must remain reachable")
+
+        let menu = try XCTUnwrap(statusItem.menu)
+        controller.menuWillOpen(menu)
+        let taskItem = try XCTUnwrap(menu.items.first { $0.title == "Packages — Upgrade" })
+        NSApp.sendAction(try XCTUnwrap(taskItem.action), to: taskItem.target, from: taskItem)
+        let window = try XCTUnwrap(NSApp.windows.first { $0.title == "Packages — Upgrade" && $0.isVisible })
+        defer { window.close() }
+
+        let clear = try XCTUnwrap(menu.items.first { $0.title == "Clear Packages — Upgrade" })
+        NSApp.sendAction(try XCTUnwrap(clear.action), to: clear.target, from: clear)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertTrue(statusItem.isVisible, "The remaining ended Task keeps the Status Item reachable")
+        XCTAssertEqual(activities.list().map(\.id), [second.id])
+
+        let clearAll = try XCTUnwrap(menu.items.first { $0.title == "Clear Ended Tasks" })
+        NSApp.sendAction(try XCTUnwrap(clearAll.action), to: clearAll.target, from: clearAll)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertTrue(statusItem.isVisible, "An open menu is never pulled away")
+        controller.menuDidClose(menu)
+        XCTAssertFalse(statusItem.isVisible, "The Status Item hides after the last Activity is cleared")
+        XCTAssertTrue(activities.list().isEmpty)
+    }
+
     func testStatusMenuKeepsEndedTasksOpenableAndLetsTheUserClearThem() throws {
         _ = NSApplication.shared
         let activities = HostActivities(), owner = PluginID("task-owner")
