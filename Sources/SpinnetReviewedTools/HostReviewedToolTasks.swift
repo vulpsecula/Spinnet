@@ -353,7 +353,7 @@ public final class HostReviewedToolTasks {
                 try? current.save(to: directory)
             }
             records[id] = current; publish(current)
-            if !executionHeld(current), let ended = current.ended, activities.shouldExpireEndedTask(at: ended) {
+            if !executionHeld(current), activities.shouldExpireEndedTask(at: current.ended) {
                 expiredUnlisted.append(id)
             }
             if !executionHeld(current), suddenTerminationAssertions.remove(id) != nil { ProcessInfo.processInfo.enableSuddenTermination() }
@@ -365,8 +365,7 @@ public final class HostReviewedToolTasks {
         // inventory. Expire those records too, without touching held work.
         expiredUnlisted.forEach { id in
             lock.lock()
-            let ended = records[id]?.ended
-            if let ended, activities.shouldExpireEndedTask(at: ended) { clearHistory(id) }
+            if let record = records[id], activities.shouldExpireEndedTask(at: record.ended) { clearHistory(id) }
             lock.unlock()
         }
     }

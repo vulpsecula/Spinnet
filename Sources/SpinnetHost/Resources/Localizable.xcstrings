@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Immediately": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即"
+          }
+        }
+      }
+    },
     "Never": {
       "localizations": {
         "zh-Hans": {

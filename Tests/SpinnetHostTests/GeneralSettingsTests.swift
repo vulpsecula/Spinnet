@@ -128,8 +128,11 @@ final class GeneralSettingsTests: XCTestCase {
         XCTAssertEqual(model.endedTaskRetention, .oneHour)
         var heard: [EndedTaskRetention] = []
         model.onEndedTaskRetentionChanged = { heard.append($0) }
+        model.endedTaskRetention = .immediately
+        XCTAssertEqual(heard, [.immediately])
+        XCTAssertEqual(SettingsWindowModel.savedEndedTaskRetention(defaults), .immediately)
         model.endedTaskRetention = .never
-        XCTAssertEqual(heard, [.never])
+        XCTAssertEqual(heard, [.immediately, .never])
         XCTAssertEqual(SettingsWindowModel.savedEndedTaskRetention(defaults), .never)
         defaults.set("unrecognized", forKey: SettingsWindowModel.endedTaskRetentionKey)
         XCTAssertEqual(SettingsWindowModel.savedEndedTaskRetention(defaults), .oneHour)

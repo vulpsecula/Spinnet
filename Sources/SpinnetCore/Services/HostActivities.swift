@@ -31,10 +31,11 @@ public struct HostActivity: Equatable {
 /// stop any entry; Plugins can see/stop only their own. Registration is
 /// bounded and explicit. Nothing is recovered when the Host starts again.
 public enum EndedTaskRetention: String, CaseIterable {
-    case oneHour, oneDay, sevenDays, never
+    case immediately, oneHour, oneDay, sevenDays, never
 
     public var interval: TimeInterval? {
         switch self {
+        case .immediately: return 0
         case .oneHour: return 3_600
         case .oneDay: return 86_400
         case .sevenDays: return 604_800
@@ -66,9 +67,10 @@ public final class HostActivities {
         expireEndedTasks()
     }
 
-    public func shouldExpireEndedTask(at endedAt: Date) -> Bool {
+    public func shouldExpireEndedTask(at endedAt: Date?) -> Bool {
         lock.lock(); defer { lock.unlock() }
-        guard let interval = retention.interval else { return false }
+        if retention == .immediately { return true }
+        guard let endedAt, let interval = retention.interval else { return false }
         return endedAt <= now().addingTimeInterval(-interval)
     }
 
@@ -77,7 +79,7 @@ public final class HostActivities {
         lock.lock()
         guard let interval = retention.interval else { lock.unlock(); return }
         let cutoff = now().addingTimeInterval(-interval)
-        let expired = entries.values.filter { $0.endedAt.map { $0 <= cutoff } ?? false }
+        let expired = entries.values.filter { $0.endedAt.map { retention == .immediately || $0 <= cutoff } ?? false }
         expired.forEach { entries[$0.activity.id] = nil }
         let changed = expired.isEmpty ? [] : Array(observers.values)
         lock.unlock()
@@ -184,8 +186,12 @@ public final class HostActivities {
             if entry.endedOrder == nil { nextEndedOrder &+= 1; entry.endedOrder = nextEndedOrder }
             entry.endedAt = endedAt ?? entry.endedAt ?? now()
         } else { entry.endedOrder = nil; entry.endedAt = nil }
-        entries[id] = entry
-        let changed = Array(observers.values); lock.unlock(); changed.forEach { $0() }
+        let clearImmediately = entry.endedOrder != nil && retention == .immediately
+        entries[id] = clearImmediately ? nil : entry
+        let changed = Array(observers.values)
+        lock.unlock()
+        if clearImmediately { entry.onClear?() }
+        changed.forEach { $0() }
     }
 
     /// Private Host resources retain their Stop entry until their adapter
