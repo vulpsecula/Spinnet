@@ -18,7 +18,15 @@ Menu Editor waits, and says so, until every install the guide started has
 installed or failed, so no lookup or review is left behind the closed guide. Once
 completed or skipped it does not open by itself again; General's Open Welcome
 Guide… reopens it. Open Settings → Menu and add a Plugin's Preset to a Slot. Each Menu Item has one
-Primary Action and optional Alternate Actions, available by right-click.
+Primary Action and optional Alternate Actions. Settings → Menu chooses how
+to reach them: Right Click (the default) opens the Action list. Alternate Ring
+opens an arc of Alternate Actions when the pointer moves past the Menu Item's
+outer edge or the Item is right-clicked. Move back into the Menu or press Esc
+to close the ring; click an available Action to run it. With Click & Drag,
+release over an Action to run it, or elsewhere outside the Menu to cancel.
+Option-Return opens the chosen Item's ring, the arrow keys choose an available
+Action, and Return runs it. Items without Alternate Actions have no ring, and
+unavailable Actions remain visible but disabled.
 Its Configuration Sheet saves or cancels edits together; Menu arrangement,
 appearance and triggers save automatically. Unavailable Actions keep their
 Slots and can be repaired in Settings.

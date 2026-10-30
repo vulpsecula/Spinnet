@@ -878,6 +878,12 @@ struct SettingsRootView: View {
                 .toggleStyle(.switch)
                 .accessibilityHint(localized("When enabled, hold the mouse trigger, drag to a Menu Item, and release to run it."))
 
+            Picker(localized("Alternate Actions"), selection: $trigger.alternateActionMode) {
+                Text(localized("Right Click")).tag(AlternateActionMode.rightClick)
+                Text(localized("Alternate Ring")).tag(AlternateActionMode.alternateRing)
+            }
+            .pickerStyle(.segmented)
+
             HStack {
                 Text(localized("Keyboard"))
                     .frame(width: 68, alignment: .leading)
