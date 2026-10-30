@@ -48,6 +48,32 @@ Plugins from [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins)
 are installed, updated and removed like any other Plugin; the Host's fixed list
 of them, in `OfficialPlugins.swift`, only feeds the Welcome Guide's checklist.
 
+In Settings → Menu → Library, Browse Plugins lists published Plugins from
+SpinnetPlugins. Add Repository accepts another public GitHub repository as
+`owner/name` or an HTTPS GitHub repository URL; added repositories are saved
+and can be removed from the browser without removing their installed Plugins.
+Search the selected repository and choose Install. Spinnet downloads the newest
+compatible release and asks about any access it requests before installing it.
+An already installed Plugin is marked Installed and is updated from its own
+Update Source instead. Installing does not place a Menu Item in a Slot. The
+existing Install or Update Plugin button still chooses a local package.
+The browser reads published releases on request, shows failures and lets the
+user retry. Its list is limited to the first 1,000 releases, with a notice when
+more may exist.
+
+Each Library entry shows where its installed package was obtained: a local
+package, a GitHub repository, or an unknown source for older installs that did
+not record one. The installation source is separate from the Update Source
+declared in the package. Removing a Plugin offers to keep or delete its Plugin
+Settings, Plugin Storage and credentials; its access decisions are forgotten
+in either case, and its Menu Items stay unavailable in their Slots. A later
+install can use data the user kept, but asks for access again. Privacy &
+Permissions → Plugin Access & Data lists installed Plugins and removed Plugins
+whose data was kept, with search, incremental rows, and access details opened
+on demand. Clear Plugin Data removes settings, storage, credentials, access
+decisions and Host view preferences, while leaving the installed package and
+Menu Items in place.
+
 ### Menu Opening Delay
 
 General's Menu Opening Delay (0 to 1 second, 0 by default) lets the trigger

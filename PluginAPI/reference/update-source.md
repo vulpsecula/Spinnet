@@ -63,6 +63,23 @@ in case or Unicode normalization, encryption and ZIP64 are refused. A
 Mark a release that should not be offered yet as a prerelease or keep it as a
 draft. A published version should never change; publish a new version instead.
 
+## Discovering a Plugin in the Library
+
+The Library can browse public GitHub repositories. It lists published,
+non-prerelease releases whose tag and asset follow the names above, grouping
+versions by Plugin identity and showing the release title. The title is
+supplied by the release; the package's manifest is checked when the user
+chooses Install. A repository does not need a separate index file. The browser
+reads up to 10 pages of 100 releases and reports when more may exist. Opening
+the list does not download or install a package.
+
+Installing looks up the newest acceptable release for the chosen identity,
+using the same package checks and per-Plugin lookup and download bounds as a
+Plugin Update. An incompatible newer release can therefore be passed over for
+an older compatible one. The installed package must declare the repository
+being browsed as its Update Source. An identity already installed is not
+replaced through discovery; its Library entry offers its normal update path.
+
 ## How a version is chosen
 
 When the user checks a Plugin, the Host asks GitHub's public API,

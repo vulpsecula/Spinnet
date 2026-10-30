@@ -215,7 +215,10 @@ final class LocalizationCompletenessTests: XCTestCase {
             .unreadableAnswer(HostText("its tag %@ does not name a SemVer version.", .verbatim("nightly"))),
             .runningVersionNotSemVer("dev-build")
         ]
-        let failures: [Error] = pluginFailures + releaseFailures
+        let repositoryFailures: [PluginRepositoryError] = [
+            .rateLimited(resetsAt: nil), .unreadableAnswer(HostText("it is not a list of releases."))
+        ]
+        let failures: [Error] = pluginFailures + releaseFailures + repositoryFailures
         let names = ["com.example.clock", "Clock", "vulpsecula/SpinnetPlugins", "nightly", "dev-build", "SemVer"]
         for failure in failures {
             XCTAssertEqual(localizedFailure(failure), failure.localizedDescription)
@@ -246,7 +249,8 @@ final class LocalizationCompletenessTests: XCTestCase {
                 let time = reset.formatted(Date.FormatStyle(date: .omitted, time: .shortened)
                     .locale(Locale(identifier: language.rawValue)))
                 for failure in [PluginUpdateError.rateLimited(resetsAt: reset) as Error,
-                                SpinnetReleaseCheckError.rateLimited(resetsAt: reset)] {
+                                SpinnetReleaseCheckError.rateLimited(resetsAt: reset),
+                                PluginRepositoryError.rateLimited(resetsAt: reset)] {
                     let shown = localizedFailure(failure)
                     XCTAssertTrue(shown.contains(time), "\(language): \(shown) does not say \(time)")
                     if language == .simplifiedChinese {

@@ -161,7 +161,8 @@ final class OfficialPluginInstallModel: ObservableObject {
                 return
             }
             // Reviewed now, as the Library reviews a package the user chose.
-            let pending = PendingPluginInstallation(source: offer.packageURL, review: try review(offer.packageURL))
+            let pending = PendingPluginInstallation(source: offer.packageURL, review: try review(offer.packageURL),
+                                                    installationSource: .github(plugin.updateSource))
             if pending.review.requestedAccess.isEmpty {
                 try finishInstall(pending)
             } else {

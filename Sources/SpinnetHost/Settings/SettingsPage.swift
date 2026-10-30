@@ -91,6 +91,7 @@ extension SettingsPage {
                         localized("Keyboard shortcut optional"),
                         localized("Accessibility status"),
                         localized("Library"),
+                        localized("Browse Plugins…"),
                         localized("Menu Item Alias"),
                         localized("Add empty Slot"),
                         localized("Edit on the Menu")
@@ -122,7 +123,8 @@ extension SettingsPage {
                         localized("Collect Clipboard History"),
                         localized("Pause Clipboard History collection"),
                         localized("Clipboard retention"),
-                        localized("Plugin Access")
+                        localized("Plugin Access"),
+                        localized("Plugin Access & Data")
                     ] + PluginSystemPermission.allCases.map {
                         localized("Open \($0.localizedTitle) Settings")
                     }

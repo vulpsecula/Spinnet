@@ -14,7 +14,9 @@ import ServiceManagement
 /// Actions unavailable. `onAuthorityChanged` is that signal, and it fires for
 /// grant edits, permission refreshes, and grants changed by another window.
 final class PrivacyPermissionsModel: ObservableObject {
-    @Published private(set) var capabilityGrants: [PluginCapabilityGrant] = []
+    /// The complete snapshot is available to callers that explicitly need it;
+    /// Settings reads one Plugin's decisions only when its details are opened.
+    var capabilityGrants: [PluginCapabilityGrant] { manifests().flatMap { capabilityGrants(for: $0) } }
     @Published private(set) var accessibilityPermissionGranted: Bool
     @Published private(set) var screenRecordingPermissionGranted: Bool
     /// The user asked for Screen Recording during this run and it still reads
@@ -211,17 +213,19 @@ final class PrivacyPermissionsModel: ObservableObject {
     // MARK: Capabilities
 
     func refreshCapabilityGrants() {
-        capabilityGrants = manifests().flatMap { manifest in
-            manifest.capabilities.map { capability in
-                PluginCapabilityGrant(
-                    pluginID: manifest.id,
-                    pluginVersion: manifest.version,
-                    capability: capability,
-                    decision: grantStore.decision(for: manifest.id, pluginVersion: manifest.version,
-                                                  capability: capability, scope: manifest.scope(for: capability)),
-                    scope: manifest.scope(for: capability)
-                )
-            }
+        objectWillChange.send()
+    }
+
+    func capabilityGrants(for manifest: PluginManifest) -> [PluginCapabilityGrant] {
+        manifest.capabilities.map { capability in
+            PluginCapabilityGrant(
+                pluginID: manifest.id,
+                pluginVersion: manifest.version,
+                capability: capability,
+                decision: grantStore.decision(for: manifest.id, pluginVersion: manifest.version,
+                                              capability: capability, scope: manifest.scope(for: capability)),
+                scope: manifest.scope(for: capability)
+            )
         }
     }
 

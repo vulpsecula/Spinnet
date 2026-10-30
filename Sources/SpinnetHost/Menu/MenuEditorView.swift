@@ -10,6 +10,8 @@ struct MenuEditorView: View {
     let libraryPresetsForQuery: (String) -> [MenuItemPreset]
     let onPresetPlacement: (String, Int) -> Bool
     var onInstallPlugin: () -> Void = {}
+    var onBrowsePlugins: () -> Void = {}
+    var pluginSource: (PluginID) -> PluginInstallationSource = { _ in .unknown }
     var onPluginSettings: (PluginID) -> Void = { _ in }
     var onRemovePlugin: (MenuItemPreset) -> Void = { _ in }
     var refusedPluginsForQuery: (String) -> [RefusedPlugin] = { _ in [] }
@@ -52,6 +54,7 @@ struct MenuEditorView: View {
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel(localized("Search Library"))
                 HStack(spacing: 12) {
+                    Button(localized("Browse Plugins…"), action: onBrowsePlugins)
                     Button(localized("Install or Update Plugin…"), action: onInstallPlugin)
                     if let pluginUpdates {
                         CheckAllPluginUpdatesButton(updates: pluginUpdates)
@@ -141,6 +144,8 @@ struct MenuEditorView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                Text(pluginSource(preset.pluginID).localizedTitle)
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 HStack(spacing: 10) {
                     Label(
                         preset.localizedStateLabel,
@@ -239,6 +244,8 @@ struct MenuEditorView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                Text(pluginSource(plugin.id).localizedTitle)
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 if let pluginUpdates {
                     PluginUpdateControls(updates: pluginUpdates, pluginID: plugin.id, pluginName: plugin.libraryName)
                 }

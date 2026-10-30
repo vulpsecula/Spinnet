@@ -189,6 +189,21 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertNil(model.menuEditor.pluginPendingRemoval)
     }
 
+    func testRemovalPassesTheChosenDataPolicyToTheInstaller() throws {
+        let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
+        let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
+        var choices: [Bool] = []
+        model.menuEditor.removePluginKeepingData = { id, keep in
+            XCTAssertEqual(id, preset.pluginID)
+            choices.append(keep)
+        }
+        model.menuEditor.requestPluginRemoval(preset)
+        model.menuEditor.confirmPluginRemoval(keepingData: true)
+        model.menuEditor.requestPluginRemoval(preset)
+        model.menuEditor.confirmPluginRemoval(keepingData: false)
+        XCTAssertEqual(choices, [true, false])
+    }
+
     /// Open URL runs a Host Command, and is still a Plugin the user may remove.
     func testThePluginsThatRunHostCommandsCanBeRemovedLikeAnyOther() throws {
         let registry = PluginRegistry()

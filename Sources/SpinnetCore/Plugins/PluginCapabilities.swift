@@ -892,8 +892,18 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         for package: PluginPackage,
         action: ActionConfiguration
     ) throws -> JSONValue {
+        try execute(request: request, for: package, action: action, storageGeneration: nil)
+    }
+
+    func storageGeneration(for pluginID: PluginID) -> UInt64? {
+        pluginStorage?.generation(for: pluginID)
+    }
+
+    func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
+                 action: ActionConfiguration, storageGeneration: UInt64?) throws -> JSONValue {
         let admission = request.service == .keepAwakeEffect ? keepAwakeAdmission(for: package) : nil
-        return try execute(request: request, for: package, action: action, effectAdmission: admission)
+        return try execute(request: request, for: package, action: action, effectAdmission: admission,
+                           storageGeneration: storageGeneration)
     }
 
     /// Captures ownership before dispatch; no manifest/version equality can
@@ -910,11 +920,13 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
         guard request.service == .keepAwakeEffect else {
             throw PluginHostServiceError.invalidInput("Effect admission applies only to system.keepAwake")
         }
-        return try execute(request: request, for: package, action: action, effectAdmission: admittedOwner)
+        return try execute(request: request, for: package, action: action, effectAdmission: admittedOwner,
+                           storageGeneration: nil)
     }
 
     private func execute(request: PluginRuntimeHostServiceRequest, for package: PluginPackage,
-                         action: ActionConfiguration, effectAdmission: KeepAwakeAdmission?) throws -> JSONValue {
+                         action: ActionConfiguration, effectAdmission: KeepAwakeAdmission?,
+                         storageGeneration: UInt64?) throws -> JSONValue {
         let service = request.service
         if service == .keepAwakeEffect, let registry = pluginRegistry {
             guard let effectAdmission, registry.isCurrent(effectAdmission.registration, for: package),
@@ -1019,7 +1031,8 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
             }
             // The Plugin bound to the connection, never one the request
             // names: a Plugin reaches only its own store.
-            return try pluginStorage.answer(service, input: request.input, for: package.manifest.id)
+            return try pluginStorage.answer(service, input: request.input, for: package.manifest.id,
+                                            generation: storageGeneration)
         }
     }
 

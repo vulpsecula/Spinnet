@@ -187,11 +187,14 @@ Revoking access later leaves the Plugin
 and its Menu Items in place and makes the affected Commands unavailable with a
 Grant Access repair route; it also retires a running helper at once.
 
-Removing a Plugin forgets its access decisions and deletes its
-[Plugin Storage](host-services.md#plugin-storage); installing it again starts
-empty, and an update keeps both. Menu Items made from it stay in their Menu Slots,
-unavailable. Every Plugin follows the same rules, whoever publishes it; the
-app itself contains no Plugins.
+Removing a Plugin forgets its access decisions. The user can keep its Plugin
+Settings, [Plugin Storage](host-services.md#plugin-storage) and credentials for
+a later installation, or delete them. Menu Items made from it stay in their
+Menu Slots, unavailable. Clearing a Plugin's data forgets its settings,
+storage, credentials and access decisions while leaving the installed package
+and Menu Items in place.
+Every Plugin follows the same rules, whoever publishes it; the app itself
+contains no Plugins.
 
 A Plugin that declares an `update_source` also offers Check for Update on its
 Library entry. A newer version found there is applied through the same update

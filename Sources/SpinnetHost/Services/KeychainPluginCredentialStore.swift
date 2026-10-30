@@ -13,6 +13,16 @@ final class KeychainPluginCredentialStore: PluginCredentialStore, CredentialSave
         "\(pluginID.rawValue)/\(reference)"
     }
 
+    static func references(for pluginID: PluginID, accounts: [String]) -> [String] {
+        let prefix = pluginID.rawValue + "/"
+        return accounts.compactMap { account in
+            guard account.hasPrefix(prefix) else { return nil }
+            let reference = String(account.dropFirst(prefix.count))
+            // An ID may itself contain a slash; a credential reference cannot.
+            return PluginCredentialReference.isValid(reference) ? reference : nil
+        }
+    }
+
     private let service: String
     var onChange: ((PluginID) -> Void)?
     private var saveDepth = 0
@@ -96,5 +106,37 @@ final class KeychainPluginCredentialStore: PluginCredentialStore, CredentialSave
             throw ConfigurationError.invalidAction(localized("The credential could not be removed from the Keychain"))
         }
         changed(pluginID)
+    }
+
+    func removeAllSecrets(for pluginID: PluginID) throws {
+        let accounts = try storedAccounts()
+        for reference in Self.references(for: pluginID, accounts: accounts) {
+            try removeSecret(for: pluginID, reference: reference)
+        }
+    }
+
+    func pluginIDsWithSecrets() throws -> [PluginID] {
+        let ids = try storedAccounts().compactMap { account -> PluginID? in
+            guard let slash = account.lastIndex(of: "/"), slash != account.startIndex,
+                  PluginCredentialReference.isValid(String(account[account.index(after: slash)...])) else { return nil }
+            return PluginID(String(account[..<slash]))
+        }
+        return Array(Set(ids))
+    }
+
+    private func storedAccounts() throws -> [String] {
+        let lookup: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll
+        ]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(lookup as CFDictionary, &result)
+        if status == errSecItemNotFound { return [] }
+        guard status == errSecSuccess, let items = result as? [[String: Any]] else {
+            throw ConfigurationError.invalidAction(localized("The credential could not be removed from the Keychain"))
+        }
+        return items.compactMap { $0[kSecAttrAccount as String] as? String }
     }
 }

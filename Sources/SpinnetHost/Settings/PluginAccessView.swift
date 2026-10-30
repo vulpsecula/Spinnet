@@ -177,7 +177,7 @@ struct PluginPermissionsPage: View {
                 .font(.subheadline).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             ScrollView {
-                PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants,
+                PluginAccessView(manifest: manifest, grants: privacy.capabilityGrants(for: manifest),
                                  setDecision: privacy.setCapabilityDecision,
                                  consentedHTTPSHosts: privacy.consentedHTTPSHosts(for: manifest))
             }
@@ -250,7 +250,7 @@ struct MenuItemAccessSummary: View {
     }
 
     private func granted(_ capability: PluginCapability) -> Bool {
-        privacy.capabilityGrants.contains {
+        privacy.capabilityGrants(for: manifest).contains {
             $0.pluginID == manifest.id && $0.pluginVersion == manifest.version
                 && $0.capability == capability && $0.decision == .granted
         }

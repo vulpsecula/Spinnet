@@ -34,6 +34,8 @@ struct HostPluginFiles {
         registry: PluginRegistry,
         grants: PluginCapabilityGrantStore,
         storage: PluginStorage? = nil,
+        settings: PluginSettingsStore? = nil,
+        credentials: PluginCredentialStore? = nil,
         persistGrants: (() throws -> Void)? = nil,
         forgetHostPreferences: @escaping (PluginID) -> Void
     ) -> PluginInstallationStore {
@@ -41,6 +43,7 @@ struct HostPluginFiles {
             directory: pluginsDirectory, registry: registry, grants: grants,
             persistGrants: persistGrants ?? { [self, grants] in try saveCapabilityGrants(grants.allGrants) },
             storage: storage ?? PluginStorage(directory: pluginStorageDirectory),
+            settings: settings, credentials: credentials,
             forgetHostPreferences: forgetHostPreferences
         )
     }

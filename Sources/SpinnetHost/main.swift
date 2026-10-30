@@ -26,6 +26,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private lazy var pluginInstallation = pluginFiles.installationStore(
         registry: registry, grants: capabilityGrants,
         storage: pluginStorage,
+        settings: pluginSettings, credentials: pluginCredentials,
         persistGrants: { [unowned self] in try self.saveCapabilityGrants() },
         forgetHostPreferences: { [unowned self] pluginID in
             if self.clipboardWindow?.pluginID == pluginID {
@@ -407,8 +408,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.reviewPluginInstallation = { [unowned self] url in
                 try self.pluginInstallation.review(url)
             }
-            settings.installPlugin = { [unowned self] url in
-                try self.finishInstallation(of: self.pluginInstallation.install(from: url), editor: editor)
+            settings.installPluginWithSource = { [unowned self] url, source in
+                try self.finishInstallation(of: self.pluginInstallation.install(from: url, source: source), editor: editor)
             }
             // Checks Update Sources and applies Plugin Updates through the
             // same install store. Made here, on the main thread, before any
@@ -433,6 +434,19 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.lookUpOfficialPluginRelease = { plugin in
                 try pluginUpdater.newestRelease(of: plugin.id, named: plugin.name, from: plugin.updateSource)
             }
+            let pluginRepositoryBrowser = PluginRepositoryBrowser(transport: URLSessionHTTPSTransport())
+            // Repository installs may be abandoned while another check is
+            // active, so their temporary offers have their own workspace.
+            let repositoryUpdater = PluginUpdater(
+                store: pluginInstallation, registry: registry, transport: URLSessionHTTPSTransport(),
+                downloads: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("Spinnet Repository Downloads", isDirectory: true) // Not localized: a folder name
+            )
+            settings.listPluginRepository = { try pluginRepositoryBrowser.list($0, cancellation: $1) }
+            settings.lookUpRepositoryPluginRelease = { plugin, source, cancellation in
+                try repositoryUpdater.newestRelease(of: plugin.id, named: plugin.releaseTitle, from: source,
+                                                    cancellation: cancellation)
+            }
             // A single timer for the next due check; nothing is asked at launch.
             settings.startAutomaticPluginUpdateChecks()
             // Spinnet release checks ask GitHub for the newest release and
@@ -440,13 +454,26 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             let releaseChecker = SpinnetReleaseChecker(transport: URLSessionHTTPSTransport())
             settings.spinnetReleases.checkRelease = { try releaseChecker.check() }
             settings.spinnetReleases.startAutomaticChecks()
-            settings.removePlugin = { [unowned self] pluginID in
-                try self.pluginInstallation.uninstall(pluginID)
-                pluginUpdater.discardOffers(for: pluginID)
-                self.clipboardBroker?.responseCache.clear()
-                if let configuration = self.currentConfiguration {
-                    self.menu.reload(items: self.makeMenuSlots(from: configuration))
+            settings.removePluginKeepingData = { [unowned self] pluginID, keep in
+                defer {
+                    pluginUpdater.discardOffers(for: pluginID)
+                    self.clipboardBroker?.responseCache.clear()
+                    if let configuration = self.currentConfiguration {
+                        self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                    }
                 }
+                try self.pluginInstallation.uninstall(pluginID, keepingData: keep)
+            }
+            settings.pluginInstallationSource = { [unowned self] in self.pluginInstallation.installationSource(for: $0) }
+            settings.retainedPluginData = { [unowned self] in try self.pluginInstallation.retainedPluginData() }
+            settings.clearPluginData = { [unowned self] pluginID in
+                defer {
+                    self.clipboardBroker?.responseCache.clear()
+                    if let configuration = self.currentConfiguration {
+                        self.menu.reload(items: self.makeMenuSlots(from: configuration))
+                    }
+                }
+                try self.pluginInstallation.clearPluginData(pluginID)
             }
             settings.onCapabilityGrantChanged = { [weak self] _ in
                 do {

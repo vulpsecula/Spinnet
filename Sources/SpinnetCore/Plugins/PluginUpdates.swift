@@ -212,9 +212,11 @@ public final class PluginUpdater {
     /// check, where any version is newer than none. Nothing is installed: the
     /// offer goes through the normal installation review.
     public func newestRelease(of pluginID: PluginID, named name: String,
-                              from source: PluginUpdateSource) throws -> PluginReleaseLookup {
-        let tags = try listTags(of: source, prefix: Self.tagPrefix(of: pluginID))
-        return try lookUp(Target(id: pluginID, name: name, version: nil), source: source, tags: tags)
+                              from source: PluginUpdateSource,
+                              cancellation: HostFetchedSections.Cancellation? = nil) throws -> PluginReleaseLookup {
+        let tags = try listTags(of: source, prefix: Self.tagPrefix(of: pluginID), cancellation: cancellation)
+        return try lookUp(Target(id: pluginID, name: name, version: nil), source: source, tags: tags,
+                          cancellation: cancellation)
     }
 
     /// Checks each Plugin as `check` does, within the same per-Plugin bounds,
@@ -308,7 +310,9 @@ public final class PluginUpdater {
                                  update: found.offer, refusals: found.refusals)
     }
 
-    private func lookUp(_ target: Target, source: PluginUpdateSource, tags: [String]) throws -> PluginReleaseLookup {
+    private func lookUp(_ target: Target, source: PluginUpdateSource, tags: [String],
+                        cancellation: HostFetchedSections.Cancellation? = nil) throws -> PluginReleaseLookup {
+        if cancellation?.isCancelled == true { throw HTTPSTransportError.cancelled }
         let pluginID = target.id
         let prefix = Self.tagPrefix(of: pluginID)
 
@@ -328,6 +332,7 @@ public final class PluginUpdater {
         let workspace = workspace(for: pluginID)
         var budget = Budget()
         for (version, tag) in newer {
+            if cancellation?.isCancelled == true { throw HTTPSTransportError.cancelled }
             func refuse(_ reason: HostText) {
                 refusals.append(.init(tag: tag, version: version.description, reason: reason))
             }
@@ -340,15 +345,20 @@ public final class PluginUpdater {
             let directory = workspace.appendingPathComponent(UUID().uuidString)
             do {
                 // A draft, a tag without a release and a prerelease are not offered.
-                guard let release = try lookUpRelease(tag, of: source), release.draft != true, release.prerelease != true else {
+                guard let release = try lookUpRelease(tag, of: source, cancellation: cancellation),
+                      release.draft != true, release.prerelease != true else {
                     continue
                 }
                 let (offer, accepted) = try accept(release, version: version, for: target, source: source,
-                                                   into: directory, budget: &budget)
+                                                   into: directory, budget: &budget, cancellation: cancellation)
+                if cancellation?.isCancelled == true { throw HTTPSTransportError.cancelled }
                 let package = try keep(accepted, tag: release.tag, of: target, generation: generation)
                 return PluginReleaseLookup(offer: PluginUpdateOffer(tag: offer.tag, manifest: offer.manifest, review: offer.review,
                                                                     packageURL: package ?? offer.packageURL),
                                            refusals: refusals)
+            } catch HTTPSTransportError.cancelled {
+                try? FileManager.default.removeItem(at: directory)
+                throw HTTPSTransportError.cancelled
             } catch let error as PluginUpdateError {
                 try? FileManager.default.removeItem(at: directory)
                 throw error
@@ -360,6 +370,7 @@ public final class PluginUpdater {
                 refuse(.verbatim(error.localizedDescription))
             }
         }
+        if cancellation?.isCancelled == true { throw HTTPSTransportError.cancelled }
         _ = try keep(nil, tag: nil, of: target, generation: generation)
         return PluginReleaseLookup(offer: nil, refusals: refusals)
     }
@@ -378,7 +389,7 @@ public final class PluginUpdater {
         guard (try? PluginManifestLoader.load(packageAt: offer.packageURL).manifest) == offer.manifest else {
             throw PluginUpdateError.changedSinceCheck(HostText("The downloaded package changed."))
         }
-        let manifest = try store.install(from: offer.packageURL)
+        let manifest = try store.install(from: offer.packageURL, source: .github(source))
         // Every offer kept for the Plugin was made for the version it replaced.
         discardOffers(for: offer.manifest.id, also: offer.packageURL.deletingLastPathComponent())
         return manifest
@@ -490,7 +501,8 @@ public final class PluginUpdater {
 
     private func accept(_ release: Release, version: PluginVersion, for target: Target,
                         source: PluginUpdateSource, into directory: URL,
-                        budget: inout Budget) throws -> (PluginUpdateOffer, KeptOffer) {
+                        budget: inout Budget,
+                        cancellation: HostFetchedSections.Cancellation?) throws -> (PluginUpdateOffer, KeptOffer) {
         let name = PluginUpdateSource.assetName(for: target.id)
         guard let asset = release.assets.first(where: { $0.name == name }) else {
             throw Refusal(HostText("The release has no asset named %@.", .verbatim(name)))
@@ -514,7 +526,7 @@ public final class PluginUpdater {
             }
             budget.downloads += 1
             do {
-                package = try PluginPackageArchive.unpack(download(url), into: directory)
+                package = try PluginPackageArchive.unpack(download(url, cancellation: cancellation), into: directory)
             } catch let refusal as PluginPackageArchive.Refusal {
                 throw Refusal(.verbatim(refusal.reason + "."))
             }
@@ -588,12 +600,16 @@ public final class PluginUpdater {
         }
     }
 
-    private func send(_ url: URL, accept: String, timeout: TimeInterval, limit: Int) throws -> HTTPSTransportResponse {
+    private func send(_ url: URL, accept: String, timeout: TimeInterval, limit: Int,
+                      cancellation: HostFetchedSections.Cancellation? = nil) throws -> HTTPSTransportResponse {
         let request = HTTPSTransportRequest(method: "GET", url: url, headers: [
             "Accept": accept, "X-GitHub-Api-Version": "2022-11-28"
         ], body: nil, timeout: timeout, maximumResponseBytes: limit)
         do {
+            if let cancellation { return try transport.send(request, cancellation: cancellation) }
             return try transport.send(request)
+        } catch HTTPSTransportError.cancelled {
+            throw HTTPSTransportError.cancelled
         } catch HTTPSTransportError.timedOut {
             throw PluginUpdateError.timedOut
         } catch HTTPSTransportError.responseTooLarge {
@@ -603,9 +619,10 @@ public final class PluginUpdater {
         }
     }
 
-    private func askAPI(_ path: String) throws -> HTTPSTransportResponse {
+    private func askAPI(_ path: String, cancellation: HostFetchedSections.Cancellation? = nil) throws -> HTTPSTransportResponse {
         let response = try send(URL(string: "https://api.github.com/" + path)!, accept: "application/vnd.github+json",
-                                timeout: PluginUpdateBudgets.answerTimeout, limit: PluginUpdateBudgets.maximumAnswerBytes)
+                                timeout: PluginUpdateBudgets.answerTimeout, limit: PluginUpdateBudgets.maximumAnswerBytes,
+                                cancellation: cancellation)
         if response.status == 429 || (response.status == 403 && response.headers["x-ratelimit-remaining"] == "0") {
             let reset = response.headers["x-ratelimit-reset"].flatMap(TimeInterval.init).map(Date.init(timeIntervalSince1970:))
             throw PluginUpdateError.rateLimited(resetsAt: reset)
@@ -615,10 +632,12 @@ public final class PluginUpdater {
 
     /// Every tag starting with `prefix`, however many releases the
     /// repository has.
-    private func listTags(of source: PluginUpdateSource, prefix: String) throws -> [String] {
+    private func listTags(of source: PluginUpdateSource, prefix: String,
+                          cancellation: HostFetchedSections.Cancellation? = nil) throws -> [String] {
         let response: HTTPSTransportResponse
         do {
-            response = try askAPI("repos/\(source.owner)/\(source.repository)/git/matching-refs/tags/\(prefix)")
+            response = try askAPI("repos/\(source.owner)/\(source.repository)/git/matching-refs/tags/\(prefix)",
+                                  cancellation: cancellation)
         } catch let refusal as Refusal {
             throw refusal.tooLarge ? PluginUpdateError.tagListTooLarge : PluginUpdateError.unreadableAnswer(refusal.text)
         }
@@ -641,8 +660,10 @@ public final class PluginUpdater {
     }
 
     /// The release published under `tag`, or nil when GitHub shows none.
-    private func lookUpRelease(_ tag: String, of source: PluginUpdateSource) throws -> Release? {
-        let response = try askAPI("repos/\(source.owner)/\(source.repository)/releases/tags/\(tag)")
+    private func lookUpRelease(_ tag: String, of source: PluginUpdateSource,
+                               cancellation: HostFetchedSections.Cancellation?) throws -> Release? {
+        let response = try askAPI("repos/\(source.owner)/\(source.repository)/releases/tags/\(tag)",
+                                  cancellation: cancellation)
         switch response.status {
         case 200:
             break
@@ -658,11 +679,11 @@ public final class PluginUpdater {
     }
 
     /// Follows GitHub's redirects to its download storage, and nowhere else.
-    private func download(_ asset: URL) throws -> Data {
+    private func download(_ asset: URL, cancellation: HostFetchedSections.Cancellation?) throws -> Data {
         var url = asset
         for _ in 0...PluginUpdateBudgets.maximumRedirects {
             let response = try send(url, accept: "application/octet-stream", timeout: PluginUpdateBudgets.downloadTimeout,
-                                    limit: PluginUpdateBudgets.maximumPackageBytes)
+                                    limit: PluginUpdateBudgets.maximumPackageBytes, cancellation: cancellation)
             switch response.status {
             case 200:
                 return response.body

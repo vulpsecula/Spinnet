@@ -188,7 +188,7 @@ final class MenuEditorAppOverrideTests: XCTestCase {
 
         XCTAssertEqual(
             model.removalMessage,
-            "Its access is forgotten and it leaves the Library. App Overrides use it in Slots 2 and 3 for Finder"
+            "Its access is forgotten. Choose whether to keep its settings, storage and credentials. App Overrides use it in Slots 2 and 3 for Finder"
                 + " and Slot 3 for Safari; they stay and are marked unavailable."
         )
     }
@@ -203,7 +203,7 @@ final class MenuEditorAppOverrideTests: XCTestCase {
 
         XCTAssertEqual(
             model.removalMessage,
-            "Its access is forgotten and it leaves the Library. The Menu Item in Slot 1 uses it; it stays in the Menu"
+            "Its access is forgotten. Choose whether to keep its settings, storage and credentials. The Menu Item in Slot 1 uses it; it stays in the Menu"
                 + " and is marked unavailable. App Overrides use it in Slot 2 for Safari; they stay and are marked unavailable."
         )
     }

@@ -65,7 +65,9 @@ public final class PluginStorage {
 
     public let rootDirectory: URL
     private let limits: Limits
-    private let lock = NSLock()
+    private let lock = NSRecursiveLock()
+    /// Invalidates storage requests accepted by an older Plugin invocation.
+    private var generations: [PluginID: UInt64] = [:]
     /// Each Plugin's key files by file name, read from disk the first time
     /// the Plugin's store is used in this launch and kept up to date by every
     /// change, so a write checks the limits without reading the directory.
@@ -180,18 +182,34 @@ public final class PluginStorage {
         }
     }
 
-    /// Deletes everything the Plugin keeps, its directory included: Clear
-    /// Stored Data in the Library, `clear_storage`, and removing the Plugin.
+    /// Deletes everything the Plugin keeps, its directory included, and
+    /// invalidates requests accepted before this Host-initiated clearing.
     public func clear(_ pluginID: PluginID) throws {
         try locked {
-            indexes[pluginID] = nil
-            let directory = directory(of: pluginID)
-            guard FileManager.default.fileExists(atPath: directory.path) else { return }
-            do {
-                try FileManager.default.removeItem(at: directory)
-            } catch {
-                throw PluginHostServiceError.failed("Plugin Storage could not be cleared")
-            }
+            generations[pluginID, default: 0] &+= 1
+            try clearContents(pluginID)
+        }
+    }
+
+    /// Removal can retain data while still rejecting work from the old helper.
+    func invalidatePendingRequests(for pluginID: PluginID) {
+        locked { generations[pluginID, default: 0] &+= 1 }
+    }
+
+    func generation(for pluginID: PluginID) -> UInt64 {
+        locked { generations[pluginID, default: 0] }
+    }
+
+    /// Called with the lock held; the Plugin's own clear_storage must not
+    /// invalidate subsequent requests in the same invocation.
+    private func clearContents(_ pluginID: PluginID) throws {
+        indexes[pluginID] = nil
+        let directory = directory(of: pluginID)
+        guard FileManager.default.fileExists(atPath: directory.path) else { return }
+        do {
+            try FileManager.default.removeItem(at: directory)
+        } catch {
+            throw PluginHostServiceError.failed("Plugin Storage could not be cleared")
         }
     }
 
@@ -228,16 +246,29 @@ public final class PluginStorage {
             guard input == .null else {
                 throw PluginHostServiceError.invalidInput("clear_storage expects null")
             }
-            try clear(pluginID)
+            try locked { try clearContents(pluginID) }
             return .null
         default:
             throw PluginHostServiceError.failed("\(service.rawValue) is not a Plugin Storage service")
         }
     }
 
+    /// Check and execute under the same lock as Host-initiated clearing, so
+    /// an already dispatched request cannot recreate data after it is cleared.
+    func answer(_ service: PluginHostService, input: JSONValue, for pluginID: PluginID,
+                generation: UInt64?) throws -> JSONValue {
+        guard let generation else { return try answer(service, input: input, for: pluginID) }
+        return try locked {
+            guard generations[pluginID, default: 0] == generation else {
+                throw PluginHostServiceError.unavailable("The Plugin is no longer active")
+            }
+            return try answer(service, input: input, for: pluginID)
+        }
+    }
+
     // MARK: - Files
 
-    private func locked<T>(_ body: () throws -> T) throws -> T {
+    private func locked<T>(_ body: () throws -> T) rethrows -> T {
         lock.lock()
         defer { lock.unlock() }
         return try body()
