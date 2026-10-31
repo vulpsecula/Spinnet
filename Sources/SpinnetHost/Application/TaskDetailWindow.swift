@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import SpinnetCore
 import SwiftUI
 
@@ -25,7 +26,7 @@ private final class TaskDetailWindow: NSWindowController, NSWindowDelegate {
 
     init(activity: HostActivity, activities: HostActivities) {
         model = TaskDetailModel(activity: activity, activities: activities)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 580),
+        let window = HostWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 580),
                               styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = activity.localizedName
@@ -33,7 +34,6 @@ private final class TaskDetailWindow: NSWindowController, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.minSize = NSSize(width: 440, height: 360)
-        window.collectionBehavior.insert(.moveToActiveSpace)
         window.delegate = self
         window.contentView = NSHostingView(rootView: TaskDetailContent(model: model))
         model.onRemoval = { [weak self] in self?.close() }

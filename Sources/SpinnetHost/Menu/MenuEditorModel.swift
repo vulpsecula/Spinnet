@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import Combine
 import Foundation
 import SwiftUI
@@ -203,7 +204,7 @@ final class MenuEditorModel: ObservableObject {
     }
 
     func choosePluginPackage() {
-        let panel = NSOpenPanel()
+        let panel = HostDialogs.makeOpenPanel()
         panel.title = localized("Install or Update Plugin")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -1045,7 +1046,7 @@ final class MenuEditorModel: ObservableObject {
     }
 
     func chooseAppToAdd() {
-        let panel = NSOpenPanel()
+        let panel = HostDialogs.makeOpenPanel()
         panel.title = localized("Add App")
         panel.prompt = localized("Add App")
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)

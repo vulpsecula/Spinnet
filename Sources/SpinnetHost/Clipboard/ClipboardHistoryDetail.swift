@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import Carbon
 import ImageIO
 import SwiftUI
@@ -145,7 +146,7 @@ final class ClipboardHistoryDetailWindow: NSWindowController, NSWindowDelegate {
 
 /// Closes on Space, as Quick Look does, when nothing in it takes the key, and
 /// on Escape from anywhere in it.
-private final class ClipboardHistoryDetailPanel: NSPanel {
+private final class ClipboardHistoryDetailPanel: HostPanel {
     override func keyDown(with event: NSEvent) {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if event.keyCode == UInt16(kVK_Space), modifiers.isEmpty || modifiers == .function {

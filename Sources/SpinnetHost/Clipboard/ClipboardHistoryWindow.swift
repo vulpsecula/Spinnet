@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import Combine
 import SwiftUI
 import SpinnetCore
@@ -663,7 +664,7 @@ final class ClipboardHistoryWindow: NSWindowController, NSWindowDelegate {
 }
 
 /// Accepts history search and list input without activating the Host.
-private final class ClipboardHistoryPanel: NSPanel {
+private final class ClipboardHistoryPanel: HostPanel {
     override var canBecomeKey: Bool { true }
     override func cancelOperation(_ sender: Any?) { close() }
 }

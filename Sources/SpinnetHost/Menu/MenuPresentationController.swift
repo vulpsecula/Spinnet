@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import Carbon
 import SpinnetCore
 
@@ -101,7 +102,7 @@ final class MenuPresentationController {
         self.menuView = RadialMenuView(slots: items)
         menuView.applyAppearance(appearance)
         menuView.alternateActionMode = alternateActionMode
-        self.panel = NSPanel(
+        self.panel = HostPanel(
             contentRect: menuView.bounds,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -113,7 +114,7 @@ final class MenuPresentationController {
         // The Menu draws its own soft shadow inside the overlay's padding.
         panel.hasShadow = false
         panel.level = .popUpMenu
-        panel.collectionBehavior = NSWindow.CollectionBehavior.singleDesktop.union(.stationary)
+        panel.collectionBehavior.insert(.stationary)
         panel.hidesOnDeactivate = false
         panel.acceptsMouseMovedEvents = true
         panel.becomesKeyOnlyIfNeeded = true

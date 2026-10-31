@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import ApplicationServices
 import SpinnetCore
 import SwiftUI
@@ -416,7 +417,7 @@ final class HostConfirmationPanel: HostConfirming {
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.isReleasedWhenClosed = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        panel.collectionBehavior.insert(.transient)
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             panel.standardWindowButton(button)?.isHidden = true
         }
@@ -464,7 +465,7 @@ final class HostConfirmationPanel: HostConfirming {
 
 /// A Host Confirmation's panel. A Plugin View that loses the keyboard to
 /// one stays open: its own operation waits on the answer.
-final class ConfirmationNSPanel: NSPanel {
+final class ConfirmationNSPanel: HostPanel {
     var onCancel: (() -> Void)?
     weak var returnsKeyTo: NSWindow?
 

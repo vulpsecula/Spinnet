@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import Combine
 import SpinnetCore
 
@@ -33,7 +34,7 @@ final class ScreenshotSettingsModel: ObservableObject {
     }
 
     func chooseFolder() {
-        let panel = NSOpenPanel()
+        let panel = HostDialogs.makeOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true

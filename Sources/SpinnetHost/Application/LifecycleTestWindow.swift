@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import SpinnetWindowing
 import SpinnetCore
 
 /// Opt-in desktop fixture; exercises the production invocation and feedback path.
@@ -31,7 +32,7 @@ final class LifecycleTestWindow: NSObject {
         actions = try commands.map {
             try ActionConfiguration(id: ActionID($0.id.rawValue), pluginID: pluginID, command: $0, input: .null)
         }
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 430, height: 160),
+        window = HostWindow(contentRect: NSRect(x: 0, y: 0, width: 430, height: 160),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init()
         window.title = "Spinnet Lifecycle Test"

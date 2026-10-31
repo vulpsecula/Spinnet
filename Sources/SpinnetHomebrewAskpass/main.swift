@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import Darwin
 import SpinnetCore
 import SpinnetReviewedTools
@@ -25,7 +26,7 @@ func runAskpass() throws -> Int32 {
     let application = NSApplication.shared
     application.setActivationPolicy(.accessory)
     application.activate(ignoringOtherApps: true)
-    let alert = NSAlert()
+    let alert = HostDialogs.makeAlert()
     alert.messageText = "Homebrew needs your login password"
     alert.informativeText = context.command + "\n\nSpinnet passes your password to sudo for this Homebrew command. It is not saved or shared with the Plugin."
     alert.alertStyle = .informational

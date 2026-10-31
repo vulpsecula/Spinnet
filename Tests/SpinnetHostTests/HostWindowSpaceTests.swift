@@ -6,6 +6,24 @@ import XCTest
 /// Every Host window belongs to the Desktop it was shown on. None joins all
 /// Spaces, so none is drawn on, or reachable from, another Desktop.
 final class HostWindowSpaceTests: XCTestCase {
+    func testProductionWindowsCannotBypassTheSharedWindowBoundary() throws {
+        let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Sources")
+        let files = try XCTUnwrap(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        let bypass = try NSRegularExpression(pattern:
+            #"\b(?:NSWindow|NSPanel|NSAlert|NSOpenPanel|NSSavePanel)\s*(?:\.init\s*)?\(|\bclass\s+\w+\s*:\s*(?:AppKit\.)?(?:NSWindow|NSPanel)\b|\.(?:canJoinAllSpaces|moveToActiveSpace)\b"#)
+        var scanned = 0
+        for case let file as URL in files where file.pathExtension == "swift" {
+            // The windowing module owns AppKit construction and Desktop policy.
+            if file.pathComponents.contains("SpinnetWindowing") { continue }
+            scanned += 1
+            let source = try String(contentsOf: file, encoding: .utf8)
+            XCTAssertNil(bypass.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
+                         "\(file.path) bypasses SpinnetWindowing; use its window, panel or dialog entry points")
+        }
+        XCTAssertGreaterThan(scanned, 0)
+    }
+
     func testRuntimeMenuShowsOnlyOnTheActiveDesktop() throws {
         let menu = MenuPresentationController(items: [.empty, .empty, .empty])
         defer { menu.dismiss() }
@@ -41,6 +59,16 @@ final class HostWindowSpaceTests: XCTestCase {
         assertStaysOnOneDesktop(try visibleWindow(labelled: "Spinnet feedback"))
     }
 
+    func testAToastShowsOnlyOnTheActiveDesktop() throws {
+        _ = NSApplication.shared
+        let presenter = HostToastPresenter(schedule: { _, _ in })
+        defer { presenter.dismiss() }
+
+        presenter.show("Copied", near: try centreOfMainScreen())
+
+        assertStaysOnOneDesktop(try visibleWindow(labelled: "Spinnet toast"))
+    }
+
     func testAPluginViewShowsOnlyOnTheActiveDesktop() throws {
         let harness = try PluginViewHarness()
         try harness.present(PluginViewHarness.form(title: "Space Check"))
@@ -50,6 +78,26 @@ final class HostWindowSpaceTests: XCTestCase {
         window.show(near: try centreOfMainScreen())
 
         assertStaysOnOneDesktop(try visibleWindow(labelled: "Space Check"))
+    }
+
+    func testAHostConfirmationShowsOnlyOnTheActiveDesktop() throws {
+        _ = NSApplication.shared
+        let action = try ActionConfiguration(id: ActionID("upgrade"), pluginID: PluginID("test.homebrew"),
+            command: CommandDeclaration(id: CommandID("upgrade"), title: "Upgrade", execution: .javascript,
+                                        script: "upgrade.js"), input: .null)
+        let details = try HostConfirmationDetails(title: "Packages and Changes", summary: "Selected packages",
+            rows: [.init(id: "formula/wget", title: "Upgrade wget", detail: "1.24 → 1.25")])
+        let confirmation = HostConfirmation(title: "Confirm Upgrade", message: "Upgrade the selected package",
+                                            confirmTitle: "Upgrade", isDestructive: true, details: details)
+        let presenter = HostConfirmationPanel()
+        let dismiss = presenter.confirm(confirmation, for: action) { _ in
+            XCTFail("Showing or dismissing the panel must not confirm the operation")
+        }
+        defer { dismiss() }
+
+        let panels = NSApp.windows.filter { $0 is ConfirmationNSPanel && $0.isVisible }
+        XCTAssertEqual(panels.count, 1)
+        assertStaysOnOneDesktop(try XCTUnwrap(panels.first))
     }
 
     /// An unpinned view sits at the normal window level, where ordering a

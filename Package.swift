@@ -31,11 +31,13 @@ let package = Package(
         .executableTarget(name: "SpinnetArchiveBootstrap"),
         .executableTarget(name: "SpinnetArchiveDecoder", linkerSettings: [.linkedLibrary("archive"), .linkedLibrary("compression"), .linkedLibrary("xar"), .linkedLibrary("z")]),
         .target(name: "SpinnetCore"),
+        // Shared native window policy for the Host and its UI helpers.
+        .target(name: "SpinnetWindowing"),
         // Native Reviewed Tool execution is unavailable to the Plugin helper
         // and public recorded TestKit; only the Host and fixed workers link it.
         .target(name: "SpinnetReviewedTools", dependencies: ["SpinnetCore"]),
         .executableTarget(name: "SpinnetToolTaskRunner", dependencies: ["SpinnetReviewedTools", "SpinnetCore"], linkerSettings: [.linkedFramework("IOKit")]),
-        .executableTarget(name: "SpinnetHomebrewAskpass", dependencies: ["SpinnetReviewedTools", "SpinnetCore"]),
+        .executableTarget(name: "SpinnetHomebrewAskpass", dependencies: ["SpinnetReviewedTools", "SpinnetCore", "SpinnetWindowing"]),
         .executableTarget(name: "SpinnetToolAuthorizationClient", dependencies: ["SpinnetReviewedTools", "SpinnetCore"]),
         .executableTarget(name: "SpinnetPrivilegedToolHelper", dependencies: ["SpinnetReviewedTools", "SpinnetCore"]),
         .executableTarget(name: "SpinnetBackgroundLifecycleProbe", dependencies: ["SpinnetReviewedTools", "SpinnetCore"], path: "Tools/BackgroundLifecycleProbe"),
@@ -49,7 +51,7 @@ let package = Package(
         .executableTarget(name: "SpinnetPathRemoval", dependencies: ["SpinnetReviewedTools", "SpinnetCore", "SpinnetPathCancellation"]),
         .executableTarget(
             name: "SpinnetHost",
-            dependencies: ["SpinnetCore", "SpinnetReviewedTools"],
+            dependencies: ["SpinnetCore", "SpinnetReviewedTools", "SpinnetWindowing"],
             // Host-owned interface text (Localizable.xcstrings).
             resources: [.process("Resources")],
             linkerSettings: [
@@ -106,7 +108,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SpinnetHostTests",
-            dependencies: ["SpinnetReviewedTools", "SpinnetHost", "SpinnetPluginTestKit", "SpinnetTestSupport"]
+            dependencies: ["SpinnetReviewedTools", "SpinnetHost", "SpinnetPluginTestKit", "SpinnetTestSupport", "SpinnetWindowing"]
         )
     ]
 )

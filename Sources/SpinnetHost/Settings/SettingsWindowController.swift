@@ -1,8 +1,9 @@
 import AppKit
+import SpinnetWindowing
 import SwiftUI
 import SpinnetCore
 
-private final class SettingsWindow: NSWindow {
+private final class SettingsWindow: HostWindow {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard modifiers == .command,

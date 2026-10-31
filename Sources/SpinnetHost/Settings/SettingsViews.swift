@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import Carbon
 import Darwin
 import SwiftUI
@@ -2296,7 +2297,7 @@ struct ResourcePathField: View {
     }
 
     private func chooseResource() {
-        let panel = NSOpenPanel()
+        let panel = HostDialogs.makeOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = kind != .folder
         panel.canChooseDirectories = kind == .folder
@@ -2774,7 +2775,7 @@ private struct PrivacySettingsView: View {
     }
 
     private func chooseExcludedApplication() {
-        let panel = NSOpenPanel()
+        let panel = HostDialogs.makeOpenPanel()
         panel.allowedContentTypes = [.application]
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false

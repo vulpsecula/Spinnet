@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import SpinnetCore
 import SwiftUI
 
@@ -83,7 +84,7 @@ private struct PluginPanelRoot<Content: View>: View {
 
 /// A panel that takes typing without activating Spinnet, so the App the
 /// user was in stays frontmost behind it and inserted text can go there.
-private final class PluginViewNSPanel: NSPanel {
+private final class PluginViewNSPanel: HostPanel {
     var onCancel: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
@@ -180,7 +181,6 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.isReleasedWhenClosed = false
-        panel.collectionBehavior = .singleDesktop
         // The view draws its own close and pin buttons in its header.
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             panel.standardWindowButton(button)?.isHidden = true

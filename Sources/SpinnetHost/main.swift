@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import SpinnetCore
 import SpinnetReviewedTools
 
@@ -530,7 +531,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         reviewedTasks.refresh()
         if reviewedTasks.hasRunningTasks {
             reviewedTasks.beginExit()
-            let alert = NSAlert()
+            let alert = HostDialogs.makeAlert()
             alert.messageText = localized("Homebrew Work Is Still Running")
             alert.informativeText = localized("Read-only inspections are cancelled before mutation admission. Wait for Tasks and owned workers to finish, or attempt to stop them before quitting. Stopping does not undo package changes.")
             alert.addButton(withTitle: localized("Wait and Quit"))
@@ -1060,7 +1061,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showStartupFailure(_ error: Error) {
-        let alert = NSAlert()
+        let alert = HostDialogs.makeAlert()
         alert.alertStyle = .critical
         alert.messageText = localized("Spinnet could not start")
         alert.informativeText = error.localizedDescription
@@ -1069,7 +1070,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showConfigurationError(_ error: Error) {
-        let alert = NSAlert()
+        let alert = HostDialogs.makeAlert()
         alert.alertStyle = .warning
         alert.messageText = localized("Spinnet could not save settings")
         alert.informativeText = error.localizedDescription

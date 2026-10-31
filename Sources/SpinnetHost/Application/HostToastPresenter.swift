@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 
 /// Shows a Plugin's toast that comes without a view as the Host's own
 /// feedback, a small label near the pointer that goes away by itself, like
@@ -22,13 +23,13 @@ final class HostToastPresenter {
     }) {
         self.displayDuration = displayDuration
         self.schedule = schedule
-        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 120, height: 36),
+        panel = HostPanel(contentRect: NSRect(x: 0, y: 0, width: 120, height: 36),
                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.level = .floating
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = true
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        panel.collectionBehavior.insert(.transient)
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true

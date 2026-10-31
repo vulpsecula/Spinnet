@@ -1,4 +1,5 @@
 import AppKit
+import SpinnetWindowing
 import SpinnetCore
 
 final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
@@ -14,7 +15,7 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
     init(displayDuration: TimeInterval = 1.5) {
         self.displayDuration = displayDuration
         label = NSTextField(labelWithString: "")
-        panel = NSPanel(
+        panel = HostPanel(
             contentRect: NSRect(x: 0, y: 0, width: 520, height: 110),
             styleMask: [.titled, .closable, .nonactivatingPanel],
             backing: .buffered,
@@ -26,7 +27,6 @@ final class HostFeedbackPresenter: NSObject, NSWindowDelegate {
         panel.level = .floating
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
-        panel.collectionBehavior = .singleDesktop
         panel.setAccessibilityLabel(localized("Spinnet feedback"))
 
         label.font = NSFont.systemFont(ofSize: 14, weight: .medium)

@@ -1,7 +1,8 @@
 import AppKit
+import SpinnetWindowing
 import SpinnetCore
 
-private final class ReviewedServicesPanel: NSPanel {
+private final class ReviewedServicesPanel: HostPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }
