@@ -155,12 +155,15 @@ public struct HostSourceAdapter {
     /// Opaque current owner registration, rotated even for equal-version updates.
     public let ownerIdentity: (ActionConfiguration) -> AnyHashable?
     public let authorize: (ActionConfiguration, PluginPageSource) throws -> Void
+    /// Idempotent visibility-lifetime setup, before even a delayed first sample.
+    public let activate: (ActionConfiguration, PluginPageSource) -> Void
     public let retire: (ActionConfiguration, PluginPageSource) -> Void
     public let sample: (ActionConfiguration, PluginPageSource, HostFetchedSections.Cancellation) throws -> JSONValue
     public init(minimumInterval: TimeInterval? = nil, deadline: TimeInterval,
                 deliveryInterval: @escaping (ActionConfiguration) -> TimeInterval = { _ in HostRunSourceAddition.deliveryInterval },
                 ownerIdentity: @escaping (ActionConfiguration) -> AnyHashable? = { _ in nil },
                 authorize: @escaping (ActionConfiguration, PluginPageSource) throws -> Void,
+                activate: @escaping (ActionConfiguration, PluginPageSource) -> Void = { _, _ in },
                 retire: @escaping (ActionConfiguration, PluginPageSource) -> Void = { _, _ in },
                 sample: @escaping (ActionConfiguration, PluginPageSource, HostFetchedSections.Cancellation) throws -> JSONValue) {
         self.minimumInterval = minimumInterval
@@ -168,6 +171,7 @@ public struct HostSourceAdapter {
         self.deliveryInterval = deliveryInterval
         self.ownerIdentity = ownerIdentity
         self.authorize = authorize
+        self.activate = activate
         self.retire = retire
         self.sample = sample
     }
@@ -320,6 +324,8 @@ public final class HostRunSources {
         pages[plugin]?.visible == true && current(record, plugin: plugin)
     }
     private func start(_ record: Record, plugin: PluginID, after delay: TimeInterval) {
+        guard visible(record, plugin: plugin) else { return }
+        adapters[record.source.perform]?.activate(record.action, record.source)
         let wake = UUID(); record.wakeToken = wake
         let begin: () -> Void = { [weak self, weak record] in
             guard let self, let record, record.wakeToken == wake, self.visible(record, plugin: plugin), record.cancellation == nil else { return }

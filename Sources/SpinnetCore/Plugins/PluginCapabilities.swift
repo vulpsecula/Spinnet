@@ -1124,16 +1124,18 @@ public final class CapabilityCheckedHostServiceBroker: PluginHostServiceBroker {
     }
 
     public func activitySourceAdapter(using registry: PluginRegistry) -> HostSourceAdapter {
-        HostSourceAdapter(minimumInterval: 1, deadline: 1,
+        let snapshots = ActivitySourceSnapshots(activities: activities)
+        return HostSourceAdapter(minimumInterval: 1, deadline: 1,
             deliveryInterval: { _ in LiveActivityDelivery.minimumInterval },
             ownerIdentity: { registry.ownerAdmission(for: $0.pluginID).map(AnyHashable.init) },
             authorize: { action, source in
                 guard source.input == .null, registry.isEnabled(for: action.pluginID),
                       registry.package(for: action.pluginID) != nil else { throw PluginHostServiceError.unavailable("The activity owner is no longer active") }
-            }, sample: { [self] action, _, cancellation in
+            }, activate: snapshots.activate, retire: snapshots.retire,
+            sample: { action, source, cancellation in
                 guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The activity read was cancelled") }
                 guard registry.package(for: action.pluginID) != nil else { throw PluginHostServiceError.unavailable("The activity owner is no longer active") }
-                return .array(HomebrewCommandOutput.activities(activities?.list(for: action.pluginID).map(\.json) ?? []))
+                return .array(HomebrewCommandOutput.activities(snapshots.list(action, source).map(\.json)))
             })
     }
 

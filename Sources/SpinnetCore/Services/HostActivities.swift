@@ -53,6 +53,52 @@ public final class HostActivities {
     private var entries: [String: Entry] = [:]
     private var observers: [UUID: () -> Void] = [:]
     private var nextEndedOrder: UInt64 = 0
+    private struct Completion { let activity: HostActivity; let order: UInt64 }
+    private struct ObservationState {
+        let owner: PluginID
+        var completions: [String: Completion] = [:]
+    }
+    private var observations: [UUID: ObservationState] = [:]
+
+    /// A visible source's bounded completion mailbox. Task history may be
+    /// cleared before the next sample; that must not erase the workflow's result.
+    public final class Observation {
+        private weak var activities: HostActivities?
+        private let id: UUID
+        fileprivate init(activities: HostActivities, id: UUID) {
+            self.activities = activities; self.id = id
+        }
+        public func list() -> [HostActivity] { activities?.observedList(id) ?? [] }
+        public func cancel() { activities?.removeObservation(id) }
+        deinit { cancel() }
+    }
+
+    public func observe(for owner: PluginID) -> Observation {
+        lock.lock(); defer { lock.unlock() }
+        let id = UUID()
+        observations[id] = ObservationState(owner: owner)
+        return Observation(activities: self, id: id)
+    }
+
+    private func removeObservation(_ id: UUID) {
+        lock.lock(); defer { lock.unlock() }
+        observations[id] = nil
+    }
+
+    private func observedList(_ id: UUID) -> [HostActivity] {
+        lock.lock()
+        guard let observation = observations[id] else { lock.unlock(); return [] }
+        let current = entries.values.filter { $0.visibleToOwner && $0.activity.owner == observation.owner }
+        var completions = observation.completions
+        for entry in current where entry.endedOrder != nil {
+            completions[entry.activity.id] = Completion(activity: entry.activity, order: entry.endedOrder!)
+        }
+        lock.unlock()
+        let active = Self.snapshots(current.filter { $0.endedOrder == nil })
+        let ended = completions.values.sorted { $0.order > $1.order }
+            .prefix(max(0, Self.maximumPerPlugin - active.count)).map(\.activity)
+        return Self.sorted(active + ended)
+    }
 
     private let now: () -> Date
     private var retention: EndedTaskRetention
@@ -126,7 +172,11 @@ public final class HostActivities {
         lock.lock()
         let snapshots = entries.values.filter { owner == nil || ($0.visibleToOwner && $0.activity.owner == owner) }
         lock.unlock()
-        return snapshots.map { entry in
+        return Self.sorted(Self.snapshots(snapshots))
+    }
+
+    private static func snapshots(_ entries: [Entry]) -> [HostActivity] {
+        entries.map { entry in
             let held = entry.activity
             let remaining = entry.remainingSeconds.map { max(0, $0()) }
             var snapshot = HostActivity(id: held.id, owner: held.owner, pluginName: held.pluginName, kind: held.kind,
@@ -134,7 +184,11 @@ public final class HostActivities {
                                 expiresAt: held.expiresAt, remainingSeconds: remaining)
             snapshot.detail = held.detail
             return snapshot
-        }.sorted {
+        }
+    }
+
+    private static func sorted(_ activities: [HostActivity]) -> [HostActivity] {
+        activities.sorted {
             let leftEnded = $0.detail?.value(atPointer: "/status") == .string("ended")
             let rightEnded = $1.detail?.value(atPointer: "/status") == .string("ended")
             if leftEnded != rightEnded { return !leftEnded }
@@ -186,6 +240,17 @@ public final class HostActivities {
             if entry.endedOrder == nil { nextEndedOrder &+= 1; entry.endedOrder = nextEndedOrder }
             entry.endedAt = endedAt ?? entry.endedAt ?? now()
         } else { entry.endedOrder = nil; entry.endedAt = nil }
+        for key in observations.keys where observations[key]?.owner == held.owner {
+            if detached {
+                observations[key]?.completions[id] = nil
+            } else if let order = entry.endedOrder {
+                observations[key]?.completions[id] = Completion(activity: entry.activity, order: order)
+                if let completed = observations[key]?.completions, completed.count > Self.maximumPerPlugin,
+                   let oldest = completed.min(by: { $0.value.order < $1.value.order })?.key {
+                    observations[key]?.completions[oldest] = nil
+                }
+            }
+        }
         let clearImmediately = entry.endedOrder != nil && retention == .immediately
         entries[id] = clearImmediately ? nil : entry
         let changed = Array(observers.values)

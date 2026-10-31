@@ -74,6 +74,15 @@ The latest result may show stages, elapsed seconds and at most 20 redacted
 lines of 200 characters, summarized from retained Task Output. If the output
 tail is truncated, fewer earlier lines may be available. Task stages are
 hints, progress is indeterminate.
+
+A visible `activities.list` source keeps up to eight of its owner's latest
+Task completions for that observation, independently of retained history.
+Clearing ended Tasks, including immediate retention, therefore does not erase
+the result before the source's next sample. The Status Item and direct
+`activities.list` calls still reflect the user's history setting. Hiding or
+retiring the source releases these transient snapshots; a new observation
+does not restore cleared history. If a tracked Task is no longer available,
+its absence does not establish success and must not trigger a replay.
 When Homebrew emits a download progress bar, its latest completed
 carriage-return frame replaces the current log line. Printable characters
 are retained and terminal control sequences are removed before publication.

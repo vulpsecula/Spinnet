@@ -3,6 +3,78 @@ import XCTest
 @testable import SpinnetCore
 
 final class ActivitySourceDeliveryTests: XCTestCase {
+    func testVisibleSourceReceivesTaskCompletionWhenHistoryIsClearedImmediately() throws {
+        let owner = PluginID("live-task.fixture")
+        let command = CommandDeclaration(id: .init("show"), title: "Show", execution: .javascript, script: "show.js")
+        let manifest = try PluginManifest(id: owner, name: "Tasks", version: "1", commands: [command])
+        let registry = PluginRegistry()
+        try registry.register(.init(rootURL: FileManager.default.temporaryDirectory, manifest: manifest))
+        let action = try ActionConfiguration(id: .init("show"), pluginID: owner, command: command, input: .null)
+        let activities = HostActivities(retention: .immediately)
+        let task = try activities.register(owner: owner, pluginName: "Tasks", kind: "task", status: "Running", stop: {})
+        func publish(_ status: String) {
+            activities.updateTask(task.id, status: status, detail: .object([
+                "id": .string(task.id), "kind": .string("task"), "status": .string(status),
+                "result": status == "ended" ? .object(["outcome": .string("completed")]) : .null
+            ]))
+        }
+        publish("running")
+        let broker = CapabilityCheckedHostServiceBroker(grantStore: PluginCapabilityGrantStore(),
+            systemPermissionCheck: { _ in true },
+            clipboard: .init(selectedTextProvider: { _ in "" }, clipboardWriter: { _ in }), activities: activities)
+        let page = try PluginPage(parsing: .object([
+            "id": .string("task"), "title": .string("Task"),
+            "sources": .array([.object(["id": .string("activities"), "perform": .string("activities.list"),
+                "input": .null, "every": .number(1), "deliver": .object([:])])]),
+            "content": .array([.object(["kind": .string("text"), "id": .string("status"), "text": .string("Waiting")])])
+        ]), permits: { _ in true })
+        var clock = 0.0
+        var timers: [(Double, () -> Void)] = []
+        let engine = HostRunSources(adapters: ["activities.list": broker.activitySourceAdapter(using: registry)],
+            now: { clock }, schedule: { timers.append((clock + $0, $1)) }, background: { $0() }, executor: { $0() })
+        var delivered: [JSONValue] = []
+        engine.onDelivery = { _, event, current in
+            if current(), case .sourceDelivered(_, _, _, let result?, nil) = event { delivered.append(result) }
+        }
+        try engine.present(page, for: action)
+        engine.setVisible(true, pluginID: owner)
+        XCTAssertEqual(delivered.last?.value(atPointer: "/0/status"), .string("running"))
+
+        // Resuming visibility delays the next read to respect the cadence.
+        // Its completion mailbox must already exist during that delay.
+        engine.setVisible(false, pluginID: owner)
+        engine.setVisible(true, pluginID: owner)
+
+        publish("ended")
+        XCTAssertTrue(activities.list().isEmpty, "The user's immediate-history setting must still clear the Status Item")
+        while let next = timers.enumerated().min(by: { $0.element.0 < $1.element.0 }), next.element.0 <= 1 {
+            let timer = timers.remove(at: next.offset); clock = timer.0; timer.1()
+        }
+        XCTAssertEqual(delivered.last?.value(atPointer: "/0/status"), .string("ended"))
+        XCTAssertEqual(delivered.last?.value(atPointer: "/0/result/outcome"), .string("completed"))
+        engine.end(pluginID: owner)
+    }
+
+    func testCompletionMailboxesAreBoundedOwnerScopedAndReleasedOnRetirement() throws {
+        let activities = HostActivities(retention: .immediately)
+        let owner = PluginID("observed-owner"), other = PluginID("other-owner")
+        let observation = activities.observe(for: owner)
+        let foreign = activities.observe(for: other)
+        for index in 0..<(HostActivities.maximumPerPlugin + 2) {
+            let task = try activities.register(owner: owner, pluginName: "Tasks", kind: "task",
+                status: "Running", id: "task-\(index)", stop: {})
+            activities.updateTask(task.id, status: "Ended", detail: .object([
+                "id": .string(task.id), "status": .string("ended")
+            ]))
+        }
+        XCTAssertTrue(activities.list().isEmpty)
+        XCTAssertEqual(Set(observation.list().map(\.id)), Set((2..<(HostActivities.maximumPerPlugin + 2)).map { "task-\($0)" }))
+        XCTAssertTrue(foreign.list().isEmpty)
+        observation.cancel()
+        XCTAssertTrue(observation.list().isEmpty)
+        XCTAssertTrue(activities.observe(for: owner).list().isEmpty, "A new source must not resurrect cleared history")
+    }
+
     func testCurrentActivityContractIsPublishedAndIncompatibleHostRefusesIt() throws {
         let command = CommandDeclaration(id: .init("tasks"), title: "Tasks", execution: .javascript, script: "tasks.js")
         let manifest = try PluginManifest(id: .init("com.example.live-tasks"), name: "Tasks", version: "1", commands: [command])
