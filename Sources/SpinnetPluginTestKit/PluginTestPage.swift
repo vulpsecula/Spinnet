@@ -80,6 +80,9 @@ public final class PluginTestPage {
     public var window: PluginCollectionWindow? { memory.window }
     public var values: JSONValue { memory.values }
     public var selectedItem: PluginPageItem? { memory.selectedItem }
+    /// Every selected item in Collection order: several in a multiple
+    /// collection (ADR 0025), else the selected item, if any.
+    public var selectedItems: [PluginPageItem] { memory.selectedItems }
     /// Where the selection is, its item held or not.
     public var selectedPosition: Int? { memory.selectedPosition }
     public var focus: String? { memory.state.focus }
@@ -202,6 +205,40 @@ public final class PluginTestPage {
         try selectionMoved()
     }
 
+    /// ⌘-click on `item` of a multiple collection: adds it to the selection,
+    /// or removes it; the last selected item stays. In a single collection,
+    /// a click.
+    public func commandClick(_ item: String) throws {
+        guard window?.position(of: item) != nil else { throw PluginTestPageError.noItem(item) }
+        guard memory.selectsMultiple else { return try select(item) }
+        memory.toggleSelection(of: item)
+        if let collection { memory.state.focus = collection.id }
+    }
+
+    /// Shift-click on `item` of a multiple collection: selects the items from
+    /// the anchor, the last item clicked, to it. In a single collection, a
+    /// click.
+    public func shiftClick(_ item: String) throws {
+        guard window?.position(of: item) != nil else { throw PluginTestPageError.noItem(item) }
+        guard memory.selectsMultiple else { return try select(item) }
+        memory.extendSelection(to: item)
+        if let collection { memory.state.focus = collection.id }
+    }
+
+    /// Shift with an arrow, Page or Home/End key in a multiple collection:
+    /// extends the selection from the anchor to where the key moves. In a
+    /// single collection the key moves the selection.
+    public func extendSelection(_ move: PluginPageCollection.Move) throws {
+        guard memory.selectsMultiple else { return try press(move) }
+        memory.extendSelection(move)
+        try selectionMoved()
+    }
+
+    /// ⌘A in a multiple collection: selects every item.
+    public func selectAll() {
+        memory.selectAll()
+    }
+
     /// An arrow, Page or Home/End key that moves the selection, in the
     /// search field (Up and Down, and Left and Right when it searches a
     /// grid) or the collection. The selection is kept
@@ -253,47 +290,64 @@ public final class PluginTestPage {
         if let field, case .textField(let declared)? = page.component(field), declared.collection == nil {
             return try run(.pageSubmitted(page: page.id, field: field, values: memory.values, selection: memory.selection))
         }
-        guard let item = memory.selectedItem, let action = collection?.defaultAction,
-              offers(action, on: item) else { return nil }
-        return try perform(action, on: item)
+        guard let action = collection?.defaultAction else { return nil }
+        return try perform(action)
     }
 
-    /// A double-click on `item`: it is selected and its default item action runs.
+    /// A double-click on `item`: its default item action runs. On an item
+    /// of a multiple collection's selection it runs for the whole
+    /// selection; on any other item, that item is selected first.
     @discardableResult
     public func doubleClick(_ item: String) throws -> PluginScriptAnswer? {
-        try select(item)
-        guard let found = memory.selectedItem, let action = collection?.defaultAction, offers(action, on: found) else {
-            return nil
+        if memory.selectsMultiple, memory.selectedItems.contains(where: { $0.id == item }) {
+            memory.focusWithinSelection(item)
+        } else {
+            try select(item)
         }
-        return try perform(action, on: found)
+        guard let action = collection?.defaultAction else { return nil }
+        return try perform(action)
     }
 
     /// The titles `item`'s context menu offers, the default first; a toggle
-    /// item action the item's marks check reads "✓ title".
+    /// item action the item's marks check reads "✓ title". On an item of a
+    /// multiple collection's selection the menu is the selection's: the
+    /// actions every selected item offers, a toggle checked when all carry
+    /// its mark, and a single item action read "title (unavailable)" while
+    /// several are selected.
     public func menu(of item: String) throws -> [String] {
         guard let collection, let found = window?.position(of: item).flatMap({ window?.item(at: $0) }) else {
             throw PluginTestPageError.noItem(item)
         }
-        return collection.actions(of: found).map { $0.isChecked(for: found) ? "✓ \($0.title)" : $0.title }
+        guard memory.selectsMultiple, memory.selectedItems.contains(where: { $0.id == item }) else {
+            return collection.actions(of: found).map { $0.isChecked(for: found) ? "✓ \($0.title)" : $0.title }
+        }
+        return memory.selectionActions.map { action in
+            let title = memory.isChecked(action) ? "✓ \(action.title)" : action.title
+            return memory.isAvailable(action) ? title : "\(title) (unavailable)"
+        }
     }
 
     /// The user chose the item action `action` from `item`'s context menu.
+    /// On an item of a multiple collection's selection it acts on the whole
+    /// selection; otherwise the item is selected first.
     @discardableResult
     public func choose(itemAction action: String, on item: String) throws -> PluginScriptAnswer? {
-        guard let collection, let position = window?.position(of: item) else { throw PluginTestPageError.noItem(item) }
-        memory.select(position: position)
-        guard let found = memory.selectedItem else { throw PluginTestPageError.noItem(item) }
-        guard let chosen = collection.actions(of: found).first(where: { $0.id == action }) else {
+        guard window?.position(of: item) != nil else { throw PluginTestPageError.noItem(item) }
+        memory.focusWithinSelection(item)
+        guard memory.selectedItem?.id == item else { throw PluginTestPageError.noItem(item) }
+        guard let chosen = memory.selectionActions.first(where: { $0.id == action }), memory.isAvailable(chosen) else {
             throw PluginTestPageError.noAction(action)
         }
-        return try perform(chosen, on: found)
+        return try perform(chosen)
     }
 
-    /// ⌘C with the collection focused: the selected item's `clipboard.write`
-    /// item action, when the collection has exactly one; else nothing.
+    /// ⌘C with the collection focused: the selection's `clipboard.write`
+    /// item action, when the collection has exactly one; else nothing. On a
+    /// multiple collection's selection it copies every selected item's text,
+    /// one per line, in Collection order.
     public func copySelection() throws {
-        guard let item = memory.selectedItem, let copy = collection?.copyAction, offers(copy, on: item) else { return }
-        try perform(copy, on: item)
+        guard let copy = collection?.copyAction else { return }
+        try perform(copy)
     }
 
     /// The user clicked the button whose event ID or title is `button`.
@@ -328,19 +382,19 @@ public final class PluginTestPage {
 
     // MARK: Running
 
-    private func offers(_ action: PluginPageItemAction, on item: PluginPageItem) -> Bool {
-        collection?.actions(of: item).contains(action) ?? false
-    }
-
-    private func perform(_ action: PluginPageItemAction, on item: PluginPageItem) throws -> PluginScriptAnswer? {
-        let snapshot = memory.selectedSnapshot ?? collection?.snapshot(of: item)
-        if let operation = action.operation(on: item, snapshot: snapshot) {
+    /// `action` on the selection, as the Host performs or delivers it;
+    /// nothing when it is not available.
+    @discardableResult
+    private func perform(_ action: PluginPageItemAction) throws -> PluginScriptAnswer? {
+        switch memory.gesture(action) {
+        case .perform(let operation)?:
             try hostPerforms(operation, targetShown: page?.drawsInsertionTarget == true)
             return nil
+        case .deliver(let event)?:
+            return try run(event)
+        case nil:
+            return nil
         }
-        guard let page, let collection, let snapshot else { return nil }
-        return try run(.itemAction(page: page.id, collection: collection.id, action: action.id, item: snapshot,
-                                   values: memory.values))
     }
 
     /// The Host performs `operation`, reaching its recorded outcome, closes
@@ -364,10 +418,11 @@ public final class PluginTestPage {
         if operation.closesView, outcome == .succeeded, !isPinned { isClosed = true }
         guard operation.notify else { return }
         if !isClosed {
-            try run(.operationFinished(id: operation.id, perform: operation.perform, outcome: outcome, item: operation.item))
+            try run(.operationFinished(id: operation.id, perform: operation.perform, outcome: outcome, item: operation.item,
+                                       items: operation.items))
         } else if permits(HostOperationsContract.outcomeAfterClose) {
             try runAfterClose(.operationFinished(id: operation.id, perform: operation.perform, outcome: outcome,
-                                                 viewClosed: true, item: operation.item))
+                                                 viewClosed: true, item: operation.item, items: operation.items))
         }
     }
 

@@ -603,6 +603,9 @@ public struct PluginPageAction: Equatable {
 /// always counted from the collection's first item.
 public struct PluginPageCollection: Equatable {
     public enum Style: Equatable { case list, grid }
+    /// How many items the user may select (ADR 0025): one, or several, when
+    /// an Item Action runs once for the whole selection.
+    public enum Selection: String, Equatable { case single, multiple }
 
     public let id: String
     public let style: Style
@@ -611,6 +614,10 @@ public struct PluginPageCollection: Equatable {
     /// are those of the answer's slice that fall within it.
     public let sections: [PluginPageSection]
     public let selected: String?
+    public let selection: Selection
+    /// A multiple collection's initial selection, as declared; empty for a
+    /// single one, whose `selected` names its item.
+    public let selectedIDs: [String]
     public let emptyText: String
     public let actions: [PluginPageItemAction]
     /// Cells across; 1 for a list. For an adaptive Grid, the columns its
@@ -636,7 +643,8 @@ public struct PluginPageCollection: Equatable {
 
     init(parsing value: JSONValue, style: Style, permits: (PluginInterfaceMember) -> Bool) throws {
         let kind = style == .grid ? "grid" : "list"
-        var allowed: Set<String> = ["kind", "id", "items", "sections", "selected", "empty_text", "actions", "rows"]
+        var allowed: Set<String> = ["kind", "id", "items", "sections", "selected", "selection", "empty_text",
+                                    "actions", "rows"]
         if style == .grid { allowed.insert("columns") }
         if style == .grid, permits(PageSizing.adaptiveGridColumns) { allowed.insert("min_cell_size") }
         if permits(CollectionsContract.collectionWindow) { allowed.formUnion(["total", "start"]) }
@@ -731,10 +739,42 @@ public struct PluginPageCollection: Equatable {
             throw PluginPage.violation("The \(kind) \(id) has two items with the ID \(item.id)")
         }
         self.positions = positions
-        selected = try members["selected"].map { try PluginPage.identifier($0, "The \(kind) \(id)'s selected") }
-        if let selected, positions[selected] == nil {
-            throw PluginPage.violation("The \(kind) \(id)'s selected names \(selected), which is not one of its items")
+        switch members["selection"] {
+        case nil, .string("single")?: selection = .single
+        case .string("multiple")?: selection = .multiple
+        default: throw PluginPage.violation("The \(kind) \(id)'s selection is neither \"single\" nor \"multiple\"")
         }
+        if selection == .multiple, isWindowed {
+            throw PluginPage.violation("The \(kind) \(id) gives a total, so its selection is single: "
+                + "a Collection Window offers no multiple selection")
+        }
+        if selection == .single, let action = actions.first(where: \.declaresSingle) {
+            throw PluginPage.violation(
+                "The \(kind) \(id)'s item action \(action.id) is single, but the \(kind)'s selection is already single")
+        }
+        let named: [String]
+        switch members["selected"] {
+        case nil:
+            named = []
+        case .array(let list)?:
+            guard selection == .multiple else {
+                throw PluginPage.violation("The \(kind) \(id)'s selected is a list, but its selection is single")
+            }
+            named = try list.map { try PluginPage.identifier($0, "The \(kind) \(id)'s selected") }
+        case let value?:
+            named = [try PluginPage.identifier(value, "The \(kind) \(id)'s selected")]
+        }
+        var seen: Set<String> = []
+        for name in named {
+            guard positions[name] != nil else {
+                throw PluginPage.violation("The \(kind) \(id)'s selected names \(name), which is not one of its items")
+            }
+            guard seen.insert(name).inserted else {
+                throw PluginPage.violation("The \(kind) \(id)'s selected names \(name) twice")
+            }
+        }
+        selected = selection == .single ? named.first : nil
+        selectedIDs = selection == .multiple ? named : []
         emptyText = try members["empty_text"].map { try PluginPage.text($0, "The \(kind) \(id)'s empty_text") } ?? "No items"
         if style == .grid, members["columns"] == .string("auto"), permits(PageSizing.adaptiveGridColumns) {
             let cell = try PluginPage.number(members["min_cell_size"], "The grid \(id)'s min_cell_size",
@@ -783,6 +823,13 @@ public struct PluginPageCollection: Equatable {
     public func actions(of item: PluginPageItem) -> [PluginPageItemAction] {
         let offered = actions.filter { item.actions?.contains($0.id) ?? true }
         return offered.filter(\.isDefault) + offered.filter { !$0.isDefault }
+    }
+
+    /// The item actions every one of `items` offers, as the first one's
+    /// context menu lists them; nothing for no items.
+    public func actions(of items: [PluginPageItem]) -> [PluginPageItemAction] {
+        guard let first = items.first else { return [] }
+        return actions(of: first).filter { action in items.allSatisfy { $0.actions?.contains(action.id) ?? true } }
     }
 
     /// The `clipboard.write` item action ⌘C performs: only when the
@@ -951,15 +998,22 @@ public struct PluginPageItemAction: Equatable {
     public let toggle: String?
     /// Revision 3: a performed action's outcome reaches the Plugin.
     public let notify: Bool
+    /// The action acts on one item only, so a multiple collection disables
+    /// it while several items are selected (ADR 0025).
+    public let isSingleItem: Bool
+    /// The action names `single` at all, which only a multiple collection's may.
+    let declaresSingle: Bool
 
     init(parsing value: JSONValue, permits: (PluginInterfaceMember) -> Bool) throws {
-        var allowed: Set<String> = ["id", "title", "default", "perform", "closes_view"]
+        var allowed: Set<String> = ["id", "title", "default", "perform", "closes_view", "single"]
         if permits(CollectionsContract.toggleItemActions) { allowed.insert("toggle") }
         if permits(CollectionsContract.performedActionOutcomes) { allowed.insert("notify") }
         let members = try PluginPage.object(value, "An item action", allowed: allowed)
         let id = try PluginPage.identifier(members["id"], "An item action's id")
         self.id = id
         title = try PluginPage.text(members["title"], "The item action \(id)'s title")
+        declaresSingle = members["single"] != nil
+        isSingleItem = try PluginPage.flag(members["single"], "The item action \(id)'s single")
         switch members["default"] {
         case nil: isDefault = false
         case .bool(true)?: isDefault = true
@@ -1002,8 +1056,20 @@ public struct PluginPageItemAction: Equatable {
     /// The operation the Host performs for `item`, for one that performs;
     /// `snapshot` is the item as shown, which its outcome carries.
     public func operation(on item: PluginPageItem, snapshot: PluginPageItemSnapshot? = nil) -> RequestedHostOperation? {
-        perform.map { RequestedHostOperation(perform: $0, input: .object(["text": .string(item.resolvedText)]), id: id,
-                                             closesView: closesView, notify: notify, item: notify ? snapshot : nil) }
+        operation(on: [item], snapshot: snapshot, group: nil)
+    }
+
+    /// The operation the Host performs for a multiple collection's
+    /// selection, `items` in Collection order: their resolved texts joined
+    /// by newlines (ADR 0025). `group` is their snapshots, which its outcome
+    /// carries with `snapshot`, the item the gesture started on.
+    public func operation(on items: [PluginPageItem], snapshot: PluginPageItemSnapshot?,
+                          group: [PluginPageItemSnapshot]?) -> RequestedHostOperation? {
+        perform.map {
+            RequestedHostOperation(perform: $0, input: .object(["text": .string(items.map(\.resolvedText).joined(separator: "\n"))]),
+                                   id: id, closesView: closesView, notify: notify, item: notify ? snapshot : nil,
+                                   items: notify ? group : nil)
+        }
     }
 
     /// Whether this action shows checked for `item`: it toggles a mark the
@@ -1011,6 +1077,15 @@ public struct PluginPageItemAction: Equatable {
     public func isChecked(for item: PluginPageItem) -> Bool {
         toggle.map(item.marks.contains) ?? false
     }
+
+    /// Whether it shows checked for a selection: every item carries its mark.
+    public func isChecked(for items: [PluginPageItem]) -> Bool {
+        !items.isEmpty && items.allSatisfy(isChecked(for:))
+    }
+
+    /// Whether the user can choose it with `count` items selected: a single
+    /// item action is not offered for several.
+    public func isAvailable(forSelectionOf count: Int) -> Bool { !isSingleItem || count <= 1 }
 }
 
 /// The item as shown when the user acted, as `item_action` carries it.

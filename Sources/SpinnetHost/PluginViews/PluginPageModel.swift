@@ -33,8 +33,21 @@ final class PluginPageModel: ObservableObject {
         let action: PluginPageItemAction
         /// The title with the App an insert action inserts into.
         let title: String
-        /// A toggle item action whose mark the item carries.
+        /// A toggle item action whose mark the item carries, or for a
+        /// multiple collection's selection, every selected item.
         let isChecked: Bool
+        /// It can be chosen: a single item action is not, while several
+        /// items are selected (ADR 0025).
+        var isEnabled = true
+    }
+
+    /// The modifier a click in the collection carries.
+    enum ClickModifier: Equatable {
+        case none
+        /// ⌘-click: adds the item to a multiple collection's selection or removes it.
+        case command
+        /// Shift-click: selects the range from the anchor to the item.
+        case shift
     }
 
     let activityList: HostActivityListModel
@@ -47,8 +60,15 @@ final class PluginPageModel: ObservableObject {
     weak var collectionDisplay: PageCollectionDisplay?
     /// Whether the collection has the keyboard, which tints its selection.
     private(set) var collectionIsFocused = false
-    /// The collection's selected item.
+    /// The collection's selected item: of a multiple collection, the
+    /// focused one.
     var selectedItem: String? { memory.selectedItem?.id }
+    /// Every selected item, in Collection order.
+    var selectedItems: [String] { memory.selectedItems.map(\.id) }
+    /// Whether the collection selects several items (ADR 0025).
+    var selectsMultiple: Bool { memory.selectsMultiple }
+    /// Whether the item at `position` is drawn selected.
+    func isSelected(_ position: Int) -> Bool { memory.isSelected(position) }
     /// Where the collection's selection is, its item held or not.
     var selectedPosition: Int? { memory.selectedPosition }
     /// A pinned page stays open when it loses focus and when an action or
@@ -72,6 +92,10 @@ final class PluginPageModel: ObservableObject {
     private(set) var memory = PluginPageMemory()
     /// Text fields with an open input-method composition.
     private(set) var composing: Set<String> = []
+    /// A plain click that reduced a multiple collection's selection to one
+    /// of its items: the selection it had, which the double-click that may
+    /// follow acts on.
+    private var selectionBeforeClick: (position: Int, items: Set<String>, anchor: String?)?
     /// The `load_range` the Host sent last and has not settled, with the
     /// collection's layout it was asked under.
     private var requestedRange: (range: Range<Int>, layout: Int)?
@@ -309,13 +333,36 @@ final class PluginPageModel: ObservableObject {
     @discardableResult
     func moveSelection(_ move: PluginPageCollection.Move) -> Bool {
         let before = memory.selectedPosition
+        let wasGroup = memory.selectedItems.count > 1
         guard let position = memory.moveSelection(move) else { return false }
-        selectionMoved(from: before, to: position)
+        selectionMoved(from: before, to: position, redrawingAll: wasGroup)
         return true
     }
 
-    private func selectionMoved(from before: Int?, to position: Int) {
-        collectionDisplay?.selectionMoved(from: before, to: position)
+    /// Shift with an arrow, Page or Home/End key in a multiple collection:
+    /// extends the selection from the anchor to where the key moves the
+    /// focus. In a single collection the key moves the selection.
+    @discardableResult
+    func extendSelection(_ move: PluginPageCollection.Move) -> Bool {
+        guard memory.selectsMultiple else { return moveSelection(move) }
+        let before = memory.selectedPosition
+        guard let position = memory.extendSelection(move) else { return false }
+        selectionMoved(from: before, to: position, redrawingAll: true)
+        return true
+    }
+
+    /// ⌘A in a multiple collection: selects every item. Returns false for a
+    /// single collection, which has nothing to select all of.
+    @discardableResult
+    func selectAll() -> Bool {
+        guard memory.selectsMultiple else { return false }
+        memory.selectAll()
+        collectionDisplay?.selectionChanged()
+        return true
+    }
+
+    private func selectionMoved(from before: Int?, to position: Int, redrawingAll: Bool = false) {
+        if redrawingAll { collectionDisplay?.selectionChanged() } else { collectionDisplay?.selectionMoved(from: before, to: position) }
         requestScroll(to: position, atTop: false)
         if collectionDisplay == nil, let window = memory.window, let viewport = memory.state.viewports[collection?.id ?? ""],
            !viewport.contains(position) {
@@ -381,16 +428,16 @@ final class PluginPageModel: ObservableObject {
     /// The default item action on the selection; nothing while the
     /// selection waits for its item.
     private func performDefaultOnSelection(shown: InsertionTargetCapture) {
-        guard let collection, let item = memory.selectedItem, let action = collection.defaultAction,
-              collection.actions(of: item).contains(action) else { return }
-        perform(action, on: item, shown: shown)
+        guard let action = collection?.defaultAction else { return }
+        perform(action, shown: shown)
     }
 
-    /// ⌘C with the collection focused: the sole `clipboard.write` item action.
+    /// ⌘C with the collection focused: the sole `clipboard.write` item
+    /// action, on every selected item of a multiple collection, their texts
+    /// one per line.
     func copySelection() -> Bool {
-        guard let collection, let copy = collection.copyAction, let item = memory.selectedItem,
-              collection.actions(of: item).contains(copy) else { return false }
-        perform(copy, on: item, shown: shownTarget())
+        guard let copy = collection?.copyAction, memory.isAvailable(copy) else { return false }
+        perform(copy, shown: shownTarget())
         return true
     }
 
@@ -418,14 +465,38 @@ final class PluginPageModel: ObservableObject {
         click(at: position)
     }
 
-    /// A click on the cell at `position`, an item or a placeholder.
-    func click(at position: Int) {
+    /// A click on the cell at `position`, an item or a placeholder. In a
+    /// multiple collection ⌘ adds or removes the item and Shift selects the
+    /// range from the anchor; in a single one a modifier changes nothing.
+    func click(at position: Int, modifier: ClickModifier = .none) {
         guard let window = memory.window, (0..<window.total).contains(position) else { return }
         let before = memory.selectedPosition
-        memory.select(position: position)
-        if let collection { requestFocus(collection.id) }
-        collectionDisplay?.selectionMoved(from: before, to: position)
+        selectionBeforeClick = nil
+        if memory.selectsMultiple, let item = window.item(at: position) {
+            switch modifier {
+            case .command:
+                memory.toggleSelection(of: item.id)
+            case .shift:
+                memory.extendSelection(to: item.id)
+            case .none:
+                if memory.selectedItems.count > 1, memory.isSelected(position), let id = collection?.id {
+                    selectionBeforeClick = (position, memory.state.groupSelections[id] ?? [], memory.state.selectionAnchors[id])
+                }
+                memory.select(position: position)
+            }
+            if let collection { requestFocus(collection.id) }
+            collectionDisplay?.selectionChanged()
+        } else {
+            memory.select(position: position)
+            if let collection { requestFocus(collection.id) }
+            collectionDisplay?.selectionMoved(from: before, to: position)
+        }
         requestRangeIfNeeded()
+    }
+
+    func click(_ item: String, modifier: ClickModifier) {
+        guard let position = memory.window?.position(of: item) else { return }
+        click(at: position, modifier: modifier)
     }
 
     func doubleClick(_ item: String) {
@@ -433,11 +504,33 @@ final class PluginPageModel: ObservableObject {
         doubleClick(at: position)
     }
 
+    /// The second click of a double-click, whose first click selected the
+    /// item: the default item action runs on it, or, when the first click
+    /// reduced a multiple collection's selection to it, on that selection.
     func doubleClick(at position: Int) {
-        click(at: position)
-        guard let collection, let found = memory.selectedItem, let action = collection.defaultAction,
-              collection.actions(of: found).contains(action) else { return }
-        perform(action, on: found, shown: shownTarget())
+        if let before = selectionBeforeClick, before.position == position, let id = collection?.id,
+           let item = memory.window?.item(at: position) {
+            memory.state.groupSelections[id] = before.items
+            memory.state.selectionAnchors[id] = before.anchor
+            memory.focusWithinSelection(item.id)
+            collectionDisplay?.selectionChanged()
+        } else if !memory.isSelected(position) || memory.selectedPosition != position {
+            click(at: position)
+        }
+        selectionBeforeClick = nil
+        guard let action = collection?.defaultAction else { return }
+        perform(action, shown: shownTarget())
+    }
+
+    /// A right click on the cell at `position`: within a multiple
+    /// collection's selection it keeps the selection and focuses the item;
+    /// elsewhere it selects the item, as a click does.
+    func rightClick(at position: Int) {
+        guard let item = memory.window?.item(at: position) else { return click(at: position) }
+        guard memory.selectsMultiple, memory.isSelected(position) else { return click(at: position) }
+        memory.focusWithinSelection(item.id)
+        if let collection { requestFocus(collection.id) }
+        collectionDisplay?.selectionChanged()
     }
 
     /// What `item`'s context menu offers: the default first.
@@ -446,15 +539,38 @@ final class PluginPageModel: ObservableObject {
         return menu(at: position)
     }
 
+    /// The context menu a right click on `item` opens.
+    func contextMenu(of item: String) -> [MenuEntry] {
+        guard let position = memory.window?.position(of: item) else { return [] }
+        return contextMenu(at: position)
+    }
+
+    /// The context menu of the cell at `position`: on an item of a multiple
+    /// collection's selection, the selection's: what every selected item
+    /// offers, a toggle checked when all carry its mark, a single item
+    /// action disabled while several are selected. Elsewhere the item's.
+    func contextMenu(at position: Int) -> [MenuEntry] {
+        guard memory.selectsMultiple, memory.isSelected(position), memory.selectedItems.count > 1 else {
+            return menu(at: position)
+        }
+        return memory.selectionActions.map { action in
+            MenuEntry(action: action, title: title(of: action), isChecked: memory.isChecked(action),
+                      isEnabled: memory.isAvailable(action))
+        }
+    }
+
+    private func title(of action: PluginPageItemAction) -> String {
+        action.perform == "selection.replace"
+            ? "\(action.title) \(insertionTargetName.map { localized("into \($0)") } ?? Self.noInsertionTarget)"
+            : action.title
+    }
+
     /// What the context menu of the item at `position` offers; nothing for
     /// a placeholder.
     func menu(at position: Int) -> [MenuEntry] {
         guard let collection, let found = memory.window?.item(at: position) else { return [] }
         return collection.actions(of: found).map { action in
-            MenuEntry(action: action, title: action.perform == "selection.replace"
-                      ? "\(action.title) \(insertionTargetName.map { localized("into \($0)") } ?? Self.noInsertionTarget)"
-                      : action.title,
-                      isChecked: action.isChecked(for: found))
+            MenuEntry(action: action, title: title(of: action), isChecked: action.isChecked(for: found))
         }
     }
 
@@ -464,28 +580,44 @@ final class PluginPageModel: ObservableObject {
     }
 
     /// The user chose `action` from the context menu of the item at
-    /// `position`, which the menu selected.
+    /// `position`, which the menu selected: on an item of a multiple
+    /// collection's selection it acts on the whole selection.
     func choose(_ action: PluginPageItemAction, at position: Int) {
-        if memory.selectedPosition != position {
+        if !(memory.selectsMultiple && memory.isSelected(position)), memory.selectedPosition != position {
             let before = memory.selectedPosition
             memory.select(position: position)
             collectionDisplay?.selectionMoved(from: before, to: position)
+        } else if let item = memory.window?.item(at: position), memory.selectedPosition != position {
+            memory.focusWithinSelection(item.id)
+            collectionDisplay?.selectionChanged()
         }
-        guard let found = memory.selectedItem else { return }
-        perform(action, on: found, shown: shownTarget())
+        perform(action, shown: shownTarget())
     }
 
-    private func perform(_ action: PluginPageItemAction, on item: PluginPageItem, shown: InsertionTargetCapture) {
-        guard let collection else { return }
-        let snapshot = memory.selectedSnapshot ?? collection.snapshot(of: item)
-        eventError = nil
-        if let operation = action.operation(on: item, snapshot: snapshot) {
-            session.perform(operation, insertionTarget: operation.perform == "selection.replace" ? shown : .notShown)
-            return
+    /// A row's toggle checkbox: its item action on that row alone, which it
+    /// selects.
+    func chooseAlone(_ action: PluginPageItemAction, at position: Int) {
+        if memory.selectedPosition != position || memory.selectedItems.count > 1 {
+            let before = memory.selectedPosition
+            let wasGroup = memory.selectedItems.count > 1
+            memory.select(position: position)
+            if wasGroup { collectionDisplay?.selectionChanged() } else { collectionDisplay?.selectionMoved(from: before, to: position) }
         }
-        session.send(.itemAction(page: page.id, collection: collection.id, action: action.id, item: snapshot,
-                                 values: memory.values),
-                     insertionTarget: shown)
+        perform(action, shown: shownTarget())
+    }
+
+    /// `action` on the selection, as the Host performs or delivers it;
+    /// nothing when it is not available, as a single item action is not
+    /// while several items are selected.
+    private func perform(_ action: PluginPageItemAction, shown: InsertionTargetCapture) {
+        guard let gesture = memory.gesture(action) else { return }
+        eventError = nil
+        switch gesture {
+        case .perform(let operation):
+            session.perform(operation, insertionTarget: operation.perform == "selection.replace" ? shown : .notShown)
+        case .deliver(let event):
+            session.send(event, insertionTarget: shown)
+        }
     }
 
     // MARK: - Buttons
@@ -657,6 +789,14 @@ final class PluginPageModel: ObservableObject {
     /// What VoiceOver reads for a position whose item is still to come.
     static var placeholderLabel: String { localized("Loading") }
 
+    /// What VoiceOver reads as the collection's selection: how many items
+    /// a multiple collection has selected; nil for a single one.
+    var selectionAccessibilityValue: String? {
+        guard memory.selectsMultiple else { return nil }
+        let count = memory.selectedItems.count
+        return count == 1 ? localized("1 item selected") : localized("\(count) items selected")
+    }
+
     /// The collection's label: its search field's title, else the page's.
     var collectionLabel: String {
         if let field = searchField, case .textField(let declared)? = page.component(field) {
@@ -674,6 +814,8 @@ protocol PageCollectionDisplay: AnyObject {
     func reloadCollection()
     /// The selection moved between two positions; only their cells change.
     func selectionMoved(from: Int?, to: Int?)
+    /// A multiple collection's selection changed: every cell on screen may.
+    func selectionChanged()
     /// Scroll to a position, or to the top.
     func scroll(to request: PluginPageModel.ScrollRequest)
     /// The collection gained or lost the keyboard.

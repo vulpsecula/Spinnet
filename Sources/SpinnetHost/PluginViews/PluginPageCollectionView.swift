@@ -220,9 +220,16 @@ final class PageCollectionScrollView: NSScrollView, PageCollectionDisplay {
 
     func selectionMoved(from: Int?, to: Int?) {
         collectionView.redraw(positions: [from, to].compactMap { $0 })
+        collectionView.selectionChangedForAccessibility()
+    }
+
+    func selectionChanged() {
+        collectionView.redrawVisible()
+        collectionView.selectionChangedForAccessibility()
     }
 
     func focusChanged() {
+        if model?.selectsMultiple == true { return collectionView.redrawVisible() }
         if let position = model?.selectedPosition { collectionView.redraw(positions: [position]) }
     }
 
@@ -346,10 +353,38 @@ final class PageNSCollectionView: NSCollectionView, PluginPageFocusTarget, NSMen
         }
     }
 
+    /// Draws every cell on screen again: a multiple collection's selection
+    /// changed.
+    func redrawVisible() {
+        for indexPath in indexPathsForVisibleItems() {
+            guard let position = position(of: indexPath), let cell = item(at: indexPath) as? PageCell else { continue }
+            configure(cell, at: position)
+        }
+    }
+
+    /// Tells VoiceOver which cells on screen are selected: every selected
+    /// item of a multiple collection, natively as a multiple selection, and
+    /// how many are selected.
+    func selectionChangedForAccessibility() {
+        guard let model else { return }
+        setAccessibilityValue(model.selectionAccessibilityValue)
+        NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
+    }
+
+    /// The selected cells on screen, which the Host draws itself rather than
+    /// through the collection view's own selection.
+    override func accessibilitySelectedChildren() -> [Any]? {
+        guard let model else { return [] }
+        return indexPathsForVisibleItems().sorted().compactMap { indexPath -> NSView? in
+            guard let position = position(of: indexPath), model.isSelected(position) else { return nil }
+            return item(at: indexPath)?.view
+        }
+    }
+
     func configure(_ cell: PageCell, at position: Int) {
         guard let model else { return }
         let item = model.item(at: position)
-        let selected = model.selectedPosition == position
+        let selected = model.isSelected(position)
         cell.show(item, isSelected: selected, isFocused: selected && model.collectionIsFocused,
                   label: item.map(model.accessibilityLabel(of:)) ?? PluginPageModel.placeholderLabel,
                   actions: item == nil ? [] : model.menu(at: position).map { entry in
@@ -366,7 +401,7 @@ final class PageNSCollectionView: NSCollectionView, PluginPageFocusTarget, NSMen
                 // action it still displays. The Plugin owns the resulting mark.
                 guard model?.item(at: position)?.id == item?.id,
                       model?.menu(at: position).contains(where: { $0.action == action }) == true else { return }
-                model?.choose(action, at: position)
+                model?.chooseAlone(action, at: position)
             }
         }
     }
@@ -386,15 +421,16 @@ final class PageNSCollectionView: NSCollectionView, PluginPageFocusTarget, NSMen
         guard let model else { return }
         window?.makeFirstResponder(self)
         guard let position = position(at: event) else { return }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if event.clickCount >= 2 {
             model.doubleClick(at: position)
         } else {
-            model.click(at: position)
+            model.click(at: position, modifier: flags.contains(.command) ? .command : flags.contains(.shift) ? .shift : .none)
         }
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        if let position = position(at: event) { model?.click(at: position) }
+        if let position = position(at: event) { model?.rightClick(at: position) }
         super.rightMouseDown(with: event)
     }
 
@@ -402,12 +438,14 @@ final class PageNSCollectionView: NSCollectionView, PluginPageFocusTarget, NSMen
     /// toggle checked when the item carries its mark. Nothing else.
     override func menu(for event: NSEvent) -> NSMenu? {
         guard let model, let position = position(at: event) else { return nil }
-        let entries = model.menu(at: position)
+        let entries = model.contextMenu(at: position)
         guard !entries.isEmpty else { return nil }
         let menu = NSMenu()
+        menu.autoenablesItems = false
         for entry in entries {
             let item = NSMenuItem(title: entry.title, action: #selector(chooseMenuEntry(_:)), keyEquivalent: "")
             item.target = self
+            item.isEnabled = entry.isEnabled
             item.state = entry.isChecked ? .on : .off
             item.representedObject = PageMenuChoice(action: entry.action, position: position)
             menu.addItem(item)
@@ -441,7 +479,8 @@ final class PageNSCollectionView: NSCollectionView, PluginPageFocusTarget, NSMen
         default: move = nil
         }
         if let move, flags.isDisjoint(with: [.command, .control, .option]) {
-            model.moveSelection(move)
+            // Shift extends a multiple collection's selection.
+            if flags.contains(.shift) { model.extendSelection(move) } else { model.moveSelection(move) }
             return
         }
         switch event.keyCode {
@@ -477,7 +516,13 @@ final class PageNSCollectionView: NSCollectionView, PluginPageFocusTarget, NSMen
         guard model?.copySelection() == true else { return NSSound.beep() }
     }
 
+    /// ⌘A: a multiple collection selects every item.
+    override func selectAll(_ sender: Any?) {
+        guard model?.selectAll() == true else { return NSSound.beep() }
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(selectAll(_:)) { return model?.selectsMultiple == true }
         guard menuItem.action == #selector(copy(_:)) else { return true }
         return model?.collection?.copyAction != nil
     }

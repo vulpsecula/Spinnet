@@ -1,0 +1,32 @@
+{
+  "page": {
+    "id": "clips",
+    "title": "Clips",
+    "content": [
+      {
+        "kind": "list",
+        "id": "clips",
+        "selection": "multiple",
+        "selected": ["bravo", "delta"],
+        "items": [
+          {"id": "alpha", "title": "alpha", "text": "ALPHA"},
+          {"id": "bravo", "title": "bravo", "text": "BRAVO", "marks": ["pinned"]},
+          {"id": "charlie", "title": "charlie", "text": "CHARLIE"},
+          {"id": "delta", "title": "delta", "text": "DELTA"}
+        ],
+        "actions": [
+          {"id": "open", "title": "Open", "default": true},
+          {"id": "pin", "title": "Pin", "toggle": "pinned"},
+          {"id": "rename", "title": "Rename", "single": true},
+          {"id": "copy", "title": "Copy", "perform": "clipboard.write", "notify": true}
+        ]
+      },
+      {
+        "kind": "actions",
+        "id": "buttons",
+        "actions": [{"id": "remove-selected", "title": "Remove Selected"}]
+      }
+    ]
+  },
+  "state": null
+}

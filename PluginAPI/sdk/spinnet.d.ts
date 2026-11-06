@@ -259,6 +259,8 @@ export type OperationFinishedEvent = {
   perform: RequestID;
   /** The item a performed item action acted on, as shown when the user acted. */
   item?: ItemSnapshot;
+  /** For a multiple collection's selection: every selected item as shown, in collection order. */
+  items?: ItemSnapshot[];
 } & (
   | { outcome: "refused" | "failed"; reason: OperationReason; view_closed?: true }
   | { outcome: "succeeded"; view_closed?: true }
@@ -485,8 +487,18 @@ interface CollectionMembers {
   id: ID;
   /** Rows visible initially, 1 to 12. */
   rows?: number;
-  /** The item selected when the collection is new or reset; else the first. */
-  selected?: ID;
+  /**
+   * "single" (the default) or "multiple": Command-click, Shift-click,
+   * Shift-arrows and Command-A select several items, and an item action runs
+   * once for the whole selection. Not with `total`.
+   */
+  selection?: "single" | "multiple";
+  /**
+   * The item selected when the collection is new or reset; else the first. A
+   * multiple collection may give a list, each ID once; the first of them in
+   * collection order is focused.
+   */
+  selected?: ID | ID[];
   /** Shown when there are no items. */
   empty_text?: string;
   /** Up to 6, offered on every item unless the item lists its own. At most one default. */
@@ -557,17 +569,19 @@ export interface Item {
 /**
  * No shortcut. Return and double-click run the default; every action is in the
  * item's context menu, and ⌘C runs a sole `clipboard.write` action. The Host draws no
- * buttons for item actions.
+ * buttons for item actions. In a multiple collection an action runs once for the
+ * whole selection, a performed one on the items' texts joined by newlines;
+ * `single: true` (only there) makes it unavailable while several items are selected.
  */
 export type ItemAction =
-  | { id: ID; title: string; default?: true }
+  | { id: ID; title: string; default?: true; single?: boolean }
   /** Delivers `item_action` and shows checked for an item whose `marks` include `toggle`. */
-  | { id: ID; title: string; default?: true; toggle: ID }
+  | { id: ID; title: string; default?: true; single?: boolean; toggle: ID }
   /**
    * Performed on the item's text, which becomes the operation's primary member
    * text; with `notify`, `operation_finished` reports the outcome with the item.
    */
-  | { id: ID; title: string; default?: true; perform: ItemActionID; closes_view?: boolean; notify?: boolean };
+  | { id: ID; title: string; default?: true; single?: boolean; perform: ItemActionID; closes_view?: boolean; notify?: boolean };
 
 /** The item as shown when the user acted. */
 export interface ItemSnapshot {
@@ -580,15 +594,19 @@ export interface ItemSnapshot {
 }
 
 type Values = { [input: string]: JSONValue };
-/** The page's collection mapped to its selected item, or null. Empty without a collection. */
-type Selection = { [collection: string]: ID | null };
+/** The page's collection mapped to its selected item, or null; a multiple collection to its selected IDs in collection order. Empty without a collection. */
+type Selection = { [collection: string]: ID | null | ID[] };
 
 /** Events from a page. */
 export type PageEvent =
   | { type: "field_changed"; page: ID; field: ID; values: Values }
   | { type: "submitted"; page: ID; field: ID; values: Values; selection: Selection }
   | { type: "action_chosen"; page: ID; action: ID; values: Values; selection: Selection }
-  | { type: "item_action"; page: ID; collection: ID; action: ID; item: ItemSnapshot; values: Values }
+  /**
+   * In a multiple collection, `items` holds every selected item as shown, in
+   * collection order, and `item` the clicked, context-menu or focused one.
+   */
+  | { type: "item_action"; page: ID; collection: ID; action: ID; item: ItemSnapshot; items?: ItemSnapshot[]; values: Values }
   /** The Host needs positions `start` to `start + count`; not a gesture. */
   | { type: "load_range"; page: ID; collection: ID; start: number; count: number };
 
@@ -641,13 +659,13 @@ export interface PageComponents {
   actions(options: { id: ID; actions: PageAction[] }): Actions;
   /** A button delivering `action_chosen`. */
   button(options: { id: ID; title: string }): EventButton;
-  list(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; rows?: number; selected?: ID; emptyText?: string; actions?: ItemAction[] }): List;
-  grid(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; columns?: number | "auto"; minCellSize?: number; rows?: number; selected?: ID; emptyText?: string; actions?: ItemAction[] }): Grid;
+  list(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; rows?: number; selection?: "single" | "multiple"; selected?: ID | ID[]; emptyText?: string; actions?: ItemAction[] }): List;
+  grid(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; columns?: number | "auto"; minCellSize?: number; rows?: number; selection?: "single" | "multiple"; selected?: ID | ID[]; emptyText?: string; actions?: ItemAction[] }): Grid;
   /** With `items`, a section of a whole collection; with `count`, a header of one with a total. */
   section(options: { id: ID; title?: string; items: Item[] }): Section;
   section(options: { id: ID; title?: string; count: number }): SectionHeader;
   item(options: { id: ID; title: string; subtitle?: string; symbol?: string; accessory?: string; text?: string; actions?: ID[]; marks?: ID[]; icon?: SymbolSource }): Item;
-  itemAction(options: { id: ID; title: string; default?: true; perform?: ItemActionID; closesView?: boolean; notify?: boolean; toggle?: ID }): ItemAction;
+  itemAction(options: { id: ID; title: string; default?: true; perform?: ItemActionID; closesView?: boolean; notify?: boolean; toggle?: ID; single?: boolean }): ItemAction;
 }
 
 /**

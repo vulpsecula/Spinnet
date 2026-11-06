@@ -105,7 +105,7 @@ final class OutcomeAfterCloseSessionTests: XCTestCase {
             session.close()
             performer.finish(0, outcome, message: "Host message")
             XCTAssertEqual(runner.runs.count, 2, "\(outcome)")
-            guard case .operationFinished(_, _, let delivered, true, nil)? = runner.runs[1].delivery.event else {
+            guard case .operationFinished(_, _, let delivered, true, nil, _)? = runner.runs[1].delivery.event else {
                 return XCTFail("\(String(describing: runner.runs[1].delivery.event))")
             }
             XCTAssertEqual(delivered, outcome)
@@ -198,7 +198,7 @@ final class OutcomeAfterCloseSessionTests: XCTestCase {
         XCTAssertFalse(session.isEnded)
         XCTAssertEqual(runner.runs.count, 2)
         XCTAssertNil(runner.runs[1].delivery.event.flatMap { event -> Bool? in
-            if case .operationFinished(_, _, _, true, _) = event { return true } else { return nil }
+            if case .operationFinished(_, _, _, true, _, _) = event { return true } else { return nil }
         }, "Delivered in the view, not after it")
     }
 

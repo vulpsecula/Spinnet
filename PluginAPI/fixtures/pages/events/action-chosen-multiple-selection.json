@@ -1,0 +1,9 @@
+{
+  "type": "action_chosen",
+  "page": "clips",
+  "action": "remove-selected",
+  "values": {},
+  "selection": {
+    "clips": ["bravo", "delta"]
+  }
+}

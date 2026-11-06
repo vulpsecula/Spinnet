@@ -809,6 +809,16 @@
         }
       }
     },
+    "%lld items selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选择 %lld 项"
+          }
+        }
+      }
+    },
     "%lld Plugin updates available.": {
       "localizations": {
         "zh-Hans": {
@@ -995,6 +1005,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "、"
+          }
+        }
+      }
+    },
+    "1 item selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选择 1 项"
           }
         }
       }

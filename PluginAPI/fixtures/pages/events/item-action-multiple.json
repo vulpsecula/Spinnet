@@ -1,0 +1,22 @@
+{
+  "type": "item_action",
+  "page": "clips",
+  "collection": "clips",
+  "action": "pin",
+  "item": {
+    "id": "delta",
+    "text": "DELTA"
+  },
+  "items": [
+    {
+      "id": "bravo",
+      "text": "BRAVO",
+      "marks": ["pinned"]
+    },
+    {
+      "id": "delta",
+      "text": "DELTA"
+    }
+  ],
+  "values": {}
+}

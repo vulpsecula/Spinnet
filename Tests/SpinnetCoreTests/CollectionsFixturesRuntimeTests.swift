@@ -193,7 +193,7 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
         try emoji.open()
         let grin = try XCTUnwrap(emoji.selectedItem)
         try emoji.choose(itemAction: "favourite", on: grin.id)
-        guard case .itemAction(_, _, "favourite", let item, _)? = emoji.events.first else {
+        guard case .itemAction(_, _, "favourite", let item, _, _)? = emoji.events.first else {
             return XCTFail("\(emoji.events)")
         }
         XCTAssertEqual(item.marks, [], "It was not a favourite")
@@ -203,7 +203,7 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
         XCTAssertEqual(try emoji.menu(of: grin.id), ["Insert", "Copy", "✓ Favourite"], "It is marked where it is too")
 
         try emoji.choose(itemAction: "favourite", on: "fav:\(grin.id)")
-        guard case .itemAction(_, _, _, let again, _)? = emoji.events.last else { return XCTFail("No toggle") }
+        guard case .itemAction(_, _, _, let again, _, _)? = emoji.events.last else { return XCTFail("No toggle") }
         XCTAssertEqual(again.marks, ["favourite"])
         XCTAssertEqual(emoji.collection?.sections.first?.id, "smileys-emotion", "Removed")
 

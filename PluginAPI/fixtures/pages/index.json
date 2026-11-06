@@ -630,6 +630,48 @@
       "definition": "answer",
       "valid": true,
       "note": "Host-generated own activity control, no Plugin rows or actions"
+    },
+    {
+      "file": "answers/clips-multiple.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A list with multiple selection: a selected list, a single-item Rename, a Pin toggle and a Copy, each running once for the whole selection"
+    },
+    {
+      "file": "answers/multiple-with-total.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A Collection Window (total) offers no multiple selection"
+    },
+    {
+      "file": "answers/selected-list-on-single.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "selected is a list only in a multiple collection"
+    },
+    {
+      "file": "answers/single-on-single-collection.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "single is refused on a single collection, whose item actions already act on one item"
+    },
+    {
+      "file": "events/item-action-multiple.json",
+      "definition": "event",
+      "valid": true,
+      "note": "One item action for a multiple collection's selection: items in collection order, item the one the gesture started on"
+    },
+    {
+      "file": "events/action-chosen-multiple-selection.json",
+      "definition": "event",
+      "valid": true,
+      "note": "A button on a page with a multiple collection reports its selection as a list of IDs"
+    },
+    {
+      "file": "events/finished-copy-items.json",
+      "definition": "event",
+      "valid": true,
+      "note": "Copy on several items copied their texts one per line; the outcome carries every item"
     }
   ]
 }

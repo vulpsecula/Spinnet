@@ -279,7 +279,8 @@ final class HostOperationRequests {
         if request.operation.notify, let owner, !owner.isEnded, owner.action.isSameConfiguration(as: request.action) {
             active[pluginID] = (request, .awaitingAnswer)
             owner.deliver(.operationFinished(id: request.operation.id, perform: request.operation.perform,
-                                             outcome: result.outcome, item: request.operation.item),
+                                             outcome: result.outcome, item: request.operation.item,
+                                             items: request.operation.items),
                           answering: serial, requestedBy: request.action)
             return
         }
@@ -295,7 +296,8 @@ final class HostOperationRequests {
             active[pluginID]?.phase = .awaitingAnswer
             deliverAfterClose(request.action,
                               .operationFinished(id: request.operation.id, perform: request.operation.perform,
-                                                 outcome: result.outcome, viewClosed: true, item: request.operation.item),
+                                                 outcome: result.outcome, viewClosed: true, item: request.operation.item,
+                                                 items: request.operation.items),
                               ended.state) { [weak self] in
                 self?.resultAnswered(pluginID, serial: serial)
             }

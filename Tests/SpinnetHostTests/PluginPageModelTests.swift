@@ -187,7 +187,7 @@ final class PluginPageModelTests: XCTestCase {
         XCTAssertEqual(harness.events.last?.event?.typeName, "field_changed")
         try harness.answer(PageHarness.search(items: ["CAT", "B"], reset: ["results"]))
         XCTAssertEqual(harness.events.count, 2)
-        guard case .itemAction(_, _, _, let item, let values)? = harness.events.last?.event else {
+        guard case .itemAction(_, _, _, let item, let values, _)? = harness.events.last?.event else {
             return XCTFail("Return performed nothing")
         }
         XCTAssertEqual(item.id, "CAT")
@@ -233,7 +233,7 @@ final class PluginPageModelTests: XCTestCase {
         model.doubleClick("B")
         XCTAssertEqual(model.selectedItem, "B")
         XCTAssertEqual(model.focused, "results")
-        guard case .itemAction(_, _, "insert", let item, _)? = harness.events.last?.event else {
+        guard case .itemAction(_, _, "insert", let item, _, _)? = harness.events.last?.event else {
             return XCTFail("No default action")
         }
         XCTAssertEqual(item.id, "B")
@@ -380,7 +380,7 @@ final class PluginPageWindowModelTests: XCTestCase {
         XCTAssertEqual(model.selectedItem, "i1905")
         XCTAssertNil(model.item(at: 0), "The first screens were let go")
         model.returnPressedInCollection()
-        guard case .itemAction(_, _, "insert", let item, _)? = harness.events.last?.event else { return XCTFail("No insert") }
+        guard case .itemAction(_, _, "insert", let item, _, _)? = harness.events.last?.event else { return XCTFail("No insert") }
         XCTAssertEqual(item.id, "i1905")
     }
 
@@ -424,7 +424,7 @@ final class PluginPageWindowModelTests: XCTestCase {
         XCTAssertEqual(model.accessibilityActions(of: "i1"), ["Insert", "Copy", "Favourite, checked"])
         XCTAssertEqual(model.accessibilityActions(of: "i0"), ["Insert", "Copy", "Favourite, not checked"])
         model.choose(try XCTUnwrap(model.menu(of: "i1").last).action, on: "i1")
-        guard case .itemAction(_, _, "favourite", let item, _)? = harness.events.last?.event else { return XCTFail("No toggle") }
+        guard case .itemAction(_, _, "favourite", let item, _, _)? = harness.events.last?.event else { return XCTFail("No toggle") }
         XCTAssertEqual(item.marks, ["favourite"])
         XCTAssertEqual(model.selectedItem, "i1", "The menu's item is selected")
     }

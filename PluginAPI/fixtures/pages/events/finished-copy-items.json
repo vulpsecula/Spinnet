@@ -1,0 +1,22 @@
+{
+  "type": "operation_finished",
+  "operation": "copy",
+  "perform": "clipboard.write",
+  "outcome": "succeeded",
+  "item": {
+    "id": "bravo",
+    "text": "BRAVO",
+    "marks": ["pinned"]
+  },
+  "items": [
+    {
+      "id": "bravo",
+      "text": "BRAVO",
+      "marks": ["pinned"]
+    },
+    {
+      "id": "delta",
+      "text": "DELTA"
+    }
+  ]
+}

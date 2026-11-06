@@ -64,15 +64,20 @@ public struct RequestedHostOperation: Equatable, Hashable {
     /// its
     /// `operation_finished` carries. Never part of the request's JSON.
     public let item: PluginPageItemSnapshot?
+    /// For one performed on a multiple collection's selection (ADR 0025),
+    /// every selected item as shown, in Collection order; its
+    /// `operation_finished` carries them. Never part of the request's JSON.
+    public let items: [PluginPageItemSnapshot]?
 
     public init(perform: String, input: JSONValue = .null, id: String? = nil, closesView: Bool = false,
-                notify: Bool = false, item: PluginPageItemSnapshot? = nil) {
+                notify: Bool = false, item: PluginPageItemSnapshot? = nil, items: [PluginPageItemSnapshot]? = nil) {
         self.perform = perform
         self.input = input
         self.id = id
         self.closesView = closesView
         self.notify = notify
         self.item = item
+        self.items = items
     }
 
     /// Reads an answer's `operation` for a Plugin to which `permits` says

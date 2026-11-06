@@ -906,9 +906,28 @@
             ]
           }
         },
+        "selection": {
+          "description": "How many items the user may select: \"single\" (the default) or \"multiple\", when Command-click, Shift-click, Shift-arrows and Command-A select several and an item action runs once for the whole selection. Not with total.",
+          "enum": [
+            "single",
+            "multiple"
+          ]
+        },
         "selected": {
-          "$ref": "#/$defs/identifier",
-          "description": "The item selected when the collection is new or reset; else the first item. Ignored while the collection is kept."
+          "description": "The item selected when the collection is new or reset; else the first item. Ignored while the collection is kept. A multiple collection may give a list of item IDs, each once; the first of them in collection order is focused.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "array",
+              "maxItems": 2000,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/identifier"
+              }
+            }
+          ]
         },
         "empty_text": {
           "$ref": "#/$defs/text"
@@ -994,6 +1013,50 @@
               }
             }
           }
+        },
+        {
+          "description": "A collection with total (a Collection Window) selects one item.",
+          "if": {
+            "required": [
+              "total"
+            ]
+          },
+          "then": {
+            "properties": {
+              "selection": {
+                "const": "single"
+              }
+            }
+          }
+        },
+        {
+          "description": "Only a multiple collection gives selected as a list, or declares a single item action.",
+          "if": {
+            "not": {
+              "required": [
+                "selection"
+              ],
+              "properties": {
+                "selection": {
+                  "const": "multiple"
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "selected": {
+                "type": "string"
+              },
+              "actions": {
+                "items": {
+                  "properties": {
+                    "single": false
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -1036,9 +1099,28 @@
             ]
           }
         },
+        "selection": {
+          "description": "How many items the user may select: \"single\" (the default) or \"multiple\", when Command-click, Shift-click, Shift-arrows and Command-A select several and an item action runs once for the whole selection. Not with total.",
+          "enum": [
+            "single",
+            "multiple"
+          ]
+        },
         "selected": {
-          "$ref": "#/$defs/identifier",
-          "description": "The item selected when the collection is new or reset; else the first item. Ignored while the collection is kept."
+          "description": "The item selected when the collection is new or reset; else the first item. Ignored while the collection is kept. A multiple collection may give a list of item IDs, each once; the first of them in collection order is focused.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "array",
+              "maxItems": 2000,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/identifier"
+              }
+            }
+          ]
         },
         "empty_text": {
           "$ref": "#/$defs/text"
@@ -1161,6 +1243,50 @@
               }
             }
           }
+        },
+        {
+          "description": "A collection with total (a Collection Window) selects one item.",
+          "if": {
+            "required": [
+              "total"
+            ]
+          },
+          "then": {
+            "properties": {
+              "selection": {
+                "const": "single"
+              }
+            }
+          }
+        },
+        {
+          "description": "Only a multiple collection gives selected as a list, or declares a single item action.",
+          "if": {
+            "not": {
+              "required": [
+                "selection"
+              ],
+              "properties": {
+                "selection": {
+                  "const": "multiple"
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "selected": {
+                "type": "string"
+              },
+              "actions": {
+                "items": {
+                  "properties": {
+                    "single": false
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -1274,7 +1400,7 @@
       }
     },
     "item_action": {
-      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own ⌘C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions.",
+      "description": "An action offered on items. No shortcut: Return and double-click (the default), the item's context menu and the Host's own ⌘C (a sole clipboard.write action) are its only triggers. The Host draws no buttons for item actions. In a multiple collection it runs once for the whole selection.",
       "type": "object",
       "required": [
         "id",
@@ -1306,6 +1432,10 @@
         },
         "notify": {
           "description": "For an action with perform: deliver operation_finished, with the item as shown, once the Host has performed it.",
+          "type": "boolean"
+        },
+        "single": {
+          "description": "In a multiple collection: the action acts on one item only, so the Host disables it in the context menu and ignores Return and double-click for it while several items are selected. Not in a single collection.",
           "type": "boolean"
         }
       },
@@ -1342,16 +1472,28 @@
       "$ref": "view-session.schema.json#/$defs/values"
     },
     "selection": {
-      "description": "The page's collection mapped to its selected item ID, or null when nothing is selected. Empty for a page without a collection.",
+      "description": "The page's collection mapped to its selected item ID, or null when nothing is selected; for a multiple collection, the list of its selected item IDs in collection order. Empty for a page without a collection.",
       "type": "object",
       "maxProperties": 1,
       "propertyNames": {
         "$ref": "#/$defs/identifier"
       },
       "additionalProperties": {
-        "type": [
-          "string",
-          "null"
+        "oneOf": [
+          {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          {
+            "type": "array",
+            "maxItems": 2000,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/identifier"
+            }
+          }
         ]
       }
     },
@@ -1537,7 +1679,7 @@
           }
         },
         {
-          "description": "An item action without perform, from Return, double-click or the context menu. A gesture: its answer may request an operation.",
+          "description": "An item action without perform, from Return, double-click or the context menu. In a multiple collection one event carries the whole selection in items, and item is the clicked, context-menu or focused item. A gesture: its answer may request an operation.",
           "if": {
             "properties": {
               "type": {
@@ -1560,7 +1702,8 @@
                 "collection",
                 "action",
                 "item",
-                "values"
+                "values",
+                "items"
               ]
             },
             "properties": {
@@ -1578,6 +1721,15 @@
               },
               "values": {
                 "$ref": "#/$defs/values"
+              },
+              "items": {
+                "description": "In a multiple collection: every selected item as shown, in collection order; item is the one the gesture started on.",
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 2000,
+                "items": {
+                  "$ref": "#/$defs/item_snapshot"
+                }
               }
             }
           }
@@ -1647,7 +1799,7 @@
       ]
     },
     "operation_finished": {
-      "description": "host-operations.schema.json's operation_finished, with item when it reports a page's item action the Host performed: the item as shown when the user acted.",
+      "description": "host-operations.schema.json's operation_finished, with item when it reports a page's item action the Host performed: the item as shown when the user acted, and for a multiple collection's selection every selected item in items.",
       "type": "object",
       "required": [
         "type",
@@ -1662,7 +1814,8 @@
           "outcome",
           "reason",
           "view_closed",
-          "item"
+          "item",
+          "items"
         ]
       },
       "properties": {
@@ -1671,6 +1824,15 @@
         },
         "item": {
           "$ref": "#/$defs/item_snapshot"
+        },
+        "items": {
+          "description": "In a multiple collection: every selected item as shown, in collection order; item is the one the gesture started on.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/item_snapshot"
+          }
         }
       },
       "allOf": [

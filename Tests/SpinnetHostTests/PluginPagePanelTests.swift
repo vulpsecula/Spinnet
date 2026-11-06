@@ -177,7 +177,7 @@ final class PluginPagePanelTests: XCTestCase {
         try key(36, "\r") // Return: the typing first, then the default item action (C1)
         XCTAssertEqual(harness.events.last?.event?.typeName, "field_changed")
         try harness.answer(PageHarness.search(items: (0..<20).map { "i\($0)" }))
-        guard case .itemAction(_, _, "insert", let item, let values)? = harness.events.last?.event else {
+        guard case .itemAction(_, _, "insert", let item, let values, _)? = harness.events.last?.event else {
             return XCTFail("Return performed \(String(describing: harness.events.last?.event))")
         }
         XCTAssertEqual(item.id, "i8")
@@ -197,7 +197,7 @@ final class PluginPagePanelTests: XCTestCase {
         try key(119, "\u{F72B}") // End
         XCTAssertEqual(model.selectedItem, "i19")
         try key(36, "\r")
-        guard case .itemAction(_, _, _, let item, _)? = harness.events.last?.event else { return XCTFail("No item action") }
+        guard case .itemAction(_, _, _, let item, _, _)? = harness.events.last?.event else { return XCTFail("No item action") }
         XCTAssertEqual(item.id, "i19")
         try harness.answer(nil)
 
@@ -223,6 +223,47 @@ final class PluginPagePanelTests: XCTestCase {
         // The Edit menu's Copy reaches the first responder of the key panel.
         XCTAssertTrue(try XCTUnwrap(panel.firstResponder).tryToPerform(#selector(PageNSCollectionView.copy(_:)), with: nil))
         XCTAssertEqual(harness.performer.performed.map(\.operation.perform), ["clipboard.write"])
+    }
+
+    /// A Collection with multiple selection in the real panel (ADR 0025):
+    /// ⌘-click, Shift-Down and ⌘A select through AppKit's events, every
+    /// selected cell reads as selected to VoiceOver, the collection says how
+    /// many, and the context menu disables a single item action.
+    func testMultipleSelectionInTheRealPanel() throws {
+        let items: [JSONValue] = (0..<5).map { .object(["id": .string("i\($0)"), "title": .string("item \($0)")]) }
+        try show(PageHarness.page("clips", [.object([
+            "kind": .string("list"), "id": .string("results"), "selection": .string("multiple"),
+            "items": .array(items),
+            "actions": .array([.object(["id": .string("open"), "title": .string("Open"), "default": .bool(true)]),
+                               .object(["id": .string("rename"), "title": .string("Rename"), "single": .bool(true)])])
+        ])]))
+        let view = try collectionView
+        func click(_ position: Int, _ modifiers: NSEvent.ModifierFlags) throws {
+            let plain = try mouse(.leftMouseDown, at: position)
+            view.mouseDown(with: try XCTUnwrap(NSEvent.mouseEvent(
+                with: .leftMouseDown, location: plain.locationInWindow, modifierFlags: modifiers, timestamp: 0,
+                windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)))
+            settle(0.02)
+        }
+        try click(2, .command)
+        XCTAssertEqual(model.selectedItems, ["i0", "i2"])
+        try key(125, "\u{F701}", modifiers: .shift) // Shift-Down
+        XCTAssertEqual(model.selectedItems, ["i2", "i3"])
+        XCTAssertEqual(try (0..<5).map { try cell(at: $0)?.isAccessibilitySelected() }, [false, false, true, true, false])
+        XCTAssertEqual(view.accessibilityValue() as? String, "2 items selected")
+        XCTAssertEqual((view.accessibilitySelectedChildren() ?? []).count, 2)
+        let menu = try XCTUnwrap(view.menu(for: try mouse(.rightMouseDown, at: 3)))
+        XCTAssertEqual(menu.items.map(\.title), ["Open", "Rename"])
+        XCTAssertEqual(menu.items.map(\.isEnabled), [true, false])
+        XCTAssertTrue(try XCTUnwrap(panel.firstResponder).tryToPerform(#selector(NSResponder.selectAll(_:)), with: nil))
+        XCTAssertEqual(model.selectedItems, ["i0", "i1", "i2", "i3", "i4"])
+        XCTAssertEqual(try (0..<5).map { try cell(at: $0)?.isAccessibilitySelected() }, [true, true, true, true, true])
+        try key(36, "\r")
+        guard case .itemAction(_, _, "open", let item, _, let selected?)? = harness.events.last?.event else {
+            return XCTFail("Return did not act on the selection")
+        }
+        XCTAssertEqual(item.id, "i3")
+        XCTAssertEqual(selected.count, 5)
     }
 
     private var collectionView: PageNSCollectionView {
@@ -289,7 +330,7 @@ final class PluginPagePanelTests: XCTestCase {
         XCTAssertEqual(model.selectedItem, "i2")
         XCTAssertEqual(firstResponderComponent(), "results")
         hit.mouseDown(with: try mouse(.leftMouseDown, at: 2, clicks: 2))
-        guard case .itemAction(_, _, "insert", let item, _)? = harness.events.last?.event else { return XCTFail("No insert") }
+        guard case .itemAction(_, _, "insert", let item, _, _)? = harness.events.last?.event else { return XCTFail("No insert") }
         XCTAssertEqual(item.id, "i2")
         try harness.answer(nil)
 
@@ -299,7 +340,7 @@ final class PluginPagePanelTests: XCTestCase {
         XCTAssertNil(view.menu(for: try mouse(.rightMouseDown, at: 3).withLocation(of: 1500, in: view)),
                      "Nothing for a placeholder")
         menu.performActionForItem(at: 2)
-        guard case .itemAction(_, _, "favourite", let toggled, _)? = harness.events.last?.event else {
+        guard case .itemAction(_, _, "favourite", let toggled, _, _)? = harness.events.last?.event else {
             return XCTFail("No toggle")
         }
         XCTAssertEqual(toggled.marks, ["favourite"])
@@ -335,14 +376,14 @@ final class PluginPagePanelTests: XCTestCase {
         let point = firstToggle.convert(NSPoint(x: firstToggle.bounds.midX, y: firstToggle.bounds.midY), to: panel.contentView!)
         XCTAssertTrue(panel.contentView?.hitTest(point) is NSButton, "The leading checkbox must receive pointer input")
         firstToggle.performClick(nil)
-        guard case .itemAction(_, _, "include", let oldFirst, _)? = harness.events.last?.event else { return XCTFail("Checkbox did not send include") }
+        guard case .itemAction(_, _, "include", let oldFirst, _, _)? = harness.events.last?.event else { return XCTFail("Checkbox did not send include") }
         XCTAssertEqual(oldFirst.id, "i0"); XCTAssertEqual(oldFirst.marks, ["included"])
         XCTAssertEqual(firstToggle.state, .on, "Only the Plugin answer may change the displayed mark")
         try harness.answer(toggleList(marked: [], pinned: true)); settle()
         XCTAssertEqual(try checkboxes(in: XCTUnwrap(cell(at: 0))).first?.state, .off)
         let currentSecond = try XCTUnwrap(checkboxes(in: XCTUnwrap(cell(at: 1))).first)
         currentSecond.performClick(nil)
-        guard case .itemAction(_, _, "include", let oldSecond, _)? = harness.events.last?.event else { return XCTFail("Second row did not send include") }
+        guard case .itemAction(_, _, "include", let oldSecond, _, _)? = harness.events.last?.event else { return XCTFail("Second row did not send include") }
         XCTAssertEqual(oldSecond.id, "i1"); XCTAssertTrue(oldSecond.marks.isEmpty)
         try harness.answer(toggleList(marked: [1], pinned: true)); settle()
         XCTAssertEqual(try checkboxes(in: XCTUnwrap(cell(at: 0))).first?.state, .off)
@@ -353,7 +394,7 @@ final class PluginPagePanelTests: XCTestCase {
         XCTAssertEqual(try checkboxes(in: XCTUnwrap(cell(at: 0))).first?.state, .off,
                        "A Plugin refusal must leave the checkbox unchanged")
         XCTAssertTrue(harness.performer.performed.isEmpty)
-        XCTAssertTrue(harness.events.allSatisfy { if case .itemAction(_, _, "include", _, _) = $0.event { return true }; return false })
+        XCTAssertTrue(harness.events.allSatisfy { if case .itemAction(_, _, "include", _, _, _) = $0.event { return true }; return false })
         try harness.answer(toggleList(marked: [1], pinned: true)); settle()
         let reused = try XCTUnwrap(try collectionView.item(at: IndexPath(item: 0, section: 0)) as? PageListCell)
         try collectionView.configure(reused, at: 2)

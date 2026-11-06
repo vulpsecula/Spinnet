@@ -164,6 +164,54 @@ is selected and items exist, the first is. A new or reset collection selects
 `selected`, else its first item, scrolled to the top. Scrolling keeps the
 first visible item in place when items are added above it.
 
+## Multiple selection
+
+A `list` or `grid` may declare `selection: "multiple"` (`"single"` is the
+default and behaves as above). The user then ⌘-clicks to add or remove an
+item (the last selected item stays selected), Shift-clicks or presses
+Shift with an arrow, Page or Home/End key to select the range from the
+anchor, the item last clicked, and presses ⌘A to select every item. One
+selected item is focused: the one last clicked or moved to. `"multiple"` is
+refused on a collection with `total`.
+
+- **`selected`** may be a list of item IDs, each once, for a multiple
+  collection; the first of them in collection order is focused. A list is
+  refused on a single collection.
+- **Kept by ID.** Across answers the selected items still in the collection
+  stay selected, wherever they moved; those that left drop out. When none is
+  left and items exist, the item a single selection falls back to is
+  selected.
+- **One gesture, one event.** Return, double-click and a context-menu item
+  action act on the whole selection: one `item_action` carries `items`,
+  every selected item as shown (`{id, section?, text?, marks?}`) in
+  collection order, and `item`, the item the gesture started on: the
+  clicked or context-menu item, or the focused one for Return. A
+  double-click or right click on an item of the selection keeps the
+  selection; on another item it selects that item first. A row's toggle
+  checkbox acts on its row alone.
+- **What the menu offers.** The context menu of a selected item lists the
+  item actions every selected item offers. An item action with
+  `single: true` is disabled there, and ignored for Return and
+  double-click, while more than one item is selected; `single` is refused
+  on a single collection. A toggle shows checked only when every selected
+  item carries its mark; the Plugin, which owns the marks, usually sets the
+  mark on all unless all already carry it, then clears it on all.
+- **Copy and Insert.** A `clipboard.write` or `selection.replace` item
+  action, and ⌘C, use the selected items' resolved texts joined by newlines
+  in collection order, under the same Capability as for one item. With
+  `notify`, `operation_finished` carries `items` as well as `item`.
+- **`selection`** in `submitted` and `action_chosen` maps a multiple
+  collection to the list of its selected IDs in collection order.
+- **VoiceOver** reads every selected item as selected and the collection as
+  how many items are selected.
+
+```js
+c.list({ id: "clips", selection: "multiple", selected: ["a", "b"], items, actions: [
+  c.itemAction({ id: "open", title: "Open", default: true }),
+  c.itemAction({ id: "rename", title: "Rename", single: true }),
+  c.itemAction({ id: "copy", title: "Copy", perform: "clipboard.write" })] })
+```
+
 ## Windows of items
 
 A collection with `total` (at most 2,000) gives one slice of its items per
@@ -258,6 +306,7 @@ the page.
 | Page Up/Down, Home/End | Text | By a screenful, to the first/last item of `total` |
 | Return | Default item action | Default item action |
 | Click / double-click / right click | | Select / default action / context menu |
+| ⌘-click, Shift-click, Shift-arrows, ⌘A | | In a multiple collection: add or remove / range / range / all ([Multiple selection](#multiple-selection)) |
 | ⌘C | Copies the field's selection | The item's Copy item action, when there is exactly one |
 | Tab, Shift-Tab | Next / previous field or the collection | Next / previous field |
 | Escape | Closes the view | Closes the view |
@@ -283,13 +332,14 @@ not reset since; otherwise it is dropped without a run.
 | `field_changed` | `page`, `field`, `values` | No |
 | `submitted` | `page`, `field`, `values`, `selection` | Yes |
 | `action_chosen` | `page`, `action`, `values`, `selection` | Yes |
-| `item_action` | `page`, `collection`, `action`, `item` `{id, section?, text?, marks?}`, `values` | Yes |
+| `item_action` | `page`, `collection`, `action`, `item` `{id, section?, text?, marks?}`, `items` (multiple collections), `values` | Yes |
 | `load_range` | `page`, `collection`, `start`, `count` | No |
 | `called` | none | Yes |
 | `operation_finished` | A requested operation's members, and `item` for an item action | No |
 
 `values` holds every input of the page and `selection` the collection's
-selected item ID (or null), as they were when the user acted. `item` is the
+selected item ID (or null), or a multiple collection's list of selected IDs,
+as they were when the user acted. `item` is the
 item as shown then, with its resolved text where it differs from its ID,
 delivered even if the item has since left the collection. `called` names
 no page and is never dropped for a page change; see below. Events
@@ -425,6 +475,12 @@ source `.loading` when the handler's Command could fetch it once
 show when it could not.
 `call(_:input:)` calls an Action of the Plugin into the open session, by
 default the handler's own, as `called`, with the handler following the rules above.
+For a multiple collection, `commandClick(_:)`, `shiftClick(_:)`,
+`extendSelection(_:)` and `selectAll()` change the selection as the Host
+does, `selectedItems` lists it in collection order, and Return,
+`doubleClick(_:)`, `choose(itemAction:on:)` and `copySelection()` act on the
+whole selection; `menu(of:)` on a selected item lists the selection's menu,
+a single item action read "title (unavailable)" while several are selected.
 
 ## Styles, images and progress
 

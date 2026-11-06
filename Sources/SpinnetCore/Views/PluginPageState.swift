@@ -272,6 +272,11 @@ public struct PluginPageImmediateState: Equatable {
     /// The selected item as last held, so it can be acted on after the
     /// window let it go.
     public var selectedItems: [String: PluginPageItem] = [:]
+    /// A multiple collection's selected items by ID (ADR 0025), the focused
+    /// one in `selections` among them.
+    public var groupSelections: [String: Set<String>] = [:]
+    /// Where a multiple collection's Shift range starts.
+    public var selectionAnchors: [String: String] = [:]
     /// The first visible item of each collection, which scrolling keeps in
     /// place; absent at the top.
     public var scrollAnchors: [String: String] = [:]
@@ -439,9 +444,30 @@ public struct PluginPageMemory: Equatable {
                 kept.selectionPositions[id] = place
             }
         }
+        if collection.selection == .multiple { Self.keepGroup(of: id, from: old, in: &kept, window: window) }
         window.evict(around: viewport)
         kept.windows[id] = window
         return layoutChanged
+    }
+
+    /// A kept multiple collection keeps the selected items still in it, by
+    /// ID, the focused one among them; with none left, the item a single
+    /// selection falls back to.
+    private static func keepGroup(of id: String, from old: PluginPageImmediateState,
+                                  in kept: inout PluginPageImmediateState, window: PluginCollectionWindow) {
+        let present = (old.groupSelections[id] ?? []).filter { window.position(of: $0) != nil }
+        if present.isEmpty {
+            kept.groupSelections[id] = kept.selections[id].map { [$0] } ?? []
+        } else {
+            kept.groupSelections[id] = present
+            if kept.selections[id].map(present.contains) != true,
+               let first = present.compactMap(window.position(of:)).min(), let item = window.item(at: first) {
+                select(item, at: first, of: id, in: &kept)
+            }
+        }
+        let anchor = old.selectionAnchors[id]
+        kept.selectionAnchors[id] = anchor.flatMap { kept.groupSelections[id]?.contains($0) == true ? $0 : nil }
+            ?? kept.selections[id]
     }
 
     private static func select(_ item: PluginPageItem, at position: Int, of collection: String,
@@ -472,12 +498,22 @@ public struct PluginPageMemory: Equatable {
             if let selected = collection.selected, let position = collection.positions[selected],
                let item = collection.item(at: position) {
                 Self.select(item, at: position, of: collection.id, in: &kept)
+            } else if let position = collection.selectedIDs.compactMap({ collection.positions[$0] }).min(),
+                      let item = collection.item(at: position) {
+                // A multiple collection focuses the first item it selects.
+                Self.select(item, at: position, of: collection.id, in: &kept)
             } else if window.total > 0 {
                 if let item = window.item(at: 0) {
                     Self.select(item, at: 0, of: collection.id, in: &kept)
                 } else {
                     kept.selectionPositions[collection.id] = 0
                 }
+            }
+            if collection.selection == .multiple {
+                let focus = kept.selections[collection.id]
+                kept.groupSelections[collection.id] = collection.selectedIDs.isEmpty
+                    ? Set([focus].compactMap { $0 }) : Set(collection.selectedIDs)
+                kept.selectionAnchors[collection.id] = focus
             }
         default:
             break
@@ -525,6 +561,10 @@ public struct PluginPageMemory: Equatable {
               (0..<window.total).contains(position) else { return }
         if let item = window.item(at: position) {
             Self.select(item, at: position, of: collection.id, in: &state)
+            if collection.selection == .multiple {
+                state.groupSelections[collection.id] = [item.id]
+                state.selectionAnchors[collection.id] = item.id
+            }
         } else {
             state.selections[collection.id] = nil
             state.selectedItems[collection.id] = nil
@@ -532,6 +572,89 @@ public struct PluginPageMemory: Equatable {
             window.reconsider(position)
             state.windows[collection.id] = window
         }
+    }
+
+    // MARK: Multiple selection
+
+    /// The page's collection when it selects several items; a single one
+    /// ignores the gestures below. Its items are all held: a Collection
+    /// Window offers no multiple selection.
+    private var multiple: (collection: PluginPageCollection, window: PluginCollectionWindow)? {
+        guard let collection = page?.collection, collection.selection == .multiple,
+              let window = state.windows[collection.id] else { return nil }
+        return (collection, window)
+    }
+
+    /// Whether the page's collection selects several items.
+    public var selectsMultiple: Bool { multiple != nil }
+
+    private mutating func focus(_ position: Int, in window: PluginCollectionWindow, of collection: String) {
+        guard let item = window.item(at: position) else { return }
+        Self.select(item, at: position, of: collection, in: &state)
+    }
+
+    /// ⌘-click: adds `item` to the selection and focuses it, or removes it;
+    /// the last selected item stays selected.
+    public mutating func toggleSelection(of item: String) {
+        guard let (collection, window) = multiple, let position = window.position(of: item) else { return }
+        var group = state.groupSelections[collection.id] ?? []
+        if group.contains(item) {
+            guard group.count > 1 else { return }
+            group.remove(item)
+            state.groupSelections[collection.id] = group
+            if state.selections[collection.id] == item,
+               let first = group.compactMap(window.position(of:)).min() {
+                focus(first, in: window, of: collection.id)
+            }
+            if state.selectionAnchors[collection.id] == item {
+                state.selectionAnchors[collection.id] = state.selections[collection.id]
+            }
+        } else {
+            group.insert(item)
+            state.groupSelections[collection.id] = group
+            focus(position, in: window, of: collection.id)
+            state.selectionAnchors[collection.id] = item
+        }
+    }
+
+    /// Shift-click: selects the items from the anchor to `item`, focused.
+    public mutating func extendSelection(to item: String) {
+        guard let (collection, window) = multiple, let target = window.position(of: item) else { return }
+        let anchor = state.selectionAnchors[collection.id].flatMap(window.position(of:))
+            ?? state.selectionPositions[collection.id] ?? target
+        let range = min(anchor, target)...max(anchor, target)
+        state.groupSelections[collection.id] = Set(range.compactMap { window.item(at: $0)?.id })
+        if state.selectionAnchors[collection.id] == nil { state.selectionAnchors[collection.id] = window.item(at: anchor)?.id }
+        focus(target, in: window, of: collection.id)
+    }
+
+    /// Shift with an arrow, Page or Home/End key: moves the focus as the key
+    /// does and selects the items from the anchor to it. Returns the
+    /// position focused.
+    @discardableResult
+    public mutating func extendSelection(_ move: PluginPageCollection.Move) -> Int? {
+        guard let (_, window) = multiple,
+              let position = window.index(moving: move, from: selectedPosition),
+              let item = window.item(at: position) else { return nil }
+        extendSelection(to: item.id)
+        return position
+    }
+
+    /// ⌘A: selects every item, keeping the focus.
+    public mutating func selectAll() {
+        guard let (collection, window) = multiple, window.total > 0 else { return }
+        state.groupSelections[collection.id] = Set(window.heldPositions.compactMap { window.item(at: $0)?.id })
+        if state.selections[collection.id] == nil { focus(0, in: window, of: collection.id) }
+        if state.selectionAnchors[collection.id] == nil {
+            state.selectionAnchors[collection.id] = state.selections[collection.id]
+        }
+    }
+
+    /// Whether the item at `position` is selected: the selection of a single
+    /// collection, any selected item of a multiple one.
+    public func isSelected(_ position: Int) -> Bool {
+        guard let (collection, window) = multiple else { return selectedPosition == position }
+        return window.item(at: position).map { state.groupSelections[collection.id]?.contains($0.id) == true } ?? false
     }
 
     /// Moves the collection's selection as an arrow, Page or Home/End key
@@ -602,6 +725,73 @@ public struct PluginPageMemory: Equatable {
         return PluginPageItemSnapshot(id: item.id, section: section, text: item.resolvedText, marks: item.marks)
     }
 
+    /// Every selected item in Collection order: of a single collection, its
+    /// selected item, if any.
+    public var selectedItems: [PluginPageItem] {
+        guard let (collection, window) = multiple else { return selectedItem.map { [$0] } ?? [] }
+        let group = state.groupSelections[collection.id] ?? []
+        return group.compactMap(window.position(of:)).sorted().compactMap(window.item(at:))
+    }
+
+    /// Every selected item as a gesture carries it, in Collection order.
+    public var selectedSnapshots: [PluginPageItemSnapshot] {
+        guard let (_, window) = multiple else { return selectedSnapshot.map { [$0] } ?? [] }
+        return selectedItems.compactMap { window.position(of: $0.id).flatMap(window.snapshot(at:)) }
+    }
+
+    // MARK: Item Actions on the selection
+
+    /// What an item action on the selection does: the Host performs it, or
+    /// it delivers an event.
+    public enum ItemGesture: Equatable {
+        case perform(RequestedHostOperation)
+        case deliver(PluginViewEvent)
+
+        public var event: PluginViewEvent? {
+            if case .deliver(let event) = self { return event }
+            return nil
+        }
+    }
+
+    /// The item actions every selected item offers, default first.
+    public var selectionActions: [PluginPageItemAction] {
+        page?.collection?.actions(of: selectedItems) ?? []
+    }
+
+    /// Whether the user can choose `action` on the selection now: every
+    /// selected item offers it, and a single item action only for one.
+    public func isAvailable(_ action: PluginPageItemAction) -> Bool {
+        selectionActions.contains(action) && action.isAvailable(forSelectionOf: selectedItems.count)
+    }
+
+    /// Whether a toggle item action shows checked for the selection: every
+    /// selected item carries its mark.
+    public func isChecked(_ action: PluginPageItemAction) -> Bool { action.isChecked(for: selectedItems) }
+
+    /// `action` on the selection, the focused item as the one the gesture
+    /// started on; nil when it is not available or the selection waits for
+    /// its item. A multiple collection's acts on every selected item at once
+    /// (ADR 0025); a single one's on its item, as before.
+    public func gesture(_ action: PluginPageItemAction) -> ItemGesture? {
+        guard let page, let collection = page.collection, let lead = selectedItem, isAvailable(action) else { return nil }
+        let snapshot = selectedSnapshot ?? collection.snapshot(of: lead)
+        let group = multiple != nil ? selectedSnapshots : nil
+        if let operation = action.operation(on: multiple != nil ? selectedItems : [lead], snapshot: snapshot, group: group) {
+            return .perform(operation)
+        }
+        return .deliver(.itemAction(page: page.id, collection: collection.id, action: action.id, item: snapshot,
+                                    values: values, items: group))
+    }
+
+    /// Focuses `item` for a gesture on it, a context menu's: within a
+    /// multiple collection's selection the selection stays; otherwise the
+    /// item alone is selected.
+    public mutating func focusWithinSelection(_ item: String) {
+        guard let (collection, window) = multiple, state.groupSelections[collection.id]?.contains(item) == true,
+              let position = window.position(of: item) else { return select(item) }
+        focus(position, in: window, of: collection.id)
+    }
+
     /// Every input of the page, as `values` carries it.
     public var values: JSONValue {
         var values: [String: JSONValue] = [:]
@@ -615,9 +805,12 @@ public struct PluginPageMemory: Equatable {
         return .object(values)
     }
 
-    /// The page's collection mapped to its selected item, or empty without one.
+    /// The page's collection mapped to its selected item, or null; for a
+    /// multiple collection, to the list of its selected items' IDs in
+    /// Collection order. Empty without a collection.
     public var selection: JSONValue {
         guard let collection = page?.collection else { return .object([:]) }
+        if multiple != nil { return .object([collection.id: .array(selectedItems.map { .string($0.id) })]) }
         return .object([collection.id: selectedItem.map { .string($0.id) } ?? .null])
     }
 }

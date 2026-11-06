@@ -25,8 +25,9 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// delivered after its view closed, to a viewless invocation
     /// (`host_operations` r2); `item` is the item a Host-performed item
     /// action acted on, as shown then (`collections` r3).
+    /// `items` is every item a multiple collection's selection held (ADR 0025).
     case operationFinished(id: String?, perform: String, outcome: HostOperationOutcome, viewClosed: Bool = false,
-                           item: PluginPageItemSnapshot? = nil)
+                           item: PluginPageItemSnapshot? = nil, items: [PluginPageItemSnapshot]? = nil)
     /// the user changed `field` of `page`.
     /// `values` holds every input of the page as committed text, never text
     /// an input method is still composing.
@@ -38,7 +39,11 @@ public enum PluginViewEvent: Equatable, Hashable {
     case pageActionChosen(page: String, action: String, values: JSONValue, selection: JSONValue)
     /// The user performed an item action that delivers an event: the default
     /// one by Return or double-click, any one from the item's context menu.
-    case itemAction(page: String, collection: String, action: String, item: PluginPageItemSnapshot, values: JSONValue)
+    /// In a multiple collection (ADR 0025) `items` holds every selected
+    /// item as shown, in Collection order, and `item` the one the gesture
+    /// started on; a single collection's carries no `items`.
+    case itemAction(page: String, collection: String, action: String, item: PluginPageItemSnapshot, values: JSONValue,
+                    items: [PluginPageItemSnapshot]? = nil)
     /// The Host needs the items at
     /// positions `start..<start + count` of a windowed collection, because
     /// they are on screen or about to be. A newer request for the same
@@ -87,7 +92,7 @@ public enum PluginViewEvent: Equatable, Hashable {
         switch self {
         case .pageFieldChanged(let page, let field, _), .pageSubmitted(let page, let field, _, _): return (page, field)
         case .pageActionChosen(let page, let action, _, _): return (page, action)
-        case .itemAction(let page, let collection, _, _, _), .loadRange(let page, let collection, _, _):
+        case .itemAction(let page, let collection, _, _, _, _), .loadRange(let page, let collection, _, _):
             return (page, collection)
         default: return nil
         }
@@ -127,13 +132,14 @@ public enum PluginViewEvent: Equatable, Hashable {
         case .sectionDelivered(let section, let response):
             return .object(["type": .string("section_delivered"), "section": .string(section),
                             "response": response])
-        case .operationFinished(let id, let perform, let outcome, let viewClosed, let item):
+        case .operationFinished(let id, let perform, let outcome, let viewClosed, let item, let items):
             var members: [String: JSONValue] = ["type": .string("operation_finished"), "perform": .string(perform),
                                                 "outcome": .string(outcome.name)]
             if let id { members["operation"] = .string(id) }
             if let reason = outcome.reason { members["reason"] = .string(reason.rawValue) }
             if viewClosed { members["view_closed"] = .bool(true) }
             if let item { members["item"] = item.json }
+            if let items { members["items"] = .array(items.map(\.json)) }
             return .object(members)
         case .pageFieldChanged(let page, let field, let values):
             return .object(["type": .string("field_changed"), "page": .string(page), "field": .string(field), "values": values])
@@ -143,9 +149,12 @@ public enum PluginViewEvent: Equatable, Hashable {
         case .pageActionChosen(let page, let action, let values, let selection):
             return .object(["type": .string("action_chosen"), "page": .string(page), "action": .string(action),
                             "values": values, "selection": selection])
-        case .itemAction(let page, let collection, let action, let item, let values):
-            return .object(["type": .string("item_action"), "page": .string(page), "collection": .string(collection),
-                            "action": .string(action), "item": item.json, "values": values])
+        case .itemAction(let page, let collection, let action, let item, let values, let items):
+            var members: [String: JSONValue] = ["type": .string("item_action"), "page": .string(page),
+                                                "collection": .string(collection), "action": .string(action),
+                                                "item": item.json, "values": values]
+            if let items { members["items"] = .array(items.map(\.json)) }
+            return .object(members)
         case .loadRange(let page, let collection, let start, let count):
             return .object(["type": .string("load_range"), "page": .string(page), "collection": .string(collection),
                             "start": .number(Double(start)), "count": .number(Double(count))])

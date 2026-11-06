@@ -171,6 +171,7 @@
       rows: o.rows,
       total: o.total,
       start: o.start,
+      selection: o.selection,
       selected: o.selected,
       empty_text: o.emptyText,
       actions: o.actions
@@ -244,7 +245,8 @@
     itemAction: function (o) {
       return compact({
         id: o.id, title: o.title, default: o.default === true ? true : undefined, perform: o.perform,
-        closes_view: o.closesView, toggle: o.toggle, notify: o.notify
+        closes_view: o.closesView, toggle: o.toggle, notify: o.notify,
+        single: o.single === true ? true : undefined
       });
     }
   });

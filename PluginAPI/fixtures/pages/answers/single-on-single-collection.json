@@ -1,0 +1,17 @@
+{
+  "page": {
+    "id": "clips",
+    "title": "Clips",
+    "content": [
+      {
+        "kind": "list",
+        "id": "clips",
+        "items": [
+          {"id": "alpha", "title": "alpha"},
+          {"id": "bravo", "title": "bravo"}
+        ],
+        "actions": [{"id": "rename", "title": "Rename", "single": true}]
+      }
+    ]
+  }
+}

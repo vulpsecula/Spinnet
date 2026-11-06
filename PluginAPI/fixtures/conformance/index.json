@@ -2372,6 +2372,112 @@
           "valid": false
         }
       ]
+    },
+    {
+      "name": "collection-multiple-selection",
+      "value": {
+        "page": {
+          "id": "clips",
+          "title": "Clips",
+          "content": [
+            {
+              "kind": "list",
+              "id": "clips",
+              "selection": "multiple",
+              "selected": ["a", "b"],
+              "items": [
+                {"id": "a", "title": "A"},
+                {"id": "b", "title": "B"},
+                {"id": "c", "title": "C"}
+              ],
+              "actions": [
+                {"id": "open", "title": "Open", "default": true},
+                {"id": "rename", "title": "Rename", "single": true}
+              ]
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "collection-multiple-selection-window",
+      "value": {
+        "page": {
+          "id": "clips",
+          "title": "Clips",
+          "content": [
+            {
+              "kind": "grid",
+              "id": "clips",
+              "selection": "multiple",
+              "total": 10,
+              "items": [{"id": "a", "title": "A"}]
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "collection-selected-list-single",
+      "value": {
+        "page": {
+          "id": "clips",
+          "title": "Clips",
+          "content": [
+            {
+              "kind": "list",
+              "id": "clips",
+              "selected": ["a"],
+              "items": [{"id": "a", "title": "A"}]
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "collection-single-action-single-selection",
+      "value": {
+        "page": {
+          "id": "clips",
+          "title": "Clips",
+          "content": [
+            {
+              "kind": "list",
+              "id": "clips",
+              "items": [{"id": "a", "title": "A"}],
+              "actions": [{"id": "rename", "title": "Rename", "single": true}]
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "valid": false
+        }
+      ]
     }
   ]
 }
