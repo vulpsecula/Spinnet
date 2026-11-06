@@ -61,7 +61,25 @@ final class RadialMenuView: NSView {
         let layout: MenuTitleLayout
         let rect: NSRect
         let editButtonRect: NSRect
+        /// Where the Menu Item Icon is drawn, above the title; nil for an
+        /// empty Slot.
+        let iconRect: NSRect?
     }
+
+    /// A Menu Item Icon as the Menu draws it: the system symbol, its square
+    /// and its colour, resolved for the Menu's appearance.
+    struct MenuIconDrawing: Equatable {
+        let symbolName: String
+        let rect: NSRect
+        let color: NSColor
+    }
+
+    private struct MenuIconImageKey: Hashable {
+        let symbolName: String
+        let side: Int
+        let color: NSColor
+    }
+    private var menuIconImageCache: [MenuIconImageKey: NSImage] = [:]
 
     static let libraryPresetPasteboardType = NSPasteboard.PasteboardType(
         "com.spinnet.library-preset"
@@ -466,6 +484,7 @@ final class RadialMenuView: NSView {
     }
 
     private func invalidateSlotPaths() {
+        menuIconImageCache.removeAll(keepingCapacity: true)
         cachedSlotPaths.removeAll(keepingCapacity: true)
     }
 
@@ -1640,6 +1659,14 @@ final class RadialMenuView: NSView {
             in: metrics.rect,
             withAttributes: attributes
         )
+        if let icon = menuIcon(at: index, metrics: metrics), let image = menuIconImage(for: icon) {
+            // Aspect-fit: symbols are not all square.
+            let size = image.size
+            let fit = min(icon.rect.width / max(size.width, 1), icon.rect.height / max(size.height, 1), 1)
+            let drawn = NSRect(x: icon.rect.midX - size.width * fit / 2, y: icon.rect.midY - size.height * fit / 2,
+                               width: size.width * fit, height: size.height * fit)
+            image.draw(in: drawn, from: .zero, operation: .sourceOver, fraction: 1)
+        }
 
         if presentationMode == .editor, allowsEditing, selectedIndex == index, slot.isEmpty {
             let hint = localized("DROP HERE") as NSString
@@ -1826,6 +1853,47 @@ final class RadialMenuView: NSView {
         return titleDrawingMetrics(at: index, using: layout, in: bounds).rect
     }
 
+    /// The Menu Item Icon drawn above the title at `index`, nil for an empty
+    /// Slot. A symbol the running macOS lacks is drawn as the neutral one.
+    func menuIcon(at index: Int) -> MenuIconDrawing? {
+        guard slots.indices.contains(index) else { return nil }
+        return menuIcon(at: index, metrics: titleDrawingMetrics(at: index, using: layout, in: bounds))
+    }
+
+    private func menuIcon(at index: Int, metrics: MenuTitleDrawingMetrics) -> MenuIconDrawing? {
+        let slot = slots[index]
+        guard let item = slot.item, let rect = metrics.iconRect else { return nil }
+        // The title's treatment: dimmed when inherited or unavailable, else
+        // the Menu's accent, each resolved for the Menu's Light or Dark theme.
+        let colour: NSColor = slot.isInherited
+            ? palette.secondaryLabel.withAlphaComponent(palette.secondaryLabel.alphaComponent * 0.7)
+            : item.primaryAction.isAvailable ? editorAccentColor : palette.secondaryLabel
+        var resolved = colour
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            resolved = colour.usingColorSpace(.sRGB) ?? colour
+        }
+        return MenuIconDrawing(symbolName: item.icon.drawable.symbolName, rect: rect, color: resolved)
+    }
+
+    private func menuIconImage(for icon: MenuIconDrawing) -> NSImage? {
+        let key = MenuIconImageKey(symbolName: icon.symbolName, side: Int(icon.rect.width.rounded()), color: icon.color)
+        if let cached = menuIconImageCache[key] { return cached }
+        let configuration = NSImage.SymbolConfiguration(pointSize: icon.rect.width * 0.8, weight: .medium)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [icon.color]))
+        // No accessibility description: VoiceOver reads the Menu Item's title.
+        let image = NSImage(systemSymbolName: icon.symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)
+        menuIconImageCache[key] = image
+        return image
+    }
+
+    /// The side, in points, of a Menu Item Icon: smaller as Slots crowd the
+    /// ring, and scaled with the Menu Size.
+    static func menuIconSide(for menuLayout: RadialMenuLayout) -> CGFloat {
+        let base: CGFloat = menuLayout.itemCount >= 10 ? 14 : menuLayout.itemCount >= 8 ? 16 : 18
+        return (base * menuLayout.outerRadius / 142).rounded()
+    }
+
     private func titleDrawingMetrics(
         at index: Int,
         using menuLayout: RadialMenuLayout,
@@ -1854,12 +1922,18 @@ final class RadialMenuView: NSView {
             - layout.font.descender
             + layout.font.leading
         let titleHeight = max(layout.size.height, fontLineHeight)
+        // An occupied Slot draws its icon above its title; the two are laid
+        // out as one block. Only the block's height depends on the icon, so
+        // an icon-only appearance can later drop the title from it.
+        let iconSide = slots[index].item == nil ? 0 : Self.menuIconSide(for: menuLayout)
+        let iconGap = iconSide > 0 ? max(2, (3 * menuLayout.outerRadius / 142).rounded()) : 0
+        let blockHeight = titleHeight + iconSide + iconGap
         let verticalOffset: CGFloat = menuLayout.itemCount >= 10 ? 4 : 0
         let baseTitleRect = NSRect(
             x: point.x - titleWidth / 2,
-            y: point.y - titleHeight / 2 + verticalOffset,
+            y: point.y - blockHeight / 2 + verticalOffset,
             width: titleWidth,
-            height: titleHeight
+            height: blockHeight
         )
         var titleRect = baseTitleRect
         var editButtonRect = NSRect.zero
@@ -1882,8 +1956,8 @@ final class RadialMenuView: NSView {
                 )
                 let candidateTitle = NSRect(
                     x: anchor.x - titleWidth / 2,
-                    y: anchor.y + (buttonHeight + gap - titleHeight) / 2,
-                    width: titleWidth, height: titleHeight
+                    y: anchor.y + (buttonHeight + gap - blockHeight) / 2,
+                    width: titleWidth, height: blockHeight
                 )
                 let candidateButton = NSRect(
                     x: anchor.x - buttonWidth / 2,
@@ -1902,11 +1976,17 @@ final class RadialMenuView: NSView {
                 if outside == 0 { break }
             }
         }
+        // Split the block: the title at its foot, the icon centred above.
+        let iconRect = iconSide > 0
+            ? NSRect(x: titleRect.midX - iconSide / 2, y: titleRect.maxY - iconSide, width: iconSide, height: iconSide)
+            : nil
+        titleRect.size.height = titleHeight
         return MenuTitleDrawingMetrics(
             point: point,
             layout: layout,
             rect: titleRect,
-            editButtonRect: editButtonRect
+            editButtonRect: editButtonRect,
+            iconRect: iconRect
         )
     }
 

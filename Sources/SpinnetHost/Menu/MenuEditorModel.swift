@@ -428,6 +428,9 @@ final class MenuEditorModel: ObservableObject {
             presetName: { pluginID in
                 manifests[pluginID]?.name
             },
+            pluginIcon: { pluginID in
+                manifests[pluginID]?.icon
+            },
             explanation: { action in
                 manifests[action.pluginID]?.commands.first { $0.id == action.commandID }?.explanation
             }

@@ -444,7 +444,8 @@ public final class PluginRegistry {
                     unavailableReason: disabledPluginIDs.contains(package.manifest.id)
                         ? .pluginDisabled
                         : nil,
-                    needsPluginSettings: package.manifest.hasSettings && !pluginSettingsComplete(package.manifest)
+                    needsPluginSettings: package.manifest.hasSettings && !pluginSettingsComplete(package.manifest),
+                    icon: package.manifest.icon
                 )
             }
             .sorted { lhs, rhs in

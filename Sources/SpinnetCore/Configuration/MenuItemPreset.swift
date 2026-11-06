@@ -86,6 +86,8 @@ public struct MenuItemPreset: Equatable {
     /// The Plugin declares Plugin Settings and one has no usable value yet.
     /// The Preset can still be placed; its Menu Items wait for the settings.
     public let needsPluginSettings: Bool
+    /// The Plugin's Plugin Icon, nil when it declares none.
+    public let icon: IconDeclaration?
 
     public var id: String { pluginID.rawValue }
     public var readiness: MenuItemPresetReadiness { declaration.readiness }
@@ -113,7 +115,8 @@ public struct MenuItemPreset: Equatable {
         commands: [CommandDeclaration],
         declaration: MenuItemPresetDeclaration,
         unavailableReason: ActionUnavailableReason? = nil,
-        needsPluginSettings: Bool = false
+        needsPluginSettings: Bool = false,
+        icon: IconDeclaration? = nil
     ) {
         self.pluginID = pluginID
         self.name = name
@@ -121,5 +124,6 @@ public struct MenuItemPreset: Equatable {
         self.declaration = declaration
         self.unavailableReason = unavailableReason
         self.needsPluginSettings = needsPluginSettings
+        self.icon = icon
     }
 }
