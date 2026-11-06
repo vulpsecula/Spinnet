@@ -46,11 +46,23 @@ _Avoid_: Plugin Removal, reset menu
 Data a Plugin keeps for itself between invocations and launches, which only that Plugin can reach. It holds the Plugin's own data, never the user's choices or a secret.
 _Avoid_: LocalStorage, cache, Plugin data, Plugin Settings
 
+**Plugin Icon**:
+The picture or system symbol a Plugin declares to identify itself in the Library and for any of its Commands that declare none.
+_Avoid_: Logo, App icon, Plugin image
+
+**Plugin Tag**:
+A category from the published vocabulary that a Plugin declares to file its Menu Item Preset in the Library. It grants nothing and is distinct from an Item Mark.
+_Avoid_: Category, label, keyword
+
 ### Commands and Actions
 
 **Command**:
 A callable operation a Plugin declares, before user-specific configuration is applied. A Command either runs one Host Service directly, which makes it a Host Command, or runs the Plugin's script, which may call Host Services.
 _Avoid_: Action type, function
+
+**Command Icon**:
+The picture or system symbol a Command declares to identify the Actions configured from it.
+_Avoid_: Action icon, button image
 
 **Host Command**:
 A Command that directly names a Host Service and uses the Action’s configuration as its input, without running a script. It is supplied by a Plugin and follows that Plugin’s declared interface vocabulary.
@@ -94,8 +106,12 @@ _Avoid_: Secondary Menu, submenu, sub-ring
 A user-defined display name for one Menu Item, independent of its Preset, Plugin, and Action names and not required to be unique.
 _Avoid_: Action title, Plugin name
 
+**Menu Item Icon**:
+The icon a Menu Item shows: the user's own choice for it, else the Command Icon of its Primary Action, else its Plugin Icon.
+_Avoid_: Slot icon, Action icon
+
 **Menu Item Configuration**:
-One Menu Item's own settings: its Actions and their inputs, its alias and icon, and which Alternate Actions it exposes. It is edited in the Menu Item's Configuration Sheet and is separate from the Plugin Settings it shares with other Menu Items.
+One Menu Item's own settings: its Actions and their inputs, its alias, its own icon choice, and which Alternate Actions it exposes. It is edited in the Menu Item's Configuration Sheet and is separate from the Plugin Settings it shares with other Menu Items.
 _Avoid_: Plugin Settings, Preset defaults, instance configuration
 
 **Menu Editor**:
@@ -123,7 +139,7 @@ An App-specific replacement of the Menu Items in chosen Menu Slots, applied whil
 _Avoid_: App Menu, per-app profile, app-specific Menu
 
 **Library**:
-The settings collection from which the user adds Menu Items: one Menu Item Preset per Plugin in a single list, followed by any Refused Plugins with their reasons.
+The settings collection from which the user adds Menu Items: one Menu Item Preset per Plugin, filterable by Plugin Tag, followed by any Refused Plugins with their reasons.
 _Avoid_: Plugin list, Action list
 
 **Menu Item Preset**:
@@ -213,7 +229,7 @@ A button or menu entry in a Plugin View that performs a Host Service or sends th
 _Avoid_: Action (a Menu Item's), shortcut, command button
 
 **Item Action**:
-A View Action offered on an item of a Collection, with an optional default or toggle meaning.
+A View Action offered on the selected items of a Collection, run once for all of them, with an optional default, toggle or single-item meaning.
 _Avoid_: Primary Action (a Menu Item's), row button, shortcut
 
 **Item Mark**:
@@ -348,7 +364,10 @@ The Chinese for each term, chosen once for the interface's 简体中文. Host-ow
 | Plugin Installation Source | 插件安装来源 |
 | Plugin Data Clearing | 清理插件数据 |
 | Plugin Storage | 插件存储 |
+| Plugin Icon | 插件图标 |
+| Plugin Tag | 插件标签 |
 | Command | 命令 |
+| Command Icon | 命令图标 |
 | Host Command | 宿主命令 |
 | Host Service | 宿主服务 |
 | Action | 动作 |
@@ -360,6 +379,7 @@ The Chinese for each term, chosen once for the interface's 简体中文. Host-ow
 | Menu Item | 菜单项 |
 | Alternate Ring | 备选环 |
 | Menu Item Alias | 菜单项别名 |
+| Menu Item Icon | 菜单项图标 |
 | Menu Item Configuration | 菜单项配置 |
 | Menu Editor | 菜单编辑器 |
 | Editor Mode | 编辑模式 |
