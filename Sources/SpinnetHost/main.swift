@@ -631,6 +631,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             presetName: { [weak self] pluginID in
                 self?.registry.package(for: pluginID)?.manifest.name
             },
+            pluginIcon: { [weak self] pluginID in
+                self?.registry.package(for: pluginID)?.manifest.icon
+            },
             // The registered Command, not the Action's snapshot, so a Plugin
             // that describes its Commands later describes existing Actions too.
             explanation: { [weak self] action in

@@ -27,6 +27,10 @@
     "version": {
       "$ref": "#/$defs/text"
     },
+    "icon": {
+      "description": "The Plugin Icon: what the Library and the radial Menu show for this Plugin's Menu Items. Absent, the Host shows a neutral symbol. Display-only; see reference/manifest.md#plugin-icon.",
+      "$ref": "#/$defs/icon"
+    },
     "capabilities": {
       "description": "The protected Host functionality the Plugin may request. A declaration is not a grant: the user decides each one.",
       "type": "array",
@@ -658,6 +662,21 @@
       "description": "Exact M.m.p or caret ^M.m.p only. No leading zeroes, whitespace, prerelease/build suffix, OR, wildcards or general npm range syntax. Host additionally checks UInt64 bounds and caret upper-bound overflow. This shape does not prove the running Host satisfies the range.",
       "type": "string",
       "pattern": "^\\^?(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
+    },
+    "icon": {
+      "description": "A system symbol by its SF Symbols name, under the rule a page icon component follows.",
+      "type": "object",
+      "required": [
+        "symbol"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(\\.[a-z0-9]+)*$",
+          "maxLength": 64
+        }
+      }
     }
   }
 }

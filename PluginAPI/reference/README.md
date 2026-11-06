@@ -5,7 +5,7 @@ All compatible Plugins use the same current schemas and [TypeScript surface](../
 
 | Topic | Reference | Machine-readable contract |
 | --- | --- | --- |
-| Identity, Commands, Preset, configuration and migrations | [Manifest](manifest.md) | [Manifest schema](../schemas/manifest.schema.json) |
+| Identity, Plugin Icon, Commands, Preset, configuration and migrations | [Manifest](manifest.md) | [Manifest schema](../schemas/manifest.schema.json), [icon types](../sdk/plugin-icon.d.ts) |
 | Publishing Plugin Updates from GitHub Releases | [Update Source](update-source.md) | [Manifest schema](../schemas/manifest.schema.json), [types](../sdk/update-source.d.ts), [version selection](../fixtures/update-source/index.json) |
 | Host Service IDs, entry points and authority | [Namespaces](namespaces.md), [Host Services](host-services.md) | [Catalogue](../catalogue.json), [catalogue shape](../schemas/catalogue.schema.json), [inputs/results](../schemas/namespaces.schema.json) |
 | Script globals, answers, failures and helper protocol | [Scripts](scripts.md) | [Current SDK](../sdk/spinnet.d.ts), [SDK runtime](../sdk/spinnet.js) |

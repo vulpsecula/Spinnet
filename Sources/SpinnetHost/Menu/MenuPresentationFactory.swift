@@ -8,6 +8,7 @@ enum MenuPresentationFactory {
         app: AppBundleIdentifier? = nil,
         availability: (ActionConfiguration) -> ActionAvailability,
         presetName: (PluginID) -> String? = { _ in nil },
+        pluginIcon: (PluginID) -> IconDeclaration? = { _ in nil },
         explanation: (ActionConfiguration) -> String? = { _ in nil }
     ) -> [MenuSlotPresentation] {
         let actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
@@ -27,13 +28,18 @@ enum MenuPresentationFactory {
             let defaultTitle = actions[item.primaryActionID].flatMap {
                 presetName($0.pluginID)
             }
+            let icon = MenuItemIcon.resolve(
+                pluginIcon: actions[item.primaryActionID].flatMap { pluginIcon($0.pluginID) },
+                primaryAvailability: primary.availability
+            )
             return MenuSlotPresentation(
                 configuration: slot,
                 item: MenuItemPresentation(
                     configuration: item,
                     primaryAction: primary,
                     alternateActions: alternates,
-                    defaultTitle: defaultTitle
+                    defaultTitle: defaultTitle,
+                    icon: icon
                 )
             )
         }

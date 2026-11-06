@@ -119,7 +119,7 @@ struct MenuEditorView: View {
                 .onDrag {
                     Self.libraryPresetDragProvider(for: preset.id)
                 } preview: {
-                    Label(preset.name, systemImage: "puzzlepiece.extension.fill")
+                    Label(preset.name, systemImage: MenuItemIcon(preset: preset).drawable.symbolName)
                         .padding(10)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
                 }
@@ -134,9 +134,11 @@ struct MenuEditorView: View {
                 .fill(Color.accentColor.opacity(0.14))
                 .frame(width: 42, height: 42)
                 .overlay {
-                    Image(systemName: "puzzlepiece.extension.fill")
+                    Image(systemName: MenuItemIcon(preset: preset).drawable.symbolName)
                         .foregroundStyle(Color.accentColor)
                 }
+                // The Plugin Icon is decoration; VoiceOver reads the name.
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(preset.name).font(.headline)

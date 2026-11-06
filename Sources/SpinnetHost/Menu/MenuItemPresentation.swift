@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import SpinnetCore
 
 /// Session-stable identity travels with the complete editor Slot presentation.
@@ -36,6 +36,44 @@ struct MenuActionPresentation: Equatable {
     }
 }
 
+/// The Menu Item Icon a Menu Item shows. The Host resolves it in one place,
+/// `resolve(pluginIcon:primaryAvailability:)`, beside the Menu Item's title.
+struct MenuItemIcon: Equatable, Hashable {
+    /// A system symbol name.
+    let symbolName: String
+
+    /// The neutral Host symbol shown when there is no Plugin Icon to show,
+    /// so the ring never has a gap.
+    static let neutral = MenuItemIcon(symbolName: "puzzlepiece.extension")
+
+    /// The Plugin's Plugin Icon, else the neutral symbol. A Menu Item whose
+    /// Plugin is removed or refused, or whose Command is gone, has no Plugin
+    /// to take an icon from and shows the neutral symbol in its unavailable
+    /// treatment; the Host keeps no copy of a Plugin's icon.
+    static func resolve(pluginIcon: IconDeclaration?, primaryAvailability: ActionAvailability) -> MenuItemIcon {
+        switch primaryAvailability.reason {
+        case .pluginMissing?, .pluginRefused?, .commandMissing?:
+            return .neutral
+        default:
+            return pluginIcon.map { MenuItemIcon(symbolName: $0.symbolName) } ?? .neutral
+        }
+    }
+
+    /// The icon the Library shows beside a Menu Item Preset.
+    init(preset: MenuItemPreset) {
+        self = preset.icon.map { MenuItemIcon(symbolName: $0.symbolName) } ?? .neutral
+    }
+
+    init(symbolName: String) {
+        self.symbolName = symbolName
+    }
+
+    /// This icon, or the neutral symbol when the running macOS lacks it.
+    var drawable: MenuItemIcon {
+        NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) == nil ? .neutral : self
+    }
+}
+
 struct MenuItemPresentation: Equatable {
     let configuration: MenuItemConfiguration
     let primaryAction: MenuActionPresentation
@@ -44,6 +82,8 @@ struct MenuItemPresentation: Equatable {
     /// explicit Alias. This stays separate from an Action's availability
     /// annotation so a missing resource cannot replace the Menu Item title.
     let defaultTitle: String?
+    /// The Menu Item Icon drawn with the title. VoiceOver reads the title.
+    let icon: MenuItemIcon
 
     var title: String { configuration.alias ?? defaultTitle ?? primaryAction.title }
 
@@ -51,12 +91,14 @@ struct MenuItemPresentation: Equatable {
         configuration: MenuItemConfiguration,
         primaryAction: MenuActionPresentation,
         alternateActions: [MenuActionPresentation],
-        defaultTitle: String? = nil
+        defaultTitle: String? = nil,
+        icon: MenuItemIcon = .neutral
     ) {
         self.configuration = configuration
         self.primaryAction = primaryAction
         self.alternateActions = alternateActions
         self.defaultTitle = defaultTitle
+        self.icon = icon
     }
 }
 

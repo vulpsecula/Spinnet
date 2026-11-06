@@ -441,6 +441,9 @@ public struct PluginManifest: Codable, Equatable, Sendable {
     public let id: PluginID
     public let name: String
     public let version: String
+    /// The Plugin Icon, written `icon`: what the Library and the Menu show
+    /// for this Plugin's Menu Items. Absent, the Host shows a neutral symbol.
+    public let icon: IconDeclaration?
     public let capabilities: [PluginCapability]
     /// Declared access that may be used when granted but does not prevent a
     /// JavaScript Command from running when it is denied or unreviewed.
@@ -466,6 +469,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         id: PluginID,
         name: String,
         version: String,
+        icon: IconDeclaration? = nil,
         capabilities: [PluginCapability] = [],
         optionalCapabilities: [PluginCapability] = [],
         capabilityScopes: [PluginCapabilityScope] = [],
@@ -482,6 +486,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         self.id = id
         self.name = name
         self.version = version
+        self.icon = icon
         self.capabilities = capabilities
         self.optionalCapabilities = optionalCapabilities
         self.capabilityScopes = capabilityScopes
@@ -503,6 +508,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         case id
         case name
         case version
+        case icon
         case capabilities
         case optionalCapabilities = "optional_capabilities"
         case capabilityScopes = "capability_scopes"
@@ -522,6 +528,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(version, forKey: .version)
+        try container.encodeIfPresent(icon, forKey: .icon)
         try container.encode(capabilities, forKey: .capabilities)
         if !optionalCapabilities.isEmpty { try container.encode(optionalCapabilities, forKey: .optionalCapabilities) }
         try container.encode(capabilityScopes, forKey: .capabilityScopes)
@@ -552,6 +559,10 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         self.id = try container.decode(PluginID.self, forKey: .id)
         self.name = try container.decode(String.self, forKey: .name)
         self.version = try container.decode(String.self, forKey: .version)
+        // Present means declared: an explicit null is refused, not ignored.
+        self.icon = try container.contains(.icon)
+            ? IconDeclaration(parsing: container.decode(JSONValue.self, forKey: .icon), "icon")
+            : nil
         self.capabilities = try container.decodeIfPresent(
             [PluginCapability].self,
             forKey: .capabilities

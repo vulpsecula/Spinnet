@@ -62,6 +62,34 @@ such as `"host_command": "open.url"`, and may fix members of its input in `input
 ([input](namespaces.md#input)). Only entry points offered by the catalogue are
 admitted. Historical Host Command names are refused.
 
+## Plugin Icon
+
+A Plugin may declare an optional top-level `icon`, its Plugin Icon, as a system
+symbol by its SF Symbols name:
+
+```json
+"icon": {"symbol": "rectangle.split.2x1"}
+```
+
+The name follows the rule for a page [`icon` component](pages.md#icons):
+lower-case letters, digits and dots, not starting or ending with a dot or
+holding two together, at most 64 characters. Any other value, including
+`null`, a bare string or another member, refuses the package with a reason
+naming `icon`. The [TypeScript types](../sdk/plugin-icon.d.ts) describe this
+manifest data.
+
+The Library shows the Plugin Icon beside the Plugin's Menu Item Preset, and the
+radial Menu draws it with the title of each Menu Item made from the Plugin,
+tinted with the Menu's accent colour and scaled with its size. A Plugin
+without an icon, and a Menu Item whose Plugin is removed or refused or whose
+Command is gone, shows a neutral Host symbol instead, so the ring has no gap. A
+name the running macOS lacks also shows the neutral symbol. VoiceOver keeps
+reading Menu Item titles.
+
+The icon is display-only. It grants nothing, changing it in a Plugin Update
+does not make any configured Action's Command count as changed, and installing
+or updating a Plugin never creates or edits Menu Items or App Overrides.
+
 ## Commands
 
 A Command has an `id`, a `title`, and an `execution`: `host` names a
