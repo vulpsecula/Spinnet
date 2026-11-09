@@ -13,6 +13,10 @@ struct MenuActionPresentation: Equatable {
     let availability: ActionAvailability
     /// What the Action's Command does, from its Plugin's `description`.
     var explanation: String? = nil
+    /// The icon of the Action's Command, as `MenuItemIcon.resolve` gives it
+    /// without a user icon: shown for an Alternate Action in the Alternate
+    /// Ring and for every Action in the runtime Actions menu.
+    var icon: MenuItemIcon = .neutral
 
     var isAvailable: Bool { availability.isAvailable }
 
@@ -37,8 +41,9 @@ struct MenuActionPresentation: Equatable {
 }
 
 /// The Menu Item Icon a Menu Item shows. The Host resolves it in one place,
-/// `resolve(ownIcon:pluginIcon:packageRoot:primaryAvailability:)`, beside the
-/// Menu Item's title.
+/// `resolve(ownIcon:commandIcon:pluginIcon:packageRoot:primaryAvailability:)`,
+/// beside the Menu Item's title; an Alternate Action's icon resolves there
+/// too, from its own Command and without a user icon.
 struct MenuItemIcon: Equatable, Hashable {
     /// A system symbol name. For a package picture, the neutral symbol the
     /// Menu draws should the picture be gone when it draws.
@@ -60,16 +65,18 @@ struct MenuItemIcon: Equatable, Hashable {
     /// so the ring never has a gap.
     static let neutral = MenuItemIcon(symbolName: "puzzlepiece.extension")
 
-    /// The user's own icon for the Menu Item, else the Plugin's Plugin Icon,
-    /// else the neutral symbol. The user's icon is saved with the Menu Item,
-    /// so it shows whatever the Plugin's state. A Menu Item whose Plugin is
+    /// The user's own icon for the Menu Item, else the Command Icon of its
+    /// Primary Action's Command, else the Plugin's Plugin Icon, else the
+    /// neutral symbol. The user's icon is saved with the Menu Item, so it
+    /// shows whatever the Plugin's state. A Menu Item whose Plugin is
     /// removed or refused, or whose Command is gone, has no Plugin to take
     /// an icon from and otherwise shows the neutral symbol in its
-    /// unavailable treatment; the Host keeps no copy of a Plugin's icon. A
+    /// unavailable treatment; the Host keeps no copy of a Plugin's icons. A
     /// picture is located in `packageRoot`, the installed package; without
     /// one it cannot be shown either.
     static func resolve(
         ownIcon: String? = nil,
+        commandIcon: IconDeclaration? = nil,
         pluginIcon: IconDeclaration?,
         packageRoot: URL? = nil,
         primaryAvailability: ActionAvailability
@@ -79,7 +86,7 @@ struct MenuItemIcon: Equatable, Hashable {
         case .pluginMissing?, .pluginRefused?, .commandMissing?:
             return .neutral
         default:
-            return MenuItemIcon(declaration: pluginIcon, packageRoot: packageRoot)
+            return MenuItemIcon(declaration: commandIcon ?? pluginIcon, packageRoot: packageRoot)
         }
     }
 
@@ -115,6 +122,24 @@ struct MenuItemIcon: Equatable, Hashable {
     /// This icon, or the neutral symbol when the running macOS lacks it.
     var drawable: MenuItemIcon {
         NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) == nil ? .neutral : self
+    }
+
+    /// The icon as an AppKit menu item shows it, `side` points square: a
+    /// symbol or template picture as a template image the menu tints, a
+    /// full-colour picture as drawn, its dark picture in a Dark
+    /// `appearance`. No accessibility description: VoiceOver reads the title.
+    func menuImage(side: CGFloat, appearance: NSAppearance) -> NSImage? {
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if let picture, let source = NSImage(contentsOf: (isDark ? picture.darkURL : nil) ?? picture.url),
+           source.size.width > 0, source.size.height > 0 {
+            let image = RadialMenuView.pictureImage(source, side: side, tint: nil, opacity: 1)
+            image.isTemplate = picture.isTemplate
+            return image
+        }
+        let image = NSImage(systemSymbolName: drawable.symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: side * 0.8, weight: .regular))
+        image?.isTemplate = true
+        return image
     }
 }
 

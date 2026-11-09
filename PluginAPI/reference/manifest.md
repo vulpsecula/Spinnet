@@ -81,12 +81,40 @@ naming `icon`. The [TypeScript types](../sdk/plugin-icon.d.ts) describe this
 manifest data.
 
 The Library shows the Plugin Icon beside the Plugin's Menu Item Preset, and the
-radial Menu draws it with the title of each Menu Item made from the Plugin,
+radial Menu draws it with the title of each Menu Item made from the Plugin
+whose Primary Action's Command declares no [Command Icon](#command-icons),
 tinted with the Menu's accent colour and scaled with its size. A Plugin
 without an icon, and a Menu Item whose Plugin is removed or refused or whose
 Command is gone, shows a neutral Host symbol instead, so the ring has no gap. A
 name the running macOS lacks also shows the neutral symbol. VoiceOver keeps
 reading Menu Item titles.
+
+### Command Icons
+
+Each Command may declare its own optional `icon`, its Command Icon, in the
+same shape and under the same rules as the Plugin Icon, including
+[pictures](#icon-pictures) and their bounds:
+
+```json
+"commands": [
+  {"id": "left", "title": "Left Half", "execution": "javascript", "script": "left.js",
+   "icon": {"symbol": "rectangle.lefthalf.filled"}},
+  {"id": "right", "title": "Right Half", "execution": "javascript", "script": "right.js",
+   "icon": {"image": "icons/right.pdf", "template": true}}
+]
+```
+
+An invalid Command Icon refuses the package with the Plugin Icon's reason,
+naming the Command, such as `Command left's icon`.
+
+A Menu Item shows the Command Icon of its Primary Action's Command, else the
+Plugin Icon, else the neutral symbol; a user's own icon for the Menu Item
+comes first. Each Alternate Action shows the icon of its own Command the same
+way, in the Alternate Ring and the runtime Actions menu, and the Configuration
+Sheet shows each Command's icon in the Primary Action picker and the
+Alternate Action list. So Menu Items made from one Plugin look different when
+they do different things. Declare Command Icons only where they help; a
+Command without one inherits the Plugin Icon.
 
 ### Icon pictures
 
@@ -121,8 +149,9 @@ keeps no copy, so a Menu Item whose Plugin is removed shows the neutral
 symbol. A full-colour picture fades where an unavailable Menu Item's symbol
 would be dimmed.
 
-The icon is display-only. It grants nothing, changing it in a Plugin Update
-does not make any configured Action's Command count as changed, and installing
+Plugin Icons and Command Icons are display-only, like a Command's
+`description`. They grant nothing, changing one in a Plugin Update does not
+make any configured Action's Command count as changed, and installing
 or updating a Plugin never creates or edits Menu Items or App Overrides.
 
 ## Commands

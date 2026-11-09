@@ -1302,7 +1302,7 @@ private struct SlotConfigurationSheet: View {
         pluginID = initialState.pluginID
         self.pluginSettings = initialState.pluginManifest.map(pluginSettings) ?? [:]
         _itemAlias = State(initialValue: initialState.itemAlias)
-        iconChoice = MenuItemIconChoice(editor: editor, app: app, slotIndex: slotIndex)
+        iconChoice = MenuItemIconChoice(editor: editor, app: app, slotIndex: slotIndex, presetPluginID: presetPluginID)
         _itemIcon = State(initialValue: iconChoice.ownIcon)
         _primaryCommandID = State(initialValue: initialState.primaryCommandID)
         _lastPrimaryCommandID = State(initialValue: initialState.primaryCommandID)
@@ -1334,7 +1334,8 @@ private struct SlotConfigurationSheet: View {
 
                     itemAliasEditor
 
-                    MenuItemIconPicker(icon: $itemIcon, defaultIcon: iconChoice.defaultIcon)
+                    MenuItemIconPicker(icon: $itemIcon,
+                                       defaultIcon: iconChoice.defaultIcon(primaryCommandID: primaryCommandID))
 
                     if let pluginManifest {
                         actionSelection(for: pluginManifest)
@@ -1436,7 +1437,12 @@ private struct SlotConfigurationSheet: View {
                     .frame(width: 118, alignment: .leading)
                 Picker(localized("Primary Action"), selection: $primaryCommandID) {
                     ForEach(plugin.commands, id: \.id) { command in
-                        Text(command.title).tag(command.id)
+                        Label {
+                            Text(command.title)
+                        } icon: {
+                            MenuItemIconImage(icon: iconChoice.icon(for: command.id), side: 16)
+                        }
+                        .tag(command.id)
                     }
                 }
                 .labelsHidden()
@@ -1466,7 +1472,12 @@ private struct SlotConfigurationSheet: View {
                         HStack(spacing: 8) {
                             Toggle(isOn: alternateBinding(for: command.id)) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(command.title)
+                                    Label {
+                                        Text(command.title)
+                                    } icon: {
+                                        MenuItemIconImage(icon: iconChoice.icon(for: command.id), side: 16)
+                                            .accessibilityHidden(true)
+                                    }
                                     if let explanation = command.explanation {
                                         Text(explanation)
                                             .font(.caption)

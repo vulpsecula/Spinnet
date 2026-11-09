@@ -1909,6 +1909,10 @@
         "description": {
           "$ref": "manifest.schema.json#/$defs/text"
         },
+        "icon": {
+          "description": "The Command Icon: what a Menu Item whose Primary Action runs this Command, and an Alternate Action running it, show. Absent, the Plugin Icon. Display-only; see reference/manifest.md#command-icons.",
+          "$ref": "manifest.schema.json#/$defs/icon"
+        },
         "execution": {
           "enum": [
             "host",

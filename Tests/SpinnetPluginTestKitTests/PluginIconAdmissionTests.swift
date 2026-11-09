@@ -7,7 +7,7 @@ import SpinnetTestSupport
 /// A Plugin author's tests load the package's Plugin Icon the way the Host
 /// admits it, and see the same refusal the Host gives an invalid one.
 final class PluginIconAdmissionTests: XCTestCase {
-    private func package(icon: String, files: [String: Data] = [:]) throws -> URL {
+    private func package(icon: String?, commandIcon: String? = nil, files: [String: Data] = [:]) throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathComponent("Iconic.spinnetplugin")
@@ -15,8 +15,9 @@ final class PluginIconAdmissionTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
         try Data("""
         {"protocol_version": "1.0", "engines": {"spinnet": "^1.0.0"}, "id": "com.example.iconic",
-         "name": "Iconic", "version": "1.0.0", "icon": \(icon),
-         "commands": [{"id": "run", "title": "Run", "execution": "javascript", "script": "run.js"}]}
+         "name": "Iconic", "version": "1.0.0"\(icon.map { ", \"icon\": \($0)" } ?? ""),
+         "commands": [{"id": "run", "title": "Run", "execution": "javascript", "script": "run.js"
+                       \(commandIcon.map { ", \"icon\": \($0)" } ?? "")}]}
         """.utf8).write(to: root.appendingPathComponent("manifest.json"))
         try Data("null".utf8).write(to: root.appendingPathComponent("run.js"))
         for (path, data) in files {
@@ -113,5 +114,31 @@ final class PluginIconAdmissionTests: XCTestCase {
         assertRefused(try package(icon: #"{"image": "mark.png", "template": true, "dark_image": "dark.png"}"#,
                                   files: ["mark.png": png, "dark.png": png]),
                       mentioning: ["template", "dark_image"])
+    }
+
+    // MARK: Command Icons
+
+    func testACommandIconLoadsAsTheHostAdmitsIt() throws {
+        let plugin = try PluginUnderTest(packageAt: package(icon: nil, commandIcon: #"{"symbol": "play"}"#))
+        XCTAssertEqual(plugin.manifest.commands[0].icon, .symbol("play"))
+        XCTAssertNil(plugin.manifest.icon)
+        let pictured = try PluginUnderTest(packageAt: package(
+            icon: #"{"symbol": "music.note"}"#, commandIcon: #"{"image": "icons/run.pdf", "template": true}"#,
+            files: ["icons/run.pdf": IconPictureFixtures.pdf()]))
+        XCTAssertEqual(pictured.manifest.commands[0].icon, .picture(IconPicture(path: "icons/run.pdf", isTemplate: true)))
+    }
+
+    /// A Command Icon's pictures are checked like the Plugin Icon's, and the
+    /// refusal names the Command.
+    func testACommandIconPictureIsCheckedLikeThePluginIcon() throws {
+        assertRefused(try package(icon: nil, commandIcon: #"{"image": "run.png"}"#), mentioning: ["run.png", "not in the package", "Command run"])
+        assertRefused(try package(icon: nil, commandIcon: #"{"image": "run.png"}"#,
+                                  files: ["run.png": IconPictureFixtures.bitmap(width: 8, height: 8, type: .jpeg)]),
+                      mentioning: ["run.png", "PNG", "Command run"])
+        let edge = IconPictureBudgets.maximumPNGEdge
+        assertRefused(try package(icon: nil, commandIcon: #"{"image": "run.png"}"#,
+                                  files: ["run.png": IconPictureFixtures.bitmap(width: edge + 1, height: 8)]),
+                      mentioning: ["run.png", "\(edge) pixels"])
+        assertRefused(try package(icon: nil, commandIcon: #"{"symbol": "Play"}"#), mentioning: ["Command run"])
     }
 }

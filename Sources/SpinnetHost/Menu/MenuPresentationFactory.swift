@@ -11,31 +11,39 @@ enum MenuPresentationFactory {
         presetName: (PluginID) -> String? = { _ in nil },
         pluginIcon: (PluginID) -> IconDeclaration? = { _ in nil },
         packageRoot: (PluginID) -> URL? = { _ in nil },
-        explanation: (ActionConfiguration) -> String? = { _ in nil }
+        explanation: (ActionConfiguration) -> String? = { _ in nil },
+        commandIcon: (ActionConfiguration) -> IconDeclaration? = { _ in nil }
     ) -> [MenuSlotPresentation] {
         let actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
+        /// The icon shown for `actionID`'s Action: `ownIcon` for a Menu Item,
+        /// else its Command's.
+        func icon(for actionID: ActionID, ownIcon: String? = nil, availability: ActionAvailability) -> MenuItemIcon {
+            let action = actions[actionID]
+            return MenuItemIcon.resolve(
+                ownIcon: ownIcon,
+                commandIcon: action.flatMap(commandIcon),
+                pluginIcon: action.flatMap { pluginIcon($0.pluginID) },
+                packageRoot: action.flatMap { packageRoot($0.pluginID) },
+                primaryAvailability: availability
+            )
+        }
+        func presentation(for actionID: ActionID) -> MenuActionPresentation {
+            var presentation = Self.presentation(
+                for: actionID, actions: actions, availability: availability, explanation: explanation
+            )
+            presentation.icon = icon(for: actionID, availability: presentation.availability)
+            return presentation
+        }
         return configuration.menu.slots(for: app).map { slot in
             guard let item = slot.item else {
                 return MenuSlotPresentation(configuration: slot, item: nil)
             }
-            let primary = presentation(
-                for: item.primaryActionID,
-                actions: actions,
-                availability: availability,
-                explanation: explanation
-            )
-            let alternates = item.alternateActionIDs.map { actionID in
-                presentation(for: actionID, actions: actions, availability: availability, explanation: explanation)
-            }
+            let primary = presentation(for: item.primaryActionID)
+            let alternates = item.alternateActionIDs.map(presentation(for:))
             let defaultTitle = actions[item.primaryActionID].flatMap {
                 presetName($0.pluginID)
             }
-            let icon = MenuItemIcon.resolve(
-                ownIcon: item.icon,
-                pluginIcon: actions[item.primaryActionID].flatMap { pluginIcon($0.pluginID) },
-                packageRoot: actions[item.primaryActionID].flatMap { packageRoot($0.pluginID) },
-                primaryAvailability: primary.availability
-            )
+            let icon = icon(for: item.primaryActionID, ownIcon: item.icon, availability: primary.availability)
             return MenuSlotPresentation(
                 configuration: slot,
                 item: MenuItemPresentation(

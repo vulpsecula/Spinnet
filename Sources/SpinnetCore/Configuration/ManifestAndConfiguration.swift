@@ -293,6 +293,11 @@ public struct CommandDeclaration: Codable, Equatable, Hashable, Sendable {
     /// `input`; the Action's configured input supplies the rest. Only a
     /// Command with a `hostServiceID` has one.
     public let fixedInput: JSONValue?
+    /// The Command Icon, written `icon`: what a Menu Item whose Primary
+    /// Action runs this Command shows, and what an Alternate Action running
+    /// it shows. Display-only, like `explanation`; nil inherits the Plugin
+    /// Icon.
+    public let icon: IconDeclaration?
 
     public init(
         id: CommandID,
@@ -306,7 +311,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable, Sendable {
         configurationFields: [CommandConfigurationField] = [],
         deepLinkTemplate: String? = nil,
         hostServiceID: String? = nil,
-        fixedInput: JSONValue? = nil
+        fixedInput: JSONValue? = nil,
+        icon: IconDeclaration? = nil
     ) {
         self.id = id
         self.title = title
@@ -320,6 +326,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable, Sendable {
         self.deepLinkTemplate = deepLinkTemplate
         self.hostServiceID = hostCommand == nil ? hostServiceID : nil
         self.fixedInput = self.hostServiceID == nil ? nil : fixedInput
+        self.icon = icon
     }
 
     /// The manifest-facing script reference. `scriptPath` keeps call sites
@@ -357,6 +364,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable, Sendable {
         case configurationFields = "configuration_fields"
         case deepLinkTemplate = "deep_link_template"
         case fixedInput = "input"
+        case icon
     }
 
     public init(from decoder: Decoder) throws {
@@ -376,8 +384,12 @@ public struct CommandDeclaration: Codable, Equatable, Hashable, Sendable {
         let hostCommandName = try container.decodeIfPresent(String.self, forKey: .hostCommand)
         let hostCommand = hostCommandName.flatMap(HostCommand.init(rawValue:))
         let hostServiceID = hostCommand == nil ? hostCommandName : nil
+        let id = try container.decode(CommandID.self, forKey: .id)
+        let icon = try container.contains(.icon)
+            ? IconDeclaration(parsing: container.decode(JSONValue.self, forKey: .icon), "Command \(id.rawValue)'s icon")
+            : nil
         self.init(
-            id: try container.decode(CommandID.self, forKey: .id),
+            id: id,
             title: try container.decode(String.self, forKey: .title),
             execution: try container.decode(CommandExecution.self, forKey: .execution),
             isConfigurable: try container.decodeIfPresent(Bool.self, forKey: .isConfigurable) ?? true,
@@ -391,7 +403,8 @@ public struct CommandDeclaration: Codable, Equatable, Hashable, Sendable {
             ) ?? [],
             deepLinkTemplate: try container.decodeIfPresent(String.self, forKey: .deepLinkTemplate),
             hostServiceID: hostServiceID,
-            fixedInput: hostServiceID == nil ? nil : try container.decodeIfPresent(JSONValue.self, forKey: .fixedInput)
+            fixedInput: hostServiceID == nil ? nil : try container.decodeIfPresent(JSONValue.self, forKey: .fixedInput),
+            icon: icon
         )
     }
 
@@ -410,6 +423,7 @@ public struct CommandDeclaration: Codable, Equatable, Hashable, Sendable {
             try container.encode(configurationFields, forKey: .configurationFields)
         }
         try container.encodeIfPresent(deepLinkTemplate, forKey: .deepLinkTemplate)
+        try container.encodeIfPresent(icon, forKey: .icon)
     }
 
     /// Configuration metadata may change without invalidating an existing

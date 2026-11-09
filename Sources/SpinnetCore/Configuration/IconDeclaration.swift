@@ -171,8 +171,12 @@ public enum IconPictureBudgets {
 
 public extension PluginManifest {
     /// Refuses the package at `root` unless every picture its icon
-    /// declarations name is admitted (`IconPicture.check(in:)`).
+    /// declarations name, the Plugin Icon's and each Command Icon's, is
+    /// admitted (`IconPicture.check(in:)`).
     func checkIconPictures(in root: URL) throws {
         try icon?.picture?.check(in: root, "icon")
+        for command in commands {
+            try command.icon?.picture?.check(in: root, "Command \(command.id.rawValue)'s icon")
+        }
     }
 }

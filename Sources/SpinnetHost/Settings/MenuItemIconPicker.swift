@@ -18,7 +18,7 @@ struct MenuItemIconPicker: View {
             Text(localized("Menu Item Icon"))
                 .font(.headline)
             HStack(spacing: 10) {
-                Image(systemName: shown.drawable.symbolName)
+                MenuItemIconImage(icon: shown, side: 20)
                     .font(.system(size: 18))
                     .frame(width: 32, height: 32)
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
@@ -29,7 +29,7 @@ struct MenuItemIconPicker: View {
                     .disabled(icon == nil)
             }
             Text(icon == nil
-                 ? localized("Shows the Plugin's icon.")
+                 ? localized("Shows the Primary Action's icon.")
                  : localized("Your icon replaces the Plugin's icon wherever this Menu Item appears."))
                 .font(.caption)
                 .foregroundStyle(.secondary)

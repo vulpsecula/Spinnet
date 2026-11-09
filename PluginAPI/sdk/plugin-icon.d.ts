@@ -22,4 +22,11 @@ export type IconDeclaration = SymbolIconDeclaration | PictureIconDeclaration;
 export interface PluginIconManifest {
   /** The Plugin Icon the Library and the radial Menu show. Absent, the Host shows a neutral symbol. */
   icon?: IconDeclaration;
+  /** Each manifest Command's icon member; the Commands' other members are in reference/manifest.md#commands. */
+  commands?: CommandIconDeclaration[];
+}
+/** The icon member of one manifest Command; see reference/manifest.md#command-icons. */
+export interface CommandIconDeclaration {
+  /** The Command Icon of Menu Items and Alternate Actions that run this Command. Absent, the Plugin Icon. */
+  icon?: IconDeclaration;
 }
