@@ -17,6 +17,7 @@ struct MenuItemIconChoice: Equatable {
         ownIcon = item?.icon
         defaultIcon = MenuItemIcon.resolve(
             pluginIcon: primary.flatMap { action in editor.pluginManifests.first { $0.id == action.pluginID }?.icon },
+            packageRoot: primary.flatMap { editor.packageRoot(for: $0.pluginID) },
             primaryAvailability: primary.flatMap { editor.availability(for: $0.id) } ?? .unavailable(.commandMissing)
         )
     }

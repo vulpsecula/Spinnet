@@ -431,6 +431,9 @@ final class MenuEditorModel: ObservableObject {
             pluginIcon: { pluginID in
                 manifests[pluginID]?.icon
             },
+            packageRoot: { pluginID in
+                editor.packageRoot(for: pluginID)
+            },
             explanation: { action in
                 manifests[action.pluginID]?.commands.first { $0.id == action.commandID }?.explanation
             }

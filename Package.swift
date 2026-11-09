@@ -99,7 +99,7 @@ let package = Package(
         .target(name: "SpinnetTestSupport", dependencies: ["SpinnetCore"], path: "Tests/Support"),
         .testTarget(
             name: "SpinnetPluginTestKitTests",
-            dependencies: ["SpinnetPluginTestKit", "SpinnetCore", "SpinnetPluginHelper"]
+            dependencies: ["SpinnetPluginTestKit", "SpinnetCore", "SpinnetPluginHelper", "SpinnetTestSupport"]
         ),
         .testTarget(
             name: "SpinnetCoreTests",

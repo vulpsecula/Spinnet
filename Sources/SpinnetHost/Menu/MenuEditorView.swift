@@ -119,9 +119,13 @@ struct MenuEditorView: View {
                 .onDrag {
                     Self.libraryPresetDragProvider(for: preset.id)
                 } preview: {
-                    Label(preset.name, systemImage: MenuItemIcon(preset: preset).drawable.symbolName)
-                        .padding(10)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    Label {
+                        Text(preset.name)
+                    } icon: {
+                        MenuItemIconImage(icon: MenuItemIcon(preset: preset), side: 16)
+                    }
+                    .padding(10)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
                 }
         } else {
             libraryCard(preset)
@@ -134,7 +138,7 @@ struct MenuEditorView: View {
                 .fill(Color.accentColor.opacity(0.14))
                 .frame(width: 42, height: 42)
                 .overlay {
-                    Image(systemName: MenuItemIcon(preset: preset).drawable.symbolName)
+                    MenuItemIconImage(icon: MenuItemIcon(preset: preset), side: 22)
                         .foregroundStyle(Color.accentColor)
                 }
                 // The Plugin Icon is decoration; VoiceOver reads the name.
@@ -288,5 +292,29 @@ struct MenuEditorView: View {
         return selectedSlotIsOccupied
             ? localized("Drag this Preset to an empty Slot to add it")
             : localized("Add to selected empty Slot or drag it to a Slot")
+    }
+}
+
+/// A Menu Item Icon in SwiftUI, as the Library shows it: the system symbol,
+/// or the package picture read from the installed package, its dark picture
+/// in a Dark appearance and tinted by the foreground style when a template.
+struct MenuItemIconImage: View {
+    let icon: MenuItemIcon
+    /// The square a picture is fitted into; a symbol takes the font size.
+    var side: CGFloat
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        if let picture = icon.picture,
+           let image = NSImage(contentsOf: (colorScheme == .dark ? picture.darkURL : nil) ?? picture.url) {
+            Image(nsImage: image)
+                .renderingMode(picture.isTemplate ? .template : .original)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: side, height: side)
+        } else {
+            Image(systemName: icon.drawable.symbolName)
+        }
     }
 }

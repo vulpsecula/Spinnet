@@ -88,6 +88,8 @@ public struct MenuItemPreset: Equatable {
     public let needsPluginSettings: Bool
     /// The Plugin's Plugin Icon, nil when it declares none.
     public let icon: IconDeclaration?
+    /// The installed package a picture icon is read from.
+    public let packageRoot: URL?
 
     public var id: String { pluginID.rawValue }
     public var readiness: MenuItemPresetReadiness { declaration.readiness }
@@ -116,7 +118,8 @@ public struct MenuItemPreset: Equatable {
         declaration: MenuItemPresetDeclaration,
         unavailableReason: ActionUnavailableReason? = nil,
         needsPluginSettings: Bool = false,
-        icon: IconDeclaration? = nil
+        icon: IconDeclaration? = nil,
+        packageRoot: URL? = nil
     ) {
         self.pluginID = pluginID
         self.name = name
@@ -125,5 +128,6 @@ public struct MenuItemPreset: Equatable {
         self.unavailableReason = unavailableReason
         self.needsPluginSettings = needsPluginSettings
         self.icon = icon
+        self.packageRoot = packageRoot
     }
 }

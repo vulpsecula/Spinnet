@@ -1080,6 +1080,7 @@ public enum PluginManifestLoader {
         }
         let manifestURL = rootURL.appendingPathComponent("manifest.json")
         let manifest = try decode(Data(contentsOf: manifestURL))
+        try manifest.checkIconPictures(in: rootURL)
         return PluginPackage(rootURL: rootURL, manifest: manifest)
     }
 }

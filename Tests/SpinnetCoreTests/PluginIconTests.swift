@@ -51,6 +51,48 @@ final class PluginIconTests: XCTestCase {
         XCTAssertNoThrow(try PluginManifestLoader.decode(manifest(icon: #"{"symbol": "\#(String(repeating: "a", count: 64))"}"#)))
     }
 
+    // MARK: Package pictures
+
+    func testAPackagePictureDeclarationRoundTrips() throws {
+        let cases: [(String, IconPicture)] = [
+            (#"{"image": "icons/mark.pdf"}"#, IconPicture(path: "icons/mark.pdf")),
+            (#"{"image": "mark.png", "template": true}"#, IconPicture(path: "mark.png", isTemplate: true)),
+            (#"{"image": "mark.png", "template": false, "dark_image": "mark-dark.png"}"#,
+             IconPicture(path: "mark.png", darkPath: "mark-dark.png")),
+            (#"{"image": "Mark.PDF", "dark_image": "dark/Mark.pdf"}"#, IconPicture(path: "Mark.PDF", darkPath: "dark/Mark.pdf"))
+        ]
+        for (json, picture) in cases {
+            let declared = try PluginManifestLoader.decode(manifest(icon: json))
+            XCTAssertEqual(declared.icon, .picture(picture), json)
+            XCTAssertEqual(try PluginManifestLoader.decode(JSONEncoder().encode(declared)).icon, .picture(picture), json)
+        }
+    }
+
+    /// Only a PNG or PDF path inside the package, and never a dark picture
+    /// for a template one.
+    func testAnInvalidPictureDeclarationRefusesThePackageWithAReason() {
+        let refused = [
+            #"{"image": "mark.jpg"}"#, #"{"image": "mark.svg"}"#, #"{"image": "mark"}"#, #"{"image": ""}"#,
+            #"{"image": "/tmp/mark.png"}"#, #"{"image": "../mark.png"}"#, #"{"image": "icons/../../mark.png"}"#,
+            #"{"image": "./mark.png"}"#, #"{"image": ".hidden.png"}"#, #"{"image": "a\\b.png"}"#,
+            #"{"image": "\#(String(repeating: "a", count: 253)).png"}"#,
+            #"{"image": 7}"#, #"{"image": "mark.png", "template": "yes"}"#,
+            #"{"image": "mark.png", "dark_image": "mark.jpg"}"#,
+            #"{"image": "mark.png", "template": true, "dark_image": "mark-dark.png"}"#,
+            #"{"image": "mark.png", "symbol": "cpu"}"#, #"{"image": "mark.png", "tint": true}"#,
+            #"{"dark_image": "mark.png"}"#
+        ]
+        for icon in refused {
+            XCTAssertThrowsError(try PluginManifestLoader.decode(manifest(icon: icon)), icon) { error in
+                guard case ConfigurationError.invalidManifest(let reason)? = error as? ConfigurationError else {
+                    return XCTFail("\(icon): \(error)")
+                }
+                XCTAssertTrue(reason.contains("icon"), "\(icon): \(reason)")
+            }
+        }
+        XCTAssertNoThrow(try PluginManifestLoader.decode(manifest(icon: #"{"image": "\#(String(repeating: "a", count: 252)).png"}"#)))
+    }
+
     func testThePresetCarriesItsPluginIcon() throws {
         let registry = PluginRegistry()
         let manifest = try PluginManifestLoader.decode(manifest(icon: #"{"symbol": "music.note"}"#))
