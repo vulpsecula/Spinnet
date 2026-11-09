@@ -38,34 +38,23 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertEqual(
             model.menuEditor.pendingPresetSetup,
             PendingPresetSetup(
-                pluginID: applicationPreset.manifest.id.rawValue,
+                pluginID: applicationPreset.manifest.id,
                 slotIndex: 0,
                 replacing: false
             )
         )
         XCTAssertNil(model.editor.configuration.menu.slots[0].item)
 
+        let setup = try XCTUnwrap(model.menuEditor.pendingPresetSetup)
+        let draft = MenuItemConfigurationDraft(editor: model.editor, slotIndex: setup.slotIndex,
+                                               presetPluginID: setup.pluginID)
         let command = try XCTUnwrap(applicationPreset.manifest.commands.first)
-        XCTAssertThrowsError(try model.editor.configuredMenuItem(
-            at: 0,
-            pluginID: applicationPreset.manifest.id,
-            primaryCommandID: command.id,
-            inputs: [command.id: .string("")],
-            replacingEmptySlot: true,
-            validateInputs: true
-        ))
-        let candidate = try model.editor.configuredMenuItem(
-            at: 0,
-            pluginID: applicationPreset.manifest.id,
-            primaryCommandID: command.id,
-            inputs: [command.id: .string("/Applications/TextEdit.app")],
-            replacingEmptySlot: true,
-            validateInputs: true
-        )
-        model.menuEditor.savePresetSetup(
-            candidate,
-            for: try XCTUnwrap(model.menuEditor.pendingPresetSetup)
-        )
+        XCTAssertEqual(draft.primaryCommandID, command.id)
+        draft.setInputText("", for: command.id)
+        XCTAssertThrowsError(try model.saveMenuItem(draft.makeSaveDraft()))
+        XCTAssertNotNil(model.menuEditor.pendingPresetSetup, "A refused save keeps the setup open")
+        draft.setInputText("/Applications/TextEdit.app", for: command.id)
+        try model.saveMenuItem(draft.makeSaveDraft())
 
         XCTAssertNotNil(model.editor.configuration.menu.slots[0].item)
         XCTAssertNil(model.menuEditor.pendingPresetSetup)
@@ -161,7 +150,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         var removed: [PluginID] = []
         model.menuEditor.removePlugin = { removed.append($0) }
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first)
         let menuBefore = model.editor.configuration.menu
 
         model.menuEditor.requestPluginRemoval(preset)
@@ -179,7 +168,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         var removed: [PluginID] = []
         model.menuEditor.removePlugin = { removed.append($0) }
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first)
 
         model.menuEditor.requestPluginRemoval(preset)
         model.menuEditor.cancelPluginRemoval()
@@ -191,7 +180,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
 
     func testRemovalPassesTheChosenDataPolicyToTheInstaller() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first)
         var choices: [Bool] = []
         model.menuEditor.removePluginKeepingData = { id, keep in
             XCTAssertEqual(id, preset.pluginID)
@@ -217,7 +206,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         )
         var removed: [PluginID] = []
         model.menuEditor.removePlugin = { removed.append($0) }
-        let openURL = try XCTUnwrap(model.editor.menuItemPresets.first { $0.name == "Open URL" })
+        let openURL = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first { $0.name == "Open URL" })
 
         model.menuEditor.requestPluginRemoval(openURL)
         model.menuEditor.confirmPluginRemoval()
@@ -293,23 +282,14 @@ final class MenuEditorWorkflowTests: XCTestCase {
         )
         let original = model.editor.configuration
 
-        XCTAssertThrowsError(try model.editor.configuredMenuItem(
-            at: 0,
-            pluginID: PluginID("com.spinnet.fixture"),
-            primaryCommandID: CommandID("fixture.open"),
-            inputs: [CommandID("fixture.open"): .string("not a URL")],
-            validateInputs: true
-        ))
+        let draft = MenuItemConfigurationDraft(editor: model.editor, slotIndex: 0)
+        XCTAssertEqual(draft.primaryCommandID, CommandID("fixture.open"))
+        draft.setInputText("not a URL", for: CommandID("fixture.open"))
+        XCTAssertThrowsError(try model.saveMenuItem(draft.makeSaveDraft()))
         XCTAssertEqual(model.editor.configuration, original)
 
-        let candidate = try model.editor.configuredMenuItem(
-            at: 0,
-            pluginID: PluginID("com.spinnet.fixture"),
-            primaryCommandID: CommandID("fixture.open"),
-            inputs: [CommandID("fixture.open"): .string("https://spinnet.dev")],
-            validateInputs: true
-        )
-        model.menuEditor.saveMenuItemConfiguration(candidate)
+        draft.setInputText("https://spinnet.dev", for: CommandID("fixture.open"))
+        try model.saveMenuItem(draft.makeSaveDraft())
         XCTAssertEqual(
             model.editor.configuration.actions.first?.input,
             .string("https://spinnet.dev")
@@ -362,7 +342,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertEqual(transformAction.input, .null)
         let runtimeSlots = MenuPresentationFactory.makeSlots(
             configuration: model.editor.configuration,
-            availability: { _ in .available }
+            plugins: model.editor.installedPlugins
         )
         XCTAssertEqual(runtimeSlots[1].item?.primaryAction.title, "Open URL")
         XCTAssertEqual(runtimeSlots[1].item?.alternateActions.map(\.title), ["Transform Text"])
@@ -464,7 +444,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertEqual(model.editor.configuration, originalConfiguration)
         XCTAssertEqual(
             model.menuEditor.presetPendingReplacement,
-            PendingPresetReplacement(pluginID: "com.spinnet.fixture", slotIndex: 0)
+            PendingPresetReplacement(pluginID: PluginID("com.spinnet.fixture"), slotIndex: 0)
         )
 
         model.menuEditor.confirmPresetReplacement()
@@ -611,7 +591,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         )
         let runtimeSlots = MenuPresentationFactory.makeSlots(
             configuration: restartedConfiguration,
-            availability: { _ in .available }
+            plugins: model.editor.installedPlugins
         )
         XCTAssertEqual(runtimeSlots[0].item?.primaryAction.title, "Primary")
         XCTAssertEqual(runtimeSlots[0].item?.alternateActions.map(\.title), ["Alternate"])

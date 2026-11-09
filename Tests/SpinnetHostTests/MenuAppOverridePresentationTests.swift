@@ -19,7 +19,13 @@ final class MenuAppOverridePresentationTests: XCTestCase {
     }
 
     func testOpeningTheMenuPresentsTheCurrentAppsOverridesAndTheDefaultMenuOtherwise() throws {
-        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", hostServiceID: "open.url")
+        let command = CommandDeclaration(id: CommandID("copy"), title: "Copy", execution: .javascript,
+                                         isConfigurable: false, script: "run.js")
+        let registry = PluginRegistry()
+        try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/fixture.spinnetplugin"), manifest: PluginManifest(
+            id: PluginID("fixture"), name: "Fixture", version: "1.0.0", commands: [command],
+            preset: MenuItemPresetDeclaration(readiness: .readyToUse, isConfigurable: false))))
+        let plugins = InstalledPlugins(registry: registry)
         let actions = try ["open", "safari"].map {
             try ActionConfiguration(id: ActionID($0), pluginID: PluginID("fixture"), command: command, input: .null)
         }
@@ -32,10 +38,10 @@ final class MenuAppOverridePresentationTests: XCTestCase {
             MenuSlotConfiguration(item: nil, appOverrides: [AppBundleIdentifier(validating: "com.apple.finder")!: .empty])
         ]))
         let menu = MenuPresentationController(
-            items: MenuPresentationFactory.makeSlots(configuration: configuration) { _ in .available }
+            items: MenuPresentationFactory.makeSlots(configuration: configuration, plugins: plugins)
         )
         menu.onRefresh = { app in
-            MenuPresentationFactory.makeSlots(configuration: configuration, app: app?.appBundleIdentifier) { _ in .available }
+            MenuPresentationFactory.makeSlots(configuration: configuration, app: app?.appBundleIdentifier, plugins: plugins)
         }
         defer { menu.dismiss() }
         let screen = try XCTUnwrap(NSScreen.main)
@@ -66,9 +72,8 @@ final class MenuAppOverridePresentationTests: XCTestCase {
         ]))
         let editor = HostConfigurationEditor(registry: PluginRegistry(), configuration: configuration)
 
-        let slots = MenuPresentationFactory.makeSlots(configuration: configuration, app: safari) {
-            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-        }
+        let slots = MenuPresentationFactory.makeSlots(configuration: configuration, app: safari,
+                                                      plugins: editor.installedPlugins)
 
         let action = try XCTUnwrap(slots[0].item?.primaryAction)
         XCTAssertEqual(action.actionID, gone.id)

@@ -136,13 +136,9 @@ final class MenuEditorAppOverrideTests: XCTestCase {
         let before = model.editor.configuration
         let app = model.editedAppID
 
-        // What the Configuration Sheet saves when nothing was changed.
-        let candidate = try model.editor.configuredMenuItem(
-            at: 0, pluginID: PluginID(fixture), primaryCommandID: CommandID("fixture.open"),
-            inputs: [CommandID("fixture.open"): .string("https://example.com")],
-            preserveUnselectedAlternates: true, for: app
-        )
-        model.saveMenuItemConfiguration(try model.editor.aliasedMenuItem(in: candidate, at: 0, to: nil, for: app))
+        // The Configuration Sheet saved with nothing changed.
+        let draft = MenuItemConfigurationDraft(editor: model.editor, app: app, slotIndex: 0)
+        model.saveMenuItemConfiguration(try draft.makeConfiguration())
 
         XCTAssertEqual(model.editor.configuration, before)
         XCTAssertEqual(model.menuSlots[0].appOverride, .inherited)
@@ -182,7 +178,7 @@ final class MenuEditorAppOverrideTests: XCTestCase {
         model.addApp(bundleIdentifier: "com.apple.finder", name: "Finder")
         XCTAssertTrue(model.placePreset(pluginID: other, at: 1))
         XCTAssertTrue(model.placePreset(pluginID: other, at: 2))
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first { $0.id == other })
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first { $0.id == other })
 
         model.requestPluginRemoval(preset)
 
@@ -197,7 +193,7 @@ final class MenuEditorAppOverrideTests: XCTestCase {
         let model = try makeModel()
         model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
         XCTAssertTrue(model.placePreset(pluginID: fixture, at: 1))
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first { $0.id == fixture })
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first { $0.id == fixture })
 
         model.requestPluginRemoval(preset)
 

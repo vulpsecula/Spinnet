@@ -39,17 +39,13 @@ final class MenuItemOwnIconTests: XCTestCase {
         return (MenuEditorModel(editor: HostConfigurationEditor(registry: registry, configuration: configuration)), registry)
     }
 
-    /// What the Configuration Sheet saves for the Menu Item at `index`: its
-    /// Actions unchanged, with `alias` and `icon`.
+    /// Saves the Configuration Sheet's draft of the Menu Item at `index`
+    /// with its Actions unchanged, given `alias` and `icon`.
     private func saveSheet(_ model: MenuEditorModel, at index: Int = 0, alias: String? = nil, icon: String?) throws {
-        let app = model.editedAppID
-        let candidate = try model.editor.configuredMenuItem(
-            at: index, pluginID: pluginID, primaryCommandID: CommandID("run"),
-            preserveUnselectedAlternates: true, for: app
-        )
-        model.saveMenuItemConfiguration(try model.editor.presentedMenuItem(
-            in: candidate, at: index, alias: alias, icon: icon, for: app
-        ))
+        let draft = MenuItemConfigurationDraft(editor: model.editor, app: model.editedAppID, slotIndex: index)
+        draft.alias = alias ?? ""
+        draft.ownIcon = icon
+        model.saveMenuItemConfiguration(try draft.makeConfiguration())
     }
 
     // MARK: Resolution
@@ -106,23 +102,23 @@ final class MenuItemOwnIconTests: XCTestCase {
 
     func testTheSheetsDefaultIconIsWhatTheMenuItemShowsWithoutTheUsersChoice() throws {
         let (model, registry) = try makeModel(ownIcon: "star")
-        XCTAssertEqual(MenuItemIconChoice(editor: model.editor, slotIndex: 0).defaultIcon,
+        XCTAssertEqual(MenuItemConfigurationDraft(editor: model.editor, slotIndex: 0).defaultIcon,
                        MenuItemIcon(symbolName: "music.note"))
-        XCTAssertEqual(MenuItemIconChoice(editor: model.editor, slotIndex: 0).ownIcon, "star")
+        XCTAssertEqual(MenuItemConfigurationDraft(editor: model.editor, slotIndex: 0).ownIcon, "star")
         registry.unregister(pluginID)
-        XCTAssertEqual(MenuItemIconChoice(editor: model.editor, slotIndex: 0).defaultIcon, .neutral)
+        XCTAssertEqual(MenuItemConfigurationDraft(editor: model.editor, slotIndex: 0).defaultIcon, .neutral)
     }
 
     func testTheSymbolPickerSearchesItsSymbolsAndAcceptsAnyKnownSymbolName() {
-        XCTAssertFalse(MenuItemIconChoice.symbols(matching: "").isEmpty)
-        XCTAssertTrue(MenuItemIconChoice.symbols(matching: "").allSatisfy {
+        XCTAssertFalse(MenuItemIconPicker.symbols(matching: "").isEmpty)
+        XCTAssertTrue(MenuItemIconPicker.symbols(matching: "").allSatisfy {
             NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil
         }, "Every offered symbol draws on this macOS")
-        XCTAssertTrue(MenuItemIconChoice.symbols(matching: "STAR").contains("star"))
-        XCTAssertFalse(MenuItemIconChoice.symbols(matching: "star").contains("folder"))
-        XCTAssertEqual(MenuItemIconChoice.symbols(matching: "  airplane.departure "), ["airplane.departure"],
+        XCTAssertTrue(MenuItemIconPicker.symbols(matching: "STAR").contains("star"))
+        XCTAssertFalse(MenuItemIconPicker.symbols(matching: "star").contains("folder"))
+        XCTAssertEqual(MenuItemIconPicker.symbols(matching: "  airplane.departure "), ["airplane.departure"],
                        "A symbol name typed in full is offered even when the list lacks it")
-        XCTAssertEqual(MenuItemIconChoice.symbols(matching: "no.such.symbol.anywhere"), [])
+        XCTAssertEqual(MenuItemIconPicker.symbols(matching: "no.such.symbol.anywhere"), [])
     }
 
     // MARK: Ownership

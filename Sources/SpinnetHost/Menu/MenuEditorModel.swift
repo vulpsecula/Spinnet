@@ -363,9 +363,9 @@ final class MenuEditorModel: ObservableObject {
 
     private func install(_ pending: PendingPluginInstallation) throws {
         let review = pending.review
-        let refused = editor.refusedPlugins.first { $0.id == review.manifest.id }
-        let previous = editor.pluginManifests.first { $0.id == review.manifest.id }?.version
-            ?? refused?.manifest?.version
+        let installed = editor.installedPlugins
+        let refused = installed.refusedPlugin(review.manifest.id)
+        let previous = installed.manifest(review.manifest.id)?.version ?? refused?.manifest?.version
         guard let manifest = try installReviewed(pending) else { return }
         let requested = review.requestedAccess
         func message(_ sentence: String, keepsAccess: Bool = true) -> String {
@@ -417,29 +417,8 @@ final class MenuEditorModel: ObservableObject {
     }
 
     private func makeMenuSlots() -> [MenuSlotPresentation] {
-        // Read once: the registry sorts its manifests on every read.
-        let manifests = Dictionary(editor.pluginManifests.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let slots = MenuPresentationFactory.makeSlots(
-            configuration: editor.configuration,
-            app: editedAppID,
-            availability: {
-                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-            },
-            presetName: { pluginID in
-                manifests[pluginID]?.name
-            },
-            pluginIcon: { pluginID in
-                manifests[pluginID]?.icon
-            },
-            packageRoot: { pluginID in
-                editor.packageRoot(for: pluginID)
-            },
-            explanation: { action in
-                manifests[action.pluginID]?.command(action.commandID)?.explanation
-            },
-            commandIcon: { action in
-                manifests[action.pluginID]?.command(action.commandID)?.icon
-            }
+            configuration: editor.configuration, app: editedAppID, plugins: editor.installedPlugins
         )
         guard let app = editedAppID else { return slots }
         return slots.enumerated().map { index, slot in
@@ -459,7 +438,7 @@ final class MenuEditorModel: ObservableObject {
     /// installed Plugin declares, in vocabulary order. A Plugin declaring
     /// none is listed under All only. All is always offered.
     var libraryFilters: [LibraryFilter] {
-        let present = Set(editor.menuItemPresets.flatMap(\.tags))
+        let present = Set(editor.installedPlugins.menuItemPresets.flatMap(\.tags))
         return [.all] + PluginTag.allCases.filter(present.contains).map(LibraryFilter.tag)
     }
 
@@ -475,7 +454,7 @@ final class MenuEditorModel: ObservableObject {
     func libraryPresets(matching query: String, filter: LibraryFilter = .all) -> [MenuItemPreset] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let filter = effectiveLibraryFilter(filter)
-        return editor.menuItemPresets.filter { preset in
+        return editor.installedPlugins.menuItemPresets.filter { preset in
             filter.includes(preset)
         }.filter { preset in
             trimmedQuery.isEmpty
@@ -491,7 +470,7 @@ final class MenuEditorModel: ObservableObject {
     /// name or ID. None can be added to a Menu.
     func libraryRefusedPlugins(matching query: String) -> [RefusedPlugin] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return editor.refusedPlugins.filter { plugin in
+        return editor.installedPlugins.refusedPlugins.filter { plugin in
             trimmedQuery.isEmpty
                 || plugin.libraryName.localizedCaseInsensitiveContains(trimmedQuery)
                 || plugin.id.rawValue.localizedCaseInsensitiveContains(trimmedQuery)
@@ -709,10 +688,10 @@ final class MenuEditorModel: ObservableObject {
 
     func placePreset(pluginID: String, at index: Int) -> Bool {
         connectionPlacementIntent = nil
-        return placePreset(pluginID: pluginID, at: index, connectionsPrepared: false)
+        return placePreset(pluginID: PluginID(pluginID), at: index, connectionsPrepared: false)
     }
 
-    private func placePreset(pluginID: String, at index: Int, connectionsPrepared: Bool) -> Bool {
+    private func placePreset(pluginID: PluginID, at index: Int, connectionsPrepared: Bool) -> Bool {
         let slots = editedSlots
         guard slots.indices.contains(index) else { return false }
         selectedMenuIndex = index
@@ -724,7 +703,7 @@ final class MenuEditorModel: ObservableObject {
             placementMessage = localized("Replace the Menu Item in Slot \(index + 1)?")
             return false
         }
-        guard let preset = editor.menuItemPresets.first(where: { $0.id == pluginID }) else {
+        guard let preset = editor.installedPlugins.menuItemPreset(pluginID) else {
             placementMessage = localized("The selected Preset is unavailable.")
             return false
         }
@@ -753,13 +732,13 @@ final class MenuEditorModel: ObservableObject {
     @discardableResult
     func insertPreset(pluginID: String, at index: Int) -> Bool {
         connectionPlacementIntent = nil
-        return insertPreset(pluginID: pluginID, at: index, connectionsPrepared: false)
+        return insertPreset(pluginID: PluginID(pluginID), at: index, connectionsPrepared: false)
     }
 
-    private func insertPreset(pluginID: String, at index: Int, connectionsPrepared: Bool) -> Bool {
+    private func insertPreset(pluginID: PluginID, at index: Int, connectionsPrepared: Bool) -> Bool {
         guard requireDefaultMenuForArrangement() else { return false }
         guard (0...editor.configuration.menu.slots.count).contains(index) else { return false }
-        guard let preset = editor.menuItemPresets.first(where: { $0.id == pluginID }) else {
+        guard let preset = editor.installedPlugins.menuItemPreset(pluginID) else {
             placementMessage = localized("The selected Preset is unavailable.")
             return false
         }
@@ -788,7 +767,7 @@ final class MenuEditorModel: ObservableObject {
                 configurationDidChange(editor.configuration)
                 return false
             }
-            _ = try editor.placePreset(pluginID: PluginID(pluginID), inSlotAt: index, replacing: false)
+            _ = try editor.placePreset(pluginID: pluginID, inSlotAt: index, replacing: false)
         } catch {
             editor.restore(insertion.configurationBefore)
             slotIDs = insertion.slotIDsBefore
@@ -820,7 +799,7 @@ final class MenuEditorModel: ObservableObject {
     }
 
     private func applyConfirmedPresetReplacement(_ pending: PendingPresetReplacement) {
-        guard let preset = editor.menuItemPresets.first(where: { $0.id == pending.pluginID }) else {
+        guard let preset = editor.installedPlugins.menuItemPreset(pending.pluginID) else {
             placementMessage = localized("The selected Preset is unavailable.")
             return
         }
@@ -839,20 +818,20 @@ final class MenuEditorModel: ObservableObject {
     /// A setup answer may arrive after an edit, reorder, removal, or a newer
     /// placement request. Retain the original composition and package definition;
     /// accepting the answer never retargets a different Slot or replaces edits.
-    private func deferForConnections(pluginID: String, resume: @escaping () -> Void) -> Bool {
+    private func deferForConnections(pluginID: PluginID, resume: @escaping () -> Void) -> Bool {
         guard let preparePluginConnections else { return false }
         let intent = UUID()
         connectionPlacementIntent = intent
         let configuration = editor.configuration
         let identities = slotIDs
         let app = editedAppID
-        let manifest = editor.pluginManifests.first { $0.id.rawValue == pluginID }
-        let deferred = preparePluginConnections(PluginID(pluginID)) { [weak self] ready in
+        let manifest = editor.installedPlugins.manifest(pluginID)
+        let deferred = preparePluginConnections(pluginID) { [weak self] ready in
             guard let self, self.connectionPlacementIntent == intent else { return }
             self.connectionPlacementIntent = nil
             guard ready, self.editor.configuration == configuration,
                   self.slotIDs == identities, self.editedAppID == app,
-                  self.editor.pluginManifests.first(where: { $0.id.rawValue == pluginID }) == manifest else { return }
+                  self.editor.installedPlugins.manifest(pluginID) == manifest else { return }
             resume()
         }
         if !deferred { connectionPlacementIntent = nil }
@@ -1210,12 +1189,12 @@ final class MenuEditorModel: ObservableObject {
         )))
     }
 
-    private func applyPreset(pluginID: String, at index: Int, replacing: Bool) -> Bool {
+    private func applyPreset(pluginID: PluginID, at index: Int, replacing: Bool) -> Bool {
         let before = editor.configuration
         let selectedIndexBefore = selectedMenuIndex
         do {
             _ = try editor.placePreset(
-                pluginID: PluginID(pluginID),
+                pluginID: pluginID,
                 inSlotAt: index,
                 replacing: replacing,
                 for: editedAppID
@@ -1226,7 +1205,7 @@ final class MenuEditorModel: ObservableObject {
                 : localized("Menu Item added to Slot \(index + 1).")
             configurationDidChange(editor.configuration)
             recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
-            if editor.menuItemPresets.first(where: { $0.id == pluginID })?.isConfigurable == true {
+            if editor.installedPlugins.menuItemPreset(pluginID)?.isConfigurable == true {
                 editingMenuIndex = index
             }
             return true

@@ -179,10 +179,10 @@ final class CommandIconPresentationTests: XCTestCase {
 
     func testTheConfigurationSheetDefaultIconIsThePrimaryActionsCommandIcon() throws {
         let fixture = try makeFixture(manifest(), ownIcon: "star")
-        let choice = MenuItemIconChoice(editor: fixture.model.editor, slotIndex: 0)
-        XCTAssertEqual(choice.ownIcon, "star")
-        XCTAssertEqual(choice.defaultIcon, MenuItemIcon(symbolName: "rectangle.lefthalf.filled"))
-        XCTAssertEqual(MenuItemIconChoice(editor: fixture.model.editor, slotIndex: 2).defaultIcon,
+        let draft = MenuItemConfigurationDraft(editor: fixture.model.editor, slotIndex: 0)
+        XCTAssertEqual(draft.ownIcon, "star")
+        XCTAssertEqual(draft.defaultIcon, MenuItemIcon(symbolName: "rectangle.lefthalf.filled"))
+        XCTAssertEqual(MenuItemConfigurationDraft(editor: fixture.model.editor, slotIndex: 2).defaultIcon,
                        MenuItemIcon(symbolName: "macwindow"))
     }
 
@@ -190,15 +190,15 @@ final class CommandIconPresentationTests: XCTestCase {
     /// Command's icon, and the default follows the Primary Action chosen.
     func testTheConfigurationSheetShowsEachCommandsIcon() throws {
         let fixture = try makeFixture(manifest())
-        let choice = MenuItemIconChoice(editor: fixture.model.editor, slotIndex: 0)
-        XCTAssertEqual(choice.icon(for: CommandID("left")), MenuItemIcon(symbolName: "rectangle.lefthalf.filled"))
-        XCTAssertEqual(choice.icon(for: CommandID("right")), MenuItemIcon(symbolName: "rectangle.righthalf.filled"))
-        XCTAssertEqual(choice.icon(for: CommandID("plain")), MenuItemIcon(symbolName: "macwindow"))
-        XCTAssertEqual(choice.defaultIcon(primaryCommandID: CommandID("right")),
-                       MenuItemIcon(symbolName: "rectangle.righthalf.filled"))
+        let draft = MenuItemConfigurationDraft(editor: fixture.model.editor, slotIndex: 0)
+        XCTAssertEqual(draft.icon(for: CommandID("left")), MenuItemIcon(symbolName: "rectangle.lefthalf.filled"))
+        XCTAssertEqual(draft.icon(for: CommandID("right")), MenuItemIcon(symbolName: "rectangle.righthalf.filled"))
+        XCTAssertEqual(draft.icon(for: CommandID("plain")), MenuItemIcon(symbolName: "macwindow"))
+        draft.primaryCommandID = CommandID("right")
+        XCTAssertEqual(draft.defaultIcon, MenuItemIcon(symbolName: "rectangle.righthalf.filled"))
 
         // A Preset being placed into an empty Slot offers the same icons.
-        let placing = MenuItemIconChoice(editor: fixture.model.editor, slotIndex: 3, presetPluginID: pluginID)
+        let placing = MenuItemConfigurationDraft(editor: fixture.model.editor, slotIndex: 3, presetPluginID: pluginID)
         XCTAssertNil(placing.ownIcon)
         XCTAssertEqual(placing.icon(for: CommandID("right")), MenuItemIcon(symbolName: "rectangle.righthalf.filled"))
     }

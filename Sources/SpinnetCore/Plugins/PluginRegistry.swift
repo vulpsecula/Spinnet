@@ -573,6 +573,13 @@ public final class PluginRegistry {
         return packages[pluginID]
     }
 
+    /// The loaded packages and the Refused Plugins, read together.
+    func installed() -> (packages: [PluginID: PluginPackage], refused: [PluginID: RefusedPlugin]) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (packages, refused)
+    }
+
     public func manifests() -> [PluginManifest] {
         lock.lock()
         defer { lock.unlock() }

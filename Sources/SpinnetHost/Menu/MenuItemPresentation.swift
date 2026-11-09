@@ -42,8 +42,9 @@ struct MenuActionPresentation: Equatable {
 
 /// The Menu Item Icon a Menu Item shows. The Host resolves it in one place,
 /// `resolve(ownIcon:commandIcon:pluginIcon:packageRoot:primaryAvailability:)`,
-/// beside the Menu Item's title; an Alternate Action's icon resolves there
-/// too, from its own Command and without a user icon.
+/// fed from the installed Plugins by `resolve(ownIcon:command:of:in:availability:)`;
+/// an Alternate Action's icon, and each Command's in a Configuration Sheet,
+/// resolves there too, from its own Command and without a user icon.
 struct MenuItemIcon: Equatable, Hashable {
     /// A system symbol name. For a package picture, the neutral symbol the
     /// Menu draws should the picture be gone when it draws.
@@ -88,6 +89,38 @@ struct MenuItemIcon: Equatable, Hashable {
         default:
             return MenuItemIcon(declaration: commandIcon ?? pluginIcon, packageRoot: packageRoot)
         }
+    }
+
+    /// The icon for `action`, or for a Menu Item whose Primary Action it is,
+    /// as the installed `plugins` picture it; nil for an Action the
+    /// configuration lacks.
+    static func resolve(
+        ownIcon: String? = nil,
+        of action: ActionConfiguration?,
+        in plugins: InstalledPlugins,
+        availability: ActionAvailability
+    ) -> MenuItemIcon {
+        resolve(ownIcon: ownIcon, command: action?.commandID, of: action?.pluginID,
+                in: plugins, availability: availability)
+    }
+
+    /// The icon for an Action of `commandID`, declared by `pluginID`, as the
+    /// installed `plugins` picture it.
+    static func resolve(
+        ownIcon: String? = nil,
+        command commandID: CommandID?,
+        of pluginID: PluginID?,
+        in plugins: InstalledPlugins,
+        availability: ActionAvailability
+    ) -> MenuItemIcon {
+        let manifest = pluginID.flatMap(plugins.manifest)
+        return resolve(
+            ownIcon: ownIcon,
+            commandIcon: commandID.flatMap { manifest?.command($0)?.icon },
+            pluginIcon: manifest?.icon,
+            packageRoot: pluginID.flatMap(plugins.packageRoot),
+            primaryAvailability: availability
+        )
     }
 
     /// The icon the Library shows beside a Menu Item Preset.

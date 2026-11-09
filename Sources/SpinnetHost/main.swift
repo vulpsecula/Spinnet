@@ -627,36 +627,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         MenuPresentationFactory.makeSlots(
             configuration: configuration,
             app: currentApp?.appBundleIdentifier,
-            availability: { actionAvailability(for: $0) },
-            presetName: { [weak self] pluginID in
-                self?.registry.package(for: pluginID)?.manifest.name
-            },
-            pluginIcon: { [weak self] pluginID in
-                self?.registry.package(for: pluginID)?.manifest.icon
-            },
-            packageRoot: { [weak self] pluginID in
-                self?.registry.package(for: pluginID)?.rootURL
-            },
-            // The registered Command, not the Action's snapshot, so a Plugin
-            // that describes its Commands later describes existing Actions too.
-            explanation: { [weak self] action in
-                self?.registry.command(for: action.pluginID, commandID: action.commandID)?.explanation
-            },
-            commandIcon: { [weak self] action in
-                self?.registry.command(for: action.pluginID, commandID: action.commandID)?.icon
-            }
+            plugins: InstalledPlugins(registry: registry, resourceAvailability: HostResourceAvailability.missingReason)
         )
     }
 
     private func resolvedPluginSettings(_ manifest: PluginManifest) -> [String: JSONValue] {
         manifest.resolvedSettings(stored: pluginSettings?.values(for: manifest.id) ?? [:])
-    }
-
-    private func actionAvailability(for action: ActionConfiguration) -> ActionAvailability {
-        registry.availability(
-            for: action,
-            resourceAvailability: HostResourceAvailability.missingReason
-        )
     }
 
     /// After a Library install or a Plugin Update: an update's migrations

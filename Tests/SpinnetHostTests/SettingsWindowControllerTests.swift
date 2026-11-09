@@ -363,9 +363,8 @@ final class SettingsWindowControllerTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let model = SettingsWindowModel(editor: editor, metadata: .current, defaults: defaults)
-        let items = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
-            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-        }
+        let items = MenuPresentationFactory.makeSlots(configuration: editor.configuration,
+                                                      plugins: editor.installedPlugins)
         let runtimeMenu = MenuPresentationController(items: items)
         model.appearance.onChange = runtimeMenu.applyAppearance
 
@@ -653,7 +652,7 @@ final class SettingsWindowControllerTests: XCTestCase {
         let restartedConfiguration = try XCTUnwrap(store.load())
         let runtimeSlots = MenuPresentationFactory.makeSlots(
             configuration: restartedConfiguration,
-            availability: { _ in .available }
+            plugins: model.editor.installedPlugins
         )
         let runtimeMenu = MenuPresentationController(items: runtimeSlots)
         var invokedActionID: ActionID?
