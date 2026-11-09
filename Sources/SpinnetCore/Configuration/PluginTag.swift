@@ -24,19 +24,7 @@ public enum PluginTag: String, CaseIterable, Sendable, Codable {
     public static let maximumLength = 32
 
     /// The English title the Library shows, which is also its catalog key.
-    public var title: String {
-        switch self {
-        case .window: return "Window"
-        case .media: return "Media"
-        case .apps: return "Apps"
-        case .text: return "Text"
-        case .clipboard: return "Clipboard"
-        case .files: return "Files"
-        case .browser: return "Browser"
-        case .developer: return "Developer"
-        case .system: return "System"
-        }
-    }
+    public var title: String { rawValue.capitalized }
 
     /// Whether `value` is a well-formed tag identifier, known or not:
     /// lower-case ASCII letters and digits in parts joined by single hyphens,

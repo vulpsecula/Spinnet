@@ -69,9 +69,12 @@ final class MenuItemIconTests: XCTestCase {
             XCTAssertEqual(MenuItemIcon.resolve(pluginIcon: icon, primaryAvailability: .unavailable(reason)),
                            .neutral, "\(reason)")
         }
-        // An installed Plugin whose Action waits on access keeps its icon.
-        XCTAssertEqual(MenuItemIcon.resolve(pluginIcon: icon, primaryAvailability: .unavailable(.capabilityDenied)),
-                       MenuItemIcon(symbolName: "music.note"))
+        // An installed Plugin whose Action is unavailable for any other
+        // reason keeps its icon; the Menu Item is dimmed instead.
+        for reason: ActionUnavailableReason in [.capabilityDenied, .pluginDisabled, .commandChanged] {
+            XCTAssertEqual(MenuItemIcon.resolve(pluginIcon: icon, primaryAvailability: .unavailable(reason)),
+                           MenuItemIcon(symbolName: "music.note"), "\(reason)")
+        }
         XCTAssertEqual(MenuItemIcon.resolve(pluginIcon: nil, primaryAvailability: .available), .neutral)
     }
 

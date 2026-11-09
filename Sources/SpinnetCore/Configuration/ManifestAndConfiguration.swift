@@ -468,6 +468,11 @@ public struct PluginManifest: Codable, Equatable, Sendable {
     public let optionalCapabilities: [PluginCapability]
     public let capabilityScopes: [PluginCapabilityScope]
     public let commands: [CommandDeclaration]
+
+    /// The declared Command with `id`, if any.
+    public func command(_ id: CommandID) -> CommandDeclaration? {
+        commands.first { $0.id == id }
+    }
     public let preset: MenuItemPresetDeclaration
     /// Plugin Settings: fields shared by every Menu Item made from this
     /// Plugin, filled in from the Library. Written as `settings_fields`.

@@ -10459,11 +10459,11 @@
     "Use Default": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "使用默认" } } }
     },
-    "Shows the Primary Action's icon.": {
-      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示主要动作的图标。" } } }
+    "Shows the Primary Action's Command Icon, else the Plugin Icon.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示主要动作的命令图标，没有时显示插件图标。" } } }
     },
-    "Your icon replaces the Plugin's icon wherever this Menu Item appears.": {
-      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "你选择的图标会在此菜单项出现的所有位置替换插件的图标。" } } }
+    "Your icon replaces the Command Icon and Plugin Icon wherever this Menu Item appears.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "你选择的图标会在此菜单项出现的所有位置替换命令图标和插件图标。" } } }
     },
     "Search or type a symbol name": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "搜索或输入符号名称" } } }

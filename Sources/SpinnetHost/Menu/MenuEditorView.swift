@@ -8,8 +8,8 @@ struct MenuEditorView: View {
     @Binding var selectedMenuIndex: Int
     let placementMessage: String?
     let libraryPresetsForQuery: (String, LibraryFilter) -> [MenuItemPreset]
-    /// The Plugin Tag filters the Library offers; empty shows no filter row.
-    var libraryFilters: [LibraryFilter] = []
+    /// The Plugin Tag filters the Library offers, All first.
+    var libraryFilters: [LibraryFilter] = [.all]
     let onPresetPlacement: (String, Int) -> Bool
     var onInstallPlugin: () -> Void = {}
     var onBrowsePlugins: () -> Void = {}
@@ -69,9 +69,7 @@ struct MenuEditorView: View {
                     }
                 }
 
-                if !libraryFilters.isEmpty {
-                    libraryFilterRow
-                }
+                libraryFilterRow
 
                 let presets = libraryPresets
                 let refusedPlugins = refusedPluginsForQuery(searchText)

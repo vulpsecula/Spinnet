@@ -29,8 +29,8 @@ struct MenuItemIconPicker: View {
                     .disabled(icon == nil)
             }
             Text(icon == nil
-                 ? localized("Shows the Primary Action's icon.")
-                 : localized("Your icon replaces the Plugin's icon wherever this Menu Item appears."))
+                 ? localized("Shows the Primary Action's Command Icon, else the Plugin Icon.")
+                 : localized("Your icon replaces the Command Icon and Plugin Icon wherever this Menu Item appears."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

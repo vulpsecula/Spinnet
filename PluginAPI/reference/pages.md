@@ -736,8 +736,8 @@ from a Collection Grid and add no resize event.
 ## Unavailable page features
 
 Pages do not offer URL fields, totals over 2,000 items,
-Host-side sorting/filtering, settings controls or Host-Fetched Sections, multiple
-selection, selection-change events, focus requests, dirty-draft vetoes, page
+Host-side sorting/filtering, settings controls or Host-Fetched Sections, focus
+requests, dirty-draft vetoes, page
 stacks or local dialogs. A Plugin may use a form/detail `view` for a step
 requiring its fields, settings controls or fetched sections. A rejected answer
 does not roll back Host Services its script already used.

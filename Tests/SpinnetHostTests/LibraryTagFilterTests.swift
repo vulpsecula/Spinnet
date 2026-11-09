@@ -81,11 +81,11 @@ final class LibraryTagFilterTests: XCTestCase {
         XCTAssertEqual(names(model, .tag(.media), matching: "tiler"), [])
     }
 
-    /// Without any vocabulary tag the filters would only repeat the list.
-    func testALibraryWithoutVocabularyTagsOffersNoFilters() throws {
+    /// The filter row is always there, with All at least.
+    func testALibraryWithoutVocabularyTagsOffersAllAlone() throws {
         try install("Scratch", tags: [])
         try install("Future", tags: ["spatial-audio"])
-        XCTAssertEqual(try model().libraryFilters, [])
+        XCTAssertEqual(try model().libraryFilters, [.all])
         XCTAssertEqual(names(try model(), .all), ["Future", "Scratch"])
     }
 
@@ -106,7 +106,6 @@ final class LibraryTagFilterTests: XCTestCase {
         for filter in model.libraryFilters {
             XCTAssertEqual(model.libraryRefusedPlugins(matching: "").map(\.id.rawValue), ["com.example.broken"], "\(filter)")
         }
-        XCTAssertFalse(model.libraryFilters.isEmpty)
     }
 
     func testEachTagFilterIsTitledInTheInterfaceLanguage() {

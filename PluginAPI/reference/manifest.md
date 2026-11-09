@@ -85,7 +85,9 @@ radial Menu draws it with the title of each Menu Item made from the Plugin
 whose Primary Action's Command declares no [Command Icon](#command-icons),
 tinted with the Menu's accent colour and scaled with its size. A Plugin
 without an icon, and a Menu Item whose Plugin is removed or refused or whose
-Command is gone, shows a neutral Host symbol instead, so the ring has no gap. A
+Command is gone, shows a neutral Host symbol instead, so the ring has no gap.
+Any other unavailable Menu Item, such as one whose Plugin is disabled or whose
+Command changed, keeps its icon and is dimmed. A
 name the running macOS lacks also shows the neutral symbol. VoiceOver keeps
 reading Menu Item titles.
 
@@ -196,8 +198,7 @@ vocabulary tag declared by an installed Plugin. A Plugin with several tags
 appears under each of them; a Plugin declaring no vocabulary tag appears
 under All only. Each Plugin's card in the Library shows its vocabulary tags
 by title. Refused Plugins
-are listed after the Presets whatever filter is chosen. When no installed
-Plugin declares a vocabulary tag, the Library offers no filters.
+are listed after the Presets whatever filter is chosen. The filter row always offers All.
 
 Plugin Tags are display-only like Plugin Icons: they grant nothing,
 changing them in a Plugin Update leaves configured Actions available, and

@@ -435,10 +435,10 @@ final class MenuEditorModel: ObservableObject {
                 editor.packageRoot(for: pluginID)
             },
             explanation: { action in
-                manifests[action.pluginID]?.commands.first { $0.id == action.commandID }?.explanation
+                manifests[action.pluginID]?.command(action.commandID)?.explanation
             },
             commandIcon: { action in
-                manifests[action.pluginID]?.commands.first { $0.id == action.commandID }?.icon
+                manifests[action.pluginID]?.command(action.commandID)?.icon
             }
         )
         guard let app = editedAppID else { return slots }
@@ -457,15 +457,10 @@ final class MenuEditorModel: ObservableObject {
 
     /// The Library's Plugin Tag filters: All, then each vocabulary tag an
     /// installed Plugin declares, in vocabulary order. A Plugin declaring
-    /// none is listed under All only. Empty when no Plugin declares a vocabulary tag,
-    /// since the filters would only repeat the whole list.
+    /// none is listed under All only. All is always offered.
     var libraryFilters: [LibraryFilter] {
-        let presets = editor.menuItemPresets
-        let present = Set(presets.flatMap(\.tags))
-        guard !present.isEmpty else { return [] }
-        var filters: [LibraryFilter] = [.all]
-        filters += PluginTag.allCases.filter(present.contains).map(LibraryFilter.tag)
-        return filters
+        let present = Set(editor.menuItemPresets.flatMap(\.tags))
+        return [.all] + PluginTag.allCases.filter(present.contains).map(LibraryFilter.tag)
     }
 
     /// `filter` when the Library offers it, else All, so a filter whose

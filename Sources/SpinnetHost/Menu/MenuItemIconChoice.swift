@@ -26,7 +26,7 @@ struct MenuItemIconChoice: Equatable {
         let packageRoot = pluginID.flatMap { editor.packageRoot(for: $0) }
         ownIcon = item?.icon
         defaultIcon = MenuItemIcon.resolve(
-            commandIcon: primary.flatMap { action in manifest?.commands.first { $0.id == action.commandID }?.icon },
+            commandIcon: primary.flatMap { action in manifest?.command(action.commandID)?.icon },
             pluginIcon: manifest?.icon,
             packageRoot: packageRoot,
             primaryAvailability: primary.flatMap { editor.availability(for: $0.id) } ?? .unavailable(.commandMissing)
