@@ -131,13 +131,35 @@ public final class HostConfigurationEditor {
     }
 
     /// `base` with the Menu Item `app` sees at `index` given `alias`, nil
-    /// for the default Menu. A Configuration Sheet names its candidate this
-    /// way. An App's inherited Menu Item left as it was stays inherited.
+    /// for the default Menu, keeping its own icon.
     public func aliasedMenuItem(
         in base: HostConfiguration,
         at index: Int,
         to alias: String?,
         for app: AppBundleIdentifier? = nil
+    ) throws -> HostConfiguration {
+        try presentedMenuItem(in: base, at: index, for: app) { $0.withAlias(alias) }
+    }
+
+    /// `base` with the Menu Item `app` sees at `index` given `alias` and the
+    /// user's own `icon`, nil for the Plugin's default. A Configuration
+    /// Sheet finishes its candidate this way. An App's inherited Menu Item
+    /// left as it was stays inherited.
+    public func presentedMenuItem(
+        in base: HostConfiguration,
+        at index: Int,
+        alias: String?,
+        icon: String?,
+        for app: AppBundleIdentifier? = nil
+    ) throws -> HostConfiguration {
+        try presentedMenuItem(in: base, at: index, for: app) { $0.withAlias(alias).withIcon(icon) }
+    }
+
+    private func presentedMenuItem(
+        in base: HostConfiguration,
+        at index: Int,
+        for app: AppBundleIdentifier?,
+        _ present: (MenuItemConfiguration) -> MenuItemConfiguration
     ) throws -> HostConfiguration {
         let materialized = try materialized(base, at: index, for: app).configuration
         var slots = materialized.menu.slots(for: app)
@@ -147,12 +169,12 @@ public final class HostConfigurationEditor {
         guard let item = slots[index].item else {
             throw ConfigurationError.invalidMenu("Cannot rename an empty Menu Slot")
         }
-        slots[index] = .occupied(item.withAlias(alias))
-        let aliased = try HostConfiguration(
+        slots[index] = .occupied(present(item))
+        let presented = try HostConfiguration(
             actions: materialized.actions,
             menu: menu(applying: slots, to: materialized.menu, for: app)
         )
-        return inheritedWhenUnchanged(aliased, from: base, at: index, for: app)
+        return inheritedWhenUnchanged(presented, from: base, at: index, for: app)
     }
 
     private func arrangedSlot(at index: Int) throws -> MenuSlotConfiguration {
@@ -233,7 +255,8 @@ public final class HostConfigurationEditor {
             alternateActionIDs: item.alternateActionIDs.map(copied),
             disabledAlternateActionIDs: item.disabledAlternateActionIDs.map(copied),
             alternateActionOrder: item.alternateActionOrder.map(copied),
-            alias: item.alias
+            alias: item.alias,
+            icon: item.icon
         )
         var slots = base.menu.slots
         slots[index] = slot.withOverride(.item(override), for: app)
@@ -259,7 +282,7 @@ public final class HostConfigurationEditor {
     }
 
     /// Whether `item` binds Actions doing what `other`'s do, in the same
-    /// roles and order, under the same Alias.
+    /// roles and order, under the same Alias and icon.
     private static func menuItem(
         _ item: MenuItemConfiguration,
         in configuration: HostConfiguration,
@@ -268,7 +291,7 @@ public final class HostConfigurationEditor {
     ) -> Bool {
         let ids = item.boundActionIDs
         let otherIDs = other.boundActionIDs
-        guard item.alias == other.alias, ids.count == otherIDs.count else { return false }
+        guard item.alias == other.alias, item.icon == other.icon, ids.count == otherIDs.count else { return false }
         var mapping: [ActionID: ActionID] = [:]
         for (id, otherID) in zip(ids, otherIDs) {
             guard let action = configuration.actions.first(where: { $0.id == id }),
@@ -398,7 +421,8 @@ public final class HostConfigurationEditor {
                 alternateActionIDs: remainingEnabled,
                 disabledAlternateActionIDs: remainingDisabled,
                 alternateActionOrder: remainingOrder,
-                alias: item.alias
+                alias: item.alias,
+                icon: item.icon
             )
         }
         // Promote the first visible Alternate when possible. If all
@@ -410,7 +434,8 @@ public final class HostConfigurationEditor {
             alternateActionIDs: remainingEnabled.filter { $0 != promotedPrimary },
             disabledAlternateActionIDs: remainingDisabled.filter { $0 != promotedPrimary },
             alternateActionOrder: remainingOrder.filter { $0 != promotedPrimary },
-            alias: item.alias
+            alias: item.alias,
+            icon: item.icon
         )
     }
 
@@ -432,7 +457,8 @@ public final class HostConfigurationEditor {
             let item = try MenuItemConfiguration(
                 primaryActionID: copied(primaryActionID),
                 alternateActionIDs: alternateActionIDs.map(copied),
-                alias: slots[index].item?.alias
+                alias: slots[index].item?.alias,
+                icon: slots[index].item?.icon
             )
             let unbound = Set(copiedIDs.values).subtracting(item.boundActionIDs)
             var edited = slots
@@ -656,7 +682,8 @@ public final class HostConfigurationEditor {
             alternateActionIDs: enabledAlternateActionIDs,
             disabledAlternateActionIDs: disabledAlternateActionIDs,
             alternateActionOrder: alternateActionOrder,
-            alias: existingItem.alias
+            alias: existingItem.alias,
+            icon: existingItem.icon
         )
         var slots = configuration.menu.slots(for: app)
         slots[index] = .occupied(item)

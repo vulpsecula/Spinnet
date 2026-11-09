@@ -29,6 +29,7 @@ enum MenuPresentationFactory {
                 presetName($0.pluginID)
             }
             let icon = MenuItemIcon.resolve(
+                ownIcon: item.icon,
                 pluginIcon: actions[item.primaryActionID].flatMap { pluginIcon($0.pluginID) },
                 primaryAvailability: primary.availability
             )

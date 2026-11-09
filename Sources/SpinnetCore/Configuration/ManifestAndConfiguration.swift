@@ -1211,6 +1211,10 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
     /// A user-defined display name for this Menu Item. The alias belongs to
     /// the item rather than the Slot so moving the item preserves its name.
     public let alias: String?
+    /// The user's own Menu Item Icon, a system symbol name. Like the alias it
+    /// belongs to the item, and it comes before every icon the Plugin
+    /// declares.
+    public let icon: String?
     /// Alternate Actions currently exposed by the runtime context menu.
     public let alternateActionIDs: [ActionID]
     /// Alternate Actions retained by the editor but currently hidden from the
@@ -1226,7 +1230,8 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
         alternateActionIDs: [ActionID] = [],
         disabledAlternateActionIDs: [ActionID] = [],
         alternateActionOrder: [ActionID]? = nil,
-        alias: String? = nil
+        alias: String? = nil,
+        icon: String? = nil
     ) throws {
         guard !primaryActionID.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ConfigurationError.invalidMenu("Primary Action ID is empty")
@@ -1258,14 +1263,16 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
         }
         self.primaryActionID = primaryActionID
         self.alias = Self.normalizedAlias(alias)
+        self.icon = Self.normalizedIcon(icon)
         self.alternateActionIDs = alternateActionIDs
         self.disabledAlternateActionIDs = disabledAlternateActionIDs
         self.alternateActionOrder = resolvedAlternateActionOrder
     }
 
-    private init(copying item: Self, alias: String?) {
+    private init(copying item: Self, alias: String?, icon: String?) {
         self.primaryActionID = item.primaryActionID
         self.alias = Self.normalizedAlias(alias)
+        self.icon = Self.normalizedIcon(icon)
         self.alternateActionIDs = item.alternateActionIDs
         self.disabledAlternateActionIDs = item.disabledAlternateActionIDs
         self.alternateActionOrder = item.alternateActionOrder
@@ -1275,13 +1282,27 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
     /// The existing item has already passed validation, so changing only its
     /// presentation metadata does not need to repeat action-binding checks.
     public func withAlias(_ alias: String?) -> Self {
-        Self(copying: self, alias: alias)
+        Self(copying: self, alias: alias, icon: icon)
+    }
+
+    /// Returns the same Menu Item with the user's own icon replaced, or
+    /// cleared by nil so it shows the Plugin's default again.
+    public func withIcon(_ icon: String?) -> Self {
+        Self(copying: self, alias: alias, icon: icon)
     }
 
     private static func normalizedAlias(_ alias: String?) -> String? {
         guard let alias else { return nil }
         let trimmedAlias = alias.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedAlias.isEmpty ? nil : trimmedAlias
+    }
+
+    /// A system symbol name under the page `icon` rule, else nil: a saved
+    /// icon that is not one is dropped rather than failing the load.
+    private static func normalizedIcon(_ icon: String?) -> String? {
+        guard let name = icon?.trimmingCharacters(in: .whitespacesAndNewlines),
+              PluginPageSymbol.isValid(name) else { return nil }
+        return name
     }
 
     /// All Alternate Action IDs in editor order, including Actions that are
@@ -1295,6 +1316,7 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case primaryActionID = "primary_action_id"
         case alias
+        case icon
         case alternateActionIDs = "alternate_action_ids"
         case disabledAlternateActionIDs = "disabled_alternate_action_ids"
         case alternateActionOrder = "alternate_action_order"
@@ -1318,7 +1340,8 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
                 [ActionID].self,
                 forKey: .alternateActionOrder
             ),
-            alias: container.decodeIfPresent(String.self, forKey: .alias)
+            alias: container.decodeIfPresent(String.self, forKey: .alias),
+            icon: container.decodeIfPresent(String.self, forKey: .icon)
         )
     }
 
@@ -1326,6 +1349,7 @@ public struct MenuItemConfiguration: Codable, Equatable, Hashable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(primaryActionID, forKey: .primaryActionID)
         try container.encodeIfPresent(alias, forKey: .alias)
+        try container.encodeIfPresent(icon, forKey: .icon)
         try container.encode(alternateActionIDs, forKey: .alternateActionIDs)
         if !disabledAlternateActionIDs.isEmpty {
             try container.encode(disabledAlternateActionIDs, forKey: .disabledAlternateActionIDs)

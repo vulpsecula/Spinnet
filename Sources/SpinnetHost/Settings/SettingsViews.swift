@@ -1260,6 +1260,9 @@ private struct SlotConfigurationSheet: View {
     @State private var inputTexts: [CommandID: String]
     @State private var originalInputValues: [CommandID: JSONValue]
     @State private var itemAlias: String
+    /// The user's own Menu Item Icon, nil for the Plugin's default.
+    @State private var itemIcon: String?
+    private let iconChoice: MenuItemIconChoice
     @State private var errorMessage: String?
     /// Secrets typed into credential fields, by credential reference. They go
     /// to the credential store on Save and never into an Action.
@@ -1299,6 +1302,8 @@ private struct SlotConfigurationSheet: View {
         pluginID = initialState.pluginID
         self.pluginSettings = initialState.pluginManifest.map(pluginSettings) ?? [:]
         _itemAlias = State(initialValue: initialState.itemAlias)
+        iconChoice = MenuItemIconChoice(editor: editor, app: app, slotIndex: slotIndex)
+        _itemIcon = State(initialValue: iconChoice.ownIcon)
         _primaryCommandID = State(initialValue: initialState.primaryCommandID)
         _lastPrimaryCommandID = State(initialValue: initialState.primaryCommandID)
         _alternateCommandOrder = State(initialValue: initialState.alternateCommandOrder)
@@ -1328,6 +1333,8 @@ private struct SlotConfigurationSheet: View {
                     }
 
                     itemAliasEditor
+
+                    MenuItemIconPicker(icon: $itemIcon, defaultIcon: iconChoice.defaultIcon)
 
                     if let pluginManifest {
                         actionSelection(for: pluginManifest)
@@ -1800,8 +1807,8 @@ private struct SlotConfigurationSheet: View {
                     for: app
                 )
                 // For an App, the candidate holds its override of this Slot.
-                let finalConfiguration = try editor.aliasedMenuItem(
-                    in: candidate, at: slotIndex, to: normalizedItemAlias, for: app
+                let finalConfiguration = try editor.presentedMenuItem(
+                    in: candidate, at: slotIndex, alias: normalizedItemAlias, icon: itemIcon, for: app
                 )
                 let secrets = CredentialFieldSecrets.typed(
                     for: selectedCommands, inputs: inputs, secrets: credentialSecrets
@@ -1811,8 +1818,8 @@ private struct SlotConfigurationSheet: View {
                 dismiss()
                 return
             }
-            let finalConfiguration = try editor.aliasedMenuItem(
-                in: editor.configuration, at: slotIndex, to: normalizedItemAlias, for: app
+            let finalConfiguration = try editor.presentedMenuItem(
+                in: editor.configuration, at: slotIndex, alias: normalizedItemAlias, icon: itemIcon, for: app
             )
             try onSaved(MenuItemSaveDraft(configuration: finalConfiguration))
             dismiss()

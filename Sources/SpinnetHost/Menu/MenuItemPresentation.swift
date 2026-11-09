@@ -37,7 +37,7 @@ struct MenuActionPresentation: Equatable {
 }
 
 /// The Menu Item Icon a Menu Item shows. The Host resolves it in one place,
-/// `resolve(pluginIcon:primaryAvailability:)`, beside the Menu Item's title.
+/// `resolve(ownIcon:pluginIcon:primaryAvailability:)`, beside the Menu Item's title.
 struct MenuItemIcon: Equatable, Hashable {
     /// A system symbol name.
     let symbolName: String
@@ -46,11 +46,18 @@ struct MenuItemIcon: Equatable, Hashable {
     /// so the ring never has a gap.
     static let neutral = MenuItemIcon(symbolName: "puzzlepiece.extension")
 
-    /// The Plugin's Plugin Icon, else the neutral symbol. A Menu Item whose
-    /// Plugin is removed or refused, or whose Command is gone, has no Plugin
-    /// to take an icon from and shows the neutral symbol in its unavailable
-    /// treatment; the Host keeps no copy of a Plugin's icon.
-    static func resolve(pluginIcon: IconDeclaration?, primaryAvailability: ActionAvailability) -> MenuItemIcon {
+    /// The user's own icon for the Menu Item, else the Plugin's Plugin Icon,
+    /// else the neutral symbol. The user's icon is saved with the Menu Item,
+    /// so it shows whatever the Plugin's state. A Menu Item whose Plugin is
+    /// removed or refused, or whose Command is gone, has no Plugin to take
+    /// an icon from and otherwise shows the neutral symbol in its
+    /// unavailable treatment; the Host keeps no copy of a Plugin's icon.
+    static func resolve(
+        ownIcon: String? = nil,
+        pluginIcon: IconDeclaration?,
+        primaryAvailability: ActionAvailability
+    ) -> MenuItemIcon {
+        if let ownIcon { return MenuItemIcon(symbolName: ownIcon) }
         switch primaryAvailability.reason {
         case .pluginMissing?, .pluginRefused?, .commandMissing?:
             return .neutral
