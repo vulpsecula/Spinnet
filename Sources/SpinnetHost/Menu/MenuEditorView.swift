@@ -306,7 +306,11 @@ struct MenuItemIconImage: View {
 
     var body: some View {
         if let picture = icon.picture,
-           let image = NSImage(contentsOf: (colorScheme == .dark ? picture.darkURL : nil) ?? picture.url) {
+           let image = NSImage(contentsOf: (colorScheme == .dark ? picture.darkURL : nil) ?? picture.url),
+           image.size.width > 0, image.size.height > 0 {
+            // A Picker's menu ignores the modifiers below and draws the image
+            // at its own size, so the image itself is fitted into `side`.
+            let _ = (image.size = Self.fitted(image.size, into: side))
             Image(nsImage: image)
                 .renderingMode(picture.isTemplate ? .template : .original)
                 .resizable()
@@ -316,5 +320,10 @@ struct MenuItemIconImage: View {
         } else {
             Image(systemName: icon.drawable.symbolName)
         }
+    }
+
+    static func fitted(_ size: NSSize, into side: CGFloat) -> NSSize {
+        let scale = side / max(size.width, size.height)
+        return NSSize(width: size.width * scale, height: size.height * scale)
     }
 }
