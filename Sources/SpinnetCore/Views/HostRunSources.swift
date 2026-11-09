@@ -256,7 +256,7 @@ public final class HostRunSources {
             let minimum = adapters[record.source.perform]?.minimumInterval ?? HostRunSourceAddition.minimumInterval
             let delay: TimeInterval
             switch event {
-            case .sourceDelivered?, .loadRange?, .pageFieldChanged?, .operationFinished?: delay = minimum
+            case .sourceDelivered?, .loadRange?, .pageFieldChanged?, .operationFinished?, .selectionChanged?: delay = minimum
             default: delay = 0
             }
             start(record, plugin: plugin, after: delay)

@@ -2153,6 +2153,11 @@
       "note": "Asks for the missing positions of a collection's window"
     },
     {
+      "name": "selection_changed",
+      "status": "offered",
+      "note": "Opt-in per collection with selection_events; the user's settled selection, not a gesture"
+    },
+    {
       "name": "called",
       "status": "offered",
       "note": "An Explicit Call of the Plugin into its open View Session"

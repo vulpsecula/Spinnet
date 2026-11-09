@@ -3427,6 +3427,58 @@
           "valid": false
         }
       ]
+    },
+    {
+      "name": "collection-selection-events",
+      "value": {
+        "page": {
+          "id": "clips",
+          "title": "Clips",
+          "content": [
+            {
+              "kind": "list",
+              "id": "clips",
+              "selection_events": true,
+              "items": [
+                {"id": "a", "title": "A"},
+                {"id": "b", "title": "B"}
+              ]
+            },
+            {"kind": "text", "id": "detail", "text": "A"}
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "collection-selection-events-not-boolean",
+      "value": {
+        "page": {
+          "id": "clips",
+          "title": "Clips",
+          "content": [
+            {
+              "kind": "grid",
+              "id": "clips",
+              "selection_events": 1,
+              "items": [{"id": "a", "title": "A"}]
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "schema": "pages.schema.json",
+          "definition": "answer",
+          "valid": false
+        }
+      ]
     }
   ]
 }

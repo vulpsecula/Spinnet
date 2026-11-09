@@ -1,0 +1,28 @@
+{
+  "protocol_version": "1.0",
+  "id": "com.example.browse-pages",
+  "name": "Browse Pages",
+  "version": "1.0.0",
+  "capabilities": [
+    "write_clipboard"
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "browse.list",
+    "default_alternate_command_ids": []
+  },
+  "commands": [
+    {
+      "id": "browse.list",
+      "title": "Browse",
+      "description": "Lists snippets beside a detail text that follows the selection, delivered by selection_changed.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "browse.js"
+    }
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
+}

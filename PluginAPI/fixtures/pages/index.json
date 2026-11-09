@@ -392,7 +392,7 @@
       "file": "events/selection-changed.json",
       "definition": "event",
       "valid": false,
-      "note": "No selection-change event at the Host"
+      "note": "selection_changed carries the selected items as shown and values, not one item ID"
     },
     {
       "file": "events/called-with-input.json",
@@ -672,6 +672,36 @@
       "definition": "event",
       "valid": true,
       "note": "Copy on several items copied their texts one per line; the outcome carries every item"
+    },
+    {
+      "file": "answers/clips-detail.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A list opting into selection_changed with selection_events, beside a detail text the Plugin keeps in step"
+    },
+    {
+      "file": "answers/selection-events-not-boolean.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "selection_events is true or false"
+    },
+    {
+      "file": "events/selection-changed-single.json",
+      "definition": "event",
+      "valid": true,
+      "note": "The user's selection in a single collection settled on another item; not a gesture"
+    },
+    {
+      "file": "events/selection-changed-multiple.json",
+      "definition": "event",
+      "valid": true,
+      "note": "A multiple collection's selection settled: every selected item as shown, in collection order, and values"
+    },
+    {
+      "file": "events/selection-changed-without-items.json",
+      "definition": "event",
+      "valid": false,
+      "note": "selection_changed always carries items"
     }
   ]
 }

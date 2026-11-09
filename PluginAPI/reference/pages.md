@@ -212,6 +212,39 @@ c.list({ id: "clips", selection: "multiple", selected: ["a", "b"], items, action
   c.itemAction({ id: "copy", title: "Copy", perform: "clipboard.write" })] })
 ```
 
+## Selection changes
+
+A `list` or `grid`, single or multiple, may declare
+`selection_events: true` (`selectionEvents` in the builders) to keep, for
+example, a detail pane in step with the item the user moves to. The Host
+then delivers `selection_changed` once the selection has been stable for 250 ms
+(at least the `field_changed` pause), with `page`, `collection`, `items`
+(every selected item as shown, `{id, section?, text?, marks?}`, in
+collection order: one in a single collection) and `values`. Without it no
+such event is ever sent.
+
+- **Settled.** Holding an arrow key moves the selection without an event
+  and delivers one after the key is released; a selection that comes back
+  to where the Plugin last heard it was sends nothing. A newer
+  `selection_changed` for the collection replaces one still waiting.
+- **Only the user's.** Clicks, ⌘-click, Shift ranges, ⌘A and keys send it.
+  The initial selection, a reset, and changes an answer causes (items
+  leaving, the selection clamped or falling back) never do, so an answer
+  cannot cause another event. A selection waiting for its item in a
+  collection with `total` is sent once the item comes.
+- **Before a gesture.** A selection change still settling when the user
+  performs an item action, a page action or Return is delivered first.
+- **Provenance.** It is a page event: it is dropped when its page or
+  collection is no longer on screen, changed kind or was reset.
+- **Not a gesture.** Its answer may update or replace the page; one that
+  carries a Requested Host Operation is a protocol violation.
+
+```js
+if (event?.type === "selection_changed") {
+  return ui.showPage(page({ ...state, detail: event.items[0].id }), { state });
+}
+```
+
 ## Windows of items
 
 A collection with `total` (at most 2,000) gives one slice of its items per
@@ -334,6 +367,7 @@ not reset since; otherwise it is dropped without a run.
 | `action_chosen` | `page`, `action`, `values`, `selection` | Yes |
 | `item_action` | `page`, `collection`, `action`, `item` `{id, section?, text?, marks?}`, `items` (multiple collections), `values` | Yes |
 | `load_range` | `page`, `collection`, `start`, `count` | No |
+| `selection_changed` | `page`, `collection`, `items`, `values` ([Selection changes](#selection-changes)) | No |
 | `called` | none | Yes |
 | `operation_finished` | A requested operation's members, and `item` for an item action | No |
 
@@ -345,8 +379,8 @@ delivered even if the item has since left the collection. `called` names
 no page and is never dropped for a page change; see below. Events
 from a form/detail view, `setting_changed`, `settings_swapped` and
 `section_delivered` are unchanged. A gesture's answer may request an
-operation; an answer to `field_changed`, `load_range` or
-`operation_finished` may not.
+operation; an answer to `field_changed`, `load_range`, `selection_changed`
+or `operation_finished` may not.
 
 ## Calling the Plugin again
 
@@ -481,6 +515,14 @@ does, `selectedItems` lists it in collection order, and Return,
 `doubleClick(_:)`, `choose(itemAction:on:)` and `copySelection()` act on the
 whole selection; `menu(of:)` on a selected item lists the selection's menu,
 a single item action read "title (unavailable)" while several are selected.
+For a collection with `selection_events`, each gesture that moves the
+selection (`select(_:)`, `press(_:)`, the gestures above and the selection a
+double-click or context menu makes) stands for a settled selection and
+delivers `selection_changed` when the selection is somewhere the Plugin has
+not heard of; `hold(_:steps:)` holds an arrow key for `steps` moves and
+delivers one after release. An answer that moves the selection sends nothing,
+and an answer to `selection_changed` that requests an operation throws the
+protocol violation and closes the session, as the Host does.
 
 ## Styles, images and progress
 

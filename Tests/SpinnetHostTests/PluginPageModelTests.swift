@@ -495,7 +495,8 @@ final class PageHarness {
         let environment = PluginViewEnvironment(
             hostActions: hostActions, sections: RecordingSectionProvider(), settingsFields: { _ in [] },
             pluginName: { _ in "Emoji Pages" }, repair: { _, _ in }, copy: { _ in },
-            schedule: { _, _ in }, report: { _ in }, insertionTargets: tracker, images: images, sources: sources, activities: activities
+            schedule: { [unowned self] delay, operation in clock.schedule(delay, operation) }, report: { _ in },
+            insertionTargets: tracker, images: images, sources: sources, activities: activities
         )
         windows = PluginViewWindows(
             environment: environment,

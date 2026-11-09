@@ -34,7 +34,7 @@ public enum CollectionsContract {
     /// Core page component kinds; presentation types have their own metadata.
     public static let componentKinds = ["row", "text_field", "choice_field", "text", "actions", "list", "grid"]
     /// The View Events pages add.
-    public static let events = ["item_action", "load_range", "called"]
+    public static let events = ["item_action", "load_range", "called", "selection_changed"]
 
     /// Catalogue IDs offered to page actions, in catalogue order.
     public static var viewActionIDs: [String] {
@@ -618,6 +618,9 @@ public struct PluginPageCollection: Equatable {
     /// A multiple collection's initial selection, as declared; empty for a
     /// single one, whose `selected` names its item.
     public let selectedIDs: [String]
+    /// The Collection opted into `selection_changed` (ADR 0025): the Host
+    /// tells the Plugin where the user's selection settled.
+    public let selectionEvents: Bool
     public let emptyText: String
     public let actions: [PluginPageItemAction]
     /// Cells across; 1 for a list. For an adaptive Grid, the columns its
@@ -643,8 +646,8 @@ public struct PluginPageCollection: Equatable {
 
     init(parsing value: JSONValue, style: Style, permits: (PluginInterfaceMember) -> Bool) throws {
         let kind = style == .grid ? "grid" : "list"
-        var allowed: Set<String> = ["kind", "id", "items", "sections", "selected", "selection", "empty_text",
-                                    "actions", "rows"]
+        var allowed: Set<String> = ["kind", "id", "items", "sections", "selected", "selection", "selection_events",
+                                    "empty_text", "actions", "rows"]
         if style == .grid { allowed.insert("columns") }
         if style == .grid, permits(PageSizing.adaptiveGridColumns) { allowed.insert("min_cell_size") }
         if permits(CollectionsContract.collectionWindow) { allowed.formUnion(["total", "start"]) }
@@ -775,6 +778,7 @@ public struct PluginPageCollection: Equatable {
         }
         selected = selection == .single ? named.first : nil
         selectedIDs = selection == .multiple ? named : []
+        selectionEvents = try PluginPage.flag(members["selection_events"], "The \(kind) \(id)'s selection_events")
         emptyText = try members["empty_text"].map { try PluginPage.text($0, "The \(kind) \(id)'s empty_text") } ?? "No items"
         if style == .grid, members["columns"] == .string("auto"), permits(PageSizing.adaptiveGridColumns) {
             let cell = try PluginPage.number(members["min_cell_size"], "The grid \(id)'s min_cell_size",

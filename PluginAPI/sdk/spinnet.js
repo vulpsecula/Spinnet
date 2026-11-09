@@ -172,6 +172,7 @@
       total: o.total,
       start: o.start,
       selection: o.selection,
+      selection_events: o.selectionEvents,
       selected: o.selected,
       empty_text: o.emptyText,
       actions: o.actions

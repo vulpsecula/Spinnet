@@ -1,0 +1,12 @@
+{
+  "type": "selection_changed",
+  "page": "clips",
+  "collection": "clips",
+  "items": [
+    {
+      "id": "bravo",
+      "text": "BRAVO"
+    }
+  ],
+  "values": {}
+}

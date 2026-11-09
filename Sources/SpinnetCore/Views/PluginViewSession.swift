@@ -438,8 +438,15 @@ public final class PluginViewSession {
             queue[queue.count - 1] = entry
         } else if let index = queue.firstIndex(where: { entry.event.replaces($0.event) }) {
             // A range the user scrolled away from before it was asked for
-            // gives way to the one they look at now.
-            queue[index] = entry
+            // gives way to the one they look at now. A selection the user
+            // moved on from gives way to where it is now, after what the
+            // user did in between.
+            if case .selectionChanged = entry.event {
+                queue.remove(at: index)
+                queue.append(entry)
+            } else {
+                queue[index] = entry
+            }
         } else {
             queue.append(entry)
         }

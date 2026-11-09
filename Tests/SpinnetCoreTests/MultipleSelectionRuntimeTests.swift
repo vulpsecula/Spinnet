@@ -46,7 +46,7 @@ final class MultipleSelectionRuntimeTests: XCTestCase {
         XCTAssertEqual(selected(page), ["alpha", "bravo", "charlie"])
         try page.extendSelection(.down)
         XCTAssertEqual(selected(page), ["alpha", "bravo", "charlie", "delta"])
-        page.selectAll()
+        try page.selectAll()
         XCTAssertEqual(selected(page), ["alpha", "bravo", "charlie", "delta", "echo"])
         XCTAssertEqual(page.events, [], "Selecting runs nothing")
     }

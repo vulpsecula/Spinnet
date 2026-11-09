@@ -44,6 +44,12 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// started on; a single collection's carries no `items`.
     case itemAction(page: String, collection: String, action: String, item: PluginPageItemSnapshot, values: JSONValue,
                     items: [PluginPageItemSnapshot]? = nil)
+    /// The user's selection in a Collection that declares
+    /// `selection_events` settled somewhere new (ADR 0025): `items` is every
+    /// selected item as shown, in Collection order. The Host sends it only
+    /// for the user's own changes, once the selection has been stable for
+    /// `ScriptedActionBudgets.selectionChangeSettle`. It is not a gesture.
+    case selectionChanged(page: String, collection: String, items: [PluginPageItemSnapshot], values: JSONValue)
     /// The Host needs the items at
     /// positions `start..<start + count` of a windowed collection, because
     /// they are on screen or about to be. A newer request for the same
@@ -75,6 +81,10 @@ public enum PluginViewEvent: Equatable, Hashable {
     /// collection, without a debounce: the Host asks only for what the user
     /// is looking at now.
     func replaces(_ waiting: PluginViewEvent) -> Bool {
+        if case .selectionChanged(let page, let collection, _, _) = self,
+           case .selectionChanged(let waitingPage, let waitingCollection, _, _) = waiting {
+            return page == waitingPage && collection == waitingCollection
+        }
         if case .sourceDelivered(let page, let source, _, _, _) = self,
            case .sourceDelivered(let waitingPage, let waitingSource, _, _, _) = waiting {
             return page == waitingPage && source == waitingSource
@@ -92,7 +102,8 @@ public enum PluginViewEvent: Equatable, Hashable {
         switch self {
         case .pageFieldChanged(let page, let field, _), .pageSubmitted(let page, let field, _, _): return (page, field)
         case .pageActionChosen(let page, let action, _, _): return (page, action)
-        case .itemAction(let page, let collection, _, _, _, _), .loadRange(let page, let collection, _, _):
+        case .itemAction(let page, let collection, _, _, _, _), .loadRange(let page, let collection, _, _),
+             .selectionChanged(let page, let collection, _, _):
             return (page, collection)
         default: return nil
         }
@@ -112,7 +123,7 @@ public enum PluginViewEvent: Equatable, Hashable {
         switch self {
         case .submitted, .actionChosen, .pageSubmitted, .pageActionChosen, .itemAction, .called: return true
         case .fieldChanged, .settingChanged, .settingsSwapped, .sectionDelivered, .operationFinished, .pageFieldChanged,
-             .loadRange, .sourceDelivered:
+             .loadRange, .sourceDelivered, .selectionChanged:
             return false
         }
     }
@@ -155,6 +166,9 @@ public enum PluginViewEvent: Equatable, Hashable {
                                                 "item": item.json, "values": values]
             if let items { members["items"] = .array(items.map(\.json)) }
             return .object(members)
+        case .selectionChanged(let page, let collection, let items, let values):
+            return .object(["type": .string("selection_changed"), "page": .string(page), "collection": .string(collection),
+                            "items": .array(items.map(\.json)), "values": values])
         case .loadRange(let page, let collection, let start, let count):
             return .object(["type": .string("load_range"), "page": .string(page), "collection": .string(collection),
                             "start": .number(Double(start)), "count": .number(Double(count))])

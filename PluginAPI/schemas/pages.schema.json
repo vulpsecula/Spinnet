@@ -913,6 +913,10 @@
             "multiple"
           ]
         },
+        "selection_events": {
+          "description": "Deliver selection_changed once the user's selection has been stable for 250 ms: only for the user's own changes, never for the initial selection, a reset or what an answer changes. Not a gesture: its answer may update the page but may not request an operation. Default false.",
+          "type": "boolean"
+        },
         "selected": {
           "description": "The item selected when the collection is new or reset; else the first item. Ignored while the collection is kept. A multiple collection may give a list of item IDs, each once; the first of them in collection order is focused.",
           "oneOf": [
@@ -1105,6 +1109,10 @@
             "single",
             "multiple"
           ]
+        },
+        "selection_events": {
+          "description": "Deliver selection_changed once the user's selection has been stable for 250 ms: only for the user's own changes, never for the initial selection, a reset or what an answer changes. Not a gesture: its answer may update the page but may not request an operation. Default false.",
+          "type": "boolean"
         },
         "selected": {
           "description": "The item selected when the collection is new or reset; else the first item. Ignored while the collection is kept. A multiple collection may give a list of item IDs, each once; the first of them in collection order is focused.",
@@ -1557,6 +1565,7 @@
             "action_chosen",
             "item_action",
             "load_range",
+            "selection_changed",
             "called"
           ]
         }
@@ -1775,6 +1784,53 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 600
+              }
+            }
+          }
+        },
+        {
+          "description": "The user's selection in a collection with selection_events settled somewhere new: delivered once it has been stable for 250 ms, only for the user's own changes. Holding an arrow key delivers one after release. Not a gesture: its answer may update or replace the page but may not request an operation.",
+          "if": {
+            "properties": {
+              "type": {
+                "const": "selection_changed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "page",
+              "collection",
+              "items",
+              "values"
+            ],
+            "propertyNames": {
+              "enum": [
+                "type",
+                "page",
+                "collection",
+                "items",
+                "values"
+              ]
+            },
+            "properties": {
+              "page": {
+                "$ref": "#/$defs/identifier"
+              },
+              "collection": {
+                "$ref": "#/$defs/identifier"
+              },
+              "items": {
+                "description": "Every selected item as shown, in collection order: one in a single collection.",
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 2000,
+                "items": {
+                  "$ref": "#/$defs/item_snapshot"
+                }
+              },
+              "values": {
+                "$ref": "#/$defs/values"
               }
             }
           }

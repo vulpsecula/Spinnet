@@ -9,7 +9,11 @@ import SpinnetCore
 /// Host Service are performed by the Host without running the script.
 ///
 /// Every event runs the Command once in the real helper, in order. Nothing is
-/// debounced: each `type` stands for a pause in typing. For a windowed
+/// debounced: each `type` stands for a pause in typing, and each gesture
+/// that moves the selection of a Collection declaring `selection_events`
+/// for a settled selection, which delivers `selection_changed` when the
+/// selection is somewhere the Plugin has not heard of (ADR 0025); `hold`
+/// stands for an arrow key held down. For a windowed
 /// collection the screen is the rows around the selection, or
 /// where the test scrolled, and the kit asks for what it lacks with
 /// `load_range` after every gesture and answer, as the Host does.
@@ -55,6 +59,10 @@ public final class PluginTestPage {
     /// that opened it, or the last call whose answer committed a page or
     /// view.
     public private(set) var handler: (commandID: String, input: JSONValue)
+
+    /// The selected items' IDs the Plugin last knew of: what an answer
+    /// left, or the last `selection_changed` delivered.
+    private var knownSelection: [String] = []
 
     private let helper: PluginTestHelper
     private let plugin: PluginUnderTest
@@ -203,6 +211,7 @@ public final class PluginTestPage {
         memory.select(position: position)
         if let collection { memory.state.focus = collection.id }
         try selectionMoved()
+        try selectionSettled()
     }
 
     /// ⌘-click on `item` of a multiple collection: adds it to the selection,
@@ -213,6 +222,7 @@ public final class PluginTestPage {
         guard memory.selectsMultiple else { return try select(item) }
         memory.toggleSelection(of: item)
         if let collection { memory.state.focus = collection.id }
+        try selectionSettled()
     }
 
     /// Shift-click on `item` of a multiple collection: selects the items from
@@ -223,6 +233,7 @@ public final class PluginTestPage {
         guard memory.selectsMultiple else { return try select(item) }
         memory.extendSelection(to: item)
         if let collection { memory.state.focus = collection.id }
+        try selectionSettled()
     }
 
     /// Shift with an arrow, Page or Home/End key in a multiple collection:
@@ -232,11 +243,13 @@ public final class PluginTestPage {
         guard memory.selectsMultiple else { return try press(move) }
         memory.extendSelection(move)
         try selectionMoved()
+        try selectionSettled()
     }
 
     /// ⌘A in a multiple collection: selects every item.
-    public func selectAll() {
+    public func selectAll() throws {
         memory.selectAll()
+        try selectionSettled()
     }
 
     /// An arrow, Page or Home/End key that moves the selection, in the
@@ -246,8 +259,18 @@ public final class PluginTestPage {
     /// reaching positions the Host does not hold asks for them, as the Host
     /// does.
     public func press(_ move: PluginPageCollection.Move) throws {
-        memory.moveSelection(move)
-        try selectionMoved()
+        try hold(move, steps: 1)
+    }
+
+    /// An arrow, Page or Home/End key held down until the selection has
+    /// moved `steps` times, then released: what the screen lacks is asked for
+    /// on the way, and one `selection_changed`, if any, follows the release.
+    public func hold(_ move: PluginPageCollection.Move, steps: Int) throws {
+        for _ in 0..<max(steps, 0) {
+            memory.moveSelection(move)
+            try selectionMoved()
+        }
+        try selectionSettled()
     }
 
     /// The user scrolled the collection so that `position`'s row is the
@@ -301,6 +324,7 @@ public final class PluginTestPage {
     public func doubleClick(_ item: String) throws -> PluginScriptAnswer? {
         if memory.selectsMultiple, memory.selectedItems.contains(where: { $0.id == item }) {
             memory.focusWithinSelection(item)
+            try selectionSettled()
         } else {
             try select(item)
         }
@@ -335,6 +359,7 @@ public final class PluginTestPage {
         guard window?.position(of: item) != nil else { throw PluginTestPageError.noItem(item) }
         memory.focusWithinSelection(item)
         guard memory.selectedItem?.id == item else { throw PluginTestPageError.noItem(item) }
+        try selectionSettled()
         guard let chosen = memory.selectionActions.first(where: { $0.id == action }), memory.isAvailable(chosen) else {
             throw PluginTestPageError.noAction(action)
         }
@@ -454,6 +479,18 @@ public final class PluginTestPage {
         try loadRanges()
     }
 
+    /// The selection settled where the user left it: a Collection declaring
+    /// `selection_events` hears of it when it is somewhere the Plugin has not
+    /// heard of. A selection waiting for its item is heard of once it comes.
+    private func selectionSettled() throws {
+        guard !isClosed, let event = memory.selectionChangedEvent,
+              case .selectionChanged(_, _, let items, _) = event, !items.isEmpty else { return }
+        let ids = items.map(\.id)
+        guard ids != knownSelection else { return }
+        knownSelection = ids
+        try run(event)
+    }
+
     /// Asks for what the screen lacks, one range at a time, until nothing
     /// is missing or what is missing was asked for and did not come.
     private func loadRanges() throws {
@@ -510,7 +547,12 @@ public final class PluginTestPage {
             return
         }
         if let page = answer.page {
+            let waiting = memory.selectedPosition != nil && memory.selectedItem == nil
             memory.show(page, composing: composing, answersRange: answersRange)
+            // What an answer does to the selection is the Plugin's own and is
+            // never sent back; a selection the user made that waited for its
+            // item is the user's, and the gesture settles it.
+            if !(waiting && memory.selectedItem != nil) { knownSelection = memory.selectedItems.map(\.id) }
             pageJSON = answer.pageJSON
             viewJSON = nil
             state = answer.state

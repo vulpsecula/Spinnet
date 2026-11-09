@@ -1,0 +1,27 @@
+{
+  "page": {
+    "id": "clips",
+    "title": "Clips",
+    "content": [
+      {
+        "kind": "list",
+        "id": "clips",
+        "selection_events": true,
+        "items": [
+          {"id": "alpha", "title": "alpha", "text": "ALPHA"},
+          {"id": "bravo", "title": "bravo", "text": "BRAVO"},
+          {"id": "charlie", "title": "charlie", "text": "CHARLIE"}
+        ],
+        "actions": [
+          {"id": "open", "title": "Open", "default": true}
+        ]
+      },
+      {
+        "kind": "text",
+        "id": "detail",
+        "text": "ALPHA"
+      }
+    ]
+  },
+  "state": null
+}

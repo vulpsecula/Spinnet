@@ -120,6 +120,18 @@ final class PluginPageModel: ObservableObject {
     private struct WeakFocusTarget {
         weak var view: PluginPageFocusTarget?
     }
+    /// The selected items' IDs the Plugin last knew of, for a Collection
+    /// declaring `selection_events`: what an answer left, or the last
+    /// `selection_changed` sent (ADR 0025).
+    private var knownSelection: [String] = []
+    /// A change the user made to the selection, still settling: the page
+    /// and Collection it was made in, and which change it is.
+    private var settlingSelection: (page: String, collection: String, serial: Int)?
+    private var selectionSerial = 0
+    /// Whether an arrow, Page or Home/End key is held down, so the
+    /// selection it moves has not settled yet.
+    var moveKeyIsHeld: () -> Bool = PluginPageModel.liveMoveKeyIsHeld
+
     /// Whether an input method rather than a keyboard layout is selected,
     /// so a key typed in the collection cannot safely go to the field.
     var inputMethodIsSelected: () -> Bool = PluginPageModel.liveInputMethodIsSelected
@@ -179,8 +191,11 @@ final class PluginPageModel: ObservableObject {
         let answersRange: Bool
         if case .loadRange? = session.answeredEvent { answersRange = true } else { answersRange = false }
         let selectedBefore = memory.selectedPosition
+        let waitedForItem = memory.selectedPosition != nil && memory.selectedItem == nil
+        let itemsBefore = memory.selectedItems.map(\.id)
         let applied = memory.show(next, composing: composing, answersRange: answersRange)
         page = next
+        reconcileSettlingSelection(before: itemsBefore, waitedForItem: waitedForItem, applied: applied)
         activityList.setAvailable(next.components.contains { if case .activityList = $0 { return true }; return false })
         for case .textField(let field) in next.components where applied.renewed.contains(field.id) {
             textRevisions[field.id, default: 0] += 1
@@ -336,6 +351,7 @@ final class PluginPageModel: ObservableObject {
         let wasGroup = memory.selectedItems.count > 1
         guard let position = memory.moveSelection(move) else { return false }
         selectionMoved(from: before, to: position, redrawingAll: wasGroup)
+        userChangedSelection()
         return true
     }
 
@@ -348,6 +364,7 @@ final class PluginPageModel: ObservableObject {
         let before = memory.selectedPosition
         guard let position = memory.extendSelection(move) else { return false }
         selectionMoved(from: before, to: position, redrawingAll: true)
+        userChangedSelection()
         return true
     }
 
@@ -358,6 +375,7 @@ final class PluginPageModel: ObservableObject {
         guard memory.selectsMultiple else { return false }
         memory.selectAll()
         collectionDisplay?.selectionChanged()
+        userChangedSelection()
         return true
     }
 
@@ -402,6 +420,7 @@ final class PluginPageModel: ObservableObject {
     func returnPressed(in field: String) {
         let shown = shownTarget()
         guard searchesCollection(field) else {
+            settleSelectionNow()
             session.send(.pageSubmitted(page: page.id, field: field, values: memory.values, selection: memory.selection),
                          insertionTarget: shown)
             return
@@ -492,6 +511,7 @@ final class PluginPageModel: ObservableObject {
             collectionDisplay?.selectionMoved(from: before, to: position)
         }
         requestRangeIfNeeded()
+        userChangedSelection()
     }
 
     func click(_ item: String, modifier: ClickModifier) {
@@ -514,6 +534,7 @@ final class PluginPageModel: ObservableObject {
             memory.state.selectionAnchors[id] = before.anchor
             memory.focusWithinSelection(item.id)
             collectionDisplay?.selectionChanged()
+            userChangedSelection()
         } else if !memory.isSelected(position) || memory.selectedPosition != position {
             click(at: position)
         }
@@ -587,6 +608,7 @@ final class PluginPageModel: ObservableObject {
             let before = memory.selectedPosition
             memory.select(position: position)
             collectionDisplay?.selectionMoved(from: before, to: position)
+            userChangedSelection()
         } else if let item = memory.window?.item(at: position), memory.selectedPosition != position {
             memory.focusWithinSelection(item.id)
             collectionDisplay?.selectionChanged()
@@ -602,6 +624,7 @@ final class PluginPageModel: ObservableObject {
             let wasGroup = memory.selectedItems.count > 1
             memory.select(position: position)
             if wasGroup { collectionDisplay?.selectionChanged() } else { collectionDisplay?.selectionMoved(from: before, to: position) }
+            userChangedSelection()
         }
         perform(action, shown: shownTarget())
     }
@@ -612,6 +635,7 @@ final class PluginPageModel: ObservableObject {
     private func perform(_ action: PluginPageItemAction, shown: InsertionTargetCapture) {
         guard let gesture = memory.gesture(action) else { return }
         eventError = nil
+        settleSelectionNow()
         switch gesture {
         case .perform(let operation):
             session.perform(operation, insertionTarget: operation.perform == "selection.replace" ? shown : .notShown)
@@ -624,6 +648,7 @@ final class PluginPageModel: ObservableObject {
 
     func choose(_ action: PluginPageAction) {
         eventError = nil
+        settleSelectionNow()
         switch action.kind {
         case .event(let id, _):
             session.send(.pageActionChosen(page: page.id, action: id, values: memory.values, selection: memory.selection),
@@ -716,6 +741,72 @@ final class PluginPageModel: ObservableObject {
     private static func isLoadRange(_ event: PluginViewEvent) -> Bool {
         if case .loadRange = event { return true }
         return false
+    }
+
+    // MARK: - Selection changes
+
+    /// The user moved the selection, or may have: a Collection declaring
+    /// `selection_events` hears where it settles once it has been stable for
+    /// `ScriptedActionBudgets.selectionChangeSettle` and no move key is held.
+    private func userChangedSelection() {
+        guard let collection, collection.selectionEvents else { return }
+        selectionSerial += 1
+        settlingSelection = (page.id, collection.id, selectionSerial)
+        scheduleSelectionSettle(selectionSerial)
+    }
+
+    private func scheduleSelectionSettle(_ serial: Int) {
+        environment.schedule(ScriptedActionBudgets.selectionChangeSettle) { [weak self] in
+            guard let self, self.settlingSelection?.serial == serial else { return }
+            // A held key keeps moving the selection: it settles after release.
+            if self.moveKeyIsHeld() { return self.scheduleSelectionSettle(serial) }
+            self.settleSelectionNow()
+        }
+    }
+
+    /// Sends the selection still settling, if it is somewhere the Plugin
+    /// has not heard of, as before a gesture made on it. One waiting for its
+    /// item is sent when the item comes.
+    private func settleSelectionNow() {
+        guard let settling = settlingSelection else { return }
+        guard settling.page == page.id, settling.collection == collection?.id,
+              let event = memory.selectionChangedEvent,
+              case .selectionChanged(_, _, let items, _) = event else {
+            settlingSelection = nil
+            return
+        }
+        guard !items.isEmpty else { return }
+        settlingSelection = nil
+        let ids = items.map(\.id)
+        guard ids != knownSelection else { return }
+        knownSelection = ids
+        session.send(event)
+    }
+
+    /// An answer was applied. What it did to the selection is the Plugin's
+    /// own and is never sent back: another page or a renewed Collection
+    /// drops a change still settling, and so does an answer that moved the
+    /// selection; a selection the user made that waited for its item settles
+    /// once it comes.
+    private func reconcileSettlingSelection(before: [String], waitedForItem: Bool, applied: PluginPageMemory.Applied) {
+        let now = memory.selectedItems.map(\.id)
+        let renewed = applied.pageChanged || page.collection.map { applied.renewed.contains($0.id) } ?? true
+        if let settling = settlingSelection, !renewed {
+            if waitedForItem, !now.isEmpty {
+                scheduleSelectionSettle(settling.serial)
+                return
+            }
+            if before == now { return }
+        }
+        settlingSelection = nil
+        knownSelection = now
+    }
+
+    /// The keys that move the selection: arrows, Page Up/Down, Home and End.
+    private static let moveKeys: [CGKeyCode] = [123, 124, 125, 126, 116, 121, 115, 119]
+
+    static func liveMoveKeyIsHeld() -> Bool {
+        moveKeys.contains { CGEventSource.keyState(.combinedSessionState, key: $0) }
     }
 
     // MARK: - Insertion target

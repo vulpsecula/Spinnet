@@ -494,6 +494,13 @@ interface CollectionMembers {
    */
   selection?: "single" | "multiple";
   /**
+   * Deliver `selection_changed` once the user's selection has been stable for
+   * 250 ms: only for the user's own changes, never for the initial selection,
+   * a reset or what an answer changes. Not a gesture: its answer may update
+   * the page but may not request an operation.
+   */
+  selection_events?: boolean;
+  /**
    * The item selected when the collection is new or reset; else the first. A
    * multiple collection may give a list, each ID once; the first of them in
    * collection order is focused.
@@ -608,7 +615,13 @@ export type PageEvent =
    */
   | { type: "item_action"; page: ID; collection: ID; action: ID; item: ItemSnapshot; items?: ItemSnapshot[]; values: Values }
   /** The Host needs positions `start` to `start + count`; not a gesture. */
-  | { type: "load_range"; page: ID; collection: ID; start: number; count: number };
+  | { type: "load_range"; page: ID; collection: ID; start: number; count: number }
+  /**
+   * With `selection_events: true`: the user's selection settled somewhere new.
+   * `items` holds every selected item as shown, in collection order. Not a
+   * gesture: the answer may update the page but may not request an operation.
+   */
+  | { type: "selection_changed"; page: ID; collection: ID; items: ItemSnapshot[]; values: Values };
 
 /**
  * An Explicit Call of one of the Plugin's Actions while its View Session is
@@ -659,8 +672,8 @@ export interface PageComponents {
   actions(options: { id: ID; actions: PageAction[] }): Actions;
   /** A button delivering `action_chosen`. */
   button(options: { id: ID; title: string }): EventButton;
-  list(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; rows?: number; selection?: "single" | "multiple"; selected?: ID | ID[]; emptyText?: string; actions?: ItemAction[] }): List;
-  grid(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; columns?: number | "auto"; minCellSize?: number; rows?: number; selection?: "single" | "multiple"; selected?: ID | ID[]; emptyText?: string; actions?: ItemAction[] }): Grid;
+  list(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; rows?: number; selection?: "single" | "multiple"; selectionEvents?: boolean; selected?: ID | ID[]; emptyText?: string; actions?: ItemAction[] }): List;
+  grid(options: { id: ID; items?: Item[]; sections?: Section[] | SectionHeader[]; total?: number; start?: number; columns?: number | "auto"; minCellSize?: number; rows?: number; selection?: "single" | "multiple"; selectionEvents?: boolean; selected?: ID | ID[]; emptyText?: string; actions?: ItemAction[] }): Grid;
   /** With `items`, a section of a whole collection; with `count`, a header of one with a total. */
   section(options: { id: ID; title?: string; items: Item[] }): Section;
   section(options: { id: ID; title?: string; count: number }): SectionHeader;

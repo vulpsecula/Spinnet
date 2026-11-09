@@ -1,0 +1,17 @@
+{
+  "type": "selection_changed",
+  "page": "clips",
+  "collection": "clips",
+  "items": [
+    {
+      "id": "alpha",
+      "text": "ALPHA"
+    },
+    {
+      "id": "charlie",
+      "text": "CHARLIE",
+      "marks": ["pinned"]
+    }
+  ],
+  "values": {"note": "draft"}
+}

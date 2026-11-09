@@ -792,6 +792,14 @@ public struct PluginPageMemory: Equatable {
         focus(position, in: window, of: collection.id)
     }
 
+    /// The `selection_changed` the page's collection would send now, if it
+    /// declares `selection_events`: every selected item as shown, in
+    /// Collection order, and the page's values.
+    public var selectionChangedEvent: PluginViewEvent? {
+        guard let page, let collection = page.collection, collection.selectionEvents else { return nil }
+        return .selectionChanged(page: page.id, collection: collection.id, items: selectedSnapshots, values: values)
+    }
+
     /// Every input of the page, as `values` carries it.
     public var values: JSONValue {
         var values: [String: JSONValue] = [:]

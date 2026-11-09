@@ -118,7 +118,7 @@ reports as `operation_finished`, after the view closed too
 insertion in a current View Session goes to the App in front when the Host
 inserts, which must be the App the Host showed when the user acted.
 
-View Events add `item_action`, `load_range`, `called` (an Explicit Call
+View Events add `item_action`, `load_range`, `selection_changed` (opt-in per collection), `called` (an Explicit Call
 into the open View Session) and `operation_finished` alongside field, form, settings and detail events.
 
 ### The App in front

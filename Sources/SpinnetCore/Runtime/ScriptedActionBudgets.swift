@@ -77,6 +77,12 @@ public enum ScriptedActionBudgets {
     /// How long field changes must pause before the latest is delivered.
     public static let fieldChangeDebounce: TimeInterval = 0.1
 
+    /// How long a Collection's selection must stay where the user moved it
+    /// before the Host sends `selection_changed` (ADR 0025): at least the
+    /// field-change pause, so browsing with an arrow key runs the script a
+    /// bounded number of times.
+    public static let selectionChangeSettle: TimeInterval = 0.25
+
     /// How soon after a typing pause a view shows the script's answer, at
     /// p95 with the debounce included, on a warm helper and when the helper
     /// starts cold. Acceptance budgets that `script/measure_view_sessions.sh`
