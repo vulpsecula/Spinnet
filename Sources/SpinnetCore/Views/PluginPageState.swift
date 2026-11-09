@@ -262,6 +262,8 @@ public struct PluginPageImmediateState: Equatable {
     public var carets: [String: PluginPageCaret] = [:]
     /// Each choice field's choice.
     public var choices: [String: String] = [:]
+    /// Each toggle field's position.
+    public var toggles: [String: Bool] = [:]
     /// The collection's selected item, by collection ID; absent for none,
     /// and while the selection is on a position whose item the Host does not
     /// hold yet.
@@ -366,7 +368,7 @@ public struct PluginPageMemory: Equatable {
             let id = component.id
             let resets = next.reset?.resets(id) == true
             let sameKind = previous?.component(id)?.kind == component.kind
-            let keepsComposition = resets && sameKind && component.kind == .textField && composing.contains(id)
+            let keepsComposition = resets && sameKind && component.kind.holdsText && composing.contains(id)
             if keepsComposition { applied.keptComposing.insert(id) }
             if sameKind, !resets || keepsComposition {
                 let changed = carry(id, from: state, to: &kept, reconciling: component.collection, answersRange: answersRange)
@@ -413,6 +415,7 @@ public struct PluginPageMemory: Equatable {
         if let text = old.texts[id] { kept.texts[id] = text }
         if let caret = old.carets[id] { kept.carets[id] = caret }
         if let choice = old.choices[id] { kept.choices[id] = choice }
+        if let toggle = old.toggles[id] { kept.toggles[id] = toggle }
         if let anchor = old.scrollAnchors[id] { kept.scrollAnchors[id] = anchor }
         guard let collection else { return false }
         var window = old.windows[id] ?? PluginCollectionWindow(collection)
@@ -487,8 +490,13 @@ public struct PluginPageMemory: Equatable {
         case .textField(let field):
             kept.texts[field.id] = field.value
             kept.carets[field.id] = .end(of: field.value)
+        case .multilineTextField(let field):
+            kept.texts[field.id] = field.value
+            kept.carets[field.id] = .end(of: field.value)
         case .choiceField(let field):
             kept.choices[field.id] = field.value
+        case .toggleField(let field):
+            kept.toggles[field.id] = field.value
         case .collection(let collection):
             var window = PluginCollectionWindow(collection)
             let viewport = Self.clamp(0..<window.screen, to: window.total)
@@ -520,20 +528,33 @@ public struct PluginPageMemory: Equatable {
         }
     }
 
-    /// `page.focus`, else the first text field, else the collection.
+    /// `page.focus`, else the first text field, one-line or multi-line, else
+    /// the collection.
     public static func initialFocus(of page: PluginPage) -> String? { page.focus ?? fallbackFocus(of: page) }
 
     static func fallbackFocus(of page: PluginPage) -> String? {
-        page.components.first { $0.kind == .textField }?.id ?? page.collection?.id
+        page.components.first { $0.kind.holdsText }?.id ?? page.collection?.id
     }
 
     // MARK: The user's input
 
-    /// The user changed a text field's committed text.
-    public mutating func setText(_ text: String, of field: String, caret: PluginPageCaret? = nil) {
-        guard state.texts[field] != nil else { return }
+    /// The user changed a text field's committed text. A multi-line field
+    /// takes no text longer than `CollectionsContract.maximumMultilineTextBytes`;
+    /// returns whether the text was taken.
+    @discardableResult
+    public mutating func setText(_ text: String, of field: String, caret: PluginPageCaret? = nil) -> Bool {
+        guard state.texts[field] != nil else { return false }
+        if page?.component(field)?.kind == .multilineTextField,
+           text.utf8.count > CollectionsContract.maximumMultilineTextBytes { return false }
         state.texts[field] = text
         state.carets[field] = caret ?? .end(of: text)
+        return true
+    }
+
+    /// The user switched a toggle field on or off.
+    public mutating func setToggle(_ on: Bool, of field: String) {
+        guard state.toggles[field] != nil else { return }
+        state.toggles[field] = on
     }
 
     public mutating func setChoice(_ value: String, of field: String) {
@@ -806,7 +827,9 @@ public struct PluginPageMemory: Equatable {
         for input in page?.inputs ?? [] {
             switch input {
             case .textField(let field): values[field.id] = .string(state.texts[field.id] ?? field.value)
+            case .multilineTextField(let field): values[field.id] = .string(state.texts[field.id] ?? field.value)
             case .choiceField(let field): values[field.id] = .string(state.choices[field.id] ?? field.value)
+            case .toggleField(let field): values[field.id] = .bool(state.toggles[field.id] ?? field.value)
             default: break
             }
         }

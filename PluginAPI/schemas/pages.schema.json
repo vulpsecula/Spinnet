@@ -186,6 +186,12 @@
           "$ref": "#/$defs/choice_field"
         },
         {
+          "$ref": "#/$defs/multiline_text_field"
+        },
+        {
+          "$ref": "#/$defs/toggle_field"
+        },
+        {
           "$ref": "#/$defs/text_block"
         },
         {
@@ -218,13 +224,19 @@
       ]
     },
     "leaf": {
-      "description": "What a row or column may hold besides a container: inputs, text, buttons, and (#81) icons, images and progress.",
+      "description": "What a row or column may hold besides a container: inputs (multi-line and toggle fields included), text, buttons, and (#81) icons, images and progress.",
       "oneOf": [
         {
           "$ref": "#/$defs/text_field"
         },
         {
           "$ref": "#/$defs/choice_field"
+        },
+        {
+          "$ref": "#/$defs/multiline_text_field"
+        },
+        {
+          "$ref": "#/$defs/toggle_field"
         },
         {
           "$ref": "#/$defs/text_block"
@@ -365,6 +377,76 @@
         "value": {
           "description": "The initial choice, applied only when the field is new or reset.",
           "type": "string"
+        }
+      }
+    },
+    "multiline_text_field": {
+      "description": "A text field of several lines (#127): Return starts a new line, Tab and Shift-Tab move focus. Like a text_field, its text, caret, scroll and composition belong to the Host until the Plugin resets it, and field_changed follows committed text after the same pause. Its text is at most 16,384 UTF-8 bytes; the Host refuses a longer value and takes no longer typing. This schema bounds characters only.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "multiline_text_field"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "value": {
+          "description": "The initial text, newlines included, applied only when the field is new or reset.",
+          "type": "string",
+          "maxLength": 16384
+        },
+        "status": {
+          "$ref": "plugin-view.schema.json#/$defs/text"
+        },
+        "accent": {
+          "enum": [
+            "blue",
+            "indigo",
+            "purple",
+            "pink",
+            "red",
+            "orange",
+            "green",
+            "teal",
+            "gray"
+          ]
+        }
+      }
+    },
+    "toggle_field": {
+      "description": "An on/off switch (#127). A click or Space delivers field_changed at once, without the typing pause; values carries it as a boolean.",
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "toggle_field"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "value": {
+          "description": "Whether it starts on, applied only when the field is new or reset; off by default.",
+          "type": "boolean"
         }
       }
     },

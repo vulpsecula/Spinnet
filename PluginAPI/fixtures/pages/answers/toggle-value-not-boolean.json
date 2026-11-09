@@ -1,0 +1,14 @@
+{
+  "page": {
+    "id": "compose",
+    "title": "New Note",
+    "content": [
+      {
+        "kind": "toggle_field",
+        "id": "urgent",
+        "title": "Urgent",
+        "value": "on"
+      }
+    ]
+  }
+}

@@ -110,6 +110,8 @@ final class PluginPageModel: ObservableObject {
     func sourceText(_ id: String) -> HostSourceShown? {
         environment.sources?.shown(component: id, pluginID: session.pluginID)
     }
+    /// Where each multi-line field was scrolled, by page and field ID.
+    private var scrollOffsets: [String: CGFloat] = [:]
     /// Reads a text field's caret where it is being edited.
     private var carets: [String: () -> PluginPageCaret?] = [:]
     /// The views that take the keyboard, by component.
@@ -197,12 +199,13 @@ final class PluginPageModel: ObservableObject {
         page = next
         reconcileSettlingSelection(before: itemsBefore, waitedForItem: waitedForItem, applied: applied)
         activityList.setAvailable(next.components.contains { if case .activityList = $0 { return true }; return false })
-        for case .textField(let field) in next.components where applied.renewed.contains(field.id) {
-            textRevisions[field.id, default: 0] += 1
+        let textFields = next.components.filter(\.kind.holdsText).map(\.id)
+        for field in textFields where applied.renewed.contains(field) {
+            textRevisions[field, default: 0] += 1
         }
         if applied.pageChanged {
             // Every field of another page is drawn anew from the memory.
-            for case .textField(let field) in next.components { textRevisions[field.id, default: 0] += 1 }
+            for field in textFields { textRevisions[field, default: 0] += 1 }
             composing = []
         }
         if let collection = next.collection {
@@ -251,6 +254,15 @@ final class PluginPageModel: ObservableObject {
 
     func choice(of field: String) -> String { memory.state.choices[field] ?? "" }
 
+    func isOn(_ field: String) -> Bool { memory.state.toggles[field] ?? false }
+
+    /// Whether `field` takes `text`: a multi-line field takes no more than
+    /// `CollectionsContract.maximumMultilineTextBytes`.
+    func takes(_ text: String, in field: String) -> Bool {
+        page.component(field)?.kind != .multilineTextField
+            || text.utf8.count <= CollectionsContract.maximumMultilineTextBytes
+    }
+
     /// The field's committed text changed. Composing text is never sent.
     func textChanged(_ field: String, to text: String, caret: PluginPageCaret?) {
         composing.remove(field)
@@ -258,7 +270,7 @@ final class PluginPageModel: ObservableObject {
             if let caret { memory.state.carets[field] = caret }
             return
         }
-        memory.setText(text, of: field, caret: caret)
+        guard memory.setText(text, of: field, caret: caret) else { return }
         eventError = nil
         session.send(.pageFieldChanged(page: page.id, field: field, values: memory.values))
     }
@@ -274,6 +286,24 @@ final class PluginPageModel: ObservableObject {
         objectWillChange.send()
         session.send(.pageFieldChanged(page: page.id, field: field, values: memory.values))
     }
+
+    /// A click on a toggle field, or Space in it: `field_changed` goes at
+    /// once, after any typing still waiting out its pause.
+    func setToggle(_ on: Bool, in field: String) {
+        guard memory.state.toggles[field] != nil, memory.state.toggles[field] != on else { return }
+        memory.setToggle(on, of: field)
+        objectWillChange.send()
+        eventError = nil
+        session.flushFieldChanges()
+        session.send(.pageFieldChanged(page: page.id, field: field, values: memory.values))
+        session.flushFieldChanges()
+    }
+
+    /// Where the user scrolled a multi-line field of this page, so a field
+    /// drawn anew comes back there.
+    func scrollOffset(of field: String) -> CGFloat? { scrollOffsets["\(page.id)/\(field)"] }
+
+    func scrolled(_ field: String, to offset: CGFloat) { scrollOffsets["\(page.id)/\(field)"] = offset }
 
     /// A field view reports how to read its caret while it is edited.
     func registerCaret(of field: String, _ read: @escaping () -> PluginPageCaret?) { carets[field] = read }
@@ -330,7 +360,7 @@ final class PluginPageModel: ObservableObject {
     /// The fields and the collection, in page order: the stops Tab moves
     /// between. Buttons and the target line are not among them.
     var focusStops: [String] {
-        page.components.filter { [.textField, .choiceField, .list, .grid].contains($0.kind) }.map(\.id)
+        page.components.filter { $0.kind.isInput || [.list, .grid].contains($0.kind) }.map(\.id)
     }
 
     /// Tab or Shift-Tab from `component`, wrapping.

@@ -309,7 +309,7 @@ export interface Page {
   content: Component[];
 }
 
-export type Leaf = TextField | ChoiceField | TextBlock | Actions | Icon | Image | Progress;
+export type Leaf = TextField | MultilineTextField | ChoiceField | ToggleField | TextBlock | Actions | Icon | Image | Progress;
 export type Component = Row | Column | Leaf | List | Grid | ActivityList | Adaptive;
 /** Host-generated own activity rows, live seconds and native Stop; no helper polling. */
 export interface ActivityList { kind: "activity_list"; id: ID; empty_text?: string; }
@@ -438,6 +438,34 @@ export interface ChoiceField {
   choice_titles?: string[];
   /** Applied only when the field is new or reset. */
   value?: string;
+}
+
+/**
+ * A text field of several lines: Return starts a new line, Tab and Shift-Tab
+ * move focus. The Host keeps its text, caret, scroll and composition as for a
+ * `text_field`; `field_changed` follows committed text after the same pause.
+ * At most 16,384 UTF-8 bytes. `value` is applied only when new or reset.
+ */
+export interface MultilineTextField {
+  kind: "multiline_text_field";
+  id: ID;
+  title: string;
+  placeholder?: string;
+  value?: string;
+  status?: string;
+  accent?: Accent;
+}
+
+/**
+ * An on/off switch. A click or Space delivers `field_changed` at once; `values`
+ * carries it as a boolean. `value` (off by default) is applied only when new
+ * or reset.
+ */
+export interface ToggleField {
+  kind: "toggle_field";
+  id: ID;
+  title: string;
+  value?: boolean;
 }
 
 /** Text in current Markdown subset. */
@@ -668,6 +696,8 @@ export interface PageComponents {
   progress(options: { id: ID; title?: string; value?: number; status?: string; stages?: { id: ID; title: string }[]; stage?: ID; state?: ProgressState; cancel?: { id: ID; title?: string }; style?: StyleOptions }): Progress;
   textField(options: { id: ID; title: string; placeholder?: string; value?: string; status?: string; accent?: Accent; collection?: ID }): TextField;
   choiceField(options: { id: ID; title: string; choices: string[]; choiceTitles?: string[]; value?: string }): ChoiceField;
+  multilineTextField(options: { id: ID; title: string; placeholder?: string; value?: string; status?: string; accent?: Accent }): MultilineTextField;
+  toggleField(options: { id: ID; title: string; value?: boolean }): ToggleField;
   text(options: { id: ID; text: string; title?: string; format?: "output"; style?: StyleOptions; bind?: Binding }): TextBlock;
   actions(options: { id: ID; actions: PageAction[] }): Actions;
   /** A button delivering `action_chosen`. */

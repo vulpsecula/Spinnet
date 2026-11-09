@@ -313,7 +313,10 @@ XCTAssertEqual(page.performed.first?.perform, "selection.replace")
 `total` is filled by `load_range` as the Host fills it (below). Page and item actions that name a Host Service are performed by the
 Host without running the script and are listed, with requested operations,
 in `performed`. `composing` names text fields with an open input-method
-composition, whose reset the Host drops.
+composition, whose reset the Host drops. `type(_:into:)` also fills a
+`multiline_text_field`, newlines included, and throws `tooLong` past its
+16,384-byte bound; `flip(_:)` clicks a `toggle_field`, which delivers
+`field_changed` at once.
 
 `call(_:input:)` stands for calling the Plugin again while the session is
 open, as a Menu Item does: by default the Action that handles the session,

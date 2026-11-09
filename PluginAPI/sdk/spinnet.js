@@ -229,6 +229,13 @@
         value: o.value
       });
     },
+    multilineTextField: function (o) {
+      return compact({
+        kind: "multiline_text_field", id: o.id, title: o.title, placeholder: o.placeholder, value: o.value,
+        status: o.status, accent: o.accent
+      });
+    },
+    toggleField: function (o) { return compact({ kind: "toggle_field", id: o.id, title: o.title, value: o.value }); },
     text: function (o) {
       return compact({ kind: "text", id: o.id, title: o.title, text: o.text, style: style(o.style), bind: o.bind });
     },

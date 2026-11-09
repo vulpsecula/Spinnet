@@ -32,7 +32,8 @@ public enum CollectionsContract {
     ]
 
     /// Core page component kinds; presentation types have their own metadata.
-    public static let componentKinds = ["row", "text_field", "choice_field", "text", "actions", "list", "grid"]
+    public static let componentKinds = ["row", "text_field", "choice_field", "text", "actions", "list", "grid",
+                                         "multiline_text_field", "toggle_field"]
     /// The View Events pages add.
     public static let events = ["item_action", "load_range", "called", "selection_changed"]
 
@@ -70,6 +71,10 @@ public enum CollectionsContract {
     public static let maximumAccessoryLength = 64
     public static let maximumItemTextLength = 4_096
     public static let maximumChoices = 100
+    /// The longest text a `multiline_text_field` holds, in UTF-8 bytes: its
+    /// `value`, and what the user may type. Well within the state and
+    /// message budgets, so `values` carrying it always fits an event.
+    public static let maximumMultilineTextBytes = 16_384
     /// Revision 3: the most items the Host holds of one collection's window.
     public static let maximumWindowItems = 600
     /// Revision 3: the Host keeps the items within this many screens of
@@ -221,9 +226,9 @@ public struct PluginPage: Equatable {
 
     public func component(_ id: String) -> PluginPageComponent? { components.first { $0.id == id } }
 
-    /// The text and choice fields whose values events carry, in order.
+    /// The fields whose values events carry, in order.
     public var inputs: [PluginPageComponent] {
-        components.filter { $0.kind == .textField || $0.kind == .choiceField }
+        components.filter { $0.kind.isInput }
     }
 
     /// The Host draws its insertion target line: the page asks for it, or
@@ -313,6 +318,14 @@ public enum PluginPageComponent: Equatable {
         case activityList = "activity_list"
         // Adaptive card container.
         case adaptive
+        // The inputs form views already have (#127).
+        case multilineTextField = "multiline_text_field"
+        case toggleField = "toggle_field"
+
+        /// A field whose value `values` carries.
+        public var isInput: Bool { [.textField, .multilineTextField, .choiceField, .toggleField].contains(self) }
+        /// A field whose text, caret and composition the Host keeps.
+        public var holdsText: Bool { self == .textField || self == .multilineTextField }
     }
 
     case row(PluginPageStack)
@@ -320,6 +333,8 @@ public enum PluginPageComponent: Equatable {
     case adaptive(PluginPageAdaptive)
     case textField(PluginPageTextField)
     case choiceField(PluginPageChoiceField)
+    case multilineTextField(PluginPageMultilineTextField)
+    case toggleField(PluginPageToggleField)
     case text(PluginPageText)
     case actions(id: String, actions: [PluginPageAction])
     case collection(PluginPageCollection)
@@ -336,6 +351,8 @@ public enum PluginPageComponent: Equatable {
         case .text(let text): return text.id
         case .textField(let field): return field.id
         case .choiceField(let field): return field.id
+        case .multilineTextField(let field): return field.id
+        case .toggleField(let field): return field.id
         case .collection(let collection): return collection.id
         case .icon(let icon): return icon.id
         case .image(let image): return image.id
@@ -351,6 +368,8 @@ public enum PluginPageComponent: Equatable {
         case .adaptive: return .adaptive
         case .textField: return .textField
         case .choiceField: return .choiceField
+        case .multilineTextField: return .multilineTextField
+        case .toggleField: return .toggleField
         case .text: return .text
         case .actions: return .actions
         case .collection(let collection): return collection.style == .grid ? .grid : .list
@@ -440,6 +459,13 @@ public enum PluginPageComponent: Equatable {
             self = .textField(try PluginPageTextField(parsing: value))
         case .choiceField:
             self = .choiceField(try PluginPageChoiceField(parsing: value))
+        case .multilineTextField:
+            self = .multilineTextField(try PluginPageMultilineTextField(parsing: value))
+        case .toggleField:
+            let fields = try PluginPage.object(value, "A toggle_field", allowed: ["kind", "id", "title", "value"])
+            let id = try PluginPage.identifier(fields["id"], "A toggle_field's id")
+            self = .toggleField(PluginPageToggleField(id: id, title: try PluginPage.text(fields["title"], "The toggle_field \(id)'s title"),
+                                                      value: try PluginPage.flag(fields["value"], "The toggle_field \(id)'s value")))
         case .text:
             var allowed: Set<String> = ["kind", "id", "title", "text", "style"]
             if permits(HostRunSourceAddition.bindings) { allowed.insert("bind") }
@@ -513,6 +539,53 @@ public struct PluginPageTextField: Equatable {
         }
         collection = try members["collection"].map { try PluginPage.identifier($0, "The text_field \(id)'s collection") }
     }
+}
+
+/// A text field of several lines (#127): Return starts a new line, and Tab
+/// and Shift-Tab move focus. Its `value` is the text it starts with when new
+/// or reset; afterwards what the user typed is the Host's, as for a
+/// `text_field`.
+public struct PluginPageMultilineTextField: Equatable {
+    public let id: String
+    public let title: String
+    public let placeholder: String?
+    public let value: String
+    public let status: String?
+    public let accent: PluginViewAccent?
+
+    init(parsing value: JSONValue) throws {
+        let members = try PluginPage.object(value, "A multiline_text_field", allowed: [
+            "kind", "id", "title", "placeholder", "value", "status", "accent"
+        ])
+        let id = try PluginPage.identifier(members["id"], "A multiline_text_field's id")
+        let name = "The multiline_text_field \(id)"
+        self.id = id
+        title = try PluginPage.text(members["title"], "\(name)'s title")
+        placeholder = try members["placeholder"].map { try PluginPage.text($0, "\(name)'s placeholder", allowsBlank: true) }
+        let text = try members["value"].map { try PluginPage.text($0, "\(name)'s value", allowsBlank: true) } ?? ""
+        guard text.utf8.count <= CollectionsContract.maximumMultilineTextBytes else {
+            throw PluginPage.violation("\(name)'s value is longer than \(CollectionsContract.maximumMultilineTextBytes) bytes")
+        }
+        self.value = text
+        status = try members["status"].map { try PluginPage.text($0, "\(name)'s status") }
+        if let declared = members["accent"] {
+            guard case .string(let accentName) = declared, let accent = PluginViewAccent(rawValue: accentName) else {
+                throw PluginPage.violation("\(name)'s accent must be one of "
+                    + PluginViewAccent.allCases.map(\.rawValue).joined(separator: ", "))
+            }
+            self.accent = accent
+        } else {
+            accent = nil
+        }
+    }
+}
+
+/// An on/off switch (#127). Its `value` is where it starts when new or
+/// reset; a click or Space delivers `field_changed` at once.
+public struct PluginPageToggleField: Equatable {
+    public let id: String
+    public let title: String
+    public let value: Bool
 }
 
 /// A pop-up of choices. Its `value` is the choice it starts with.

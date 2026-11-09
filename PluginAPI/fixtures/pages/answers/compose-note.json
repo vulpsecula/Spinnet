@@ -1,0 +1,40 @@
+{
+  "page": {
+    "id": "compose",
+    "title": "New Note",
+    "content": [
+      {
+        "kind": "text_field",
+        "id": "subject",
+        "title": "Subject",
+        "placeholder": "Subject"
+      },
+      {
+        "kind": "multiline_text_field",
+        "id": "body",
+        "title": "Body",
+        "placeholder": "Write the note…",
+        "value": "First line\nSecond line",
+        "status": "Saved",
+        "accent": "green"
+      },
+      {
+        "kind": "toggle_field",
+        "id": "urgent",
+        "title": "Mark as urgent",
+        "value": false
+      },
+      {
+        "kind": "actions",
+        "id": "buttons",
+        "actions": [
+          {
+            "id": "save",
+            "title": "Save"
+          }
+        ]
+      }
+    ]
+  },
+  "state": null
+}

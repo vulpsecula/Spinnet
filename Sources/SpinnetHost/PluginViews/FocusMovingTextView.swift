@@ -21,7 +21,7 @@ struct FocusMovingTextView: NSViewRepresentable {
     static let maximumHeight: CGFloat = 240
 
     /// Draws its placeholder itself, where the first line of text starts.
-    final class PlaceholderTextView: NSTextView {
+    class PlaceholderTextView: NSTextView {
         var placeholder = "" {
             didSet {
                 setAccessibilityPlaceholderValue(placeholder)
@@ -43,10 +43,10 @@ struct FocusMovingTextView: NSViewRepresentable {
         }
     }
 
-    static func makeScrollView(text: String, placeholder: String, delegate: NSTextViewDelegate?) -> NSScrollView {
+    static func makeScrollView(text: String, placeholder: String, delegate: NSTextViewDelegate?,
+                               textView: PlaceholderTextView = PlaceholderTextView()) -> NSScrollView {
         // Laid out as `NSTextView.scrollableTextView()` lays out its own:
         // as wide as the scroll view, as tall as its text.
-        let textView = PlaceholderTextView()
         textView.autoresizingMask = [.width]
         textView.minSize = .zero
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
@@ -77,12 +77,12 @@ struct FocusMovingTextView: NSViewRepresentable {
 
     /// The height of `text` laid out at `width`, from one line up to
     /// `maximumHeight`. A new line at the end counts, as the cursor is there.
-    static func idealHeight(of text: String, width: CGFloat) -> CGFloat {
+    static func idealHeight(of text: String, width: CGFloat, maximum: CGFloat = maximumHeight) -> CGFloat {
         let padding = NSTextContainer().lineFragmentPadding
         let measured = (text.isEmpty || text.hasSuffix("\n") ? text + " " : text) as NSString
         let bounds = measured.boundingRect(with: NSSize(width: max(width - 2 * padding, 1), height: .greatestFiniteMagnitude),
                                            options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font])
-        return min(ceil(bounds.height) + 2 * inset.height, maximumHeight)
+        return min(ceil(bounds.height) + 2 * inset.height, maximum)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {

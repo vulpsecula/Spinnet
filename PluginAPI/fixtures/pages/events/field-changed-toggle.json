@@ -1,0 +1,10 @@
+{
+  "type": "field_changed",
+  "page": "compose",
+  "field": "urgent",
+  "values": {
+    "subject": "Lunch",
+    "body": "First line\nSecond line",
+    "urgent": true
+  }
+}

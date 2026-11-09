@@ -63,7 +63,9 @@ page has at most 40 components and at most one collection.
 | `image` | `source`, `label`, `width`, `height`, `fit`, `style` | A picture the Host loads |
 | `progress` | `title`, `value`, `status`, `stages`, `stage`, `state`, `cancel`, `style` | A task's progress |
 | `text_field` | `title`, `placeholder`, `value`, `status`, `accent`, `collection` | A one-line field; `collection` makes it that collection's search field |
+| `multiline_text_field` | `title`, `placeholder`, `value`, `status`, `accent` | A text field of several lines that grows with its text, then scrolls; no `collection` |
 | `choice_field` | `title`, `choices`, `choice_titles`, `value` | A pop-up |
+| `toggle_field` | `title`, `value` (true or false, false by default) | An on/off checkbox |
 | `text` | `title`, `text`, `style` | Text in the Markdown subset |
 | `actions` | `actions`: up to 8 buttons | Event buttons (`id`, `title`) and page actions |
 | `list` | collection members, `rows` (1 to 12, default 8) | Rows: `symbol`, `title`, `subtitle`, `accessory` |
@@ -120,15 +122,20 @@ description over 256 KiB.
   `view` answer counts as a page change.
 - **`reset`**: `["id", ...]` starts those components again from their
   description; `"page"` starts the whole page and its memory again. A reset
-  applies to the answer that carries it only. A reset of a `text_field`
-  whose input-method composition is open is dropped for that field.
+  applies to the answer that carries it only. A reset of a `text_field` or
+  `multiline_text_field` whose input-method composition is open is dropped
+  for that field.
 
 The Host never replaces a kept field's text, caret or composition, so an
 answer to any event (typing, `load_range`, `operation_finished`, `called`)
-cannot undo or interrupt typing. Composing text is never sent: `field_changed` follows
-committed text, after a 100 ms pause. Answers cannot move focus;
-`page.focus`, else the first `text_field`, else the collection, is focused
-when a page is new or reset.
+cannot undo or interrupt typing. A `multiline_text_field` follows the same
+rules and also keeps where its text is scrolled. Composing text is never sent: `field_changed` follows
+committed text, after a 100 ms pause. A `toggle_field` keeps its position
+the same way; a click on it, or Space while it has focus, delivers
+`field_changed` at once, without the pause. `values` carries a toggle as
+true or false and every other field as its text. Answers cannot move focus;
+`page.focus`, else the first `text_field` or `multiline_text_field`, else
+the collection, is focused when a page is new or reset.
 
 ## Collections
 
@@ -343,6 +350,12 @@ the page.
 | ⌘C | Copies the field's selection | The item's Copy item action, when there is exactly one |
 | Tab, Shift-Tab | Next / previous field or the collection | Next / previous field |
 | Escape | Closes the view | Closes the view |
+
+Every field, `multiline_text_field` and `toggle_field` included, and the
+collection are focus stops, in page order. In a `multiline_text_field`,
+Return starts a new line and sends nothing; Tab and Shift-Tab move to the
+next and previous stop, Escape closes the view, and Up and Down move the caret.
+Space in a `toggle_field` switches it.
 
 Return in a `text_field` without `collection` sends `submitted`. Return in a
 search field while the answer to the latest typing is still to come sends
@@ -722,7 +735,7 @@ from a Collection Grid and add no resize event.
 
 ## Unavailable page features
 
-Pages do not offer multiline, URL or toggle fields, totals over 2,000 items,
+Pages do not offer URL fields, totals over 2,000 items,
 Host-side sorting/filtering, settings controls or Host-Fetched Sections, multiple
 selection, selection-change events, focus requests, dirty-draft vetoes, page
 stacks or local dialogs. A Plugin may use a form/detail `view` for a step
@@ -737,7 +750,10 @@ its script starts, and typing against the
 150 ms (warm) and 300 ms (cold) p95 targets, as in current. A Host holds
 at most 40 components per page, 2,000 items per collection (given in one
 answer, or as its `total`), 600 items in a collection's window, and 4 pages
-in page memory. A `load_range` asks for at most 600 positions. Since #81 a
+in page memory. A `load_range` asks for at most 600 positions, and
+a `multiline_text_field` holds at most 16 KiB (16,384 bytes) of UTF-8 text:
+the Host refuses a longer `value` and takes no typing past it, so its text
+always fits `state` and an event. Since #81 a
 column holds at most 8 components, rows and columns nest at most 3 deep, a
 page has at most 8 images, and the Host decodes a picture of at most 1 MiB,
 4,194,304 pixels and 4,096 pixels on a side, loads at most 4 at once and

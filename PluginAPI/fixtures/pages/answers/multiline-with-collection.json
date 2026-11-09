@@ -1,0 +1,24 @@
+{
+  "page": {
+    "id": "compose",
+    "title": "New Note",
+    "content": [
+      {
+        "kind": "multiline_text_field",
+        "id": "body",
+        "title": "Body",
+        "collection": "notes"
+      },
+      {
+        "kind": "list",
+        "id": "notes",
+        "items": [
+          {
+            "id": "a",
+            "title": "A"
+          }
+        ]
+      }
+    ]
+  }
+}

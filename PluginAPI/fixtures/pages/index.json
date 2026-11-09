@@ -702,6 +702,37 @@
       "definition": "event",
       "valid": false,
       "note": "selection_changed always carries items"
+    },
+    {
+      "file": "answers/compose-note.json",
+      "definition": "answer",
+      "valid": true,
+      "note": "A page with a one-line field, a multi-line field and a toggle; values carry the text with its newlines and the toggle as a boolean"
+    },
+    {
+      "file": "answers/multiline-with-collection.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A multiline_text_field searches no collection"
+    },
+    {
+      "file": "answers/toggle-value-not-boolean.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A toggle_field's value is true or false"
+    },
+    {
+      "file": "answers/multiline-value-over-bound.json",
+      "definition": "answer",
+      "valid": false,
+      "note": "A multiline_text_field's value is at most 16,384 UTF-8 bytes; JSON Schema counts characters, so only the Host refuses this one",
+      "schema_valid": true
+    },
+    {
+      "file": "events/field-changed-toggle.json",
+      "definition": "event",
+      "valid": true,
+      "note": "A toggle flipped: field_changed at once, with the toggle as a boolean and the multi-line text in values"
     }
   ]
 }

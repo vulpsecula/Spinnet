@@ -219,3 +219,216 @@ final class PagePopUpButton: NSPopUpButton, PluginPageFocusTarget {
         model?.viewAppeared(self)
     }
 }
+
+// MARK: - Multi-line text field
+
+/// A text field of several lines (#127) whose text, caret, scroll and
+/// input-method composition are the Host's, as for `PageTextField`: the
+/// Plugin's answers write into it only when it is new or reset. Return starts
+/// a new line; Tab and Shift-Tab move focus and Escape closes the view, only
+/// when no composition is open. It grows with its text from three lines,
+/// then scrolls.
+struct PageMultilineTextField: NSViewRepresentable {
+    let model: PluginPageModel
+    let field: PluginPageMultilineTextField
+    /// Changes when the Host replaces the field's text.
+    let revision: Int
+
+    static let minimumHeight: CGFloat = 64
+    static let maximumHeight: CGFloat = 160
+
+    func makeCoordinator() -> Coordinator { Coordinator(model: model, id: field.id) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let textView = PageNSTextView()
+        textView.component = field.id
+        textView.model = model
+        let text = model.text(of: field.id)
+        let scrollView = FocusMovingTextView.makeScrollView(text: text, placeholder: field.placeholder ?? "",
+                                                            delegate: context.coordinator, textView: textView)
+        let caret = model.caret(of: field.id) ?? .end(of: text)
+        let length = text.utf16.count
+        let location = min(caret.location, length)
+        textView.setSelectedRange(NSRange(location: location, length: min(caret.length, length - location)))
+        context.coordinator.revision = revision
+        context.coordinator.observeScrolling(of: scrollView)
+        model.register(textView)
+        let id = field.id
+        model.registerCaret(of: id) { [weak textView] in
+            guard let range = textView?.selectedRange() else { return nil }
+            return PluginPageCaret(location: range.location, length: range.length)
+        }
+        // Drawn anew, as when moved into a row: back where it was scrolled.
+        if let offset = model.scrollOffset(of: id) {
+            DispatchQueue.main.async { [weak scrollView] in
+                guard let scrollView else { return }
+                scrollView.contentView.scroll(to: NSPoint(x: 0, y: offset))
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+            }
+        }
+        return scrollView
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        let text = (nsView.documentView as? NSTextView)?.string ?? model.text(of: field.id)
+        let height = FocusMovingTextView.idealHeight(of: text, width: width, maximum: Self.maximumHeight)
+        return CGSize(width: width, height: max(height, Self.minimumHeight))
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? PageNSTextView else { return }
+        let placeholder = field.placeholder ?? ""
+        if textView.placeholder != placeholder { textView.placeholder = placeholder }
+        textView.setAccessibilityLabel(field.title)
+        textView.setAccessibilityHelp(field.status)
+        guard context.coordinator.revision != revision else { return }
+        context.coordinator.revision = revision
+        // A composition is never replaced; the memory already kept the text.
+        guard !textView.hasMarkedText() else { return }
+        let text = model.text(of: field.id)
+        guard textView.string != text else { return }
+        textView.string = text
+        let caret = model.caret(of: field.id) ?? .end(of: text)
+        textView.setSelectedRange(NSRange(location: min(caret.location, text.utf16.count), length: 0))
+        scrollView.invalidateIntrinsicContentSize()
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        let model: PluginPageModel
+        let id: String
+        var revision = 0
+        private var scrolling: NSObjectProtocol?
+
+        init(model: PluginPageModel, id: String) {
+            self.model = model
+            self.id = id
+        }
+
+        deinit {
+            if let scrolling { NotificationCenter.default.removeObserver(scrolling) }
+        }
+
+        /// Remembers where the user scrolled, so the field drawn anew comes
+        /// back there.
+        func observeScrolling(of scrollView: NSScrollView) {
+            scrollView.contentView.postsBoundsChangedNotifications = true
+            scrolling = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification,
+                                                               object: scrollView.contentView, queue: .main) { [weak self] note in
+                guard let self, let clip = note.object as? NSClipView else { return }
+                let offset = clip.bounds.origin.y
+                self.model.scrolled(self.id, to: offset)
+            }
+        }
+
+        func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool {
+            guard let replacementString else { return true }
+            let next = (textView.string as NSString).replacingCharacters(in: range, with: replacementString)
+            return model.takes(next, in: id)
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            textView.enclosingScrollView?.invalidateIntrinsicContentSize()
+            if textView.hasMarkedText() {
+                model.compositionChanged(id, isComposing: true)
+                return
+            }
+            let range = textView.selectedRange()
+            model.textChanged(id, to: textView.string, caret: PluginPageCaret(location: range.location, length: range.length))
+        }
+
+        func textView(_ textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+            // The input method has every key first; a command reaching here
+            // with marked text left is the input method's business too.
+            guard !textView.hasMarkedText() else { return false }
+            switch selector {
+            case #selector(NSResponder.insertTab(_:)):
+                model.moveFocus(from: id, forward: true)
+            case #selector(NSResponder.insertBacktab(_:)):
+                model.moveFocus(from: id, forward: false)
+            case #selector(NSResponder.cancelOperation(_:)):
+                model.close()
+            default:
+                // Return starts a new line, as in any text area.
+                return false
+            }
+            return true
+        }
+    }
+}
+
+final class PageNSTextView: FocusMovingTextView.PlaceholderTextView, PluginPageFocusTarget {
+    var component = ""
+    weak var model: PluginPageModel?
+
+    override func becomeFirstResponder() -> Bool {
+        guard super.becomeFirstResponder() else { return false }
+        model?.didFocus(component)
+        return true
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        model?.viewAppeared(self)
+    }
+}
+
+// MARK: - Toggle field
+
+/// An on/off checkbox (#127) that is a Tab stop of the page. A click, or
+/// Space while it has focus, delivers `field_changed` at once.
+struct PageToggleField: NSViewRepresentable {
+    let model: PluginPageModel
+    let field: PluginPageToggleField
+    let isOn: Bool
+
+    func makeNSView(context: Context) -> PageCheckbox {
+        let view = PageCheckbox()
+        view.setButtonType(.switch)
+        view.component = field.id
+        view.model = model
+        view.target = view
+        view.action = #selector(PageCheckbox.flipped(_:))
+        view.setContentHuggingPriority(.required, for: .horizontal)
+        model.register(view)
+        return view
+    }
+
+    func updateNSView(_ view: PageCheckbox, context: Context) {
+        if view.title != field.title { view.title = field.title }
+        let state: NSControl.StateValue = isOn ? .on : .off
+        if view.state != state { view.state = state }
+    }
+}
+
+final class PageCheckbox: NSButton, PluginPageFocusTarget {
+    var component = ""
+    weak var model: PluginPageModel?
+
+    override var acceptsFirstResponder: Bool { true }
+    override var canBecomeKeyView: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        guard super.becomeFirstResponder() else { return false }
+        model?.didFocus(component)
+        return true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 48: model?.moveFocus(from: component, forward: !event.modifierFlags.contains(.shift))
+        case 53: model?.close()
+        default: super.keyDown(with: event)
+        }
+    }
+
+    @objc func flipped(_ sender: Any?) {
+        model?.setToggle(state == .on, in: component)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        model?.viewAppeared(self)
+    }
+}

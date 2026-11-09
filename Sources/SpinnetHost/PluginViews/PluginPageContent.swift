@@ -256,7 +256,10 @@ struct PageComponentView: View {
         case .progress(let progress):
             PageProgressView(model: model, progress: progress)
         case .textField(let field):
-            PageFieldBox(model: model, field: field)
+            PageFieldBox(model: model, id: field.id, status: field.status, accent: field.accent) {
+                PageTextField(model: model, field: field, revision: model.textRevisions[field.id] ?? 0)
+                    .frame(minWidth: 120, maxWidth: .infinity)
+            }
         case .choiceField(let field):
             PageChoiceField(model: model, field: field, value: model.choice(of: field.id))
                 .fixedSize()
@@ -311,27 +314,37 @@ struct PageComponentView: View {
             }
         case .activityList(let declaration):
             PluginPageActivityListView(model: model.activityList, declaration: declaration)
+        case .multilineTextField(let field):
+            PageFieldBox(model: model, id: field.id, status: field.status, accent: field.accent) {
+                PageMultilineTextField(model: model, field: field, revision: model.textRevisions[field.id] ?? 0)
+                    .frame(minWidth: 120, maxWidth: .infinity)
+            }
+        case .toggleField(let field):
+            PageToggleField(model: model, field: field, isOn: model.isOn(field.id))
+                .fixedSize()
         case .collection:
             EmptyView()
         }
     }
 }
 
-/// A text field in the Host's box, with the Plugin's status under what is
-/// typed, tinted by its accent.
-private struct PageFieldBox: View {
+/// A text field, one-line or multi-line, in the Host's box, with the
+/// Plugin's status under what is typed, tinted by its accent.
+private struct PageFieldBox<Field: View>: View {
     @ObservedObject var model: PluginPageModel
-    let field: PluginPageTextField
+    let id: String
+    let status: String?
+    let accent: PluginViewAccent?
+    @ViewBuilder let field: () -> Field
 
     var body: some View {
-        let focused = model.focused == field.id
+        let focused = model.focused == id
         VStack(alignment: .leading, spacing: 3) {
-            PageTextField(model: model, field: field, revision: model.textRevisions[field.id] ?? 0)
-                .frame(minWidth: 120, maxWidth: .infinity)
-            if let status = field.status {
+            field()
+            if let status {
                 Text(status)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(field.accent.map { AnyShapeStyle($0.color) } ?? AnyShapeStyle(.secondary))
+                    .foregroundStyle(accent.map { AnyShapeStyle($0.color) } ?? AnyShapeStyle(.secondary))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -342,7 +355,7 @@ private struct PageFieldBox: View {
         .padding(.vertical, 6)
         .background {
             let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
-            let tint = field.accent?.color
+            let tint = accent?.color
             shape
                 .fill(tint.map { $0.opacity(focused ? 0.12 : 0.07) } ?? Color(nsColor: .textBackgroundColor))
                 .overlay {

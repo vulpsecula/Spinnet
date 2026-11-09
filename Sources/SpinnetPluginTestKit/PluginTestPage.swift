@@ -186,7 +186,17 @@ public final class PluginTestPage {
     @discardableResult
     public func type(_ text: String, into field: String) throws -> PluginScriptAnswer? {
         guard let page, memory.state.texts[field] != nil else { throw PluginTestPageError.noComponent(field) }
-        memory.setText(text, of: field)
+        guard memory.setText(text, of: field) else { throw PluginTestPageError.tooLong(field) }
+        memory.state.focus = field
+        return try run(.pageFieldChanged(page: page.id, field: field, values: memory.values))
+    }
+
+    /// The user clicked toggle field `field`, or pressed Space in it: it
+    /// switches, and `field_changed` follows at once.
+    @discardableResult
+    public func flip(_ field: String) throws -> PluginScriptAnswer? {
+        guard let page, let on = memory.state.toggles[field] else { throw PluginTestPageError.noComponent(field) }
+        memory.setToggle(!on, of: field)
         memory.state.focus = field
         return try run(.pageFieldChanged(page: page.id, field: field, values: memory.values))
     }
@@ -576,6 +586,8 @@ public enum PluginTestPageError: Error, Equatable, CustomStringConvertible {
     /// Every answer to `load_range` changed the collection's total or
     /// sections again, so the Host would never hold what it shows.
     case rangesKeepChanging
+    /// The text is longer than a `multiline_text_field` takes.
+    case tooLong(String)
 
     public var description: String {
         switch self {
@@ -584,6 +596,7 @@ public enum PluginTestPageError: Error, Equatable, CustomStringConvertible {
         case .noAction(let id): return "There is no action \(id) to choose"
         case .closed: return "The view is closed"
         case .rangesKeepChanging: return "Every answer to load_range changed the collection's total or sections"
+        case .tooLong(let id): return "The field \(id) takes at most \(CollectionsContract.maximumMultilineTextBytes) bytes"
         }
     }
 }

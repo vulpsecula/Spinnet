@@ -79,7 +79,9 @@ an `id` and up to 40 components, each with an `id` unique in the page:
 | `row` | `components.row` | Up to 4 of the components below side by side, columns included |
 | `column` | `components.column` | Up to 8 of the components below top to bottom, rows included |
 | `text_field` | `components.textField` | A one-line field, optionally the search field of the page's collection |
+| `multiline_text_field` | `components.multilineTextField` | A text field of several lines; Return starts a new line |
 | `choice_field` | `components.choiceField` | A pop-up |
+| `toggle_field` | `components.toggleField` | An on/off checkbox, delivered at once |
 | `text` | `components.text` | Text in the Markdown subset |
 | `actions` | `components.actions`, `components.button` and `.action(...)` | Up to 8 buttons: event buttons and page actions the Host performs |
 | `list` | `components.list`, `section`, `item`, `itemAction` | A selectable list of up to 2,000 items, or a window of them |

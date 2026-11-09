@@ -1,0 +1,28 @@
+{
+  "protocol_version": "1.0",
+  "id": "com.example.notes-pages",
+  "name": "Notes Pages",
+  "version": "1.0.0",
+  "capabilities": [
+    "write_clipboard"
+  ],
+  "preset": {
+    "readiness": "ready_to_use",
+    "is_configurable": false,
+    "default_primary_command_id": "notes.compose",
+    "default_alternate_command_ids": []
+  },
+  "commands": [
+    {
+      "id": "notes.compose",
+      "title": "Compose Note",
+      "description": "Writes a note of several lines on a page, with an urgent toggle, and copies it.",
+      "execution": "javascript",
+      "is_configurable": false,
+      "script": "notes.js"
+    }
+  ],
+  "engines": {
+    "spinnet": "^1.0.0"
+  }
+}
