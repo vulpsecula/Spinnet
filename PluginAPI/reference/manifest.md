@@ -154,6 +154,54 @@ Plugin Icons and Command Icons are display-only, like a Command's
 make any configured Action's Command count as changed, and installing
 or updating a Plugin never creates or edits Menu Items or App Overrides.
 
+## Plugin Tags
+
+A Plugin may declare optional top-level `tags`, its Plugin Tags: the
+categories the Library files its Menu Item Preset under, so a user can
+filter the Library for a kind of task.
+
+```json
+"tags": ["window", "apps"]
+```
+
+The [published vocabulary](../plugin-tags.json) lists each tag the Host
+offers as a Library filter, in the order it offers them, with the English
+and Simplified Chinese title it shows:
+
+| Tag | English | 简体中文 |
+| --- | --- | --- |
+| `window` | Window | 窗口 |
+| `media` | Media | 媒体 |
+| `apps` | Apps | App |
+| `text` | Text | 文本 |
+| `clipboard` | Clipboard | 剪贴板 |
+| `files` | Files | 文件 |
+| `browser` | Browser | 浏览器 |
+| `developer` | Developer | 开发者 |
+| `system` | System | 系统 |
+
+A Plugin declares at most 3 tags, each at most 32 characters of lower-case
+ASCII letters and digits in parts joined by single hyphens, and none more
+than once. Too many tags, a duplicate, `null`, or anything other than a list
+of such identifiers refuses the package with a reason naming `tags`.
+
+A well-formed tag outside the vocabulary, such as one a newer Host
+publishes, is admitted and kept, but the Library offers no filter for it, so
+a Plugin written for a newer vocabulary still installs. Declare the tags
+that describe the Plugin's Commands best; order does not matter to the
+Library.
+
+The Library offers All, one filter for each vocabulary tag declared by an
+installed Plugin, and Other, which lists Plugins declaring no vocabulary
+tag. A Plugin with several tags appears under each of them. Refused Plugins
+are listed after the Presets whatever filter is chosen. When no installed
+Plugin declares a vocabulary tag, the Library offers no filters.
+
+Plugin Tags are display-only like Plugin Icons: they grant nothing,
+changing them in a Plugin Update leaves configured Actions available, and
+they are distinct from a page's Item Marks. The
+[TypeScript types](../sdk/plugin-tags.d.ts) describe this manifest data.
+
 ## Commands
 
 A Command has an `id`, a `title`, and an `execution`: `host` names a

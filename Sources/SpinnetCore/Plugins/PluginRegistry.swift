@@ -446,7 +446,8 @@ public final class PluginRegistry {
                         : nil,
                     needsPluginSettings: package.manifest.hasSettings && !pluginSettingsComplete(package.manifest),
                     icon: package.manifest.icon,
-                    packageRoot: package.rootURL
+                    packageRoot: package.rootURL,
+                    tags: package.manifest.vocabularyTags
                 )
             }
             .sorted { lhs, rhs in

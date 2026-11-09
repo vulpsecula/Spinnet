@@ -455,9 +455,35 @@ final class MenuEditorModel: ObservableObject {
         menuSlots = makeMenuSlots()
     }
 
-    func libraryPresets(matching query: String) -> [MenuItemPreset] {
+    /// The Library's Plugin Tag filters: All, each vocabulary tag an
+    /// installed Plugin declares in vocabulary order, then Other when some
+    /// Plugin declares none. Empty when no Plugin declares a vocabulary tag,
+    /// since the filters would only repeat the whole list.
+    var libraryFilters: [LibraryFilter] {
+        let presets = editor.menuItemPresets
+        let present = Set(presets.flatMap(\.tags))
+        guard !present.isEmpty else { return [] }
+        var filters: [LibraryFilter] = [.all]
+        filters += PluginTag.allCases.filter(present.contains).map(LibraryFilter.tag)
+        if presets.contains(where: \.tags.isEmpty) { filters.append(.other) }
+        return filters
+    }
+
+    /// `filter` when the Library offers it, else All, so a filter whose
+    /// last Plugin was removed shows every Preset rather than none.
+    func effectiveLibraryFilter(_ filter: LibraryFilter) -> LibraryFilter {
+        libraryFilters.contains(filter) ? filter : .all
+    }
+
+    /// The Presets the Library lists under `filter`, matched by Preset name
+    /// or Command title. Refused Plugins are listed apart and never filtered
+    /// by tag (`libraryRefusedPlugins(matching:)`).
+    func libraryPresets(matching query: String, filter: LibraryFilter = .all) -> [MenuItemPreset] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filter = effectiveLibraryFilter(filter)
         return editor.menuItemPresets.filter { preset in
+            filter.includes(preset)
+        }.filter { preset in
             trimmedQuery.isEmpty
                 || preset.name.localizedCaseInsensitiveContains(trimmedQuery)
                 || preset.commands.contains {

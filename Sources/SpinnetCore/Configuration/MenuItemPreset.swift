@@ -90,6 +90,9 @@ public struct MenuItemPreset: Equatable {
     public let icon: IconDeclaration?
     /// The installed package a picture icon is read from.
     public let packageRoot: URL?
+    /// The Plugin's declared Plugin Tags the Host's vocabulary knows, in
+    /// declared order; the Library files the Preset under each.
+    public let tags: [PluginTag]
 
     public var id: String { pluginID.rawValue }
     public var readiness: MenuItemPresetReadiness { declaration.readiness }
@@ -119,7 +122,8 @@ public struct MenuItemPreset: Equatable {
         unavailableReason: ActionUnavailableReason? = nil,
         needsPluginSettings: Bool = false,
         icon: IconDeclaration? = nil,
-        packageRoot: URL? = nil
+        packageRoot: URL? = nil,
+        tags: [PluginTag] = []
     ) {
         self.pluginID = pluginID
         self.name = name
@@ -129,5 +133,6 @@ public struct MenuItemPreset: Equatable {
         self.needsPluginSettings = needsPluginSettings
         self.icon = icon
         self.packageRoot = packageRoot
+        self.tags = tags
     }
 }

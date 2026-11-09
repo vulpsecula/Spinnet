@@ -1,0 +1,14 @@
+{
+  "description": "The Plugin Tag vocabulary: identifiers a manifest's tags may name, in the order the Library offers them as filters, with the titles the Host shows. A manifest may name other well-formed identifiers; the Host admits and keeps them but offers no filter for them. See reference/manifest.md#plugin-tags.",
+  "tags": [
+    {"id": "window", "title": {"en": "Window", "zh-Hans": "窗口"}},
+    {"id": "media", "title": {"en": "Media", "zh-Hans": "媒体"}},
+    {"id": "apps", "title": {"en": "Apps", "zh-Hans": "App"}},
+    {"id": "text", "title": {"en": "Text", "zh-Hans": "文本"}},
+    {"id": "clipboard", "title": {"en": "Clipboard", "zh-Hans": "剪贴板"}},
+    {"id": "files", "title": {"en": "Files", "zh-Hans": "文件"}},
+    {"id": "browser", "title": {"en": "Browser", "zh-Hans": "浏览器"}},
+    {"id": "developer", "title": {"en": "Developer", "zh-Hans": "开发者"}},
+    {"id": "system", "title": {"en": "System", "zh-Hans": "系统"}}
+  ]
+}
