@@ -1,17 +1,15 @@
 import SpinnetCore
 
-/// One Library filter by Plugin Tag: every Preset, those declaring one
-/// vocabulary tag, or those declaring none.
+/// One Library filter by Plugin Tag: every Preset, or those declaring one
+/// vocabulary tag. A Preset declaring none is listed under All only.
 enum LibraryFilter: Hashable {
     case all
     case tag(PluginTag)
-    case other
 
     func includes(_ preset: MenuItemPreset) -> Bool {
         switch self {
         case .all: return true
         case .tag(let tag): return preset.tags.contains(tag)
-        case .other: return preset.tags.isEmpty
         }
     }
 
@@ -20,7 +18,6 @@ enum LibraryFilter: Hashable {
         switch self {
         case .all: return "All" // Not localized: the catalog key `title` looks up
         case .tag(let tag): return tag.title
-        case .other: return "Other" // Not localized: the catalog key `title` looks up
         }
     }
 

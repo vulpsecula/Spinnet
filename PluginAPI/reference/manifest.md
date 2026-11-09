@@ -191,9 +191,11 @@ a Plugin written for a newer vocabulary still installs. Declare the tags
 that describe the Plugin's Commands best; order does not matter to the
 Library.
 
-The Library offers All, one filter for each vocabulary tag declared by an
-installed Plugin, and Other, which lists Plugins declaring no vocabulary
-tag. A Plugin with several tags appears under each of them. Refused Plugins
+The Library offers All, which lists every Plugin, and one filter for each
+vocabulary tag declared by an installed Plugin. A Plugin with several tags
+appears under each of them; a Plugin declaring no vocabulary tag appears
+under All only. Each Plugin's card in the Library shows its vocabulary tags
+by title. Refused Plugins
 are listed after the Presets whatever filter is chosen. When no installed
 Plugin declares a vocabulary tag, the Library offers no filters.
 

@@ -455,9 +455,9 @@ final class MenuEditorModel: ObservableObject {
         menuSlots = makeMenuSlots()
     }
 
-    /// The Library's Plugin Tag filters: All, each vocabulary tag an
-    /// installed Plugin declares in vocabulary order, then Other when some
-    /// Plugin declares none. Empty when no Plugin declares a vocabulary tag,
+    /// The Library's Plugin Tag filters: All, then each vocabulary tag an
+    /// installed Plugin declares, in vocabulary order. A Plugin declaring
+    /// none is listed under All only. Empty when no Plugin declares a vocabulary tag,
     /// since the filters would only repeat the whole list.
     var libraryFilters: [LibraryFilter] {
         let presets = editor.menuItemPresets
@@ -465,7 +465,6 @@ final class MenuEditorModel: ObservableObject {
         guard !present.isEmpty else { return [] }
         var filters: [LibraryFilter] = [.all]
         filters += PluginTag.allCases.filter(present.contains).map(LibraryFilter.tag)
-        if presets.contains(where: \.tags.isEmpty) { filters.append(.other) }
         return filters
     }
 

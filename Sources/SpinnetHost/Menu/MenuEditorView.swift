@@ -124,7 +124,7 @@ struct MenuEditorView: View {
         .accessibilityLabel(localized("Menu"))
     }
 
-    /// All, each Plugin Tag present among installed Plugins, and Other.
+    /// All, then each Plugin Tag present among installed Plugins.
     private var libraryFilterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
@@ -184,7 +184,17 @@ struct MenuEditorView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(preset.name).font(.headline)
+                HStack(spacing: 6) {
+                    Text(preset.name).font(.headline)
+                    ForEach(preset.tags, id: \.self) { tag in
+                        Text(LibraryFilter.tag(tag).title)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .foregroundStyle(.secondary)
+                            .background(Capsule().fill(Color.secondary.opacity(0.14)))
+                    }
+                }
                 Text(preset.commands.map(\.title).joined(separator: " · "))
                     .font(.caption)
                     .foregroundStyle(.secondary)

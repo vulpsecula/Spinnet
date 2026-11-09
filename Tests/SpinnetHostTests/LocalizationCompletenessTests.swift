@@ -82,7 +82,7 @@ final class LocalizationCompletenessTests: XCTestCase {
             + [MenuAppearanceConfiguration.MenuFont.system.rawValue]
             + ClipboardRetention.allCases.map(\.rawValue)
         english += OfficialPlugin.all.map(\.summaryKey)
-        english += PluginTag.allCases.map(\.title) + [LibraryFilter.all.englishTitle, LibraryFilter.other.englishTitle]
+        english += PluginTag.allCases.map(\.title) + [LibraryFilter.all.englishTitle]
         for text in english {
             XCTAssertNotNil(catalog[text] ?? nil, "\"\(text)\" has no zh-Hans translation")
         }

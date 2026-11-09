@@ -4,9 +4,9 @@ import SpinnetTestSupport
 import XCTest
 @testable import SpinnetHost
 
-/// The Library filters its Menu Item Presets by Plugin Tag: All, each
-/// vocabulary tag an installed Plugin declares, and Other for Plugins with
-/// none; Refused Plugins stay listed whatever the filter.
+/// The Library filters its Menu Item Presets by Plugin Tag: All, then each
+/// vocabulary tag an installed Plugin declares; a Plugin with none is listed
+/// under All only. Refused Plugins stay listed whatever the filter.
 final class LibraryTagFilterTests: XCTestCase {
     override class func setUp() {
         super.setUp()
@@ -42,9 +42,9 @@ final class LibraryTagFilterTests: XCTestCase {
         try install("Notes", tags: ["text", "later-tag"])
     }
 
-    func testTheLibraryOffersAllThenEachPresentVocabularyTagInVocabularyOrderThenOther() throws {
+    func testTheLibraryOffersAllThenEachPresentVocabularyTagInVocabularyOrder() throws {
         try installMixedLibrary()
-        XCTAssertEqual(try model().libraryFilters, [.all, .tag(.window), .tag(.media), .tag(.apps), .tag(.text), .other])
+        XCTAssertEqual(try model().libraryFilters, [.all, .tag(.window), .tag(.media), .tag(.apps), .tag(.text)])
     }
 
     func testAPluginWithSeveralTagsAppearsUnderEach() throws {
@@ -55,21 +55,23 @@ final class LibraryTagFilterTests: XCTestCase {
         XCTAssertEqual(names(model, .tag(.media)), ["Player"])
     }
 
-    /// No installed Plugin is hidden: All lists every Preset, and Other
-    /// lists those without a vocabulary tag, including ones whose only tags
-    /// are unknown to this Host.
-    func testAllListsEveryPresetAndOtherListsThoseWithoutAVocabularyTag() throws {
+    /// No installed Plugin is hidden: All lists every Preset, including
+    /// those without a vocabulary tag, which no tag filter lists.
+    func testAllListsEveryPresetAndUntaggedPresetsOnlyThere() throws {
         try installMixedLibrary()
         let model = try model()
         XCTAssertEqual(names(model, .all), ["Future", "Notes", "Player", "Scratch", "Tiler"])
-        XCTAssertEqual(names(model, .other), ["Future", "Scratch"])
+        for filter in model.libraryFilters where filter != .all {
+            XCTAssertFalse(names(model, filter).contains("Scratch"), "\(filter)")
+            XCTAssertFalse(names(model, filter).contains("Future"), "\(filter)")
+        }
         XCTAssertEqual(names(model, .tag(.text)), ["Notes"], "An unknown tag beside a known one files it under the known one")
     }
 
     func testAnUnknownTagIsNotAFilter() throws {
         try install("Future", tags: ["spatial-audio"])
         try install("Tiler", tags: ["window"])
-        XCTAssertEqual(try model().libraryFilters, [.all, .tag(.window), .other])
+        XCTAssertEqual(try model().libraryFilters, [.all, .tag(.window)])
     }
 
     func testTheFilterNarrowsTheSearchResults() throws {
@@ -77,12 +79,6 @@ final class LibraryTagFilterTests: XCTestCase {
         let model = try model()
         XCTAssertEqual(names(model, .tag(.window), matching: "run"), ["Tiler"])
         XCTAssertEqual(names(model, .tag(.media), matching: "tiler"), [])
-    }
-
-    func testOtherIsOfferedOnlyWhenSomePluginDeclaresNoVocabularyTag() throws {
-        try install("Tiler", tags: ["window"])
-        try install("Player", tags: ["media"])
-        XCTAssertEqual(try model().libraryFilters, [.all, .tag(.window), .tag(.media)])
     }
 
     /// Without any vocabulary tag the filters would only repeat the list.
@@ -116,6 +112,5 @@ final class LibraryTagFilterTests: XCTestCase {
     func testEachTagFilterIsTitledInTheInterfaceLanguage() {
         XCTAssertEqual(LibraryFilter.tag(.window).englishTitle, "Window")
         XCTAssertEqual(LibraryFilter.all.englishTitle, "All")
-        XCTAssertEqual(LibraryFilter.other.englishTitle, "Other")
     }
 }
