@@ -726,9 +726,8 @@ final class EditorModeMenuTests: XCTestCase {
     func testEditorContextMenuRequestsDeletionForAnOccupiedSlot() throws {
         let editor = try makeEditor()
         try editor.addEmptySlot()
-        let slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
-            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-        }
+        let slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration,
+                                                      plugins: editor.installedPlugins)
         let view = RadialMenuView(slots: slots, mode: .editor)
         let window = NSWindow(
             contentRect: view.bounds,
@@ -757,7 +756,7 @@ final class EditorModeMenuTests: XCTestCase {
         let menu = try XCTUnwrap(view.menu(for: event))
 
         XCTAssertEqual(selectedIndex, 0)
-        XCTAssertTrue(menu.items.contains { $0.title == "Slot 1 — Open URL" })
+        XCTAssertTrue(menu.items.contains { $0.title == "Slot 1 — Fixture" })
         XCTAssertTrue(menu.items.contains { $0.title == "Primary Action: Open URL" })
         XCTAssertTrue(menu.items.contains { $0.title == "Edit Slot…" })
         XCTAssertFalse(menu.items.contains { $0.title == "Move to Slot" })
@@ -776,9 +775,8 @@ final class EditorModeMenuTests: XCTestCase {
     func testSlotsCannotBeDeletedWhereTheEditorDoesNotArrangeThem() throws {
         let editor = try makeEditor()
         try editor.addEmptySlot()
-        let slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration) {
-            editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-        }
+        let slots = MenuPresentationFactory.makeSlots(configuration: editor.configuration,
+                                                      plugins: editor.installedPlugins)
         let view = RadialMenuView(slots: slots, mode: .editor)
         view.updateEditorSlots(slots.map { EditorMenuSlot(id: UUID(), presentation: $0) },
                                appearance: MenuAppearanceConfiguration(), allowsArrangement: false)
@@ -799,15 +797,9 @@ final class EditorModeMenuTests: XCTestCase {
 
     func testMenuSlotTitleFollowsPresetUntilItIsRenamed() throws {
         let editor = try makeEditor()
-        let presetName: (PluginID) -> String? = { pluginID in
-            editor.pluginManifests.first { $0.id == pluginID }?.name
-        }
         var slots = MenuPresentationFactory.makeSlots(
             configuration: editor.configuration,
-            availability: {
-                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-            },
-            presetName: presetName
+            plugins: editor.installedPlugins
         )
         XCTAssertEqual(slots[0].title, "Fixture")
 
@@ -820,30 +812,21 @@ final class EditorModeMenuTests: XCTestCase {
         )
         slots = MenuPresentationFactory.makeSlots(
             configuration: editor.configuration,
-            availability: {
-                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-            },
-            presetName: presetName
+            plugins: editor.installedPlugins
         )
         XCTAssertEqual(slots[0].title, "Fixture")
 
         try editor.renameMenuItem(at: 0, name: "Research")
         slots = MenuPresentationFactory.makeSlots(
             configuration: editor.configuration,
-            availability: {
-                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-            },
-            presetName: presetName
+            plugins: editor.installedPlugins
         )
         XCTAssertEqual(slots[0].title, "Research")
 
         try editor.renameMenuItem(at: 0, name: nil)
         slots = MenuPresentationFactory.makeSlots(
             configuration: editor.configuration,
-            availability: {
-                editor.availability(for: $0.id) ?? .unavailable(.commandMissing)
-            },
-            presetName: presetName
+            plugins: editor.installedPlugins
         )
         XCTAssertEqual(slots[0].title, "Fixture")
     }

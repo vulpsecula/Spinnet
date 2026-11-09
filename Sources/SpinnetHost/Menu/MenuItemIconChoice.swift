@@ -21,21 +21,17 @@ struct MenuItemIconChoice: Equatable {
         let slots = editor.configuration.menu.slots(for: app)
         let item = slots.indices.contains(slotIndex) ? slots[slotIndex].item : nil
         let primary = item.flatMap { item in editor.configuration.actions.first { $0.id == item.primaryActionID } }
+        let plugins = editor.installedPlugins
         let pluginID = primary?.pluginID ?? presetPluginID
-        let manifest = pluginID.flatMap { id in editor.pluginManifests.first { $0.id == id } }
-        let packageRoot = pluginID.flatMap { editor.packageRoot(for: $0) }
         ownIcon = item?.icon
         defaultIcon = MenuItemIcon.resolve(
-            commandIcon: primary.flatMap { action in manifest?.command(action.commandID)?.icon },
-            pluginIcon: manifest?.icon,
-            packageRoot: packageRoot,
-            primaryAvailability: primary.flatMap { editor.availability(for: $0.id) } ?? .unavailable(.commandMissing)
+            command: primary?.commandID, of: pluginID, in: plugins,
+            availability: primary.map(plugins.availability(of:)) ?? .unavailable(.commandMissing)
         )
         var commandIcons: [CommandID: MenuItemIcon] = [:]
-        for command in manifest?.commands ?? [] {
+        for command in pluginID.flatMap(plugins.manifest)?.commands ?? [] {
             commandIcons[command.id] = MenuItemIcon.resolve(
-                commandIcon: command.icon, pluginIcon: manifest?.icon, packageRoot: packageRoot,
-                primaryAvailability: .available
+                command: command.id, of: pluginID, in: plugins, availability: .available
             )
         }
         self.commandIcons = commandIcons

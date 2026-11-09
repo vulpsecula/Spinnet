@@ -356,7 +356,7 @@ final class MenuEditorModelTests: XCTestCase {
 
     func testTheRemovalConfirmationNamesTheSlotsWhoseMenuItemsUseThePlugin() throws {
         let model = try makeModel()
-        let used = try XCTUnwrap(model.editor.menuItemPresets.first { $0.pluginID == PluginID("com.spinnet.fixture") })
+        let used = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first { $0.pluginID == PluginID("com.spinnet.fixture") })
 
         model.requestPluginRemoval(used)
 
@@ -370,7 +370,7 @@ final class MenuEditorModelTests: XCTestCase {
     func testTheRemovalConfirmationListsEverySlotThatUsesThePlugin() throws {
         let model = try makeModel()
         XCTAssertTrue(model.placePreset(pluginID: "com.spinnet.fixture", at: 2))
-        let used = try XCTUnwrap(model.editor.menuItemPresets.first { $0.pluginID == PluginID("com.spinnet.fixture") })
+        let used = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first { $0.pluginID == PluginID("com.spinnet.fixture") })
 
         model.requestPluginRemoval(used)
 

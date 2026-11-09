@@ -38,7 +38,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertEqual(
             model.menuEditor.pendingPresetSetup,
             PendingPresetSetup(
-                pluginID: applicationPreset.manifest.id.rawValue,
+                pluginID: applicationPreset.manifest.id,
                 slotIndex: 0,
                 replacing: false
             )
@@ -161,7 +161,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         var removed: [PluginID] = []
         model.menuEditor.removePlugin = { removed.append($0) }
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first)
         let menuBefore = model.editor.configuration.menu
 
         model.menuEditor.requestPluginRemoval(preset)
@@ -179,7 +179,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
         var removed: [PluginID] = []
         model.menuEditor.removePlugin = { removed.append($0) }
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first)
 
         model.menuEditor.requestPluginRemoval(preset)
         model.menuEditor.cancelPluginRemoval()
@@ -191,7 +191,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
 
     func testRemovalPassesTheChosenDataPolicyToTheInstaller() throws {
         let model = SettingsWindowModel(editor: try makeEditor(), metadata: .current)
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first)
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first)
         var choices: [Bool] = []
         model.menuEditor.removePluginKeepingData = { id, keep in
             XCTAssertEqual(id, preset.pluginID)
@@ -217,7 +217,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         )
         var removed: [PluginID] = []
         model.menuEditor.removePlugin = { removed.append($0) }
-        let openURL = try XCTUnwrap(model.editor.menuItemPresets.first { $0.name == "Open URL" })
+        let openURL = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first { $0.name == "Open URL" })
 
         model.menuEditor.requestPluginRemoval(openURL)
         model.menuEditor.confirmPluginRemoval()
@@ -362,7 +362,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertEqual(transformAction.input, .null)
         let runtimeSlots = MenuPresentationFactory.makeSlots(
             configuration: model.editor.configuration,
-            availability: { _ in .available }
+            plugins: model.editor.installedPlugins
         )
         XCTAssertEqual(runtimeSlots[1].item?.primaryAction.title, "Open URL")
         XCTAssertEqual(runtimeSlots[1].item?.alternateActions.map(\.title), ["Transform Text"])
@@ -464,7 +464,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         XCTAssertEqual(model.editor.configuration, originalConfiguration)
         XCTAssertEqual(
             model.menuEditor.presetPendingReplacement,
-            PendingPresetReplacement(pluginID: "com.spinnet.fixture", slotIndex: 0)
+            PendingPresetReplacement(pluginID: PluginID("com.spinnet.fixture"), slotIndex: 0)
         )
 
         model.menuEditor.confirmPresetReplacement()
@@ -611,7 +611,7 @@ final class MenuEditorWorkflowTests: XCTestCase {
         )
         let runtimeSlots = MenuPresentationFactory.makeSlots(
             configuration: restartedConfiguration,
-            availability: { _ in .available }
+            plugins: model.editor.installedPlugins
         )
         XCTAssertEqual(runtimeSlots[0].item?.primaryAction.title, "Primary")
         XCTAssertEqual(runtimeSlots[0].item?.alternateActions.map(\.title), ["Alternate"])

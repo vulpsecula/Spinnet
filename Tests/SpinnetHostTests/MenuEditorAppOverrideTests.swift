@@ -182,7 +182,7 @@ final class MenuEditorAppOverrideTests: XCTestCase {
         model.addApp(bundleIdentifier: "com.apple.finder", name: "Finder")
         XCTAssertTrue(model.placePreset(pluginID: other, at: 1))
         XCTAssertTrue(model.placePreset(pluginID: other, at: 2))
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first { $0.id == other })
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first { $0.id == other })
 
         model.requestPluginRemoval(preset)
 
@@ -197,7 +197,7 @@ final class MenuEditorAppOverrideTests: XCTestCase {
         let model = try makeModel()
         model.addApp(bundleIdentifier: "com.apple.Safari", name: "Safari")
         XCTAssertTrue(model.placePreset(pluginID: fixture, at: 1))
-        let preset = try XCTUnwrap(model.editor.menuItemPresets.first { $0.id == fixture })
+        let preset = try XCTUnwrap(model.editor.installedPlugins.menuItemPresets.first { $0.id == fixture })
 
         model.requestPluginRemoval(preset)
 

@@ -38,19 +38,24 @@ final class CommandDescriptionPresentationTests: XCTestCase {
     /// The description comes from the Command registered now, so Actions
     /// configured before a Plugin described its Commands still show one.
     func testSlotsTakeDescriptionsFromTheRegisteredCommand() throws {
-        let command = CommandDeclaration(id: CommandID("run"), title: "Run", execution: .javascript,
-                                         isConfigurable: false, script: "run.js")
-        let action = try ActionConfiguration(id: ActionID("run"), pluginID: PluginID("com.example.described"),
-                                             command: command, input: .null)
+        let saved = CommandDeclaration(id: CommandID("run"), title: "Run", execution: .javascript,
+                                       isConfigurable: false, script: "run.js")
+        let described = CommandDeclaration(id: CommandID("run"), title: "Run", execution: .javascript,
+                                           isConfigurable: false, script: "run.js", explanation: "Runs the example.")
+        let pluginID = PluginID("com.example.described")
+        let registry = PluginRegistry()
+        try registry.register(PluginPackage(rootURL: URL(fileURLWithPath: "/tmp/described.spinnetplugin"), manifest: PluginManifest(
+            id: pluginID, name: "Described", version: "1.0.0", commands: [described],
+            preset: MenuItemPresetDeclaration(readiness: .readyToUse, isConfigurable: false))))
+        let action = try ActionConfiguration(id: ActionID("run"), pluginID: pluginID, command: saved, input: .null)
         let configuration = try HostConfiguration(
             actions: [action],
             menu: MenuConfiguration(slots: [.occupied(MenuItemConfiguration(primaryActionID: action.id))])
         )
-        let slots = MenuPresentationFactory.makeSlots(
-            configuration: configuration,
-            availability: { _ in .available },
-            explanation: { $0.commandID == command.id ? "Runs the example." : nil }
-        )
+        let slots = MenuPresentationFactory.makeSlots(configuration: configuration,
+                                                      plugins: InstalledPlugins(registry: registry))
         XCTAssertEqual(slots[0].item?.primaryAction.explanation, "Runs the example.")
+        XCTAssertTrue(try XCTUnwrap(slots[0].item).primaryAction.isAvailable,
+                      "A description is display-only, so the saved Action still matches its Command")
     }
 }

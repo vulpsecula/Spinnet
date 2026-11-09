@@ -60,27 +60,9 @@ public final class HostConfigurationEditor {
         self.resourceAvailability = resourceAvailability
     }
 
-    public var availableCommands: [AvailableCommand] {
-        registry.availableCommands()
-    }
-
-    public var menuItemPresets: [MenuItemPreset] {
-        registry.menuItemPresets()
-    }
-
-    /// The installed package of `pluginID`, which its icon pictures are
-    /// read from.
-    public func packageRoot(for pluginID: PluginID) -> URL? {
-        registry.package(for: pluginID)?.rootURL
-    }
-
-    public var pluginManifests: [PluginManifest] {
-        registry.manifests()
-    }
-
-    /// The Refused Plugins, which the Library lists but offers no Preset of.
-    public var refusedPlugins: [RefusedPlugin] {
-        registry.refusedPlugins()
+    /// The installed Plugins, looked up with this editor's resource check.
+    public var installedPlugins: InstalledPlugins {
+        InstalledPlugins(registry: registry, resourceAvailability: resourceAvailability)
     }
 
     public func availability(for actionID: ActionID) -> ActionAvailability? {

@@ -7,12 +7,12 @@ import SpinnetCore
 import UniformTypeIdentifiers
 
 struct PendingPresetReplacement: Equatable {
-    let pluginID: String
+    let pluginID: PluginID
     let slotIndex: Int
 }
 
 struct PendingPresetSetup: Equatable {
-    let pluginID: String
+    let pluginID: PluginID
     let slotIndex: Int
     let replacing: Bool
     /// Set when the setup is for a Slot the drop added, which goes again if
@@ -299,7 +299,7 @@ final class SettingsWindowModel: ObservableObject {
         menuEditor = MenuEditorModel(editor: editor)
         privacy = PrivacyPermissionsModel(
             grantStore: capabilityGrantStore,
-            manifests: { [editor] in editor.pluginManifests },
+            manifests: { [editor] in editor.installedPlugins.manifests },
             accessibilityPermissionCheck: accessibilityPermissionCheck,
             defaults: defaults,
             backgroundOperationsRequest: HostBackgroundOperationsStatus.requestCurrent
@@ -308,23 +308,23 @@ final class SettingsWindowModel: ObservableObject {
         appearance = MenuAppearanceModel(defaults: defaults)
         clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
         screenshots = ScreenshotSettingsModel(defaults: defaults)
-        pluginData = PluginDataManagementModel(manifests: { [editor] in editor.pluginManifests },
-                                               refused: { [editor] in editor.refusedPlugins })
+        pluginData = PluginDataManagementModel(manifests: { [editor] in editor.installedPlugins.manifests },
+                                               refused: { [editor] in editor.installedPlugins.refusedPlugins })
         // A refused Plugin can be updated too, to a version this Host runs.
         pluginUpdates = PluginUpdatesModel(manifests: { [editor] in
-            editor.pluginManifests + editor.refusedPlugins.compactMap(\.manifest)
+            let installed = editor.installedPlugins
+            return installed.manifests + installed.refusedPlugins.compactMap(\.manifest)
         }, defaults: defaults)
         pluginUpdates.startUpdate = { [weak menuEditor] in menuEditor?.installPluginUpdate($0) }
         spinnetReleases = SpinnetReleaseChecksModel(defaults: defaults)
         // A Refused Plugin is installed too.
         welcomeGuide = WelcomeGuideModel(defaults: defaults, hasInstalledPlugins: { [editor] in
-            !editor.pluginManifests.isEmpty || !editor.refusedPlugins.isEmpty
+            !editor.installedPlugins.isEmpty
         })
+        let isInstalled: (PluginID) -> Bool = { [editor] in editor.installedPlugins.isInstalled($0) }
         // Official Plugins install through the Library's review and install.
         officialPlugins = OfficialPluginInstallModel(
-            isInstalled: { [editor] id in
-                editor.pluginManifests.contains { $0.id == id } || editor.refusedPlugins.contains { $0.id == id }
-            },
+            isInstalled: isInstalled,
             review: { [weak menuEditor] url in
                 guard let review = menuEditor?.reviewPluginInstallation else { throw CocoaError(.featureUnsupported) }
                 return try review(url)
@@ -332,9 +332,7 @@ final class SettingsWindowModel: ObservableObject {
             install: { [weak menuEditor] in try menuEditor?.installReviewed($0) })
         pluginRepositories = PluginRepositoryModel(
             defaults: defaults,
-            isInstalled: { [editor] id in
-                editor.pluginManifests.contains { $0.id == id } || editor.refusedPlugins.contains { $0.id == id }
-            },
+            isInstalled: isInstalled,
             review: { [weak menuEditor] url in
                 guard let review = menuEditor?.reviewPluginInstallation else { throw CocoaError(.featureUnsupported) }
                 return try review(url)
@@ -432,7 +430,7 @@ final class SettingsWindowModel: ObservableObject {
     }
 
     private func prepareConnections(for pluginID: PluginID, completion: @escaping (Bool) -> Void) -> Bool {
-        guard let manifest = editor.pluginManifests.first(where: { $0.id == pluginID }),
+        guard let manifest = editor.installedPlugins.manifest(pluginID),
               !manifest.externalAppConnections.isEmpty,
               let model = privacy.connectionSettings?(pluginID) else { return false }
         let presetCommands = Set([manifest.preset.defaultPrimaryCommandID ?? manifest.commands[0].id] + manifest.preset.defaultAlternateCommandIDs)
@@ -511,12 +509,13 @@ final class SettingsWindowModel: ObservableObject {
         if page.showsEditorMode { names.append(localized("Editor Mode")) }
         names.append(contentsOf: page.contentAccessibilityNames(metadata: metadata))
         if page == .menu {
-            names.append(contentsOf: editor.menuItemPresets.map(\.localizedAccessibilityLabel))
+            let presets = editor.installedPlugins.menuItemPresets
+            names.append(contentsOf: presets.map(\.localizedAccessibilityLabel))
             let slots = menuEditor.editedSlots
             let selectedSlotIsEmpty = slots.indices.contains(menuEditor.selectedMenuIndex)
                 && slots[menuEditor.selectedMenuIndex].item == nil
             if selectedSlotIsEmpty {
-                for preset in editor.menuItemPresets {
+                for preset in presets {
                     names.append(localized("Add \(preset.name) to selected Slot"))
                 }
             }
@@ -1118,7 +1117,7 @@ struct SettingsRootView: View {
                     editor: model.editor,
                     app: menuEditor.editedAppID,
                     slotIndex: index,
-                    presetPluginID: menuEditor.pendingPresetSetup.map { PluginID($0.pluginID) },
+                    presetPluginID: menuEditor.pendingPresetSetup?.pluginID,
                     permissionModel: privacy,
                     onSaved: model.saveMenuItem,
                     credentialStore: model.credentialStore,
@@ -2062,9 +2061,7 @@ private struct SlotConfigurationSheet: View {
             editor.configuration.actions.first(where: { $0.id == item.primaryActionID })
         }
         let pluginID = presetPluginID ?? primaryAction?.pluginID
-        let pluginManifest = pluginID.flatMap { id in
-            editor.pluginManifests.first { $0.id == id }
-        }
+        let pluginManifest = pluginID.flatMap(editor.installedPlugins.manifest)
         let commands = pluginManifest?.commands ?? []
         guard let pluginManifest, let pluginID, !commands.isEmpty else {
             return InitialState(
