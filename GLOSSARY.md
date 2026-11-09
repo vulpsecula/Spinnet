@@ -212,6 +212,10 @@ _Avoid_: Table, results list, data source
 The positions of a Collection currently held by the Host around the visible region. Unheld positions appear as placeholders until the Plugin supplies the requested range.
 _Avoid_: Page of results, batch, cache
 
+**Collection Selection**:
+The items of a Collection the user has selected, one of them focused, kept by item ID across answers as part of the Collection's Immediate State. A Collection selects one item unless it declares multiple selection; the Host owns how gestures change it and tells the Plugin where it settled only when the Collection asks.
+_Avoid_: Highlight, checked items (an Item Mark), selected text
+
 **Immediate State**:
 The Host-held editing and navigation state of a View Component, including composition, caret, focus, selection and scroll. It is distinct from Plugin business state and follows component identity and explicit reset.
 _Avoid_: UI state, view state, draft
@@ -406,6 +410,7 @@ The Chinese for each term, chosen once for the interface's 简体中文. Host-ow
 | Image Source | 图像来源 |
 | Collection | 集合 |
 | Collection Window | 集合窗口 |
+| Collection Selection | 集合选择 |
 | Immediate State | 即时状态 |
 | View Event | 视图事件 |
 | Explicit Call | 显式调用 |

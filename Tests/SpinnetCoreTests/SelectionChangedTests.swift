@@ -43,7 +43,7 @@ final class SelectionChangedTests: XCTestCase {
         var memory = PluginPageMemory()
         memory.show(try parse(Self.page(list: ["selection": .string("multiple"), "selection_events": .bool(true)])))
         memory.select("d")
-        memory.toggleSelection(of: "b")
+        memory.click(at: 1, modifier: .command)
         let event = try XCTUnwrap(memory.selectionChangedEvent)
         XCTAssertEqual(event, .selectionChanged(page: "clips", collection: "results", items: [
             PluginPageItemSnapshot(id: "b", section: nil, text: "text b"),

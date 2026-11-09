@@ -526,8 +526,10 @@ For a multiple collection, `commandClick(_:)`, `shiftClick(_:)`,
 `extendSelection(_:)` and `selectAll()` change the selection as the Host
 does, `selectedItems` lists it in collection order, and Return,
 `doubleClick(_:)`, `choose(itemAction:on:)` and `copySelection()` act on the
-whole selection; `menu(of:)` on a selected item lists the selection's menu,
-a single item action read "title (unavailable)" while several are selected.
+whole selection; `menu(of:)` on an item of a selection of several items
+lists the selection's menu, a single item action read "title (unavailable)".
+The kit handles these gestures through the same page memory as the Host, so
+`doubleClick(_:)` is the Host's click then second click.
 For a collection with `selection_events`, each gesture that moves the
 selection (`select(_:)`, `press(_:)`, the gestures above and the selection a
 double-click or context menu makes) stands for a settled selection and

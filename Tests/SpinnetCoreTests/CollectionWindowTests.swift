@@ -103,7 +103,7 @@ final class CollectionWindowTests: XCTestCase {
     func testASelectionOnAPlaceholderTakesItsItemWhenItComes() throws {
         var memory = PluginPageMemory()
         memory.show(try Self.page(total: 1906))
-        XCTAssertEqual(memory.moveSelection(.end), 1905)
+        XCTAssertEqual(memory.press(.end)?.reveal, 1905)
         XCTAssertNil(memory.selectedItem, "Nothing to act on yet")
         XCTAssertEqual(memory.selection, .object(["results": .null]))
         memory.setViewport(1864..<1906)

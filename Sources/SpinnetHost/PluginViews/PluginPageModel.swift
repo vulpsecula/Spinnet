@@ -42,13 +42,7 @@ final class PluginPageModel: ObservableObject {
     }
 
     /// The modifier a click in the collection carries.
-    enum ClickModifier: Equatable {
-        case none
-        /// ⌘-click: adds the item to a multiple collection's selection or removes it.
-        case command
-        /// Shift-click: selects the range from the anchor to the item.
-        case shift
-    }
+    typealias ClickModifier = PluginPageMemory.ClickModifier
 
     let activityList: HostActivityListModel
     func setActivityListVisible(_ visible: Bool) { activityList.setVisible(visible) }
@@ -92,10 +86,6 @@ final class PluginPageModel: ObservableObject {
     private(set) var memory = PluginPageMemory()
     /// Text fields with an open input-method composition.
     private(set) var composing: Set<String> = []
-    /// A plain click that reduced a multiple collection's selection to one
-    /// of its items: the selection it had, which the double-click that may
-    /// follow acts on.
-    private var selectionBeforeClick: (position: Int, items: Set<String>, anchor: String?)?
     /// The `load_range` the Host sent last and has not settled, with the
     /// collection's layout it was asked under.
     private var requestedRange: (range: Range<Int>, layout: Int)?
@@ -122,13 +112,8 @@ final class PluginPageModel: ObservableObject {
     private struct WeakFocusTarget {
         weak var view: PluginPageFocusTarget?
     }
-    /// The selected items' IDs the Plugin last knew of, for a Collection
-    /// declaring `selection_events`: what an answer left, or the last
-    /// `selection_changed` sent (ADR 0025).
-    private var knownSelection: [String] = []
-    /// A change the user made to the selection, still settling: the page
-    /// and Collection it was made in, and which change it is.
-    private var settlingSelection: (page: String, collection: String, serial: Int)?
+    /// Counts the user's changes to the selection, so only the pause after
+    /// the last one settles it.
     private var selectionSerial = 0
     /// Whether an arrow, Page or Home/End key is held down, so the
     /// selection it moves has not settled yet.
@@ -193,11 +178,11 @@ final class PluginPageModel: ObservableObject {
         let answersRange: Bool
         if case .loadRange? = session.answeredEvent { answersRange = true } else { answersRange = false }
         let selectedBefore = memory.selectedPosition
-        let waitedForItem = memory.selectedPosition != nil && memory.selectedItem == nil
-        let itemsBefore = memory.selectedItems.map(\.id)
         let applied = memory.show(next, composing: composing, answersRange: answersRange)
         page = next
-        reconcileSettlingSelection(before: itemsBefore, waitedForItem: waitedForItem, applied: applied)
+        // A selection the user made that waited for its item settles once
+        // the item comes.
+        if applied.selectionSettlesAgain { scheduleSelectionSettle(selectionSerial) }
         activityList.setAvailable(next.components.contains { if case .activityList = $0 { return true }; return false })
         let textFields = next.components.filter(\.kind.holdsText).map(\.id)
         for field in textFields where applied.renewed.contains(field) {
@@ -377,11 +362,8 @@ final class PluginPageModel: ObservableObject {
     /// whose item the Host does not hold yet is asked for.
     @discardableResult
     func moveSelection(_ move: PluginPageCollection.Move) -> Bool {
-        let before = memory.selectedPosition
-        let wasGroup = memory.selectedItems.count > 1
-        guard let position = memory.moveSelection(move) else { return false }
-        selectionMoved(from: before, to: position, redrawingAll: wasGroup)
-        userChangedSelection()
+        guard let handled = memory.press(move) else { return false }
+        handle(handled)
         return true
     }
 
@@ -390,11 +372,8 @@ final class PluginPageModel: ObservableObject {
     /// focus. In a single collection the key moves the selection.
     @discardableResult
     func extendSelection(_ move: PluginPageCollection.Move) -> Bool {
-        guard memory.selectsMultiple else { return moveSelection(move) }
-        let before = memory.selectedPosition
-        guard let position = memory.extendSelection(move) else { return false }
-        selectionMoved(from: before, to: position, redrawingAll: true)
-        userChangedSelection()
+        guard let handled = memory.press(move, extending: true) else { return false }
+        handle(handled)
         return true
     }
 
@@ -402,28 +381,11 @@ final class PluginPageModel: ObservableObject {
     /// single collection, which has nothing to select all of.
     @discardableResult
     func selectAll() -> Bool {
-        guard memory.selectsMultiple else { return false }
-        memory.selectAll()
-        collectionDisplay?.selectionChanged()
-        userChangedSelection()
+        guard let handled = memory.selectAll() else { return false }
+        handle(handled)
         return true
     }
 
-    private func selectionMoved(from before: Int?, to position: Int, redrawingAll: Bool = false) {
-        if redrawingAll { collectionDisplay?.selectionChanged() } else { collectionDisplay?.selectionMoved(from: before, to: position) }
-        requestScroll(to: position, atTop: false)
-        if collectionDisplay == nil, let window = memory.window, let viewport = memory.state.viewports[collection?.id ?? ""],
-           !viewport.contains(position) {
-            // Nothing draws the collection: the selection's row is on screen.
-            let row = position / window.columns * window.columns
-            let first = position < viewport.lowerBound ? row : max(row - (window.rows - 1) * window.columns, 0)
-            viewportChanged(first..<min(first + window.screen, window.total))
-        }
-        requestRangeIfNeeded()
-    }
-
-    /// Whether `field` searches the page's collection, so Up, Down and
-    /// Return act on it.
     /// An arrow key in a text field, with no modifier and no input-method
     /// composition. A field searching the page's collection moves its
     /// selection with Up and Down, and, searching a Grid, with Left and
@@ -439,54 +401,40 @@ final class PluginPageModel: ObservableObject {
         }
     }
 
-    func searchesCollection(_ field: String) -> Bool {
-        guard case .textField(let declared)? = page.component(field) else { return false }
-        return declared.collection != nil && declared.collection == collection?.id
-    }
+    /// Whether `field` searches the page's collection, so Up, Down and
+    /// Return act on it.
+    func searchesCollection(_ field: String) -> Bool { memory.searches(field) }
 
     /// Return in a text field. In a search field it performs the default
     /// item action on the selection once the answer to the typing before it
     /// has come (C1); in another field it sends `submitted`.
     func returnPressed(in field: String) {
         let shown = shownTarget()
-        guard searchesCollection(field) else {
-            settleSelectionNow()
-            session.send(.pageSubmitted(page: page.id, field: field, values: memory.values, selection: memory.selection),
-                         insertionTarget: shown)
-            return
-        }
-        if session.hasPendingFieldChange {
+        if searchesCollection(field), session.hasPendingFieldChange {
             pendingReturn = shown
             session.flushFieldChanges()
             return
         }
-        performDefaultOnSelection(shown: shown)
+        handle(memory.pressReturn(in: field), shown: shown)
     }
 
     /// Return in the collection.
-    func returnPressedInCollection() { performDefaultOnSelection(shown: shownTarget()) }
+    func returnPressedInCollection() { handle(memory.pressReturn(), shown: shownTarget()) }
 
     private func settlePendingReturn() {
         guard let shown = pendingReturn, !session.hasPendingFieldChange else { return }
         pendingReturn = nil
         // A search that failed gives nothing to act on.
         if let failed = session.errorEvent, failed.coalesces { return }
-        performDefaultOnSelection(shown: shown)
-    }
-
-    /// The default item action on the selection; nothing while the
-    /// selection waits for its item.
-    private func performDefaultOnSelection(shown: InsertionTargetCapture) {
-        guard let action = collection?.defaultAction else { return }
-        perform(action, shown: shown)
+        handle(memory.pressReturn(), shown: shown)
     }
 
     /// ⌘C with the collection focused: the sole `clipboard.write` item
     /// action, on every selected item of a multiple collection, their texts
     /// one per line.
     func copySelection() -> Bool {
-        guard let copy = collection?.copyAction, memory.isAvailable(copy) else { return false }
-        perform(copy, shown: shownTarget())
+        guard let handled = memory.copySelection() else { return false }
+        handle(handled, shown: shownTarget())
         return true
     }
 
@@ -518,30 +466,7 @@ final class PluginPageModel: ObservableObject {
     /// multiple collection ⌘ adds or removes the item and Shift selects the
     /// range from the anchor; in a single one a modifier changes nothing.
     func click(at position: Int, modifier: ClickModifier = .none) {
-        guard let window = memory.window, (0..<window.total).contains(position) else { return }
-        let before = memory.selectedPosition
-        selectionBeforeClick = nil
-        if memory.selectsMultiple, let item = window.item(at: position) {
-            switch modifier {
-            case .command:
-                memory.toggleSelection(of: item.id)
-            case .shift:
-                memory.extendSelection(to: item.id)
-            case .none:
-                if memory.selectedItems.count > 1, memory.isSelected(position), let id = collection?.id {
-                    selectionBeforeClick = (position, memory.state.groupSelections[id] ?? [], memory.state.selectionAnchors[id])
-                }
-                memory.select(position: position)
-            }
-            if let collection { requestFocus(collection.id) }
-            collectionDisplay?.selectionChanged()
-        } else {
-            memory.select(position: position)
-            if let collection { requestFocus(collection.id) }
-            collectionDisplay?.selectionMoved(from: before, to: position)
-        }
-        requestRangeIfNeeded()
-        userChangedSelection()
+        handle(memory.click(at: position, modifier: modifier))
     }
 
     func click(_ item: String, modifier: ClickModifier) {
@@ -558,30 +483,14 @@ final class PluginPageModel: ObservableObject {
     /// item: the default item action runs on it, or, when the first click
     /// reduced a multiple collection's selection to it, on that selection.
     func doubleClick(at position: Int) {
-        if let before = selectionBeforeClick, before.position == position, let id = collection?.id,
-           let item = memory.window?.item(at: position) {
-            memory.state.groupSelections[id] = before.items
-            memory.state.selectionAnchors[id] = before.anchor
-            memory.focusWithinSelection(item.id)
-            collectionDisplay?.selectionChanged()
-            userChangedSelection()
-        } else if !memory.isSelected(position) || memory.selectedPosition != position {
-            click(at: position)
-        }
-        selectionBeforeClick = nil
-        guard let action = collection?.defaultAction else { return }
-        perform(action, shown: shownTarget())
+        handle(memory.doubleClick(at: position), shown: shownTarget())
     }
 
     /// A right click on the cell at `position`: within a multiple
     /// collection's selection it keeps the selection and focuses the item;
     /// elsewhere it selects the item, as a click does.
     func rightClick(at position: Int) {
-        guard let item = memory.window?.item(at: position) else { return click(at: position) }
-        guard memory.selectsMultiple, memory.isSelected(position) else { return click(at: position) }
-        memory.focusWithinSelection(item.id)
-        if let collection { requestFocus(collection.id) }
-        collectionDisplay?.selectionChanged()
+        handle(memory.rightClick(at: position))
     }
 
     /// What `item`'s context menu offers: the default first.
@@ -601,28 +510,23 @@ final class PluginPageModel: ObservableObject {
     /// offers, a toggle checked when all carry its mark, a single item
     /// action disabled while several are selected. Elsewhere the item's.
     func contextMenu(at position: Int) -> [MenuEntry] {
-        guard memory.selectsMultiple, memory.isSelected(position), memory.selectedItems.count > 1 else {
-            return menu(at: position)
-        }
-        return memory.selectionActions.map { action in
-            MenuEntry(action: action, title: title(of: action), isChecked: memory.isChecked(action),
-                      isEnabled: memory.isAvailable(action))
-        }
+        memory.contextMenu(at: position).map(entry)
+    }
+
+    /// What the context menu of the item at `position` offers; nothing for
+    /// a placeholder.
+    func menu(at position: Int) -> [MenuEntry] {
+        memory.itemMenu(at: position).map(entry)
+    }
+
+    private func entry(_ entry: PluginPageMemory.MenuEntry) -> MenuEntry {
+        MenuEntry(action: entry.action, title: title(of: entry.action), isChecked: entry.isChecked, isEnabled: entry.isEnabled)
     }
 
     private func title(of action: PluginPageItemAction) -> String {
         action.perform == "selection.replace"
             ? "\(action.title) \(insertionTargetName.map { localized("into \($0)") } ?? Self.noInsertionTarget)"
             : action.title
-    }
-
-    /// What the context menu of the item at `position` offers; nothing for
-    /// a placeholder.
-    func menu(at position: Int) -> [MenuEntry] {
-        guard let collection, let found = memory.window?.item(at: position) else { return [] }
-        return collection.actions(of: found).map { action in
-            MenuEntry(action: action, title: title(of: action), isChecked: action.isChecked(for: found))
-        }
     }
 
     func choose(_ action: PluginPageItemAction, on item: String) {
@@ -634,43 +538,49 @@ final class PluginPageModel: ObservableObject {
     /// `position`, which the menu selected: on an item of a multiple
     /// collection's selection it acts on the whole selection.
     func choose(_ action: PluginPageItemAction, at position: Int) {
-        if !(memory.selectsMultiple && memory.isSelected(position)), memory.selectedPosition != position {
-            let before = memory.selectedPosition
-            memory.select(position: position)
-            collectionDisplay?.selectionMoved(from: before, to: position)
-            userChangedSelection()
-        } else if let item = memory.window?.item(at: position), memory.selectedPosition != position {
-            memory.focusWithinSelection(item.id)
-            collectionDisplay?.selectionChanged()
-        }
-        perform(action, shown: shownTarget())
+        handle(memory.choose(action, at: position), shown: shownTarget())
     }
 
     /// A row's toggle checkbox: its item action on that row alone, which it
     /// selects.
     func chooseAlone(_ action: PluginPageItemAction, at position: Int) {
-        if memory.selectedPosition != position || memory.selectedItems.count > 1 {
-            let before = memory.selectedPosition
-            let wasGroup = memory.selectedItems.count > 1
-            memory.select(position: position)
-            if wasGroup { collectionDisplay?.selectionChanged() } else { collectionDisplay?.selectionMoved(from: before, to: position) }
-            userChangedSelection()
-        }
-        perform(action, shown: shownTarget())
+        handle(memory.chooseAlone(action, at: position), shown: shownTarget())
     }
 
-    /// `action` on the selection, as the Host performs or delivers it;
-    /// nothing when it is not available, as a single item action is not
-    /// while several items are selected.
-    private func perform(_ action: PluginPageItemAction, shown: InsertionTargetCapture) {
-        guard let gesture = memory.gesture(action) else { return }
-        eventError = nil
-        settleSelectionNow()
-        switch gesture {
-        case .perform(let operation):
-            session.perform(operation, insertionTarget: operation.perform == "selection.replace" ? shown : .notShown)
-        case .deliver(let event):
-            session.send(event, insertionTarget: shown)
+    /// What a gesture did, adapted to AppKit and the View Session: the
+    /// keyboard, drawing and scrolling follow it, what the screen lacks is
+    /// asked for, the selection starts settling, and its events go in order,
+    /// an item action as the Host performs or delivers it with `shown` as
+    /// the target the user could see.
+    private func handle(_ handled: PluginPageMemory.Handled, shown: InsertionTargetCapture = .notShown) {
+        if let focus = handled.focus { requestFocus(focus) }
+        switch handled.redraw {
+        case .none: break
+        case .moved(let from, let to): collectionDisplay?.selectionMoved(from: from, to: to)
+        case .all: collectionDisplay?.selectionChanged()
+        }
+        if let position = handled.reveal {
+            requestScroll(to: position, atTop: false)
+            // Nothing draws the collection: the selection's row is on screen.
+            if collectionDisplay == nil { memory.reveal(position) }
+        }
+        if handled.asksForRange { requestRangeIfNeeded() }
+        if handled.settling {
+            selectionSerial += 1
+            scheduleSelectionSettle(selectionSerial)
+        }
+        if let gesture = handled.gesture {
+            eventError = nil
+            if let settled = handled.selectionChanged { session.send(settled) }
+            switch gesture {
+            case .perform(let operation):
+                session.perform(operation, insertionTarget: operation.perform == "selection.replace" ? shown : .notShown)
+            case .deliver(let event):
+                session.send(event, insertionTarget: shown)
+            }
+        } else if let submitted = handled.submitted {
+            if let settled = handled.selectionChanged { session.send(settled) }
+            session.send(submitted, insertionTarget: shown)
         }
     }
 
@@ -775,19 +685,12 @@ final class PluginPageModel: ObservableObject {
 
     // MARK: - Selection changes
 
-    /// The user moved the selection, or may have: a Collection declaring
-    /// `selection_events` hears where it settles once it has been stable for
+    /// A Collection declaring `selection_events` hears where the user's
+    /// selection settles once it has been stable for
     /// `ScriptedActionBudgets.selectionChangeSettle` and no move key is held.
-    private func userChangedSelection() {
-        guard let collection, collection.selectionEvents else { return }
-        selectionSerial += 1
-        settlingSelection = (page.id, collection.id, selectionSerial)
-        scheduleSelectionSettle(selectionSerial)
-    }
-
     private func scheduleSelectionSettle(_ serial: Int) {
         environment.schedule(ScriptedActionBudgets.selectionChangeSettle) { [weak self] in
-            guard let self, self.settlingSelection?.serial == serial else { return }
+            guard let self, self.selectionSerial == serial, self.memory.isSettlingSelection else { return }
             // A held key keeps moving the selection: it settles after release.
             if self.moveKeyIsHeld() { return self.scheduleSelectionSettle(serial) }
             self.settleSelectionNow()
@@ -795,41 +698,9 @@ final class PluginPageModel: ObservableObject {
     }
 
     /// Sends the selection still settling, if it is somewhere the Plugin
-    /// has not heard of, as before a gesture made on it. One waiting for its
-    /// item is sent when the item comes.
+    /// has not heard of, as before a gesture made on it.
     private func settleSelectionNow() {
-        guard let settling = settlingSelection else { return }
-        guard settling.page == page.id, settling.collection == collection?.id,
-              let event = memory.selectionChangedEvent,
-              case .selectionChanged(_, _, let items, _) = event else {
-            settlingSelection = nil
-            return
-        }
-        guard !items.isEmpty else { return }
-        settlingSelection = nil
-        let ids = items.map(\.id)
-        guard ids != knownSelection else { return }
-        knownSelection = ids
-        session.send(event)
-    }
-
-    /// An answer was applied. What it did to the selection is the Plugin's
-    /// own and is never sent back: another page or a renewed Collection
-    /// drops a change still settling, and so does an answer that moved the
-    /// selection; a selection the user made that waited for its item settles
-    /// once it comes.
-    private func reconcileSettlingSelection(before: [String], waitedForItem: Bool, applied: PluginPageMemory.Applied) {
-        let now = memory.selectedItems.map(\.id)
-        let renewed = applied.pageChanged || page.collection.map { applied.renewed.contains($0.id) } ?? true
-        if let settling = settlingSelection, !renewed {
-            if waitedForItem, !now.isEmpty {
-                scheduleSelectionSettle(settling.serial)
-                return
-            }
-            if before == now { return }
-        }
-        settlingSelection = nil
-        knownSelection = now
+        if let event = memory.settleSelection() { session.send(event) }
     }
 
     /// The keys that move the selection: arrows, Page Up/Down, Home and End.

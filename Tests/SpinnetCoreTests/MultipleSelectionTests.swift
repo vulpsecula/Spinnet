@@ -187,41 +187,14 @@ final class MultipleSelectionTests: XCTestCase {
         XCTAssertEqual(ids(try self.memory(Self.page())), ["a"])
     }
 
-    /// ⌘-click adds and removes; Shift-click and Shift-arrows select a range
-    /// from the anchor; ⌘A selects every item; a plain click selects one.
-    func testCommandClickShiftRangesAndSelectAll() throws {
-        var memory = try memory(Self.page())
-        memory.toggleSelection(of: "c")
-        XCTAssertEqual(ids(memory), ["a", "c"])
-        XCTAssertEqual(memory.selectedItem?.id, "c", "The clicked item is focused")
-        memory.toggleSelection(of: "a")
-        XCTAssertEqual(ids(memory), ["c"])
-        memory.toggleSelection(of: "c")
-        XCTAssertEqual(ids(memory), ["c"], "The last selected item stays selected")
-        memory.extendSelection(to: "e")
-        XCTAssertEqual(ids(memory), ["c", "d", "e"])
-        memory.extendSelection(to: "b")
-        XCTAssertEqual(ids(memory), ["b", "c"], "The range runs from the anchor, c")
-        memory.extendSelection(.down)
-        memory.extendSelection(.down)
-        XCTAssertEqual(ids(memory), ["c", "d"])
-        XCTAssertEqual(memory.selectedItem?.id, "d")
-        memory.selectAll()
-        XCTAssertEqual(ids(memory), ["a", "b", "c", "d", "e"])
-        memory.select("b")
-        XCTAssertEqual(ids(memory), ["b"])
-        memory.moveSelection(.down)
-        XCTAssertEqual(ids(memory), ["c"], "A plain arrow selects one item")
-    }
-
     /// A single Collection ignores the multiple-selection gestures.
     func testASingleCollectionKeepsOneItem() throws {
         var memory = try memory(Self.page(list: [:], actions: []))
-        memory.toggleSelection(of: "c")
-        memory.extendSelection(to: "e")
-        memory.selectAll()
-        XCTAssertEqual(memory.selectedItems.map(\.id), [memory.selectedItem?.id].compactMap { $0 })
-        XCTAssertEqual(memory.selection, .object(["results": .string("a")]))
+        memory.click(at: 2, modifier: .command)
+        memory.click(at: 4, modifier: .shift)
+        XCTAssertNil(memory.selectAll())
+        XCTAssertEqual(memory.selectedItems.map(\.id), ["e"], "A modifier changes nothing: each click selects its item")
+        XCTAssertEqual(memory.selection, .object(["results": .string("e")]))
     }
 
     /// Selection is kept by item ID across answers; IDs that leave are
@@ -229,7 +202,7 @@ final class MultipleSelectionTests: XCTestCase {
     func testTheSelectionIsKeptByIDAcrossAnswers() throws {
         var memory = try memory(Self.page())
         memory.select("b")
-        memory.extendSelection(to: "d")
+        memory.click(at: 3, modifier: .shift)
         memory.show(try parse(Self.page(["d", "x", "b", "c"])))
         XCTAssertEqual(ids(memory), ["d", "b", "c"], "Moved items stay selected, in their new order")
         XCTAssertEqual(memory.selectedItem?.id, "d", "The focused item stays focused")
@@ -248,7 +221,7 @@ final class MultipleSelectionTests: XCTestCase {
     func testSnapshotsFollowCollectionOrder() throws {
         var memory = try memory(Self.page(sections: [("one", ["a", "b"]), ("two", ["c"])]))
         memory.select("c")
-        memory.toggleSelection(of: "a")
+        memory.click(at: 0, modifier: .command)
         XCTAssertEqual(memory.selectedSnapshots, [
             PluginPageItemSnapshot(id: "a", section: "one", text: "text a"),
             PluginPageItemSnapshot(id: "c", section: "two", text: "text c")
@@ -267,8 +240,8 @@ final class MultipleSelectionTests: XCTestCase {
     func testAnItemActionRunsOnceForTheWholeSelection() throws {
         var memory = try memory(Self.page(items: [Self.item("a"), Self.item("b", marks: ["pinned"]), Self.item("c")]))
         memory.select("c")
-        memory.toggleSelection(of: "b")
-        memory.focusWithinSelection("c")
+        memory.click(at: 1, modifier: .command)
+        memory.rightClick(at: 2)
         let snapshots = [PluginPageItemSnapshot(id: "b", section: nil, text: "text b", marks: ["pinned"]),
                          PluginPageItemSnapshot(id: "c", section: nil, text: "text c")]
         XCTAssertEqual(memory.gesture(try action("open", in: memory)), .deliver(.itemAction(
@@ -295,11 +268,11 @@ final class MultipleSelectionTests: XCTestCase {
                                                   Self.item("c", actions: ["open", "pin"])]))
         let rename = try action("rename", in: memory), pin = try action("pin", in: memory)
         XCTAssertTrue(memory.isAvailable(rename))
-        memory.extendSelection(to: "b")
+        memory.click(at: 1, modifier: .shift)
         XCTAssertFalse(memory.isAvailable(rename))
         XCTAssertNil(memory.gesture(rename), "Return or double-click does nothing for it")
         XCTAssertTrue(memory.isChecked(pin))
-        memory.extendSelection(to: "c")
+        memory.click(at: 2, modifier: .shift)
         XCTAssertFalse(memory.isChecked(pin), "c does not carry the mark")
         XCTAssertEqual(memory.selectionActions.map(\.id), ["open", "pin"], "Only what c offers too")
     }
@@ -309,7 +282,7 @@ final class MultipleSelectionTests: XCTestCase {
     func testPerformedActionsJoinTheTextsByNewlines() throws {
         var memory = try memory(Self.page())
         memory.select("d")
-        memory.toggleSelection(of: "b")
+        memory.click(at: 1, modifier: .command)
         guard case .perform(let copy)? = memory.gesture(try action("copy", in: memory)) else { return XCTFail("No copy") }
         XCTAssertEqual(copy.perform, "clipboard.write")
         XCTAssertEqual(copy.input, .object(["text": .string("text b\ntext d")]))

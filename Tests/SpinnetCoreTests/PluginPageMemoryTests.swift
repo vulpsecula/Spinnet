@@ -274,9 +274,9 @@ final class PluginPageMemoryTests: XCTestCase {
     func testMovingTheSelectionSelects() throws {
         var memory = PluginPageMemory()
         memory.show(try B.search(items: ["A", "B", "C", "D", "E", "F", "G", "H", "I"]))
-        XCTAssertEqual(memory.moveSelection(.down), 8, "One grid row of 8 down from A")
+        XCTAssertEqual(memory.press(.down)?.reveal, 8, "One grid row of 8 down from A")
         XCTAssertEqual(memory.selectedItem?.id, "I")
-        XCTAssertEqual(memory.moveSelection(.left), 7)
+        XCTAssertEqual(memory.press(.left)?.reveal, 7)
         XCTAssertEqual(memory.selectedItem?.id, "H")
     }
 }

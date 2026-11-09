@@ -5,7 +5,9 @@ import XCTest
 
 /// A Collection declaring `selection_events`, as the Host's page model
 /// handles it (ADR 0025): `selection_changed` once the user's selection has
-/// settled, never for what an answer does to it.
+/// been stable for the pause and no move key is held. Which selection is
+/// due, and that answers never cause one, is the page memory's
+/// (`PageGestureTests`).
 final class PluginPageSelectionEventsTests: XCTestCase {
     private var harness: PageHarness!
     private let settle = ScriptedActionBudgets.selectionChangeSettle
@@ -81,85 +83,27 @@ final class PluginPageSelectionEventsTests: XCTestCase {
         XCTAssertEqual(sent, [["d"]], "One event for the whole hold")
     }
 
-    /// Without `selection_events` nothing is ever sent; a selection that
-    /// came back to where it was sends nothing either.
-    func testNothingIsSentWithoutOptInOrWithoutAChange() throws {
-        try harness.open(Self.page(events: false))
-        model.click("c")
-        model.moveSelection(.down)
+    /// A selection the user moved onto an item still to come settles once
+    /// the answer brings it.
+    func testASelectionWaitingForItsItemSettlesWhenItComes() throws {
+        try harness.open(Self.windowed(start: 0))
+        XCTAssertTrue(model.moveSelection(.end))
         harness.clock.advance(by: settle * 4)
-        XCTAssertTrue(harness.events.isEmpty)
-
-        harness = try PageHarness()
-        try harness.open(Self.page())
-        model.click("c")
-        model.click("a")
-        harness.clock.advance(by: settle * 4)
-        XCTAssertEqual(sent, [], "Back where the Plugin last heard it was")
-    }
-
-    /// A multiple Collection's event carries every selected item in
-    /// Collection order.
-    func testAMultipleCollectionSendsTheWholeSelection() throws {
-        try harness.open(Self.page(multiple: true))
-        model.click("d", modifier: .command)
-        model.click("b", modifier: .command)
+        XCTAssertEqual(sent, [], "It waits for its item")
+        try harness.answer(Self.windowed(start: 100))
+        XCTAssertEqual(sent, [], "The pause starts again")
         harness.clock.advance(by: settle)
-        XCTAssertEqual(sent, [["a", "b", "d"]])
-        try harness.answer(nil)
-        XCTAssertTrue(model.selectAll())
-        harness.clock.advance(by: settle)
-        XCTAssertEqual(sent, [["a", "b", "d"], ["a", "b", "c", "d", "e"]])
+        XCTAssertEqual(sent, [["i199"]])
     }
 
-    /// Answers never cause the event: not the selected item leaving, not a
-    /// reset, and not when they move a selection the user was still
-    /// settling.
-    func testAnswersNeverCauseTheEvent() throws {
-        try harness.open(Self.page())
-        model.textChanged("note", to: "x", caret: nil)
-        harness.clock.advance(by: ScriptedActionBudgets.fieldChangeDebounce)
-        try harness.answer(Self.page(["b", "c"]))
-        XCTAssertEqual(model.selectedItem, "b", "The item now at its place")
-        harness.clock.advance(by: settle * 4)
-        XCTAssertEqual(sent, [])
-
-        model.textChanged("note", to: "xy", caret: nil)
-        harness.clock.advance(by: ScriptedActionBudgets.fieldChangeDebounce)
-        model.click("c")
-        try harness.answer(Self.page(["b", "d"]))
-        harness.clock.advance(by: settle * 4)
-        XCTAssertEqual(sent, [], "The answer moved the selection the user was settling")
-
-        model.textChanged("note", to: "xyz", caret: nil)
-        harness.clock.advance(by: ScriptedActionBudgets.fieldChangeDebounce)
-        XCTAssertEqual(model.selectedItem, "d")
-        model.click("b")
-        try harness.answer(Self.page(["b", "d"], reset: ["results"]))
-        harness.clock.advance(by: settle * 4)
-        XCTAssertEqual(sent, [], "A reset starts the selection again")
-    }
-
-    /// A change the user made that an answer leaves alone is still sent.
-    func testAnAnswerThatKeepsTheSelectionKeepsTheChange() throws {
-        try harness.open(Self.page())
-        model.textChanged("note", to: "x", caret: nil)
-        harness.clock.advance(by: ScriptedActionBudgets.fieldChangeDebounce)
-        model.click("c")
-        try harness.answer(Self.page(["a", "b", "c", "f"]))
-        harness.clock.advance(by: settle)
-        XCTAssertEqual(sent, [["c"]])
-    }
-
-    /// Another page drops a change still settling.
-    func testAnotherPageDropsIt() throws {
-        try harness.open(Self.page())
-        model.textChanged("note", to: "x", caret: nil)
-        harness.clock.advance(by: ScriptedActionBudgets.fieldChangeDebounce)
-        model.click("c")
-        try harness.answer(Self.page(id: "other"))
-        harness.clock.advance(by: settle * 4)
-        XCTAssertEqual(sent, [])
+    /// A List of 200 items `i0`, `i1`, … of which the answer gives 100 from
+    /// `start`.
+    private static func windowed(start: Int) -> JSONValue {
+        .object(["id": .string("clips"), "title": .string("Clips"), "content": .array([
+            .object(["kind": .string("list"), "id": .string("results"), "selection_events": .bool(true),
+                     "total": .number(200), "start": .number(Double(start)),
+                     "items": .array((start..<(start + 100)).map { .object(["id": .string("i\($0)"), "title": .string("Item \($0)")]) })])
+        ])])
     }
 
     /// A gesture on a selection still settling comes after its
