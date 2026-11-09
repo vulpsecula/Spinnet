@@ -1,6 +1,5 @@
 import AppKit
 import SpinnetWindowing
-import Carbon
 import Darwin
 import SwiftUI
 import SpinnetCore
@@ -1230,39 +1229,12 @@ private struct MenuEditorModeRepresentable: NSViewRepresentable {
 }
 
 private struct SlotConfigurationSheet: View {
-    private struct InitialState {
-        let pluginManifest: PluginManifest?
-        let pluginID: PluginID?
-        let itemAlias: String
-        let primaryCommandID: CommandID
-        let alternateCommandOrder: [CommandID]
-        let enabledAlternateCommandIDs: Set<CommandID>
-        let inputTexts: [CommandID: String]
-        let originalInputValues: [CommandID: JSONValue]
-    }
-
     @Environment(\.dismiss) private var dismiss
 
-    let editor: HostConfigurationEditor
-    /// The App whose Menu Item is edited, or nil for the default Menu.
-    let app: AppBundleIdentifier?
-    let slotIndex: Int
-    let presetPluginID: PluginID?
     let onSaved: (MenuItemSaveDraft) throws -> Void
     private let permissionModel: PrivacyPermissionsModel?
-    private let pluginManifest: PluginManifest?
-    private let pluginID: PluginID?
 
-    @State private var primaryCommandID: CommandID
-    @State private var lastPrimaryCommandID: CommandID
-    @State private var alternateCommandOrder: [CommandID]
-    @State private var alternateCommandIDs: Set<CommandID>
-    @State private var inputTexts: [CommandID: String]
-    @State private var originalInputValues: [CommandID: JSONValue]
-    @State private var itemAlias: String
-    /// The user's own Menu Item Icon, nil for the Plugin's default.
-    @State private var itemIcon: String?
-    private let iconChoice: MenuItemIconChoice
+    @StateObject private var draft: MenuItemConfigurationDraft
     @State private var errorMessage: String?
     /// Secrets typed into credential fields, by credential reference. They go
     /// to the credential store on Save and never into an Action.
@@ -1285,39 +1257,21 @@ private struct SlotConfigurationSheet: View {
         credentialStore: PluginCredentialStore? = nil,
         pluginSettings: (PluginManifest) -> [String: JSONValue] = { _ in [:] }
     ) {
-        self.editor = editor
-        self.app = app
-        self.slotIndex = slotIndex
-        self.presetPluginID = presetPluginID
         self.onSaved = onSaved
         self.permissionModel = permissionModel
         self.credentialStore = credentialStore
-        let initialState = Self.initialState(
-            in: editor,
-            app: app,
-            slotIndex: slotIndex,
-            presetPluginID: presetPluginID
-        )
-        pluginManifest = initialState.pluginManifest
-        pluginID = initialState.pluginID
-        self.pluginSettings = initialState.pluginManifest.map(pluginSettings) ?? [:]
-        _itemAlias = State(initialValue: initialState.itemAlias)
-        iconChoice = MenuItemIconChoice(editor: editor, app: app, slotIndex: slotIndex, presetPluginID: presetPluginID)
-        _itemIcon = State(initialValue: iconChoice.ownIcon)
-        _primaryCommandID = State(initialValue: initialState.primaryCommandID)
-        _lastPrimaryCommandID = State(initialValue: initialState.primaryCommandID)
-        _alternateCommandOrder = State(initialValue: initialState.alternateCommandOrder)
-        _alternateCommandIDs = State(initialValue: initialState.enabledAlternateCommandIDs)
-        _inputTexts = State(initialValue: initialState.inputTexts)
-        _originalInputValues = State(initialValue: initialState.originalInputValues)
+        let draft = MenuItemConfigurationDraft(editor: editor, app: app, slotIndex: slotIndex,
+                                               presetPluginID: presetPluginID)
+        _draft = StateObject(wrappedValue: draft)
+        self.pluginSettings = draft.manifest.map(pluginSettings) ?? [:]
     }
+
+    private var pluginManifest: PluginManifest? { draft.manifest }
 
     /// Consent needed for configured endpoints on hosts the Plugin did not declare.
     private var endpointConsent: HTTPSEndpointConsent? {
         guard let permissionModel, let pluginManifest else { return nil }
-        let consent = permissionModel.endpointConsent(for: pluginManifest, inputs: Dictionary(
-            uniqueKeysWithValues: configurableCommands.map { ($0.id, inputValue(for: $0.id)) }
-        ))
+        let consent = permissionModel.endpointConsent(for: pluginManifest, inputs: draft.inputs)
         return consent.newHosts.isEmpty ? nil : consent
     }
 
@@ -1326,7 +1280,7 @@ private struct SlotConfigurationSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(localized("Configure Slot \(slotIndex + 1)"))
+                        Text(localized("Configure Slot \(draft.slotIndex + 1)"))
                             .font(.title2.weight(.semibold))
                         Text(pluginManifest?.name ?? localized("Plugin unavailable"))
                             .foregroundStyle(.secondary)
@@ -1334,12 +1288,11 @@ private struct SlotConfigurationSheet: View {
 
                     itemAliasEditor
 
-                    MenuItemIconPicker(icon: $itemIcon,
-                                       defaultIcon: iconChoice.defaultIcon(primaryCommandID: primaryCommandID))
+                    MenuItemIconPicker(icon: $draft.ownIcon, defaultIcon: draft.defaultIcon)
 
                     if let pluginManifest {
                         actionSelection(for: pluginManifest)
-                        if !configurableCommands.isEmpty {
+                        if !draft.configurableCommands.isEmpty {
                             Divider()
                             actionParameters()
                         }
@@ -1354,10 +1307,8 @@ private struct SlotConfigurationSheet: View {
                         }
                         if let permissionModel {
                             MenuItemAccessSummary(privacy: permissionModel, manifest: pluginManifest,
-                                                  commandIDs: Set(selectedCommands.map(\.id)),
-                                                  inputs: Dictionary(uniqueKeysWithValues: selectedCommands.map {
-                                                      ($0.id, inputValue(for: $0.id))
-                                                  }))
+                                                  commandIDs: Set(draft.selectedCommands.map(\.id)),
+                                                  inputs: draft.selectedInputs)
                         }
                     } else {
                         Label(
@@ -1386,7 +1337,7 @@ private struct SlotConfigurationSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button(localized("Save")) { save() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(pluginManifest != nil && selectedCommands.isEmpty)
+                    .disabled(!draft.canSave)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
@@ -1394,24 +1345,13 @@ private struct SlotConfigurationSheet: View {
         .frame(width: 540, height: 600)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(localized("Slot Configuration"))
-        .onChange(of: primaryCommandID) { commandID in
-            let previousPrimaryCommandID = lastPrimaryCommandID
-            lastPrimaryCommandID = commandID
-            alternateCommandIDs.remove(commandID)
-            alternateCommandOrder.removeAll { $0 == commandID }
-            if previousPrimaryCommandID != commandID,
-               pluginManifest?.commands.contains(where: { $0.id == previousPrimaryCommandID }) == true,
-               !alternateCommandOrder.contains(previousPrimaryCommandID) {
-                alternateCommandOrder.append(previousPrimaryCommandID)
-            }
-        }
     }
 
     private var itemAliasEditor: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(localized("Menu Item Alias"))
                 .font(.headline)
-            TextField(localized("Follow Primary Action"), text: $itemAlias)
+            TextField(localized("Follow Primary Action"), text: $draft.alias)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityLabel(localized("Menu Item Alias"))
             Text(localized("Leave blank to follow the Primary Action automatically."))
@@ -1435,12 +1375,12 @@ private struct SlotConfigurationSheet: View {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(localized("Primary Action"))
                     .frame(width: 118, alignment: .leading)
-                Picker(localized("Primary Action"), selection: $primaryCommandID) {
+                Picker(localized("Primary Action"), selection: $draft.primaryCommandID) {
                     ForEach(plugin.commands, id: \.id) { command in
                         Label {
                             Text(command.title)
                         } icon: {
-                            MenuItemIconImage(icon: iconChoice.icon(for: command.id), side: 16)
+                            MenuItemIconImage(icon: draft.icon(for: command.id), side: 16)
                         }
                         .tag(command.id)
                     }
@@ -1451,7 +1391,7 @@ private struct SlotConfigurationSheet: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(localized("Primary Action"))
 
-            if let explanation = plugin.commands.first(where: { $0.id == primaryCommandID })?.explanation {
+            if let explanation = draft.command(draft.primaryCommandID)?.explanation {
                 Text(explanation)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1463,19 +1403,20 @@ private struct SlotConfigurationSheet: View {
                 Text(localized("Alternate Actions"))
                     .font(.subheadline.weight(.semibold))
 
-                if alternateCommands.isEmpty {
+                if draft.alternateCommands.isEmpty {
                     Text(localized("This Plugin does not provide another Action."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(alternateCommands, id: \.id) { command in
+                    ForEach(draft.alternateCommands, id: \.id) { command in
                         HStack(spacing: 8) {
-                            Toggle(isOn: alternateBinding(for: command.id)) {
+                            Toggle(isOn: Binding(get: { draft.isAlternateEnabled(command.id) },
+                                                 set: { draft.setAlternate(command.id, enabled: $0) })) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Label {
                                         Text(command.title)
                                     } icon: {
-                                        MenuItemIconImage(icon: iconChoice.icon(for: command.id), side: 16)
+                                        MenuItemIconImage(icon: draft.icon(for: command.id), side: 16)
                                             .accessibilityHidden(true)
                                     }
                                     if let explanation = command.explanation {
@@ -1492,17 +1433,17 @@ private struct SlotConfigurationSheet: View {
                             .toggleStyle(.checkbox)
                             .accessibilityLabel(localized("Alternate Action \(command.title)"))
                             Spacer(minLength: 4)
-                            Button { moveAlternate(command.id, offset: -1) } label: {
+                            Button { draft.moveAlternate(command.id, by: -1) } label: {
                                 Image(systemName: "chevron.up")
                             }
                             .buttonStyle(.borderless)
-                            .disabled(!canMoveAlternate(command.id, offset: -1))
+                            .disabled(!draft.canMoveAlternate(command.id, by: -1))
                             .accessibilityLabel(localized("Move Alternate Action \(command.title) up"))
-                            Button { moveAlternate(command.id, offset: 1) } label: {
+                            Button { draft.moveAlternate(command.id, by: 1) } label: {
                                 Image(systemName: "chevron.down")
                             }
                             .buttonStyle(.borderless)
-                            .disabled(!canMoveAlternate(command.id, offset: 1))
+                            .disabled(!draft.canMoveAlternate(command.id, by: 1))
                             .accessibilityLabel(localized("Move Alternate Action \(command.title) down"))
                         }
                     }
@@ -1523,12 +1464,12 @@ private struct SlotConfigurationSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if configurableCommands.isEmpty {
+            if draft.configurableCommands.isEmpty {
                 Text(localized("The selected Actions do not require configuration."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(configurableCommands, id: \.id) { command in
+                ForEach(draft.configurableCommands, id: \.id) { command in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(command.title)
                             .font(.subheadline.weight(.semibold))
@@ -1576,7 +1517,7 @@ private struct SlotConfigurationSheet: View {
     private func settingOverrideRow(_ field: CommandConfigurationField, for command: CommandDeclaration) -> some View {
         let key = field.key ?? ""
         let shared = Self.displayText(pluginSettings[key])
-        let own = fieldValues(for: command.id)[key]
+        let own = draft.fieldValue(key, for: command.id)
         return HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(field.displayTitle)
                 .frame(width: 118, alignment: .leading)
@@ -1584,10 +1525,7 @@ private struct SlotConfigurationSheet: View {
             case .choice:
                 Picker(field.displayTitle, selection: Binding<String?>(
                     get: { if case .string(let value)? = own { return value } else { return nil } },
-                    set: { value in
-                        if let value { setField(.string(value), for: command.id, key: key) }
-                        else { removeField(key, for: command.id) }
-                    }
+                    set: { value in draft.setFieldValue(value.map(JSONValue.string), key, for: command.id) }
                 )) {
                     Text(localized("Plugin Setting (\(shared))")).tag(String?.none)
                     Divider()
@@ -1598,10 +1536,7 @@ private struct SlotConfigurationSheet: View {
             case .toggle:
                 Picker(field.displayTitle, selection: Binding<Bool?>(
                     get: { if case .bool(let value)? = own { return value } else { return nil } },
-                    set: { value in
-                        if let value { setField(.bool(value), for: command.id, key: key) }
-                        else { removeField(key, for: command.id) }
-                    }
+                    set: { value in draft.setFieldValue(value.map(JSONValue.bool), key, for: command.id) }
                 )) {
                     Text(localized("Plugin Setting (\(shared))")).tag(Bool?.none)
                     Text(localized("On")).tag(Bool?.some(true))
@@ -1614,8 +1549,7 @@ private struct SlotConfigurationSheet: View {
                     Toggle(localized("Use Plugin Setting (\(shared))"), isOn: Binding(
                         get: { own == nil },
                         set: { usePlugin in
-                            if usePlugin { removeField(key, for: command.id) }
-                            else { setField(pluginSettings[key] ?? .string(""), for: command.id, key: key) }
+                            draft.setFieldValue(usePlugin ? nil : pluginSettings[key] ?? .string(""), key, for: command.id)
                         }
                     ))
                     if own != nil {
@@ -1628,12 +1562,6 @@ private struct SlotConfigurationSheet: View {
         .accessibilityLabel("\(command.title) \(field.displayTitle)")
     }
 
-    private func removeField(_ key: String, for commandID: CommandID) {
-        var values = fieldValues(for: commandID)
-        values.removeValue(forKey: key)
-        inputTexts[commandID] = Self.displayValue(for: .object(values))
-    }
-
     private static func displayText(_ value: JSONValue?) -> String {
         switch value {
         case .string(let text)?: return text.isEmpty ? localized("not set") : text
@@ -1643,7 +1571,7 @@ private struct SlotConfigurationSheet: View {
     }
 
     /// One row per keyed field. The values travel together as the Action's
-    /// object input, kept in `inputTexts` as JSON text like any other input.
+    /// object input.
     private func configurationFieldSet(for command: CommandDeclaration) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(command.configurationFields, id: \.key) { field in
@@ -1691,36 +1619,29 @@ private struct SlotConfigurationSheet: View {
     /// What the user typed, or the secret already stored for this Plugin.
     private func storedSecret(_ reference: String) -> String {
         if let typed = credentialSecrets[reference] { return typed }
-        guard let pluginID else { return "" }
+        guard let pluginID = draft.pluginID else { return "" }
         return ((try? credentialStore?.secret(for: pluginID, reference: reference)) ?? nil) ?? ""
-    }
-
-    private func fieldValues(for commandID: CommandID) -> [String: JSONValue] {
-        guard case .object(let values) = inputValue(for: commandID) else { return [:] }
-        return values
-    }
-
-    private func setField(_ value: JSONValue, for commandID: CommandID, key: String) {
-        var values = fieldValues(for: commandID)
-        values[key] = value
-        inputTexts[commandID] = Self.displayValue(for: .object(values))
     }
 
     private func fieldBinding(for commandID: CommandID, key: String) -> Binding<String> {
         Binding(
             get: {
-                guard case .string(let value) = fieldValues(for: commandID)[key] else { return "" }
+                guard case .string(let value)? = draft.fieldValue(key, for: commandID) else { return "" }
                 return value
             },
-            set: { setField(.string($0), for: commandID, key: key) }
+            set: { draft.setFieldValue(.string($0), key, for: commandID) }
         )
     }
 
     private func fieldBoolBinding(for commandID: CommandID, key: String) -> Binding<Bool> {
         Binding(
-            get: { fieldValues(for: commandID)[key] == .bool(true) },
-            set: { setField(.bool($0), for: commandID, key: key) }
+            get: { draft.fieldValue(key, for: commandID) == .bool(true) },
+            set: { draft.setFieldValue(.bool($0), key, for: commandID) }
         )
+    }
+
+    private func inputBinding(for commandID: CommandID) -> Binding<String> {
+        Binding(get: { draft.inputText(for: commandID) }, set: { draft.setInputText($0, for: commandID) })
     }
 
     @ViewBuilder
@@ -1740,7 +1661,8 @@ private struct SlotConfigurationSheet: View {
             .accessibilityLabel(localized("\(command.title) configuration input"))
         case .keyboardShortcut:
             KeyboardShortcutEditor(
-                shortcut: keyboardShortcutBinding(for: command.id)
+                shortcut: Binding(get: { draft.keyboardShortcut(for: command.id) },
+                                  set: { draft.setKeyboardShortcut($0, for: command.id) })
             )
             .accessibilityLabel(localized("\(command.title) configuration input"))
         case .multilineText:
@@ -1750,7 +1672,8 @@ private struct SlotConfigurationSheet: View {
             )
             .accessibilityLabel(localized("\(command.title) configuration input"))
         case .toggle:
-            Toggle(localized("Enabled"), isOn: boolBinding(for: command.id))
+            Toggle(localized("Enabled"), isOn: Binding(get: { draft.isOn(command.id) },
+                                                       set: { draft.setOn($0, for: command.id) }))
                 .toggleStyle(.switch)
                 .accessibilityLabel(localized("\(command.title) configuration input"))
         case .choice:
@@ -1794,229 +1717,12 @@ private struct SlotConfigurationSheet: View {
 
     private func save() {
         do {
-            if let pluginID, pluginManifest != nil {
-                guard let primaryCommand = selectedCommands.first,
-                      primaryCommand.id == primaryCommandID else {
-                    errorMessage = localized("Choose a valid Primary Action before saving.")
-                    return
-                }
-
-                let alternateCommandIDs = selectedCommands.dropFirst().map(\.id)
-                let inputs = Dictionary(uniqueKeysWithValues: configurableCommands.map { command in
-                    (command.id, inputValue(for: command.id))
-                })
-                let candidate = try editor.configuredMenuItem(
-                    at: slotIndex,
-                    pluginID: pluginID,
-                    primaryCommandID: primaryCommandID,
-                    alternateCommandIDs: alternateCommandIDs,
-                    inputs: inputs,
-                    alternateCommandOrder: alternateCommandOrder,
-                    replacingEmptySlot: editor.configuration.menu.slots(for: app)[slotIndex].item == nil,
-                    validateInputs: true,
-                    preserveUnselectedAlternates: true,
-                    for: app
-                )
-                // For an App, the candidate holds its override of this Slot.
-                let finalConfiguration = try editor.presentedMenuItem(
-                    in: candidate, at: slotIndex, alias: normalizedItemAlias, icon: itemIcon, for: app
-                )
-                let secrets = CredentialFieldSecrets.typed(
-                    for: selectedCommands, inputs: inputs, secrets: credentialSecrets
-                )
-                try onSaved(MenuItemSaveDraft(configuration: finalConfiguration, pluginID: pluginID,
-                                              secrets: secrets, consent: endpointConsent, allowedHosts: allowedEndpointHosts))
-                dismiss()
-                return
-            }
-            let finalConfiguration = try editor.presentedMenuItem(
-                in: editor.configuration, at: slotIndex, alias: normalizedItemAlias, icon: itemIcon, for: app
-            )
-            try onSaved(MenuItemSaveDraft(configuration: finalConfiguration))
+            try onSaved(draft.makeSaveDraft(typedSecrets: credentialSecrets, consent: endpointConsent,
+                                            allowedHosts: allowedEndpointHosts))
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-
-    private func alternateBinding(for commandID: CommandID) -> Binding<Bool> {
-        Binding(
-            get: { alternateCommandIDs.contains(commandID) },
-            set: { isSelected in
-                if isSelected {
-                    alternateCommandIDs.insert(commandID)
-                } else {
-                    alternateCommandIDs.remove(commandID)
-                }
-            }
-        )
-    }
-
-    private func moveAlternate(_ commandID: CommandID, offset: Int) {
-        guard let index = alternateCommandOrder.firstIndex(of: commandID) else { return }
-        let target = index + offset
-        guard alternateCommandOrder.indices.contains(target) else { return }
-        alternateCommandOrder.swapAt(index, target)
-    }
-
-    private func canMoveAlternate(_ commandID: CommandID, offset: Int) -> Bool {
-        guard let index = alternateCommandOrder.firstIndex(of: commandID) else { return false }
-        return alternateCommandOrder.indices.contains(index + offset)
-    }
-
-    private func inputBinding(for commandID: CommandID) -> Binding<String> {
-        return Binding(
-            get: { inputTexts[commandID] ?? "" },
-            set: { inputTexts[commandID] = $0 }
-        )
-    }
-
-    private func inputValue(for commandID: CommandID) -> JSONValue {
-        let inputText = inputTexts[commandID] ?? ""
-        guard let command = pluginManifest?.commands.first(where: { $0.id == commandID }) else {
-            return ConfigurationInputValueResolver.resolve(
-                text: inputText,
-                field: nil,
-                hostCommand: nil,
-                original: originalInputValues[commandID]
-            )
-        }
-        return ConfigurationInputValueResolver.resolve(
-            text: inputText,
-            field: command.configurationField ?? command.hostCommand?.configurationField,
-            hostCommand: command.hostCommand,
-            original: originalInputValues[commandID]
-        )
-    }
-
-    private func boolBinding(for commandID: CommandID) -> Binding<Bool> {
-        Binding(
-            get: {
-                switch inputValue(for: commandID) {
-                case .bool(let value): return value
-                case .string(let value): return value.lowercased() == "true"
-                case .object(let values):
-                    for key in ["enabled", "value", "checked"] {
-                        if case .bool(let value) = values[key] { return value }
-                    }
-                    return false
-                default: return false
-                }
-            },
-            set: { inputTexts[commandID] = $0 ? "true" : "false" }
-        )
-    }
-
-    private func keyboardShortcutBinding(for commandID: CommandID) -> Binding<MenuKeyboardShortcut?> {
-        Binding(
-            get: { menuKeyboardShortcut(from: inputValue(for: commandID)) },
-            set: { shortcut in
-                guard let shortcut else {
-                    inputTexts[commandID] = ""
-                    return
-                }
-                inputTexts[commandID] = Self.displayValue(for: .object([
-                    "key_code": .number(Double(shortcut.keyCode)),
-                    "modifiers": .array(carbonModifierNames(for: shortcut.modifiers).map { .string($0) }),
-                    "display_value": .string(shortcut.displayValue)
-                ]))
-            }
-        )
-    }
-
-    private func menuKeyboardShortcut(from value: JSONValue) -> MenuKeyboardShortcut? {
-        guard case .object(let values) = value,
-              case .number(let rawKeyCode) = values["key_code"],
-              rawKeyCode.isFinite,
-              rawKeyCode.rounded() == rawKeyCode,
-              (0...127).contains(rawKeyCode),
-              let keyCode = UInt32(exactly: rawKeyCode),
-              let displayValue = values["display_value"].flatMap(stringValue),
-              let modifiers = carbonModifiers(from: values["modifiers"]) else {
-            return nil
-        }
-        return MenuKeyboardShortcut(
-            keyCode: keyCode,
-            modifiers: modifiers,
-            displayValue: displayValue
-        )
-    }
-
-    private func carbonModifiers(from value: JSONValue?) -> UInt32? {
-        guard let value else { return 0 }
-        switch value {
-        case .number(let rawValue):
-            guard rawValue.isFinite, rawValue.rounded() == rawValue,
-                  let modifiers = UInt32(exactly: rawValue) else { return nil }
-            return modifiers
-        case .string(let rawValue):
-            return rawValue.split(separator: "+").reduce(into: UInt32(0)) { result, value in
-                result |= carbonModifier(for: String(value))
-            }
-        case .array(let values):
-            return values.reduce(into: UInt32(0)) { result, value in
-                guard case .string(let modifier) = value else { return }
-                result |= carbonModifier(for: modifier)
-            }
-        default:
-            return nil
-        }
-    }
-
-    private func carbonModifier(for value: String) -> UInt32 {
-        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "command", "cmd", "⌘": return UInt32(cmdKey)
-        case "shift", "⇧": return UInt32(shiftKey)
-        case "option", "alt", "⌥": return UInt32(optionKey)
-        case "control", "ctrl", "⌃": return UInt32(controlKey)
-        default: return 0
-        }
-    }
-
-    private func carbonModifierNames(for modifiers: UInt32) -> [String] {
-        [
-            (UInt32(cmdKey), "command"),
-            (UInt32(shiftKey), "shift"),
-            (UInt32(optionKey), "option"),
-            (UInt32(controlKey), "control"),
-        ].compactMap { bit, name in
-            modifiers & bit == 0 ? nil : name
-        }
-    }
-
-    private func stringValue(_ value: JSONValue?) -> String? {
-        guard case .string(let value) = value else { return nil }
-        return value
-    }
-
-    private var alternateCommands: [CommandDeclaration] {
-        guard let pluginManifest else { return [] }
-        let ordered = alternateCommandOrder.compactMap { id in
-            pluginManifest.commands.first { $0.id == id }
-        }
-        let missing = pluginManifest.commands.filter { command in
-            command.id != primaryCommandID && !alternateCommandOrder.contains(command.id)
-        }
-        return ordered + missing.filter { $0.id != primaryCommandID }
-    }
-
-    private var selectedCommands: [CommandDeclaration] {
-        guard let pluginManifest,
-              let primaryCommand = pluginManifest.commands.first(where: {
-                  $0.id == primaryCommandID
-              }) else {
-            return []
-        }
-        return [primaryCommand] + alternateCommandOrder.compactMap { commandID in
-            guard alternateCommandIDs.contains(commandID), commandID != primaryCommandID else {
-                return nil
-            }
-            return pluginManifest.commands.first { $0.id == commandID }
-        }
-    }
-
-    private var configurableCommands: [CommandDeclaration] {
-        selectedCommands.filter(\.isConfigurable)
     }
 
     private func parameterPlaceholder(for command: CommandDeclaration) -> String {
@@ -2024,146 +1730,6 @@ private struct SlotConfigurationSheet: View {
             ?? command.hostCommand?.configurationField?.placeholder
             ?? command.hostCommand?.inputPlaceholder
             ?? localized("Configuration value (JSON or text)")
-    }
-
-    private var normalizedItemAlias: String? {
-        let value = itemAlias.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
-    }
-
-    private static func initialState(
-        in editor: HostConfigurationEditor,
-        app: AppBundleIdentifier?,
-        slotIndex: Int,
-        presetPluginID: PluginID?
-    ) -> InitialState {
-        // The Menu Item the edited App sees: its override or the default's.
-        let slots = editor.configuration.menu.slots(for: app)
-        let itemAlias = slots.indices.contains(slotIndex)
-            ? slots[slotIndex].item?.alias ?? ""
-            : ""
-
-        guard slots.indices.contains(slotIndex) else {
-            return InitialState(
-                pluginManifest: nil,
-                pluginID: nil,
-                itemAlias: itemAlias,
-                primaryCommandID: CommandID("missing"),
-                alternateCommandOrder: [],
-                enabledAlternateCommandIDs: [],
-                inputTexts: [:],
-                originalInputValues: [:]
-            )
-        }
-
-        let item = slots[slotIndex].item
-        let primaryAction = item.flatMap { item in
-            editor.configuration.actions.first(where: { $0.id == item.primaryActionID })
-        }
-        let pluginID = presetPluginID ?? primaryAction?.pluginID
-        let pluginManifest = pluginID.flatMap(editor.installedPlugins.manifest)
-        let commands = pluginManifest?.commands ?? []
-        guard let pluginManifest, let pluginID, !commands.isEmpty else {
-            return InitialState(
-                pluginManifest: nil,
-                pluginID: nil,
-                itemAlias: itemAlias,
-                primaryCommandID: CommandID("missing"),
-                alternateCommandOrder: [],
-                enabledAlternateCommandIDs: [],
-                inputTexts: [:],
-                originalInputValues: [:]
-            )
-        }
-
-        let defaultPrimaryCommandID = pluginManifest.preset.defaultPrimaryCommandID
-            ?? commands[0].id
-        let primaryCommandID: CommandID
-        if let primaryAction,
-           primaryAction.pluginID == pluginID,
-           commands.contains(where: { $0.id == primaryAction.commandID }) {
-            primaryCommandID = primaryAction.commandID
-        } else {
-            primaryCommandID = defaultPrimaryCommandID
-        }
-
-        let boundActionIDs = item?.boundActionIDs ?? []
-        let boundActions = boundActionIDs.compactMap { actionID in
-            editor.configuration.actions.first(where: { $0.id == actionID })
-        }
-
-        var alternateCommandOrder: [CommandID] = []
-        for action in boundActions {
-            guard action.pluginID == pluginID,
-                  action.commandID != primaryCommandID,
-                  commands.contains(where: { $0.id == action.commandID }),
-                  !alternateCommandOrder.contains(action.commandID) else { continue }
-            alternateCommandOrder.append(action.commandID)
-        }
-        for command in commands where command.id != primaryCommandID {
-            if !alternateCommandOrder.contains(command.id) {
-                alternateCommandOrder.append(command.id)
-            }
-        }
-
-        var enabledAlternateCommandIDs = Set<CommandID>()
-        let enabledActionIDs = Set(item?.alternateActionIDs ?? [])
-        for action in boundActions where action.pluginID == pluginID {
-            if action.commandID != primaryCommandID,
-               (item == nil || enabledActionIDs.contains(action.id)),
-               alternateCommandOrder.contains(action.commandID) {
-                enabledAlternateCommandIDs.insert(action.commandID)
-            }
-        }
-        if item == nil {
-            enabledAlternateCommandIDs = Set(
-                pluginManifest.preset.defaultAlternateCommandIDs.filter {
-                    $0 != primaryCommandID && alternateCommandOrder.contains($0)
-                }
-            )
-        }
-
-        var inputTexts: [CommandID: String] = [:]
-        var originalInputValues: [CommandID: JSONValue] = [:]
-        for command in commands {
-            if let action = boundActions.first(where: {
-                $0.pluginID == pluginID && $0.commandID == command.id
-            }) {
-                let field = command.configurationField ?? command.hostCommand?.configurationField
-                inputTexts[command.id] = ConfigurationInputValueResolver.presentationValue(
-                    for: action.input,
-                    field: field,
-                    hostCommand: command.hostCommand
-                )
-                originalInputValues[command.id] = action.input
-            } else if let input = pluginManifest.preset.defaultInputs[command.id] {
-                let field = command.configurationField ?? command.hostCommand?.configurationField
-                inputTexts[command.id] = ConfigurationInputValueResolver.presentationValue(
-                    for: input,
-                    field: field,
-                    hostCommand: command.hostCommand
-                )
-                originalInputValues[command.id] = input
-            }
-        }
-        return InitialState(
-            pluginManifest: pluginManifest,
-            pluginID: pluginID,
-            itemAlias: itemAlias,
-            primaryCommandID: primaryCommandID,
-            alternateCommandOrder: alternateCommandOrder,
-            enabledAlternateCommandIDs: enabledAlternateCommandIDs,
-            inputTexts: inputTexts,
-            originalInputValues: originalInputValues
-        )
-    }
-
-    private static func displayValue(for value: JSONValue) -> String {
-        ConfigurationInputValueResolver.presentationValue(
-            for: value,
-            field: nil,
-            hostCommand: nil
-        )
     }
 }
 

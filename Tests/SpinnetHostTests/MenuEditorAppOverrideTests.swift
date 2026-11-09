@@ -136,13 +136,9 @@ final class MenuEditorAppOverrideTests: XCTestCase {
         let before = model.editor.configuration
         let app = model.editedAppID
 
-        // What the Configuration Sheet saves when nothing was changed.
-        let candidate = try model.editor.configuredMenuItem(
-            at: 0, pluginID: PluginID(fixture), primaryCommandID: CommandID("fixture.open"),
-            inputs: [CommandID("fixture.open"): .string("https://example.com")],
-            preserveUnselectedAlternates: true, for: app
-        )
-        model.saveMenuItemConfiguration(try model.editor.aliasedMenuItem(in: candidate, at: 0, to: nil, for: app))
+        // The Configuration Sheet saved with nothing changed.
+        let draft = MenuItemConfigurationDraft(editor: model.editor, app: app, slotIndex: 0)
+        model.saveMenuItemConfiguration(try draft.makeConfiguration())
 
         XCTAssertEqual(model.editor.configuration, before)
         XCTAssertEqual(model.menuSlots[0].appOverride, .inherited)

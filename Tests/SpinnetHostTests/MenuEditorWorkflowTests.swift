@@ -45,27 +45,16 @@ final class MenuEditorWorkflowTests: XCTestCase {
         )
         XCTAssertNil(model.editor.configuration.menu.slots[0].item)
 
+        let setup = try XCTUnwrap(model.menuEditor.pendingPresetSetup)
+        let draft = MenuItemConfigurationDraft(editor: model.editor, slotIndex: setup.slotIndex,
+                                               presetPluginID: setup.pluginID)
         let command = try XCTUnwrap(applicationPreset.manifest.commands.first)
-        XCTAssertThrowsError(try model.editor.configuredMenuItem(
-            at: 0,
-            pluginID: applicationPreset.manifest.id,
-            primaryCommandID: command.id,
-            inputs: [command.id: .string("")],
-            replacingEmptySlot: true,
-            validateInputs: true
-        ))
-        let candidate = try model.editor.configuredMenuItem(
-            at: 0,
-            pluginID: applicationPreset.manifest.id,
-            primaryCommandID: command.id,
-            inputs: [command.id: .string("/Applications/TextEdit.app")],
-            replacingEmptySlot: true,
-            validateInputs: true
-        )
-        model.menuEditor.savePresetSetup(
-            candidate,
-            for: try XCTUnwrap(model.menuEditor.pendingPresetSetup)
-        )
+        XCTAssertEqual(draft.primaryCommandID, command.id)
+        draft.setInputText("", for: command.id)
+        XCTAssertThrowsError(try model.saveMenuItem(draft.makeSaveDraft()))
+        XCTAssertNotNil(model.menuEditor.pendingPresetSetup, "A refused save keeps the setup open")
+        draft.setInputText("/Applications/TextEdit.app", for: command.id)
+        try model.saveMenuItem(draft.makeSaveDraft())
 
         XCTAssertNotNil(model.editor.configuration.menu.slots[0].item)
         XCTAssertNil(model.menuEditor.pendingPresetSetup)
@@ -293,23 +282,14 @@ final class MenuEditorWorkflowTests: XCTestCase {
         )
         let original = model.editor.configuration
 
-        XCTAssertThrowsError(try model.editor.configuredMenuItem(
-            at: 0,
-            pluginID: PluginID("com.spinnet.fixture"),
-            primaryCommandID: CommandID("fixture.open"),
-            inputs: [CommandID("fixture.open"): .string("not a URL")],
-            validateInputs: true
-        ))
+        let draft = MenuItemConfigurationDraft(editor: model.editor, slotIndex: 0)
+        XCTAssertEqual(draft.primaryCommandID, CommandID("fixture.open"))
+        draft.setInputText("not a URL", for: CommandID("fixture.open"))
+        XCTAssertThrowsError(try model.saveMenuItem(draft.makeSaveDraft()))
         XCTAssertEqual(model.editor.configuration, original)
 
-        let candidate = try model.editor.configuredMenuItem(
-            at: 0,
-            pluginID: PluginID("com.spinnet.fixture"),
-            primaryCommandID: CommandID("fixture.open"),
-            inputs: [CommandID("fixture.open"): .string("https://spinnet.dev")],
-            validateInputs: true
-        )
-        model.menuEditor.saveMenuItemConfiguration(candidate)
+        draft.setInputText("https://spinnet.dev", for: CommandID("fixture.open"))
+        try model.saveMenuItem(draft.makeSaveDraft())
         XCTAssertEqual(
             model.editor.configuration.actions.first?.input,
             .string("https://spinnet.dev")
