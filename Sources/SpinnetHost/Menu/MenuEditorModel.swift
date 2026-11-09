@@ -436,6 +436,9 @@ final class MenuEditorModel: ObservableObject {
             },
             explanation: { action in
                 manifests[action.pluginID]?.commands.first { $0.id == action.commandID }?.explanation
+            },
+            commandIcon: { action in
+                manifests[action.pluginID]?.commands.first { $0.id == action.commandID }?.icon
             }
         )
         guard let app = editedAppID else { return slots }

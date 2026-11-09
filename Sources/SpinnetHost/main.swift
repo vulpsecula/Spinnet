@@ -641,6 +641,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             // that describes its Commands later describes existing Actions too.
             explanation: { [weak self] action in
                 self?.registry.command(for: action.pluginID, commandID: action.commandID)?.explanation
+            },
+            commandIcon: { [weak self] action in
+                self?.registry.command(for: action.pluginID, commandID: action.commandID)?.icon
             }
         )
     }

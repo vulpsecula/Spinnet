@@ -1277,13 +1277,26 @@ final class RadialMenuView: NSView {
             ]
             let text = NSAttributedString(string: action.title, attributes: attributes)
             let options: NSString.DrawingOptions = [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
-            let textHeight = min(height, ceil(text.boundingRect(with: NSSize(width: width, height: height),
-                                                                options: options).height))
-            let rect = NSRect(x: location.x - width / 2, y: location.y - textHeight / 2,
+            let icon = alternateRingIcon(at: index)
+            // The title sits below the icon, which sits just above the
+            // segment's centre.
+            let textSpace = icon.map { _ in max(12, height / 2 - Self.alternateRingIconGap / 2) } ?? height
+            let textHeight = min(textSpace, ceil(text.boundingRect(with: NSSize(width: width, height: textSpace),
+                                                                   options: options).height))
+            let rect = NSRect(x: location.x - width / 2,
+                              y: icon == nil ? location.y - textHeight / 2
+                                  : location.y - Self.alternateRingIconGap / 2 - textHeight,
                               width: width, height: textHeight)
             NSGraphicsContext.saveGraphicsState()
             path.addClip()
             text.draw(with: rect, options: options)
+            if let icon, let image = menuIconImage(for: icon) {
+                let size = image.size
+                let fit = min(icon.rect.width / max(size.width, 1), icon.rect.height / max(size.height, 1), 1)
+                image.draw(in: NSRect(x: icon.rect.midX - size.width * fit / 2, y: icon.rect.midY - size.height * fit / 2,
+                                      width: size.width * fit, height: size.height * fit),
+                           from: .zero, operation: .sourceOver, fraction: 1)
+            }
             NSGraphicsContext.restoreGraphicsState()
         }
     }
@@ -1879,6 +1892,14 @@ final class RadialMenuView: NSView {
         let colour: NSColor = slot.isInherited
             ? palette.secondaryLabel.withAlphaComponent(palette.secondaryLabel.alphaComponent * 0.7)
             : item.primaryAction.isAvailable ? editorAccentColor : palette.secondaryLabel
+        return iconDrawing(item.icon, in: rect, colour: colour,
+                           isDimmed: slot.isInherited || !item.primaryAction.isAvailable)
+    }
+
+    /// `icon` as the Menu draws it in `rect`, its colour resolved for the
+    /// Menu's Light or Dark theme. `isDimmed` gives a full-colour picture
+    /// the fade a dimmed symbol's colour gives a symbol.
+    private func iconDrawing(_ icon: MenuItemIcon, in rect: NSRect, colour: NSColor, isDimmed: Bool) -> MenuIconDrawing {
         var resolved = colour
         effectiveAppearance.performAsCurrentDrawingAppearance {
             resolved = colour.usingColorSpace(.sRGB) ?? colour
@@ -1887,16 +1908,40 @@ final class RadialMenuView: NSView {
         // drawn: the dark picture in a Dark Menu when there is one. A picture
         // gone from disk draws the neutral symbol it carries.
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let pictureURL = item.icon.picture.flatMap { picture in
+        let pictureURL = icon.picture.flatMap { picture in
             (isDark ? picture.darkURL : nil) ?? picture.url
         }.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
-        let isTemplate = pictureURL != nil && item.icon.picture?.isTemplate == true
+        let isTemplate = pictureURL != nil && icon.picture?.isTemplate == true
         return MenuIconDrawing(
-            symbolName: item.icon.drawable.symbolName, rect: rect, color: resolved,
+            symbolName: icon.drawable.symbolName, rect: rect, color: resolved,
             pictureURL: pictureURL, isTemplate: isTemplate,
             // A full-colour picture cannot take the dimmed colour; it fades.
-            opacity: pictureURL != nil && !isTemplate && (slot.isInherited || !item.primaryAction.isAvailable) ? 0.5 : 1
+            opacity: pictureURL != nil && !isTemplate && isDimmed ? 0.5 : 1
         )
+    }
+
+    /// The Command Icon drawn for the Alternate Action at `actionIndex` in
+    /// the open Alternate Ring, above its title; nil while no ring is open.
+    func alternateRingIcon(at actionIndex: Int) -> MenuIconDrawing? {
+        guard let itemIndex = alternateRingItemIndex,
+              let actions = slots[itemIndex].item?.alternateActions, actions.indices.contains(actionIndex),
+              let ring = layout.alternateRing(itemIndex: itemIndex, actionCount: actions.count) else { return nil }
+        let action = actions[actionIndex]
+        let location = ring.actionCenter(index: actionIndex, center: CGPoint(x: bounds.midX, y: bounds.midY))
+        let side = Self.alternateRingIconSide(for: layout)
+        let rect = NSRect(x: location.x - side / 2, y: location.y + Self.alternateRingIconGap / 2,
+                          width: side, height: side)
+        let selected = actionIndex == selectedAlternateIndex && action.isAvailable
+        let colour = !action.isAvailable ? palette.secondaryLabel : (selected ? NSColor.white : editorAccentColor)
+        return iconDrawing(action.icon, in: rect, colour: colour, isDimmed: !action.isAvailable)
+    }
+
+    private static let alternateRingIconGap: CGFloat = 2
+
+    /// The side of an Alternate Action's icon: a little smaller than a
+    /// Menu Item's, scaled with the Menu Size.
+    private static func alternateRingIconSide(for menuLayout: RadialMenuLayout) -> CGFloat {
+        max(10, (14 * menuLayout.outerRadius / 142).rounded())
     }
 
     /// The image drawn for the Menu Item Icon at `index`, sized to its rect.

@@ -2,24 +2,55 @@ import AppKit
 import SpinnetCore
 
 /// What a Configuration Sheet offers for the user's own Menu Item Icon: the
-/// icon chosen so far, and the default the Menu Item shows without it.
+/// icon chosen so far, the default the Menu Item shows without it, and the
+/// Command Icon shown beside each Command the sheet offers.
 struct MenuItemIconChoice: Equatable {
     /// The user's own icon, a system symbol name, or nil for the default.
     let ownIcon: String?
-    /// What the Menu Item shows when the user has chosen no icon.
+    /// What the Menu Item shows when the user has chosen no icon: its
+    /// Primary Action's Command Icon, else the Plugin Icon, else neutral.
     let defaultIcon: MenuItemIcon
+    /// The icon of each Command of the Menu Item's Plugin, by Command.
+    private let commandIcons: [CommandID: MenuItemIcon]
 
     /// The Menu Item `app` sees at `slotIndex`, nil for the default Menu.
-    init(editor: HostConfigurationEditor, app: AppBundleIdentifier? = nil, slotIndex: Int) {
+    /// `presetPluginID` names the Plugin of a Preset being placed into an
+    /// empty Slot.
+    init(editor: HostConfigurationEditor, app: AppBundleIdentifier? = nil, slotIndex: Int,
+         presetPluginID: PluginID? = nil) {
         let slots = editor.configuration.menu.slots(for: app)
         let item = slots.indices.contains(slotIndex) ? slots[slotIndex].item : nil
         let primary = item.flatMap { item in editor.configuration.actions.first { $0.id == item.primaryActionID } }
+        let pluginID = primary?.pluginID ?? presetPluginID
+        let manifest = pluginID.flatMap { id in editor.pluginManifests.first { $0.id == id } }
+        let packageRoot = pluginID.flatMap { editor.packageRoot(for: $0) }
         ownIcon = item?.icon
         defaultIcon = MenuItemIcon.resolve(
-            pluginIcon: primary.flatMap { action in editor.pluginManifests.first { $0.id == action.pluginID }?.icon },
-            packageRoot: primary.flatMap { editor.packageRoot(for: $0.pluginID) },
+            commandIcon: primary.flatMap { action in manifest?.commands.first { $0.id == action.commandID }?.icon },
+            pluginIcon: manifest?.icon,
+            packageRoot: packageRoot,
             primaryAvailability: primary.flatMap { editor.availability(for: $0.id) } ?? .unavailable(.commandMissing)
         )
+        var commandIcons: [CommandID: MenuItemIcon] = [:]
+        for command in manifest?.commands ?? [] {
+            commandIcons[command.id] = MenuItemIcon.resolve(
+                commandIcon: command.icon, pluginIcon: manifest?.icon, packageRoot: packageRoot,
+                primaryAvailability: .available
+            )
+        }
+        self.commandIcons = commandIcons
+    }
+
+    /// The icon shown beside `commandID` in the Primary Action picker and
+    /// the Alternate Action list: its Command Icon, else the Plugin Icon.
+    func icon(for commandID: CommandID) -> MenuItemIcon {
+        commandIcons[commandID] ?? .neutral
+    }
+
+    /// The default while the sheet's Primary Action is `primaryCommandID`,
+    /// which the user may have changed from the saved one.
+    func defaultIcon(primaryCommandID: CommandID) -> MenuItemIcon {
+        commandIcons[primaryCommandID] ?? defaultIcon
     }
 
     /// The symbols the picker offers for `query`: those whose name contains

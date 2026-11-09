@@ -359,6 +359,7 @@ final class MenuPresentationController {
             menuItem.representedObject = action.actionID.rawValue
             menuItem.isEnabled = action.isAvailable
             menuItem.toolTip = action.toolTip
+            menuItem.image = action.icon.menuImage(side: 16, appearance: menu.appearance ?? NSApp.effectiveAppearance)
             menu.addItem(menuItem)
             if index == 0, !item.alternateActions.isEmpty {
                 menu.addItem(.separator())
