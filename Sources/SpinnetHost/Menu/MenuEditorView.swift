@@ -7,7 +7,9 @@ struct MenuEditorView: View {
     var app: AppBundleIdentifier? = nil
     @Binding var selectedMenuIndex: Int
     let placementMessage: String?
-    let libraryPresetsForQuery: (String) -> [MenuItemPreset]
+    let libraryPresetsForQuery: (String, LibraryFilter) -> [MenuItemPreset]
+    /// The Plugin Tag filters the Library offers; empty shows no filter row.
+    var libraryFilters: [LibraryFilter] = []
     let onPresetPlacement: (String, Int) -> Bool
     var onInstallPlugin: () -> Void = {}
     var onBrowsePlugins: () -> Void = {}
@@ -20,13 +22,19 @@ struct MenuEditorView: View {
     var pluginUpdates: PluginUpdatesModel?
 
     @State private var searchText = ""
+    @State private var libraryFilter: LibraryFilter = .all
 
     static func libraryPresetDragProvider(for pluginID: String) -> NSItemProvider {
         NSItemProvider(object: NSString(string: pluginID))
     }
 
     private var libraryPresets: [MenuItemPreset] {
-        libraryPresetsForQuery(searchText)
+        libraryPresetsForQuery(searchText, activeLibraryFilter)
+    }
+
+    /// The chosen filter while the Library still offers it, else All.
+    private var activeLibraryFilter: LibraryFilter {
+        libraryFilters.contains(libraryFilter) ? libraryFilter : .all
     }
 
     private var selectedSlotIsOccupied: Bool {
@@ -59,6 +67,10 @@ struct MenuEditorView: View {
                     if let pluginUpdates {
                         CheckAllPluginUpdatesButton(updates: pluginUpdates)
                     }
+                }
+
+                if !libraryFilters.isEmpty {
+                    libraryFilterRow
                 }
 
                 let presets = libraryPresets
@@ -110,6 +122,33 @@ struct MenuEditorView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(localized("Menu"))
+    }
+
+    /// All, each Plugin Tag present among installed Plugins, and Other.
+    private var libraryFilterRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(libraryFilters, id: \.self) { filter in
+                    let isSelected = filter == activeLibraryFilter
+                    Button { libraryFilter = filter } label: {
+                        Text(filter.title)
+                            .font(.callout)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .foregroundStyle(isSelected ? Color.white : Color.primary)
+                            .background(
+                                Capsule().fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.14))
+                            )
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                }
+            }
+            .padding(.vertical, 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(localized("Filter Library by Plugin Tag"))
     }
 
     @ViewBuilder

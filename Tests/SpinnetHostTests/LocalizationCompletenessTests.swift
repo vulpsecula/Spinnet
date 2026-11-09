@@ -82,8 +82,25 @@ final class LocalizationCompletenessTests: XCTestCase {
             + [MenuAppearanceConfiguration.MenuFont.system.rawValue]
             + ClipboardRetention.allCases.map(\.rawValue)
         english += OfficialPlugin.all.map(\.summaryKey)
+        english += PluginTag.allCases.map(\.title) + [LibraryFilter.all.englishTitle, LibraryFilter.other.englishTitle]
         for text in english {
             XCTAssertNotNil(catalog[text] ?? nil, "\"\(text)\" has no zh-Hans translation")
+        }
+    }
+
+    /// PluginAPI publishes each Plugin Tag's titles; the Library shows them.
+    func testPluginTagTitlesAreTheOnesPluginAPIPublishes() throws {
+        struct Published: Decodable {
+            struct Tag: Decodable { let id: String; let title: [String: String] }
+            let tags: [Tag]
+        }
+        let url = TestRepository.root.appendingPathComponent("PluginAPI/plugin-tags.json")
+        let published = try JSONDecoder().decode(Published.self, from: Data(contentsOf: url)).tags
+        let catalog = try LocalizedSurfaces.catalog()
+        XCTAssertEqual(published.map(\.id), PluginTag.allCases.map(\.rawValue))
+        for (tag, entry) in zip(PluginTag.allCases, published) {
+            XCTAssertEqual(LibraryFilter.tag(tag).englishTitle, entry.title["en"], tag.rawValue)
+            XCTAssertEqual(catalog[tag.title] ?? nil, entry.title["zh-Hans"], tag.rawValue)
         }
     }
 

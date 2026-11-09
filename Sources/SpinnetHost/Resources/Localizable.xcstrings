@@ -1,6 +1,27 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Window": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "窗口" } } }
+    },
+    "Media": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "媒体" } } }
+    },
+    "Apps": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "App" } } }
+    },
+    "Clipboard": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "剪贴板" } } }
+    },
+    "Browser": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "浏览器" } } }
+    },
+    "All": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "全部" } } }
+    },
+    "Filter Library by Plugin Tag": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "按插件标签筛选资源库" } } }
+    },
     "Source unknown": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "来源未知" } } }
     },

@@ -66,7 +66,7 @@ let package = Package(
             path: "PluginAPI/sdk",
             exclude: ["adaptive-layout.d.ts", "external-app-connections.d.ts", "homebrew-autoremove.d.ts",
                       "homebrew-management.d.ts", "spinnet.d.ts", "views.d.ts", "spotify-controls.d.ts",
-                      "update-source.d.ts", "plugin-icon.d.ts"],
+                      "update-source.d.ts", "plugin-icon.d.ts", "plugin-tags.d.ts"],
             sources: ["SpinnetSDK.swift"],
             resources: [.embedInCode("view-builders.js"), .embedInCode("spinnet.js"),
                         .embedInCode("adaptive-layout.js"), .embedInCode("autoremove.js"),

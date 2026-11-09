@@ -3857,6 +3857,414 @@
       ]
     },
     {
+      "name": "manifest-tags-vocabulary",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          "window",
+          "apps"
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-empty",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-most",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          "media",
+          "text",
+          "clipboard"
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-unknown-kept",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          "browser",
+          "spatial-audio"
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-longest",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-too-many",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          "window",
+          "media",
+          "apps",
+          "text"
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-duplicate",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          "files",
+          "files"
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-too-long",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-upper-case",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          "Window"
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-empty-tag",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          ""
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-double-hyphen",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          "spatial--audio"
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-not-a-list",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": "window",
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-null",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": null,
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-tags-not-strings",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "tags": [
+          1
+        ],
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
       "name": "page-multiline-and-toggle-fields",
       "value": {
         "page": {

@@ -458,6 +458,10 @@ public struct PluginManifest: Codable, Equatable, Sendable {
     /// The Plugin Icon, written `icon`: what the Library and the Menu show
     /// for this Plugin's Menu Items. Absent, the Host shows a neutral symbol.
     public let icon: IconDeclaration?
+    /// The Plugin Tags, written `tags`, in declared order: identifiers the
+    /// Library files the Plugin's Menu Item Preset under. Unknown ones are
+    /// kept; `vocabularyTags` holds those the Host knows.
+    public let tags: [String]
     public let capabilities: [PluginCapability]
     /// Declared access that may be used when granted but does not prevent a
     /// JavaScript Command from running when it is denied or unreviewed.
@@ -484,6 +488,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         name: String,
         version: String,
         icon: IconDeclaration? = nil,
+        tags: [String] = [],
         capabilities: [PluginCapability] = [],
         optionalCapabilities: [PluginCapability] = [],
         capabilityScopes: [PluginCapabilityScope] = [],
@@ -501,6 +506,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         self.name = name
         self.version = version
         self.icon = icon
+        self.tags = tags
         self.capabilities = capabilities
         self.optionalCapabilities = optionalCapabilities
         self.capabilityScopes = capabilityScopes
@@ -523,6 +529,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         case name
         case version
         case icon
+        case tags
         case capabilities
         case optionalCapabilities = "optional_capabilities"
         case capabilityScopes = "capability_scopes"
@@ -543,6 +550,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         try container.encode(name, forKey: .name)
         try container.encode(version, forKey: .version)
         try container.encodeIfPresent(icon, forKey: .icon)
+        if !tags.isEmpty { try container.encode(tags, forKey: .tags) }
         try container.encode(capabilities, forKey: .capabilities)
         if !optionalCapabilities.isEmpty { try container.encode(optionalCapabilities, forKey: .optionalCapabilities) }
         try container.encode(capabilityScopes, forKey: .capabilityScopes)
@@ -577,6 +585,9 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         self.icon = try container.contains(.icon)
             ? IconDeclaration(parsing: container.decode(JSONValue.self, forKey: .icon), "icon")
             : nil
+        self.tags = try container.contains(.tags)
+            ? PluginTag.parsing(container.decode(JSONValue.self, forKey: .tags))
+            : []
         self.capabilities = try container.decodeIfPresent(
             [PluginCapability].self,
             forKey: .capabilities
@@ -598,6 +609,9 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         try validate()
     }
 
+    /// The declared Plugin Tags the Host's vocabulary knows, in declared order.
+    public var vocabularyTags: [PluginTag] { tags.compactMap(PluginTag.init(rawValue:)) }
+
     public func validate() throws {
         guard protocolVersion == Self.supportedProtocolVersion else {
             throw ConfigurationError.invalidManifest(
@@ -607,6 +621,7 @@ public struct PluginManifest: Codable, Equatable, Sendable {
         try validateText(id.rawValue, name: "Plugin ID")
         try validateText(name, name: "Plugin name")
         try validateText(version, name: "Plugin version")
+        _ = try PluginTag.parsing(.array(tags.map(JSONValue.string)))
         if updateSource != nil {
             // Releases are tagged <id>/v<version> and compared by SemVer.
             guard PluginUpdateSource.isTagSafe(id) else {

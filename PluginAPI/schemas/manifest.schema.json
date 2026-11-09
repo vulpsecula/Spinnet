@@ -31,6 +31,17 @@
       "description": "The Plugin Icon: what the Library and the radial Menu show for this Plugin's Menu Items. Absent, the Host shows a neutral symbol. Display-only; see reference/manifest.md#plugin-icon.",
       "$ref": "#/$defs/icon"
     },
+    "tags": {
+      "description": "The Plugin Tags: categories the Library files this Plugin's Menu Item Preset under. Identifiers outside the published vocabulary (plugin-tags.json) are admitted and kept but offer no Library filter. Display-only; see reference/manifest.md#plugin-tags.",
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+        "maxLength": 32
+      }
+    },
     "capabilities": {
       "description": "The protected Host functionality the Plugin may request. A declaration is not a grant: the user decides each one.",
       "type": "array",
