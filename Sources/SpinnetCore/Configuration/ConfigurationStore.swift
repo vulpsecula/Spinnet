@@ -68,6 +68,12 @@ public final class HostConfigurationEditor {
         registry.menuItemPresets()
     }
 
+    /// The installed package of `pluginID`, which its icon pictures are
+    /// read from.
+    public func packageRoot(for pluginID: PluginID) -> URL? {
+        registry.package(for: pluginID)?.rootURL
+    }
+
     public var pluginManifests: [PluginManifest] {
         registry.manifests()
     }

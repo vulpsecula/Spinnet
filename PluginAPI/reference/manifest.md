@@ -64,14 +64,16 @@ admitted. Historical Host Command names are refused.
 
 ## Plugin Icon
 
-A Plugin may declare an optional top-level `icon`, its Plugin Icon, as a system
-symbol by its SF Symbols name:
+A Plugin may declare an optional top-level `icon`, its Plugin Icon, either as a
+system symbol by its SF Symbols name or as a [picture](#icon-pictures) inside
+its package:
 
 ```json
 "icon": {"symbol": "rectangle.split.2x1"}
+"icon": {"image": "icons/mark.pdf", "template": true}
 ```
 
-The name follows the rule for a page [`icon` component](pages.md#icons):
+A symbol name follows the rule for a page [`icon` component](pages.md#icons):
 lower-case letters, digits and dots, not starting or ending with a dot or
 holding two together, at most 64 characters. Any other value, including
 `null`, a bare string or another member, refuses the package with a reason
@@ -85,6 +87,39 @@ without an icon, and a Menu Item whose Plugin is removed or refused or whose
 Command is gone, shows a neutral Host symbol instead, so the ring has no gap. A
 name the running macOS lacks also shows the neutral symbol. VoiceOver keeps
 reading Menu Item titles.
+
+### Icon pictures
+
+An icon may instead name a PNG or PDF file in the package:
+
+```json
+"icon": {"image": "icons/mark.png", "dark_image": "icons/mark-dark.png"}
+```
+
+- `image` is the picture's path from the package root, resolved like a
+  package [Image Source](pages.md#images): plain components separated by `/`,
+  none empty or starting with a dot (so never `.` or `..`), no backslash, at
+  most 256 characters, ending in `.png` or `.pdf` in any case. The file, links
+  followed, must be a regular file inside the package.
+- `template: true` marks a template picture: the Host uses only its shape and
+  tints it the way it tints a system symbol, so it suits Light and Dark Menus
+  alike. Draw it in one colour on a clear background.
+- `dark_image` names the picture a full-colour icon shows in a Dark
+  appearance, under the same rules; without it the Host shows `image` in both.
+  `dark_image` together with `template: true` is refused.
+
+Each picture file is at most 256 KiB (262,144 bytes), and a PNG is at most
+1,024 pixels on either side. A file must be the format its name says. A
+missing file, a path leaving the package, another format, an oversized
+picture or an unknown member refuses the package with a reason naming `icon`.
+
+The Host draws a PDF's first page as vectors, so it stays sharp at every Menu
+Size and display scale; prefer PDF. A PNG is resampled from its own pixels:
+give it at least 128 pixels on a side for a Large Menu on a Retina display.
+The Host reads a picture from the installed package whenever it shows it and
+keeps no copy, so a Menu Item whose Plugin is removed shows the neutral
+symbol. A full-colour picture fades where an unavailable Menu Item's symbol
+would be dimmed.
 
 The icon is display-only. It grants nothing, changing it in a Plugin Update
 does not make any configured Action's Command count as changed, and installing

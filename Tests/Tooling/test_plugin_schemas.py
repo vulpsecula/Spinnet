@@ -85,6 +85,24 @@ class PluginSchemaCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("schema escapes", result.stderr)
 
+    def test_package_files_are_described_not_shipped(self):
+        described = copy.deepcopy(self.index)
+        described["cases"][0]["package"] = {"admitted": False, "files": {
+            "mark.png": {"png": [8, 8]}, "mark.pdf": {"pdf": [32, 32]},
+            "photo.png": {"jpeg": [8, 8]}, "big.pdf": {"bytes": 262145}}}
+        self.index = described
+        self.assertEqual(self.run_check().returncode, 0)
+        for package in [{"files": {}}, {"admitted": True, "files": {"mark.png": {"svg": [8, 8]}}},
+                        {"admitted": True, "files": {"mark.png": {"png": [8]}}},
+                        {"admitted": True, "files": {"mark.png": {"png": [8, 8], "bytes": 3}}}]:
+            with self.subTest(package=package):
+                malformed = copy.deepcopy(self.index)
+                malformed["cases"][0]["package"] = package
+                self.index = malformed
+                result = self.run_check()
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("could not complete", result.stderr)
+
     def test_malformed_empty_or_duplicate_matrix_fails(self):
         original = copy.deepcopy(self.index)
         malformed = [{"cases": []}, {"cases": [{"name": "incomplete", "checks": []}]}]

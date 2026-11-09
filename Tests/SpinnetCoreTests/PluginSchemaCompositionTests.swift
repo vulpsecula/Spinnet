@@ -21,7 +21,12 @@ final class PluginSchemaCompositionTests: XCTestCase {
         let value: JSONValue
         let checks: [Entry]
         let host_versions: [Admission]?
+        let package: Package?
     }
+    /// Files written beside the manifest, described as
+    /// `IconPictureFixtures.file(described:)` reads them, and whether the
+    /// Host then admits the package.
+    private struct Package: Decodable { let files: [String: JSONValue]; let admitted: Bool }
     private struct Admission: Decodable { let version: String; let compatible: Bool }
     private struct Index: Decodable { let cases: [Fixture] }
 
@@ -63,6 +68,30 @@ final class PluginSchemaCompositionTests: XCTestCase {
                     XCTAssertFalse(entry.valid, "Host unexpectedly refused \(context): \(error)")
                 }
             }
+            if let package = fixture.package { try checkPackage(package, manifest: fixture.value, name: fixture.name) }
+        }
+    }
+
+    /// The manifest, loaded as a package with its described files, is
+    /// admitted or refused as the fixture says; a refusal names `icon`.
+    private func checkPackage(_ package: Package, manifest: JSONValue, name: String) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("Conformance.spinnetplugin")
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try JSONEncoder().encode(manifest).write(to: root.appendingPathComponent("manifest.json"))
+        for (path, description) in package.files {
+            let url = root.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(description)) as? [String: Any])
+            try IconPictureFixtures.file(described: object).write(to: url)
+        }
+        do {
+            _ = try PluginManifestLoader.load(packageAt: root)
+            XCTAssertTrue(package.admitted, "Host unexpectedly admitted the package of \(name)")
+        } catch {
+            XCTAssertFalse(package.admitted, "Host unexpectedly refused the package of \(name): \(error)")
+            XCTAssertTrue(String(describing: error).contains("icon"), "\(name): \(error)")
         }
     }
 }

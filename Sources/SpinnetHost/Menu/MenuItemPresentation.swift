@@ -37,10 +37,24 @@ struct MenuActionPresentation: Equatable {
 }
 
 /// The Menu Item Icon a Menu Item shows. The Host resolves it in one place,
-/// `resolve(pluginIcon:primaryAvailability:)`, beside the Menu Item's title.
+/// `resolve(pluginIcon:packageRoot:primaryAvailability:)`, beside the Menu
+/// Item's title.
 struct MenuItemIcon: Equatable, Hashable {
-    /// A system symbol name.
+    /// A system symbol name. For a package picture, the neutral symbol the
+    /// Menu draws should the picture be gone when it draws.
     let symbolName: String
+    /// The package picture, read from the installed package each time the
+    /// Menu draws it; nil for a system symbol.
+    let picture: Picture?
+
+    /// A package picture's files, located in the installed package.
+    struct Picture: Equatable, Hashable {
+        let url: URL
+        /// Drawn in a Dark appearance instead of `url`, when given.
+        let darkURL: URL?
+        /// Tinted like a system symbol.
+        let isTemplate: Bool
+    }
 
     /// The neutral Host symbol shown when there is no Plugin Icon to show,
     /// so the ring never has a gap.
@@ -49,23 +63,46 @@ struct MenuItemIcon: Equatable, Hashable {
     /// The Plugin's Plugin Icon, else the neutral symbol. A Menu Item whose
     /// Plugin is removed or refused, or whose Command is gone, has no Plugin
     /// to take an icon from and shows the neutral symbol in its unavailable
-    /// treatment; the Host keeps no copy of a Plugin's icon.
-    static func resolve(pluginIcon: IconDeclaration?, primaryAvailability: ActionAvailability) -> MenuItemIcon {
+    /// treatment; the Host keeps no copy of a Plugin's icon. A picture is
+    /// located in `packageRoot`, the installed package; without one it
+    /// cannot be shown either.
+    static func resolve(pluginIcon: IconDeclaration?, packageRoot: URL? = nil,
+                        primaryAvailability: ActionAvailability) -> MenuItemIcon {
         switch primaryAvailability.reason {
         case .pluginMissing?, .pluginRefused?, .commandMissing?:
             return .neutral
         default:
-            return pluginIcon.map { MenuItemIcon(symbolName: $0.symbolName) } ?? .neutral
+            return MenuItemIcon(declaration: pluginIcon, packageRoot: packageRoot)
         }
     }
 
     /// The icon the Library shows beside a Menu Item Preset.
     init(preset: MenuItemPreset) {
-        self = preset.icon.map { MenuItemIcon(symbolName: $0.symbolName) } ?? .neutral
+        self.init(declaration: preset.icon, packageRoot: preset.packageRoot)
+    }
+
+    private init(declaration: IconDeclaration?, packageRoot: URL?) {
+        switch declaration {
+        case .symbol(let name)?:
+            self.init(symbolName: name)
+        case .picture(let picture)? where packageRoot != nil:
+            let root = packageRoot!
+            self.init(picture: Picture(url: root.appendingPathComponent(picture.path),
+                                       darkURL: picture.darkPath.map { root.appendingPathComponent($0) },
+                                       isTemplate: picture.isTemplate))
+        default:
+            self = .neutral
+        }
     }
 
     init(symbolName: String) {
         self.symbolName = symbolName
+        self.picture = nil
+    }
+
+    init(picture: Picture) {
+        self.symbolName = Self.neutral.symbolName
+        self.picture = picture
     }
 
     /// This icon, or the neutral symbol when the running macOS lacks it.

@@ -72,12 +72,23 @@ final class RadialMenuView: NSView {
         let symbolName: String
         let rect: NSRect
         let color: NSColor
+        /// The package picture drawn instead of the symbol, chosen for the
+        /// Menu's Light or Dark theme; nil for a symbol.
+        var pictureURL: URL? = nil
+        /// The picture is tinted with `color`, like a symbol.
+        var isTemplate = false
+        /// How opaque a picture is drawn: full-colour pictures fade where
+        /// a symbol takes the dimmed colour.
+        var opacity: CGFloat = 1
     }
 
     private struct MenuIconImageKey: Hashable {
         let symbolName: String
         let side: Int
         let color: NSColor
+        let pictureURL: URL?
+        let isTemplate: Bool
+        let opacity: CGFloat
     }
     private var menuIconImageCache: [MenuIconImageKey: NSImage] = [:]
 
@@ -1872,12 +1883,37 @@ final class RadialMenuView: NSView {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             resolved = colour.usingColorSpace(.sRGB) ?? colour
         }
-        return MenuIconDrawing(symbolName: item.icon.drawable.symbolName, rect: rect, color: resolved)
+        // A package picture is read from the installed package as it is
+        // drawn: the dark picture in a Dark Menu when there is one. A picture
+        // gone from disk draws the neutral symbol it carries.
+        let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let pictureURL = item.icon.picture.flatMap { picture in
+            (isDark ? picture.darkURL : nil) ?? picture.url
+        }.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+        let isTemplate = pictureURL != nil && item.icon.picture?.isTemplate == true
+        return MenuIconDrawing(
+            symbolName: item.icon.drawable.symbolName, rect: rect, color: resolved,
+            pictureURL: pictureURL, isTemplate: isTemplate,
+            // A full-colour picture cannot take the dimmed colour; it fades.
+            opacity: pictureURL != nil && !isTemplate && (slot.isInherited || !item.primaryAction.isAvailable) ? 0.5 : 1
+        )
+    }
+
+    /// The image drawn for the Menu Item Icon at `index`, sized to its rect.
+    func menuIconImage(at index: Int) -> NSImage? {
+        menuIcon(at: index).flatMap(menuIconImage(for:))
     }
 
     private func menuIconImage(for icon: MenuIconDrawing) -> NSImage? {
-        let key = MenuIconImageKey(symbolName: icon.symbolName, side: Int(icon.rect.width.rounded()), color: icon.color)
+        let key = MenuIconImageKey(symbolName: icon.symbolName, side: Int(icon.rect.width.rounded()), color: icon.color,
+                                   pictureURL: icon.pictureURL, isTemplate: icon.isTemplate, opacity: icon.opacity)
         if let cached = menuIconImageCache[key] { return cached }
+        if let url = icon.pictureURL, let source = NSImage(contentsOf: url), source.size.width > 0, source.size.height > 0 {
+            let image = Self.pictureImage(source, side: icon.rect.width, tint: icon.isTemplate ? icon.color : nil,
+                                          opacity: icon.opacity)
+            menuIconImageCache[key] = image
+            return image
+        }
         let configuration = NSImage.SymbolConfiguration(pointSize: icon.rect.width * 0.8, weight: .medium)
             .applying(NSImage.SymbolConfiguration(paletteColors: [icon.color]))
         // No accessibility description: VoiceOver reads the Menu Item's title.
@@ -1885,6 +1921,36 @@ final class RadialMenuView: NSView {
             .withSymbolConfiguration(configuration)
         menuIconImageCache[key] = image
         return image
+    }
+
+    /// A package picture aspect-fitted into a square of `side` points. The
+    /// image draws its source each time it is drawn, at the destination's
+    /// resolution, so a PDF stays vectors and a PNG is resampled from its own
+    /// pixels at every Menu Size and display scale. A `tint` fills the
+    /// picture's shape, as a template.
+    static func pictureImage(_ source: NSImage, side: CGFloat, tint: NSColor?, opacity: CGFloat) -> NSImage {
+        NSImage(size: NSSize(width: side, height: side), flipped: false) { bounds in
+            let fit = min(bounds.width / source.size.width, bounds.height / source.size.height)
+            let size = NSSize(width: source.size.width * fit, height: source.size.height * fit)
+            let drawn = NSRect(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2,
+                               width: size.width, height: size.height)
+            NSGraphicsContext.current?.imageInterpolation = .high
+            if let tint {
+                // Mask the tint by the picture's alpha in a layer of its own.
+                guard let context = NSGraphicsContext.current?.cgContext else { return false }
+                context.saveGState()
+                context.setAlpha(opacity)
+                context.beginTransparencyLayer(auxiliaryInfo: nil)
+                source.draw(in: drawn, from: .zero, operation: .sourceOver, fraction: 1)
+                tint.setFill()
+                drawn.fill(using: .sourceIn)
+                context.endTransparencyLayer()
+                context.restoreGState()
+            } else {
+                source.draw(in: drawn, from: .zero, operation: .sourceOver, fraction: opacity)
+            }
+            return true
+        }
     }
 
     /// The side, in points, of a Menu Item Icon: smaller as Slots crowd the

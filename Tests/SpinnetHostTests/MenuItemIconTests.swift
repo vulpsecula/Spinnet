@@ -1,5 +1,6 @@
 import AppKit
 import SpinnetCore
+import SpinnetTestSupport
 import XCTest
 @testable import SpinnetHost
 
@@ -190,6 +191,165 @@ final class MenuItemIconTests: XCTestCase {
         XCTAssertEqual(try colour(theme: "Light", accent: "Green", available: false),
                        try colour(theme: "Light", accent: "Pink", available: false),
                        "An unavailable icon keeps the unavailable treatment whatever the accent")
+    }
+
+    // MARK: Package pictures
+
+    /// A package on disk holding `files`, registered with `icon`.
+    private func pictureEditor(icon: IconPicture, files: [String: Data])
+        throws -> (MenuEditorModel, PluginRegistry, URL) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("Iconic.spinnetplugin")
+        addTeardownBlock { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        for (path, data) in files {
+            let url = root.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url)
+        }
+        let registry = PluginRegistry()
+        let manifest = try manifest(icon: .picture(icon))
+        try registry.register(PluginPackage(rootURL: root, manifest: manifest))
+        let action = try ActionConfiguration(id: ActionID("run"), pluginID: pluginID,
+                                             command: manifest.commands[0], input: .null)
+        let configuration = try HostConfiguration(
+            actions: [action],
+            menu: MenuConfiguration(slots: [.occupied(MenuItemConfiguration(primaryActionID: action.id)), .empty])
+        )
+        return (MenuEditorModel(editor: HostConfigurationEditor(registry: registry, configuration: configuration)),
+                registry, root)
+    }
+
+    func testAMenuItemAndItsPresetShowThePackagePicture() throws {
+        let picture = IconPicture(path: "icons/mark.pdf", darkPath: "icons/mark-dark.png")
+        let (model, _, root) = try pictureEditor(icon: picture, files: [
+            "icons/mark.pdf": IconPictureFixtures.pdf(), "icons/mark-dark.png": IconPictureFixtures.bitmap(width: 64, height: 64)
+        ])
+        let expected = MenuItemIcon.Picture(url: root.appendingPathComponent("icons/mark.pdf"),
+                                            darkURL: root.appendingPathComponent("icons/mark-dark.png"), isTemplate: false)
+        XCTAssertEqual(model.menuSlots[0].item?.icon.picture, expected)
+        XCTAssertEqual(model.libraryPresets(matching: "").map { MenuItemIcon(preset: $0).picture }, [expected])
+    }
+
+    /// The Host keeps no copy of a package picture: once the Plugin is
+    /// gone, its Menu Items show the neutral symbol.
+    func testAMenuItemOfARemovedPluginWithAPictureFallsBackToTheNeutralSymbol() throws {
+        let (model, registry, root) = try pictureEditor(icon: IconPicture(path: "mark.png", isTemplate: true),
+                                                        files: ["mark.png": IconPictureFixtures.bitmap(width: 64, height: 64)])
+        XCTAssertNotNil(model.menuSlots[0].item?.icon.picture)
+        registry.unregister(pluginID)
+        try FileManager.default.removeItem(at: root)
+        model.refreshMenuSlots()
+        XCTAssertEqual(model.menuSlots[0].item?.icon, .neutral)
+        XCTAssertEqual(MenuItemIcon.resolve(pluginIcon: .picture(IconPicture(path: "mark.png")),
+                                            primaryAvailability: .unavailable(.pluginMissing)), .neutral)
+    }
+
+    private func pictureItem(_ picture: MenuItemIcon.Picture, available: Bool = true) throws -> MenuSlotPresentation {
+        let id = ActionID("run")
+        return .occupied(MenuItemPresentation(
+            configuration: try MenuItemConfiguration(primaryActionID: id),
+            primaryAction: MenuActionPresentation(actionID: id, title: "Play Music",
+                                                  availability: available ? .available : .unavailable(.capabilityDenied)),
+            alternateActions: [],
+            icon: MenuItemIcon(picture: picture)
+        ))
+    }
+
+    private func writePictures(_ files: [String: Data]) throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        for (name, data) in files { try data.write(to: root.appendingPathComponent(name)) }
+        return root
+    }
+
+    func testAFullColourPictureUsesItsDarkPictureInADarkMenu() throws {
+        let root = try writePictures(["light.png": IconPictureFixtures.bitmap(width: 64, height: 64),
+                                      "dark.png": IconPictureFixtures.bitmap(width: 64, height: 64)])
+        let picture = MenuItemIcon.Picture(url: root.appendingPathComponent("light.png"),
+                                           darkURL: root.appendingPathComponent("dark.png"), isTemplate: false)
+        func drawn(theme: String, _ picture: MenuItemIcon.Picture) throws -> RadialMenuView.MenuIconDrawing {
+            let view = RadialMenuView(slots: [try pictureItem(picture)], mode: .runtime)
+            view.applyAppearance(MenuAppearanceConfiguration(theme: theme))
+            return try XCTUnwrap(view.menuIcon(at: 0))
+        }
+        XCTAssertEqual(try drawn(theme: "Light", picture).pictureURL, picture.url)
+        XCTAssertEqual(try drawn(theme: "Dark", picture).pictureURL, picture.darkURL)
+        let lightOnly = MenuItemIcon.Picture(url: picture.url, darkURL: nil, isTemplate: false)
+        XCTAssertEqual(try drawn(theme: "Dark", lightOnly).pictureURL, picture.url, "Without a dark picture, the picture")
+        XCTAssertFalse(try drawn(theme: "Dark", picture).isTemplate)
+    }
+
+    /// A template picture is tinted the way the Menu tints a system symbol:
+    /// its shape takes the accent, whatever colours the file holds.
+    func testATemplatePictureIsTintedLikeASymbol() throws {
+        let root = try writePictures(["mark.pdf": IconPictureFixtures.pdf()])
+        let picture = MenuItemIcon.Picture(url: root.appendingPathComponent("mark.pdf"), darkURL: nil, isTemplate: true)
+        let view = RadialMenuView(slots: [try pictureItem(picture)], mode: .runtime)
+        view.applyAppearance(MenuAppearanceConfiguration(theme: "Dark", accent: "Green"))
+        let drawing = try XCTUnwrap(view.menuIcon(at: 0))
+        XCTAssertTrue(drawing.isTemplate)
+        let symbol = RadialMenuView(slots: [try iconicItem()], mode: .runtime)
+        symbol.applyAppearance(MenuAppearanceConfiguration(theme: "Dark", accent: "Green"))
+        XCTAssertEqual(drawing.color, try XCTUnwrap(symbol.menuIcon(at: 0)).color)
+
+        let bitmap = try render(XCTUnwrap(view.menuIconImage(at: 0)), scale: 2)
+        let opaque = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide / 4, y: bitmap.pixelsHigh / 2)?.usingColorSpace(.sRGB))
+        let tint = try XCTUnwrap(drawing.color.usingColorSpace(.sRGB))
+        XCTAssertEqual(opaque.alphaComponent, 1, accuracy: 0.05)
+        XCTAssertEqual(opaque.redComponent, tint.redComponent, accuracy: 0.05)
+        XCTAssertEqual(opaque.greenComponent, tint.greenComponent, accuracy: 0.05)
+        XCTAssertEqual(opaque.blueComponent, tint.blueComponent, accuracy: 0.05)
+        XCTAssertEqual(bitmap.colorAt(x: bitmap.pixelsWide * 3 / 4, y: bitmap.pixelsHigh / 2)?.alphaComponent ?? 1, 0,
+                       accuracy: 0.05, "The picture's clear half stays clear")
+    }
+
+    /// Drawn at the Retina scale of each Menu Size, the PDF's edge stays a
+    /// hard edge (drawn as vectors), and a PNG is drawn from its own pixels.
+    func testPicturesStaySharpAtEveryMenuSize() throws {
+        let root = try writePictures(["mark.pdf": IconPictureFixtures.pdf(),
+                                      "mark.png": IconPictureFixtures.bitmap(width: 256, height: 256)])
+        for name in ["mark.pdf", "mark.png"] {
+            for size in ["Small", "Medium", "Large"] {
+                let picture = MenuItemIcon.Picture(url: root.appendingPathComponent(name), darkURL: nil, isTemplate: false)
+                let view = RadialMenuView(slots: [try pictureItem(picture), .empty, .empty, .empty], mode: .runtime)
+                view.applyAppearance(MenuAppearanceConfiguration(menuSize: size))
+                let image = try XCTUnwrap(view.menuIconImage(at: 0), "\(name) \(size)")
+                XCTAssertEqual(image.size.width, try XCTUnwrap(view.menuIcon(at: 0)).rect.width, accuracy: 0.5)
+                let bitmap = try render(image, scale: 2)
+                let row = bitmap.pixelsHigh / 2
+                XCTAssertEqual(bitmap.colorAt(x: bitmap.pixelsWide / 4, y: row)?.alphaComponent ?? 0, 1, accuracy: 0.05)
+                XCTAssertEqual(bitmap.colorAt(x: bitmap.pixelsWide * 3 / 4, y: row)?.alphaComponent ?? 1, 0, accuracy: 0.05)
+                let blurred = (0..<bitmap.pixelsWide).filter {
+                    let alpha = bitmap.colorAt(x: $0, y: row)?.alphaComponent ?? 0
+                    return alpha > 0.1 && alpha < 0.9
+                }
+                XCTAssertLessThanOrEqual(blurred.count, 1, "\(name) \(size): edge spans \(blurred)")
+            }
+        }
+    }
+
+    func testAPictureGoneFromDiskDrawsTheNeutralSymbol() throws {
+        let picture = MenuItemIcon.Picture(url: URL(fileURLWithPath: "/nonexistent/\(UUID().uuidString)/mark.png"),
+                                           darkURL: nil, isTemplate: false)
+        let view = RadialMenuView(slots: [try pictureItem(picture)], mode: .runtime)
+        let drawing = try XCTUnwrap(view.menuIcon(at: 0))
+        XCTAssertNil(drawing.pictureURL)
+        XCTAssertEqual(drawing.symbolName, MenuItemIcon.neutral.symbolName)
+        XCTAssertNotNil(view.menuIconImage(at: 0))
+    }
+
+    private func render(_ image: NSImage, scale: CGFloat) throws -> NSBitmapImageRep {
+        let width = Int((image.size.width * scale).rounded()), height = Int((image.size.height * scale).rounded())
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        bitmap.size = image.size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+        image.draw(in: NSRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        return bitmap
     }
 
     func testVoiceOverKeepsReadingTitles() throws {

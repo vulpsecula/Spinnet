@@ -89,6 +89,11 @@ public enum PluginPackageResource {
         guard PluginImageSource.isValidResourcePath(path) else {
             throw PluginHostServiceError.failed("The image resource \(path) is not a PNG or JPEG path inside the package")
         }
+        return try readChecked(path, in: root, maximumBytes: maximumBytes)
+    }
+
+    /// Reads `path`, whose shape the caller has checked, under the same rule.
+    static func readChecked(_ path: String, in root: URL, maximumBytes: Int) throws -> Data {
         let base = root.resolvingSymlinksInPath().standardizedFileURL
         let file = base.appendingPathComponent(path).resolvingSymlinksInPath().standardizedFileURL
         guard file.path.hasPrefix(base.path.hasSuffix("/") ? base.path : base.path + "/") else {

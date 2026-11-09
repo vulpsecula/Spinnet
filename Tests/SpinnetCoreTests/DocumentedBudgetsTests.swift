@@ -464,6 +464,16 @@ final class PagePresentationBudgetsTests: XCTestCase {
     }
 }
 
+/// PluginAPI/reference/manifest.md, "Icon pictures"
+final class IconPictureBudgetsTests: XCTestCase {
+    func testIconPictureBudgetsMatchThePublishedPage() {
+        XCTAssertPublished("Each picture file is at most 256 KiB (262,144 bytes), and a PNG is at most 1,024 pixels "
+                           + "on either side", in: "reference/manifest.md")
+        XCTAssertEqual(IconPictureBudgets.maximumPictureBytes, 262_144)
+        XCTAssertEqual(IconPictureBudgets.maximumPNGEdge, 1_024)
+    }
+}
+
 final class ActivityPresentationBudgetsTests: XCTestCase {
     func testVisibleActivityCountdownRefreshIsOneSecondAndOwnerRowsRemainBounded() throws {
         XCTAssertEqual(HostActivities.visibleRefreshInterval, 1)

@@ -270,14 +270,14 @@ public enum PluginImageSource: Equatable, Hashable {
         }
     }
 
-    /// A relative path of plain components naming a PNG or JPEG.
-    static func isValidResourcePath(_ path: String) -> Bool {
+    /// A relative path of plain components naming a PNG or JPEG, or a file
+    /// with one of `extensions`.
+    static func isValidResourcePath(_ path: String, extensions: Set<String> = ["png", "jpg", "jpeg"]) -> Bool {
         guard !path.isEmpty, path.count <= PagePresentation.maximumResourcePathLength, !path.hasPrefix("/"),
               !path.contains("\\"), !path.contains("\0") else { return false }
         let parts = path.split(separator: "/", omittingEmptySubsequences: false)
         guard parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.hasPrefix(".") }) else { return false }
-        let ext = (path as NSString).pathExtension.lowercased()
-        return ["png", "jpg", "jpeg"].contains(ext)
+        return extensions.contains((path as NSString).pathExtension.lowercased())
     }
 
     /// The host an HTTPS source contacts.

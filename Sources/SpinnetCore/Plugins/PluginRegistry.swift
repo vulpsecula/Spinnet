@@ -445,7 +445,8 @@ public final class PluginRegistry {
                         ? .pluginDisabled
                         : nil,
                     needsPluginSettings: package.manifest.hasSettings && !pluginSettingsComplete(package.manifest),
-                    icon: package.manifest.icon
+                    icon: package.manifest.icon,
+                    packageRoot: package.rootURL
                 )
             }
             .sorted { lhs, rhs in

@@ -14,11 +14,29 @@ from referencing.jsonschema import DRAFT202012
 
 INDEX_SCHEMA = {
     "type": "object", "required": ["cases"],
+    "$defs": {"size": {"type": "array", "items": {"type": "integer", "minimum": 1},
+                       "minItems": 2, "maxItems": 2}},
     "properties": {"cases": {"type": "array", "minItems": 1, "items": {
         "type": "object", "required": ["name", "value", "checks"],
         "properties": {
             "name": {"type": "string", "minLength": 1}, "value": {},
             "sdk_script": {"type": "string", "minLength": 1},
+            # Package files the Swift tests write beside the manifest `value`
+            # before loading it as a package; described, never shipped.
+            "package": {
+                "type": "object", "required": ["files", "admitted"],
+                "properties": {
+                    "admitted": {"type": "boolean"},
+                    "files": {"type": "object", "additionalProperties": {
+                        "type": "object", "minProperties": 1, "maxProperties": 1,
+                        "properties": {
+                            "png": {"$ref": "#/$defs/size"}, "jpeg": {"$ref": "#/$defs/size"},
+                            "pdf": {"$ref": "#/$defs/size"},
+                            "bytes": {"type": "integer", "minimum": 0},
+                        }, "additionalProperties": False,
+                    }},
+                }, "additionalProperties": False,
+            },
             "host_versions": {"type": "array", "minItems": 1, "items": {
                 "type": "object", "required": ["version", "compatible"],
                 "properties": {"version": {"type": "string", "minLength": 1},

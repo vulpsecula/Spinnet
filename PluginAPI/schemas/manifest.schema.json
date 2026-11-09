@@ -664,6 +664,17 @@
       "pattern": "^\\^?(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
     },
     "icon": {
+      "description": "An icon declaration: a system symbol, or a PNG or PDF picture inside the package. See reference/manifest.md#plugin-icon and #icon-pictures.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/symbolIcon"
+        },
+        {
+          "$ref": "#/$defs/pictureIcon"
+        }
+      ]
+    },
+    "symbolIcon": {
       "description": "A system symbol by its SF Symbols name, under the rule a page icon component follows.",
       "type": "object",
       "required": [
@@ -677,6 +688,48 @@
           "maxLength": 64
         }
       }
+    },
+    "pictureIcon": {
+      "description": "A PNG or PDF picture inside the package. template: true tints its shape with the Menu's foreground colour; dark_image is the picture for a Dark appearance and is refused with template: true. The Host also refuses the package when a file is missing, leads outside the package, is not the PNG or PDF its name says, or exceeds the published bounds.",
+      "type": "object",
+      "required": [
+        "image"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "$ref": "#/$defs/iconPicturePath"
+        },
+        "dark_image": {
+          "$ref": "#/$defs/iconPicturePath"
+        },
+        "template": {
+          "type": "boolean"
+        }
+      },
+      "if": {
+        "required": [
+          "template"
+        ],
+        "properties": {
+          "template": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "dark_image"
+          ]
+        }
+      }
+    },
+    "iconPicturePath": {
+      "description": "A path from the package root to a .png or .pdf file (extension in any case): plain components separated by /, none empty or starting with a dot, so never . or .., no backslash, at most 256 characters.",
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^(?:[^/\\\\\\x00.][^/\\\\\\x00]*/)*[^/\\\\\\x00.][^/\\\\\\x00]*\\.(?:[pP][nN][gG]|[pP][dD][fF])$"
     }
   }
 }

@@ -1901,6 +1901,641 @@
       ]
     },
     {
+      "name": "manifest-icon-image-pdf",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "icon.pdf"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {
+          "icon.pdf": {
+            "pdf": [
+              32,
+              32
+            ]
+          }
+        },
+        "admitted": true
+      }
+    },
+    {
+      "name": "manifest-icon-image-template-png",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "icons/mark.png",
+          "template": true
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {
+          "icons/mark.png": {
+            "png": [
+              64,
+              64
+            ]
+          }
+        },
+        "admitted": true
+      }
+    },
+    {
+      "name": "manifest-icon-image-dark",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.png",
+          "dark_image": "mark-dark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {
+          "mark.png": {
+            "png": [
+              64,
+              64
+            ]
+          },
+          "mark-dark.png": {
+            "png": [
+              64,
+              64
+            ]
+          }
+        },
+        "admitted": true
+      }
+    },
+    {
+      "name": "manifest-icon-image-png-largest",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {
+          "mark.png": {
+            "png": [
+              1024,
+              1024
+            ]
+          }
+        },
+        "admitted": true
+      }
+    },
+    {
+      "name": "manifest-icon-image-missing",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {},
+        "admitted": false
+      }
+    },
+    {
+      "name": "manifest-icon-image-dark-missing",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.png",
+          "dark_image": "mark-dark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {
+          "mark.png": {
+            "png": [
+              64,
+              64
+            ]
+          }
+        },
+        "admitted": false
+      }
+    },
+    {
+      "name": "manifest-icon-image-png-holds-jpeg",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {
+          "mark.png": {
+            "jpeg": [
+              64,
+              64
+            ]
+          }
+        },
+        "admitted": false
+      }
+    },
+    {
+      "name": "manifest-icon-image-pdf-holds-png",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.pdf"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {
+          "mark.pdf": {
+            "png": [
+              64,
+              64
+            ]
+          }
+        },
+        "admitted": false
+      }
+    },
+    {
+      "name": "manifest-icon-image-too-many-bytes",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.pdf"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {
+          "mark.pdf": {
+            "bytes": 262145
+          }
+        },
+        "admitted": false
+      }
+    },
+    {
+      "name": "manifest-icon-image-png-too-wide",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": true
+        }
+      ],
+      "package": {
+        "files": {
+          "mark.png": {
+            "png": [
+              1025,
+              8
+            ]
+          }
+        },
+        "admitted": false
+      }
+    },
+    {
+      "name": "manifest-icon-image-jpeg-path",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.jpg"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-icon-image-svg-path",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.svg"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-icon-image-parent-path",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "../mark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-icon-image-absolute-path",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "/tmp/mark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-icon-image-template-with-dark",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.png",
+          "template": true,
+          "dark_image": "dark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-icon-image-and-symbol",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.png",
+          "symbol": "cpu"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-icon-image-template-not-boolean",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "image": "mark.png",
+          "template": "yes"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
+      "name": "manifest-icon-dark-image-alone",
+      "value": {
+        "protocol_version": "1.0",
+        "engines": {
+          "spinnet": "^1.0.0"
+        },
+        "id": "com.example.schema-composition",
+        "name": "Schema composition",
+        "version": "1.0",
+        "icon": {
+          "dark_image": "mark.png"
+        },
+        "commands": [
+          {
+            "id": "show",
+            "title": "Show",
+            "execution": "javascript",
+            "script": "show.js"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "schema": "manifest.schema.json",
+          "valid": false
+        }
+      ]
+    },
+    {
       "name": "manifest-retired-api_level-0",
       "value": {
         "protocol_version": "1.0",
