@@ -29,14 +29,29 @@ struct JSONSchemaSubsetValidator {
     }
 
     init(schemaAt url: URL) throws {
-        self.init(schema: try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url)),
-                  directory: url.deletingLastPathComponent())
+        self.init(schema: try Self.document(at: url), directory: url.deletingLastPathComponent())
+    }
+
+    /// Schema files decoded so far. A schema names its own file in many
+    /// references, so one validation resolves the same file hundreds of
+    /// times; the files do not change while the tests run.
+    private static var documents: [String: JSONValue] = [:]
+    private static let documentsLock = NSLock()
+
+    private static func document(at url: URL) throws -> JSONValue {
+        let path = url.standardizedFileURL.path
+        documentsLock.lock()
+        defer { documentsLock.unlock() }
+        if let document = documents[path] { return document }
+        let document = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        documents[path] = document
+        return document
     }
 
     /// Checks against one of the `$defs` of the schema at `url`, such as
     /// `https_request.input`.
     init(definition: String, inSchemaAt url: URL) throws {
-        let schema = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        let schema = try Self.document(at: url)
         guard case .object(let document) = schema, case .object(let definitions)? = document["$defs"],
               definitions[definition] != nil else {
             throw ConfigurationError.malformedValue("\(url.lastPathComponent) does not define \(definition)")

@@ -160,7 +160,9 @@ final class HostRunSourcesContractTests: XCTestCase {
         XCTAssertNil(recording.shown("temperature"))
     }
 
-    func testSourceDeliveryWarmAndColdLatencyAndAutomaticIdleRetirement() throws {
+    /// Idle retirement itself is `PluginRuntimeTests`' to check against a
+    /// clock; a delivery reaching a retired helper is the test above.
+    func testSourceDeliveryWarmAndColdLatency() throws {
         let plugin = try PluginUnderTest(packageAt: fixture)
         let helper = try PluginTestHelper(); defer { helper.shutdown() }
         let initial = PluginTestInvocation("sources.show", input: .object(["deliver": .bool(true)]))
@@ -184,16 +186,6 @@ final class HostRunSourcesContractTests: XCTestCase {
         print(String(format: "SOURCE LATENCY ms warm p50 %.3f p95 %.3f max %.3f; cold p50 %.3f p95 %.3f max %.3f", warm[9], warm[18], warm[19], cold[9], cold[18], cold[19]))
         XCTAssertLessThan(warm[18], 150)
         XCTAssertLessThan(cold[18], 300)
-        let launches = helper.launchCount
-        let idleStart = ProcessInfo.processInfo.systemUptime
-        let idle = expectation(description: "Production helper idle retirement")
-        DispatchQueue.global().asyncAfter(deadline: .now() + 31.5) { idle.fulfill() }
-        wait(for: [idle], timeout: 35)
-        XCTAssertEqual(recording.shown("temperature", locale: Locale(identifier: "en_US"))?.text, "24.5")
-        XCTAssertEqual(recording.requests.count, 1)
-        _ = try helper.run(invocation, of: plugin, answering: RecordedHostServices()).answer()
-        XCTAssertEqual(helper.launchCount, launches + 1, "An automatically retired helper cold-starts while source value survives")
-        print(String(format: "SOURCE HELPER automatic retirement verified after %.3fs; launch count %d to %d", ProcessInfo.processInfo.systemUptime - idleStart, launches, helper.launchCount))
     }
 
     func testDeclaredDeliveryReportsFailureWithoutReadingRefusedData() throws {

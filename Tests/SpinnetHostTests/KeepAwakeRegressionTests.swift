@@ -5,37 +5,9 @@ import SpinnetPluginTestKit
 import XCTest
 @testable import SpinnetHost
 
-/// Additive onboarding baseline; the six historical Plugins' user data stays fixed.
+/// Keep Awake's effect and power authority across removal and owner changes.
+/// Its saved data is restored by `SavedDataRegressionTests`.
 final class KeepAwakeRegressionTests: XCTestCase {
-    private let baseline = TestRepository.tests.appendingPathComponent("RegressionBaseline/KeepAwake")
-
-    func testStoredMenuActionsSettingsAndDecisionsSurviveLaunch() throws {
-        let package = try OfficialPluginFixtures.named("Keep Awake")
-        let fixture = try SavedDataRegressionFixture(baseline: baseline)
-        defer { try? fixture.cleanup() }
-        let grants = try fixture.restoredGrants()
-        let registry = PluginRegistry(grantStore: grants)
-        try registry.register(package)
-        let directory = fixture.directory
-        let store = HostConfigurationStore(fileURL: directory.appendingPathComponent("configuration.json"))
-        let before = try fixture.configuration()
-        let settings = try PluginSettingsStore(fileURL: directory.appendingPathComponent("PluginSettings.json"))
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: fixture.defaultsSuite))
-        let migrated = try StoredDataMigration.migrate(before, registry: registry, pluginSettings: settings, defaults: defaults)
-        XCTAssertEqual(migrated, before)
-        XCTAssertEqual(Set(migrated.actions.map(\.commandID)), Set(package.manifest.commands.map(\.id)))
-        for action in migrated.actions { XCTAssertEqual(registry.availability(for: action), .available) }
-        try store.save(migrated)
-        XCTAssertEqual(try store.load(), before)
-        XCTAssertFalse(package.manifest.hasSettings)
-        XCTAssertEqual(settings.values(for: package.manifest.id), [:])
-        StoredDataMigration.reconcileCapabilityGrants(grants, with: [package.manifest])
-        XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
-            capability: .keepAwake, scope: package.manifest.scope(for: .keepAwake)), .granted)
-        XCTAssertEqual(grants.decision(for: package.manifest.id, pluginVersion: package.manifest.version,
-            capability: .readFrontmostApp, scope: package.manifest.scope(for: .readFrontmostApp)), .denied)
-    }
-
     func testRemovingKeepAwakeStopsItsEffectAndInstallingItAgainAsksAgain() throws {
         let package = try OfficialPluginFixtures.named("Keep Awake")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

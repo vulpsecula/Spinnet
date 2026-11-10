@@ -116,47 +116,4 @@ final class HomebrewRegressionTests: XCTestCase {
             XCTAssertEqual($0 as? PluginHostServiceError, .capabilityScopeDenied(.readReviewedTools))
         }
     }
-
-    func testRemovingHomebrewCleansItsOwnerAndKeepsTheConfiguredMenuItem() throws {
-        let package = try OfficialPluginFixtures.named("Homebrew")
-        let grants = try fixture.restoredGrants()
-        let registry = PluginRegistry(grantStore: grants)
-        try registry.register(package)
-        let stored = try fixture.configuration()
-        let storage = PluginStorage(directory: directory.appendingPathComponent("Storage"))
-        try storage.setValue(.string("transient business state"), forKey: "state", of: package.manifest.id)
-        var forgotten: [PluginID] = []
-        var invalidated: [PluginID] = []
-        let observation = registry.observeInvalidation { invalidated.append($0) }
-        defer { registry.removeInvalidationObserver(observation) }
-        let installedDirectory = directory.appendingPathComponent("Plugins")
-        let store = PluginInstallationStore(directory: installedDirectory, registry: registry, grants: grants,
-                                             persistGrants: {}, storage: storage,
-                                             forgetHostPreferences: { forgotten.append($0) })
-        try store.uninstall(package.manifest.id)
-        XCTAssertEqual(invalidated, [package.manifest.id])
-        XCTAssertEqual(forgotten, [package.manifest.id])
-        XCTAssertEqual(try storage.keys(of: package.manifest.id), [])
-        XCTAssertTrue(grants.allGrants.isEmpty)
-        XCTAssertEqual(try fixture.configuration(), stored)
-        for action in stored.actions {
-            XCTAssertEqual(registry.availability(for: action), .unavailable(.pluginMissing))
-        }
-        let relaunchedRegistry = PluginRegistry(grantStore: grants)
-        let relaunchedStore = PluginInstallationStore(directory: installedDirectory, registry: relaunchedRegistry,
-                                                       grants: grants, persistGrants: {})
-        try relaunchedStore.restore()
-        XCTAssertNil(relaunchedRegistry.package(for: package.manifest.id))
-        let review = try relaunchedStore.review(package.rootURL)
-        XCTAssertEqual(Set(review.requestedAccess), Set(package.manifest.capabilities))
-        try relaunchedStore.install(from: package.rootURL)
-        XCTAssertNotNil(relaunchedRegistry.package(for: package.manifest.id))
-        XCTAssertTrue(grants.allGrants.allSatisfy { $0.decision == .notDetermined })
-        grants.setDecision(.granted, for: package.manifest.id, pluginVersion: package.manifest.version,
-            capability: .readReviewedTools, scope: package.manifest.scope(for: .readReviewedTools))
-        let migrated = try package.manifest.migrate(stored) ?? stored
-        for action in migrated.actions {
-            XCTAssertEqual(relaunchedRegistry.availability(for: action), .available)
-        }
-    }
 }

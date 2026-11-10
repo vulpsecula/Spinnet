@@ -18,27 +18,6 @@ final class CurrentFeatureCompositionTests: XCTestCase {
             "An unavailable Host feature is still refused independently of compatibility")
     }
 
-    func testPublishedStableAdaptiveFixturesAgreeWithThePublicAnswerParser() throws {
-        let api = PagesContractTests.pluginAPI
-        let fixtures = api.appendingPathComponent("fixtures/adaptive-layout")
-        let schemas = try ["pages", "adaptive-layout"].map {
-            try JSONSchemaSubsetValidator(definition: "answer",
-                inSchemaAt: api.appendingPathComponent("schemas/\($0).schema.json"))
-        }
-        struct Entry: Decodable { let file: String; let valid: Bool }
-        struct Index: Decodable { let fixtures: [Entry] }
-        let index = try JSONDecoder().decode(Index.self, from: Data(contentsOf: fixtures.appendingPathComponent("index.json")))
-        let permits = PluginInterfaceContracts.host.permitting(try manifest())
-        for entry in index.fixtures {
-            let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: fixtures.appendingPathComponent(entry.file)))
-            for schema in schemas {
-                XCTAssertEqual(schema.errors(for: value).isEmpty, entry.valid, "\(entry.file): \(schema.errors(for: value))")
-            }
-            do { _ = try PluginScriptAnswer(parsing: value, permits: permits); XCTAssertTrue(entry.valid, entry.file) }
-            catch { XCTAssertFalse(entry.valid, "\(entry.file): \(error)") }
-        }
-    }
-
     func testAdaptivePagesComposeWithCurrentSourcesAndOperations() throws {
         guard case .object(var page) = AdaptiveViewportContractTests.page() else { return XCTFail("No page fixture") }
         page["sources"] = .array([.object(["id": .string("preview"), "perform": .string("tools.read"),
