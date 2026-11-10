@@ -92,7 +92,7 @@ public enum ActionResourceAvailability {
         case .openApplication:
             guard let value = stringValue(
                 in: action.input,
-                keys: ["path", "bundle_id", "bundle_identifier", "bundleIdentifier"]
+                keys: HostCommand.openApplication.valueKeys
             ) else {
                 return nil
             }
@@ -102,12 +102,12 @@ public enum ActionResourceAvailability {
             }
             return applicationExists?(trimmedValue) == false ? .resourceMissing : nil
         case .openFile:
-            guard let path = stringValue(in: action.input, keys: ["path"]) else {
+            guard let path = stringValue(in: action.input, keys: hostCommand.valueKeys) else {
                 return nil
             }
             return pathExists(path, isDirectory: false) ? nil : .resourceMissing
         case .openFolder:
-            guard let path = stringValue(in: action.input, keys: ["path"]) else {
+            guard let path = stringValue(in: action.input, keys: hostCommand.valueKeys) else {
                 return nil
             }
             return pathExists(path, isDirectory: true) ? nil : .resourceMissing

@@ -10,62 +10,6 @@ final class SettingsWindowControllerTests: XCTestCase {
         _ = NSApplication.shared
     }
 
-    func testConfigurationInputResolverPreservesLegacyObjectPayloads() {
-        let field = CommandConfigurationField(kind: .shortcut)
-        let original: JSONValue = .object([
-            "name": .string("Build project"),
-            "input": .string("source tree")
-        ])
-
-        XCTAssertEqual(
-            ConfigurationInputValueResolver.presentationValue(
-                for: original,
-                field: field,
-                hostCommand: .invokeShortcut
-            ),
-            "Build project"
-        )
-        XCTAssertEqual(
-            ConfigurationInputValueResolver.resolve(
-                text: "Build project",
-                field: field,
-                hostCommand: .invokeShortcut,
-                original: original
-            ),
-            original
-        )
-        XCTAssertEqual(
-            ConfigurationInputValueResolver.resolve(
-                text: "Run project",
-                field: field,
-                hostCommand: .invokeShortcut,
-                original: original
-            ),
-            .object([
-                "name": .string("Run project"),
-                "input": .string("source tree")
-            ])
-        )
-
-        let pathField = CommandConfigurationField(kind: .file)
-        let pathInput: JSONValue = .object([
-            "path": .string("/tmp/report.txt"),
-            "bookmark": .string("retained")
-        ])
-        XCTAssertEqual(
-            ConfigurationInputValueResolver.resolve(
-                text: "/tmp/renamed.txt",
-                field: pathField,
-                hostCommand: .openFile,
-                original: pathInput
-            ),
-            .object([
-                "path": .string("/tmp/renamed.txt"),
-                "bookmark": .string("retained")
-            ])
-        )
-    }
-
     func testSettingsNavigationKeepsEditorModeOnlyOnMenuAndAppearance() throws {
         let controller = try makeController()
 

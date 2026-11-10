@@ -117,8 +117,8 @@ final class MenuItemConfigurationDraft: ObservableObject {
             let input = boundActions.first { $0.commandID == command.id }?.input
                 ?? manifest.preset.defaultInputs[command.id]
             guard let input else { continue }
-            inputTexts[command.id] = ConfigurationInputValueResolver.presentationValue(
-                for: input, field: Self.field(of: command), hostCommand: command.hostCommand
+            inputTexts[command.id] = CommandInputValue.presentation(
+                of: input, field: Self.field(of: command), hostCommand: command.hostCommand
             )
             originalInputValues[command.id] = input
         }
@@ -200,7 +200,7 @@ final class MenuItemConfigurationDraft: ObservableObject {
     /// input the text does not show.
     func inputValue(for commandID: CommandID) -> JSONValue {
         let command = command(commandID)
-        return ConfigurationInputValueResolver.resolve(
+        return CommandInputValue.resolve(
             text: inputText(for: commandID),
             field: command.flatMap(Self.field(of:)),
             hostCommand: command?.hostCommand,
@@ -221,16 +221,7 @@ final class MenuItemConfigurationDraft: ObservableObject {
     /// A toggle input: on when it is true, "true", or an object whose
     /// `enabled`, `value` or `checked` member is true.
     func isOn(_ commandID: CommandID) -> Bool {
-        switch inputValue(for: commandID) {
-        case .bool(let value): return value
-        case .string(let value): return value.lowercased() == "true"
-        case .object(let values):
-            for key in ["enabled", "value", "checked"] {
-                if case .bool(let value) = values[key] { return value }
-            }
-            return false
-        default: return false
-        }
+        CommandInputValue.isOn(inputValue(for: commandID)) ?? false
     }
 
     func setOn(_ isOn: Bool, for commandID: CommandID) {
@@ -362,7 +353,7 @@ final class MenuItemConfigurationDraft: ObservableObject {
     }
 
     static func displayValue(for value: JSONValue) -> String {
-        ConfigurationInputValueResolver.presentationValue(for: value, field: nil, hostCommand: nil)
+        CommandInputValue.presentation(of: value, field: nil, hostCommand: nil)
     }
 
     private static func carbonModifiers(from value: JSONValue?) -> UInt32? {

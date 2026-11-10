@@ -174,7 +174,7 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable, Sen
     /// definition of a valid external URL.
     public func resolvedURL(from input: JSONValue) -> URL? {
         guard self == .openURL,
-              let value = stringValue(from: input, keys: ["url"]),
+              let value = stringValue(from: input, keys: valueKeys),
               let url = URL(string: value),
               url.scheme?.isEmpty == false else { return nil }
         return url
@@ -188,27 +188,24 @@ public enum HostCommand: String, Codable, CaseIterable, Equatable, Hashable, Sen
         case .openURL:
             return resolvedURL(from: input) != nil
         case .openApplication:
-            return stringValue(
-                from: input,
-                keys: ["path", "bundle_id", "bundle_identifier", "bundleIdentifier"]
-            ) != nil
+            return stringValue(from: input, keys: valueKeys) != nil
         case .openFile, .openFolder:
-            return stringValue(from: input, keys: ["path"]) != nil
+            return stringValue(from: input, keys: valueKeys) != nil
         case .invokeKeyboardShortcut:
             return (try? CommandKeyboardShortcutInput(input)) != nil
         case .invokeService:
-            return validNamedInput(input, keys: ["name", "service"])
+            return validNamedInput(input, keys: valueKeys)
         case .invokeShortcut:
-            return validNamedInput(input, keys: ["name", "shortcut"])
+            return validNamedInput(input, keys: valueKeys)
         case .copyText:
             // A null input means “copy the current selected text”. The
             // string/object forms remain accepted for backwards compatibility
             // with persisted Actions created before the Copy Selected Text Preset.
-            return input == .null || containsStringValue(from: input, keys: ["text"])
+            return input == .null || containsStringValue(from: input, keys: valueKeys)
         case .pasteText, .cutText, .captureArea, .captureFullScreen, .captureWindow:
             return input == .null
         case .presentFeedback:
-            return stringValue(from: input, keys: ["message", "text"]) != nil
+            return stringValue(from: input, keys: valueKeys) != nil
         case .openDeepLink:
             // The Command's configuration fields and its template decide the
             // rest; members the template does not use are left alone.

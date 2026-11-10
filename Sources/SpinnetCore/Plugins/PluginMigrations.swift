@@ -195,19 +195,19 @@ private extension CommandDeclaration {
         switch adapter {
         case .copyText:
             if action.input == .null { expected = .hostCommand(.copyText, .null) }
-            else if let text = text(["text"]) { expected = .hostCommand(.copyText, text) }
+            else if let text = text(adapter.valueKeys) { expected = .hostCommand(.copyText, text) }
             else { return false }
         case .openURL:
-            guard let text = text(["url"]) else { return false }
+            guard let text = text(adapter.valueKeys) else { return false }
             expected = .hostCommand(adapter, text)
         case .openFile, .openFolder:
-            guard let text = text(["path"]) else { return false }
+            guard let text = text(adapter.valueKeys) else { return false }
             expected = .hostCommand(adapter, text)
         case .openApplication:
-            guard let text = text(["path", "bundle_id", "bundle_identifier", "bundleIdentifier"]) else { return false }
+            guard let text = text(adapter.valueKeys) else { return false }
             expected = .hostCommand(adapter, text)
         case .presentFeedback:
-            guard case .string(let message)? = text(["message", "text"]) else { return false }
+            guard case .string(let message)? = text(adapter.valueKeys) else { return false }
             expected = .toast(message)
         case .captureArea, .captureFullScreen, .captureWindow, .cutText, .pasteText:
             guard action.input == .null else { return false }

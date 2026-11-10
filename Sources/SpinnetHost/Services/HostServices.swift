@@ -299,7 +299,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
         switch command {
         case .openURL:
             guard let url = command.resolvedURL(from: input),
-                  let value = stringValue(from: input, keys: ["url"]) else {
+                  let value = stringValue(from: input, keys: command.valueKeys) else {
                 throw HostCommandExecutionError.invalidInput("Expected a URL string")
             }
             guard adapter.openURL(url) else {
@@ -309,7 +309,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
         case .openApplication:
             let value = try requiredString(
                 from: input,
-                keys: ["path", "bundle_id", "bundle_identifier", "bundleIdentifier"],
+                keys: command.valueKeys,
                 description: "an application path or bundle identifier" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.openApplication(value) else {
@@ -319,7 +319,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
         case .openFile:
             let path = try requiredString(
                 from: input,
-                keys: ["path"],
+                keys: command.valueKeys,
                 description: "a file path" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.openFile(path) else {
@@ -329,7 +329,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
         case .openFolder:
             let path = try requiredString(
                 from: input,
-                keys: ["path"],
+                keys: command.valueKeys,
                 description: "a folder path" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.openFolder(path) else {
@@ -345,7 +345,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
         case .invokeService:
             let request = try namedRequest(
                 from: input,
-                primaryKey: "service",
+                keys: command.valueKeys,
                 description: "a macOS Service name" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.invokeService(name: request.name, input: request.input) else {
@@ -355,7 +355,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
         case .invokeShortcut:
             let request = try namedRequest(
                 from: input,
-                primaryKey: "shortcut",
+                keys: command.valueKeys,
                 description: "a Shortcut name" // Not localized: a Host Command failure, kept in the Action failure record
             )
             guard adapter.invokeShortcut(name: request.name, input: request.input) else {
@@ -377,7 +377,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
             } else {
                 text = try requiredString(
                     from: input,
-                    keys: ["text"],
+                    keys: command.valueKeys,
                     description: "text to copy", // Not localized: a Host Command failure, kept in the Action failure record
                     allowEmpty: true
                 )
@@ -399,7 +399,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
         case .presentFeedback:
             let message = try requiredString(
                 from: input,
-                keys: ["message", "text"],
+                keys: command.valueKeys,
                 description: "a feedback message" // Not localized: a Host Command failure, kept in the Action failure record
             )
             feedbackPresenter(message)
@@ -472,7 +472,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
 
     private func namedRequest(
         from input: JSONValue,
-        primaryKey: String,
+        keys: [String],
         description: String
     ) throws -> (name: String, input: String?) {
         switch input {
@@ -482,7 +482,7 @@ final class AppKitHostCommandExecutor: ContextualHostCommandExecutor, CatalogueC
             }
             return (name, nil)
         case .object(let values):
-            guard let name = stringValue(from: input, keys: ["name", primaryKey]) else {
+            guard let name = stringValue(from: input, keys: keys) else {
                 throw HostCommandExecutionError.invalidInput("Expected \(description)")
             }
             let payload: String?
