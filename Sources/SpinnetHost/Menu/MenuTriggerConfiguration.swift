@@ -210,6 +210,10 @@ struct MenuTriggerConfiguration: Equatable {
     /// Seconds the trigger must be held before the Menu opens. Zero opens
     /// on the press; above zero a shorter press goes back to the Current App.
     static let openingDelayRange: ClosedRange<TimeInterval> = 0...1
+    /// Seconds the trackpad fingers must rest before the Menu opens: never
+    /// less than 250 ms, so the system's own gestures with the same fingers
+    /// begin first and a quick tap stays with the system.
+    static let trackpadOpeningDelayRange: ClosedRange<TimeInterval> = 0.25...1
 
     var mouseButton: Int
     var clickDragEnabled: Bool
@@ -217,6 +221,7 @@ struct MenuTriggerConfiguration: Equatable {
     var openingDelay: TimeInterval
     var alternateActionMode: AlternateActionMode
     var trackpadTrigger: TrackpadTrigger
+    var trackpadOpeningDelay: TimeInterval
 
     init(
         mouseButton: Int = defaultMouseButton,
@@ -224,7 +229,8 @@ struct MenuTriggerConfiguration: Equatable {
         keyboardShortcut: MenuKeyboardShortcut? = nil,
         openingDelay: TimeInterval = 0,
         alternateActionMode: AlternateActionMode = .rightClick,
-        trackpadTrigger: TrackpadTrigger = .off
+        trackpadTrigger: TrackpadTrigger = .off,
+        trackpadOpeningDelay: TimeInterval = trackpadOpeningDelayRange.lowerBound
     ) {
         self.mouseButton = MouseTriggerButton.isSupported(mouseButton)
             ? mouseButton
@@ -234,11 +240,17 @@ struct MenuTriggerConfiguration: Equatable {
         self.openingDelay = Self.boundedOpeningDelay(openingDelay)
         self.alternateActionMode = alternateActionMode
         self.trackpadTrigger = trackpadTrigger
+        self.trackpadOpeningDelay = Self.boundedTrackpadOpeningDelay(trackpadOpeningDelay)
     }
 
     static func boundedOpeningDelay(_ delay: TimeInterval) -> TimeInterval {
         guard delay.isFinite else { return 0 }
         return min(max(delay, openingDelayRange.lowerBound), openingDelayRange.upperBound)
+    }
+
+    static func boundedTrackpadOpeningDelay(_ delay: TimeInterval) -> TimeInterval {
+        guard delay.isFinite else { return trackpadOpeningDelayRange.lowerBound }
+        return min(max(delay, trackpadOpeningDelayRange.lowerBound), trackpadOpeningDelayRange.upperBound)
     }
 
     init(defaults: UserDefaults) {
@@ -258,6 +270,7 @@ struct MenuTriggerConfiguration: Equatable {
             .flatMap(AlternateActionMode.init(rawValue:)) ?? .rightClick
         trackpadTrigger = defaults.string(forKey: Keys.trackpadTrigger)
             .flatMap(TrackpadTrigger.init(rawValue:)) ?? .off
+        trackpadOpeningDelay = Self.boundedTrackpadOpeningDelay(defaults.double(forKey: Keys.trackpadOpeningDelay))
     }
 
     func save(to defaults: UserDefaults) {
@@ -275,6 +288,7 @@ struct MenuTriggerConfiguration: Equatable {
         defaults.set(Self.boundedOpeningDelay(openingDelay), forKey: Keys.openingDelay)
         defaults.set(alternateActionMode.rawValue, forKey: Keys.alternateActionMode)
         defaults.set(trackpadTrigger.rawValue, forKey: Keys.trackpadTrigger)
+        defaults.set(Self.boundedTrackpadOpeningDelay(trackpadOpeningDelay), forKey: Keys.trackpadOpeningDelay)
     }
 
     private enum Keys {
@@ -284,6 +298,7 @@ struct MenuTriggerConfiguration: Equatable {
         static let openingDelay = "trigger.opening-delay"
         static let alternateActionMode = "menu.alternate-action-mode"
         static let trackpadTrigger = "trigger.trackpad-gesture"
+        static let trackpadOpeningDelay = "trigger.trackpad-opening-delay"
     }
 }
 

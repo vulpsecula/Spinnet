@@ -375,6 +375,9 @@ final class SettingsWindowModel: ObservableObject {
             names.append(contentsOf: launchAtLogin.accessibleNames)
             names.append(contentsOf: InterfaceLanguageRow.accessibleNames(for: interfaceLanguage))
             names.append(MenuOpeningDelayRow.accessibleName(for: trigger.openingDelay))
+            if trigger.trackpadTrigger != .off {
+                names.append(TrackpadOpeningDelayRow.accessibleName(for: trigger.trackpadOpeningDelay))
+            }
             if let note = MenuOpeningDelayRow.shortcutNote(trigger: trigger,
                                                            accessibilityGranted: privacy.accessibilityPermissionGranted) {
                 names.append(note)
@@ -784,7 +787,7 @@ struct SettingsRootView: View {
                     .frame(width: 68, alignment: .leading)
             }
             .accessibilityLabel(localized("Trackpad: \(trigger.trackpadTrigger.displayName)"))
-            .accessibilityHint(localized("Tap with the chosen number of fingers to open the Menu at the pointer."))
+            .accessibilityHint(localized("Rest the chosen number of fingers still on the trackpad to open the Menu at the pointer."))
 
             ForEach(trigger.trackpadConflicts) { conflict in
                 Label(conflict.guidance, systemImage: "exclamationmark.triangle.fill")

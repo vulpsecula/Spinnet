@@ -1,26 +1,27 @@
 import AppKit
 
-/// The trackpad gesture that opens the Menu, chosen under Settings → Menu.
+/// How many fingers resting on the trackpad open the Menu, chosen under
+/// Settings → Menu. The saved values keep their original names.
 enum TrackpadTrigger: String, CaseIterable, Equatable {
     case off
-    case threeFingerTap = "three-finger-tap" // Not localized: a file path or saved key
-    case fourFingerTap = "four-finger-tap" // Not localized: a file path or saved key
+    case threeFingers = "three-finger-tap" // Not localized: a file path or saved key
+    case fourFingers = "four-finger-tap" // Not localized: a file path or saved key
 
-    /// How many fingers tap together, or nil when the trackpad does not open
+    /// How many fingers rest together, or nil when the trackpad does not open
     /// the Menu.
     var fingerCount: Int? {
         switch self {
         case .off: return nil
-        case .threeFingerTap: return 3
-        case .fourFingerTap: return 4
+        case .threeFingers: return 3
+        case .fourFingers: return 4
         }
     }
 
     var displayName: String {
         switch self {
         case .off: return localized("Off")
-        case .threeFingerTap: return localized("Three-Finger Tap")
-        case .fourFingerTap: return localized("Four-Finger Tap")
+        case .threeFingers: return localized("Three Fingers")
+        case .fourFingers: return localized("Four Fingers")
         }
     }
 }

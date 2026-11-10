@@ -26,12 +26,12 @@ struct TrackpadGestureConflictDetector {
         switch configuration.trackpadTrigger {
         case .off:
             return []
-        case .threeFingerTap:
+        case .threeFingers:
             var conflicts: [TrackpadGestureConflict] = []
             if setting("TrackpadThreeFingerTapGesture") == Self.lookUpOnThreeFingerTap { // Not localized: a file path or saved key
                 conflicts.append(TrackpadGestureConflict(
                     id: "look-up", // Not localized: an internal identifier
-                    guidance: localized("Look Up & data detectors also uses a three-finger tap. Set it to Force Click with one finger in System Settings → Trackpad, or choose Four-Finger Tap.")
+                    guidance: localized("Look Up & data detectors also uses a three-finger tap. Set it to Force Click with one finger in System Settings → Trackpad, or choose Four Fingers.")
                 ))
             }
             if drags, isOn("TrackpadThreeFingerHorizSwipeGesture") || isOn("TrackpadThreeFingerVertSwipeGesture") { // Not localized: a file path or saved key
@@ -41,12 +41,12 @@ struct TrackpadGestureConflictDetector {
                 ))
             }
             return conflicts
-        case .fourFingerTap:
+        case .fourFingers:
             guard drags, isOn("TrackpadFourFingerHorizSwipeGesture") || isOn("TrackpadFourFingerVertSwipeGesture") // Not localized: a file path or saved key
                     || isOn("TrackpadFourFingerPinchGesture") else { return [] } // Not localized: a file path or saved key
             return [TrackpadGestureConflict(
                 id: "four-finger-swipes", // Not localized: an internal identifier
-                guidance: localized("Four-finger swipes and pinches also switch Spaces, show Mission Control or open Launchpad while you drag. Turn them off in System Settings → Trackpad → More Gestures, or choose Three-Finger Tap.")
+                guidance: localized("Four-finger swipes and pinches also switch Spaces, show Mission Control or open Launchpad while you drag. Turn them off in System Settings → Trackpad → More Gestures, or choose Three Fingers.")
             )]
         }
     }

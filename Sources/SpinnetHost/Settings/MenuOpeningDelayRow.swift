@@ -60,3 +60,43 @@ struct MenuOpeningDelayRow: View {
         .padding(.vertical, 12)
     }
 }
+
+/// General's trackpad opening delay, shown while a trackpad trigger is
+/// chosen. It is separate from the Menu opening delay and never under
+/// 250 ms, so the system's gestures with the same fingers begin first.
+struct TrackpadOpeningDelayRow: View {
+    @ObservedObject var trigger: MenuTriggerModel
+
+    static var title: String { localized("Trackpad Opening Delay") }
+    private static var detail: String { localized("Rest the trackpad fingers still this long to open the Menu. A quicker tap, swipe or pinch stays with the system.") }
+
+    static func accessibleName(for delay: TimeInterval) -> String {
+        "\(title): \(MenuOpeningDelayRow.valueText(for: delay))"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(Self.title).font(.body.weight(.medium))
+                Spacer(minLength: 12)
+                Text(MenuOpeningDelayRow.valueText(for: trigger.trackpadOpeningDelay))
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            Slider(
+                value: $trigger.trackpadOpeningDelay,
+                in: MenuTriggerConfiguration.trackpadOpeningDelayRange,
+                step: MenuOpeningDelayRow.step
+            )
+            .accessibilityLabel(Self.title)
+            .accessibilityValue(MenuOpeningDelayRow.valueText(for: trigger.trackpadOpeningDelay))
+            .accessibilityHint(Self.detail)
+            Text(Self.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 12)
+    }
+}

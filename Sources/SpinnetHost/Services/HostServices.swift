@@ -1085,13 +1085,13 @@ final class GlobalTriggerController {
         }
     }
 
-    /// One frame of fingers on the trackpad. A tap of the chosen number of
-    /// fingers toggles the Menu; with an opening delay, the fingers must
-    /// instead stay down and still for the delay, and an earlier lift leaves
-    /// the gesture to the App and the system. While the Menu is open, the
-    /// fingers close it at once. With Click & Drag the Menu opens as the
-    /// fingers land, or once they have been held for the delay, and the
-    /// selection then follows them until they lift.
+    /// One frame of fingers on the trackpad. The chosen number of fingers
+    /// must rest, still, for the trackpad opening delay, at least 250 ms, to
+    /// open the Menu; an earlier lift or any motion leaves the gesture to the
+    /// App and the system. While the Menu is open, a tap of those fingers
+    /// closes it, and with Click & Drag their landing does. With Click &
+    /// Drag, the selection follows the fingers that opened the Menu until
+    /// they lift.
     func receiveTrackpadFrame(_ frame: TrackpadTouchFrame) {
         defer { if frame.touches.isEmpty { releaseTrackpadFingers() } }
         guard let fingerCount = configuration.trackpadTrigger.fingerCount else {
@@ -1111,16 +1111,15 @@ final class GlobalTriggerController {
         HostLog.trigger.debug("Trackpad \(fingerCount, privacy: .public)-finger gesture: \(String(describing: event), privacy: .public)")
         switch event {
         case .began:
-            let menuIsOpen = isMenuOpen?() == true
-            if configuration.openingDelay > 0, !menuIsOpen {
+            if isMenuOpen?() != true {
                 trackpadTapIgnored = true
-                cancelTrackpadHold = scheduleDelay(configuration.openingDelay) { [weak self] in
+                cancelTrackpadHold = scheduleDelay(configuration.trackpadOpeningDelay) { [weak self] in
                     self?.cancelTrackpadHold = nil
                     self?.finishTrackpadHold()
                 }
             } else if configuration.clickDragEnabled, trackpadClassifier?.claimHold() == true {
                 trackpadTapIgnored = true
-                toggleFromTrackpad(dragging: !menuIsOpen)
+                toggleFromTrackpad(dragging: false)
             }
         case .tap:
             let ignored = trackpadTapIgnored

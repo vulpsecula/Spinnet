@@ -1,17 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Trackpad Opening Delay": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "触控板打开延迟" } } }
+    },
+    "Rest the trackpad fingers still this long to open the Menu. A quicker tap, swipe or pinch stays with the system.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "触控板手指静置这么久才打开菜单。更快的轻点、轻扫或捏合仍交给系统。" } } }
+    },
     "Three-finger swipes also switch pages, Spaces or Mission Control while you drag. Set them to four fingers in System Settings → Trackpad → More Gestures, or turn off Click & Drag.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "三指轻扫也会在拖动时切换页面、空间或调度中心。请在“系统设置”→“触控板”→“更多手势”中改为四指，或关闭点按并拖移。" } } }
     },
-    "Four-finger swipes and pinches also switch Spaces, show Mission Control or open Launchpad while you drag. Turn them off in System Settings → Trackpad → More Gestures, or choose Three-Finger Tap.": {
-      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "四指轻扫和捏合也会在拖动时切换空间、显示调度中心或打开启动台。请在“系统设置”→“触控板”→“更多手势”中关闭它们，或选择三指轻点。" } } }
+    "Four-finger swipes and pinches also switch Spaces, show Mission Control or open Launchpad while you drag. Turn them off in System Settings → Trackpad → More Gestures, or choose Three Fingers.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "四指轻扫和捏合也会在拖动时切换空间、显示调度中心或打开启动台。请在“系统设置”→“触控板”→“更多手势”中关闭它们，或选择三指。" } } }
     },
-    "Three-Finger Tap": {
-      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "三指轻点" } } }
+    "Three Fingers": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "三指" } } }
     },
-    "Four-Finger Tap": {
-      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "四指轻点" } } }
+    "Four Fingers": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "四指" } } }
     },
     "Trackpad": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "触控板" } } }
@@ -19,11 +25,11 @@
     "Trackpad: %@": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "触控板：%@" } } }
     },
-    "Tap with the chosen number of fingers to open the Menu at the pointer.": {
-      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "用所选数量的手指轻点，在指针处打开菜单。" } } }
+    "Rest the chosen number of fingers still on the trackpad to open the Menu at the pointer.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "将所选数量的手指静置在触控板上，在指针处打开菜单。" } } }
     },
-    "Look Up & data detectors also uses a three-finger tap. Set it to Force Click with one finger in System Settings → Trackpad, or choose Four-Finger Tap.": {
-      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "“查询与数据检测器”也使用三指轻点。请在“系统设置”→“触控板”中将其改为“用单指用力点按”，或选择四指轻点。" } } }
+    "Look Up & data detectors also uses a three-finger tap. Set it to Force Click with one finger in System Settings → Trackpad, or choose Four Fingers.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "“查询与数据检测器”也使用三指轻点。请在“系统设置”→“触控板”中将其改为“用单指用力点按”，或选择四指。" } } }
     },
     "Window": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "窗口" } } }

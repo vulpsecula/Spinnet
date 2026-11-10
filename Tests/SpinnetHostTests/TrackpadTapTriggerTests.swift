@@ -63,49 +63,71 @@ final class TrackpadTapTriggerTests: XCTestCase {
 
     // MARK: The trigger
 
-    func testATapOpensTheMenuWithoutADelay() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(trackpadTrigger: .threeFingerTap))
+    func testHoldingTheFingersStillForTheTrackpadDelayOpensTheMenu() {
+        let rig = TrackpadRig(MenuTriggerConfiguration(trackpadTrigger: .threeFingers))
         rig.feed(Recording.threeFingerTap)
-        XCTAssertEqual(rig.log, ["menu"])
-        rig.feed(Recording.threeFingerSwipe.map { Recording.shifted($0, by: 1) })
-        XCTAssertEqual(rig.log, ["menu"], "A swipe is left to the system")
-    }
-
-    func testOnlyTheChosenGestureOpensTheMenu() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(trackpadTrigger: .fourFingerTap))
-        rig.feed(Recording.threeFingerTap)
-        XCTAssertEqual(rig.log, [])
-        rig.feed(Recording.fourFingerTap.map { Recording.shifted($0, by: 1) })
-        XCTAssertEqual(rig.log, ["menu"])
-    }
-
-    func testWithADelayHoldingTheFingersStillOpensTheMenuOnce() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(openingDelay: 0.3, trackpadTrigger: .threeFingerTap))
+        rig.clock.advance(by: 1)
+        XCTAssertEqual(rig.log, [], "A tap is shorter than the delay and stays with the system")
         rig.feed(Array(Recording.threeFingerRest.prefix(2)))
+        rig.clock.advance(by: 0.2)
         XCTAssertEqual(rig.log, [])
-        rig.clock.advance(by: 0.3)
-        XCTAssertEqual(rig.log, ["menu"], "Held for the delay, the Menu opens where the pointer is")
+        rig.clock.advance(by: 0.05)
+        XCTAssertEqual(rig.log, ["menu"], "Held for 250 ms, the Menu opens where the pointer is")
         rig.feed(Array(Recording.threeFingerRest.dropFirst(2)))
         XCTAssertEqual(rig.log, ["menu"], "Lifting after the Menu opened does nothing more")
     }
 
-    func testWithADelayATapShorterThanTheDelayDoesNothing() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(openingDelay: 0.3, trackpadTrigger: .threeFingerTap))
+    func testTheTrackpadDelayIsSeparateAndNeverUnder250Milliseconds() throws {
+        let configuration = MenuTriggerConfiguration(openingDelay: 0, trackpadTrigger: .threeFingers,
+                                                     trackpadOpeningDelay: 0)
+        XCTAssertEqual(configuration.trackpadOpeningDelay, 0.25)
+        XCTAssertEqual(MenuTriggerConfiguration(openingDelay: 0.6).trackpadOpeningDelay, 0.25,
+                       "The mouse and keyboard delay does not set it")
+        let rig = TrackpadRig(MenuTriggerConfiguration(openingDelay: 0.1, trackpadTrigger: .threeFingers,
+                                                       trackpadOpeningDelay: 0.4))
+        rig.feed(Array(Recording.threeFingerRest.prefix(2)))
+        rig.clock.advance(by: 0.3)
+        XCTAssertEqual(rig.log, [])
+        rig.clock.advance(by: 0.1)
+        XCTAssertEqual(rig.log, ["menu"])
+
+        let suite = "TrackpadTapTriggerTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).trackpadOpeningDelay, 0.25)
+        MenuTriggerConfiguration(trackpadOpeningDelay: 0.5).save(to: defaults)
+        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).trackpadOpeningDelay, 0.5)
+        defaults.set(0.1, forKey: "trigger.trackpad-opening-delay")
+        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).trackpadOpeningDelay, 0.25)
+    }
+
+    func testOnlyTheChosenFingerCountOpensTheMenu() {
+        let rig = TrackpadRig(MenuTriggerConfiguration(trackpadTrigger: .fourFingers))
+        rig.feed(Array(Recording.threeFingerRest.prefix(2)) + [Recording.frame(10.7)])
+        rig.clock.advance(by: 1)
+        XCTAssertEqual(rig.log, [])
+        rig.feed(Array(Recording.fourFingerTap.prefix(4)))
+        rig.clock.advance(by: 0.25)
+        XCTAssertEqual(rig.log, ["menu"])
+    }
+
+    func testLiftingBeforeTheDelayDoesNothing() {
+        let rig = TrackpadRig(MenuTriggerConfiguration(trackpadTrigger: .threeFingers, trackpadOpeningDelay: 0.3))
         rig.feed(Recording.threeFingerTap)
         rig.clock.advance(by: 1)
         XCTAssertEqual(rig.log, [], "An early lift goes on to the App as it was")
         XCTAssertEqual(rig.clock.pending, 0)
     }
 
-    func testWithADelayMovingBeforeTheDelayDoesNotOpenTheMenu() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(openingDelay: 0.3, trackpadTrigger: .threeFingerTap))
+    func testMovingBeforeTheDelayIsTheSystemsGesture() {
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
         rig.feed(Array(Recording.threeFingerSwipe.prefix(3)))
         rig.clock.advance(by: 1)
-        XCTAssertEqual(rig.log, [])
+        XCTAssertEqual(rig.log, [], "A swipe never opens the Menu, with Click & Drag too")
     }
 
     func testATapWhileTheMenuIsOpenClosesItAtOnce() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(openingDelay: 0.3, trackpadTrigger: .threeFingerTap))
+        let rig = TrackpadRig(MenuTriggerConfiguration(openingDelay: 0.3, trackpadTrigger: .threeFingers))
         rig.menuIsOpen = true
         rig.feed(Recording.threeFingerTap)
         XCTAssertEqual(rig.log, ["menu"], "The delay governs opening only")
@@ -114,9 +136,9 @@ final class TrackpadTapTriggerTests: XCTestCase {
     // MARK: Click & Drag
 
     func testWithClickAndDragTheFingersOpenTheMenuAndLiftOverAnItemToRunIt() throws {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
-        rig.feed([Recording.frame(10.000, Recording.a, Recording.b, Recording.c)])
-        XCTAssertEqual(rig.log, ["menu"], "The Menu opens as the fingers land")
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+        rig.holdOpen()
+        XCTAssertEqual(rig.log, ["menu"], "The Menu opens once the fingers are held still")
 
         rig.feed([Recording.frame(10.050, Recording.moved(Recording.a, 0.005),
                                   Recording.moved(Recording.b, 0.005), Recording.moved(Recording.c, 0.005))])
@@ -137,8 +159,8 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testTheDragStaysOnTheScreenTheMenuOpenedOn() throws {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
-        rig.feed([Recording.frame(10, Recording.a, Recording.b, Recording.c)])
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+        rig.holdOpen()
         rig.feed([Recording.frame(10.05, Recording.moved(Recording.a, 0.5),
                                   Recording.moved(Recording.b, 0.5), Recording.moved(Recording.c, 0.5))])
         XCTAssertEqual(rig.cursor.last?.x, TrackpadRig.screen.maxX - 1)
@@ -150,8 +172,8 @@ final class TrackpadTapTriggerTests: XCTestCase {
 
     func testAFasterDragTravelsFurtherLikeThePointer() throws {
         func travel(frames: Int, over seconds: TimeInterval) throws -> CGFloat {
-            let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
-            rig.feed([Recording.frame(10, Recording.a, Recording.b, Recording.c)])
+            let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+            rig.holdOpen()
             for step in 1...frames {
                 let distance = 0.1 * CGFloat(step) / CGFloat(frames)
                 rig.feed([Recording.frame(10 + seconds * Double(step) / Double(frames),
@@ -168,9 +190,9 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testAFingerLiftingFirstDoesNotJumpTheSelection() throws {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+        rig.holdOpen()
         rig.feed([
-            Recording.frame(10.000, Recording.a, Recording.b, Recording.c),
             Recording.frame(10.100, Recording.moved(Recording.a, 0.1), Recording.b, Recording.moved(Recording.c, 0.1))
         ])
         let before = try XCTUnwrap(rig.dragPoints.last)
@@ -179,14 +201,16 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testWithClickAndDragLiftingWithoutMovingLeavesTheMenuOpenForPointing() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
-        rig.feed(Recording.threeFingerTap)
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+        rig.holdOpen()
+        rig.feed([Recording.frame(10.400)])
         XCTAssertEqual(rig.log, ["menu"])
+        XCTAssertNil(rig.releasePoint)
     }
 
     func testWithClickAndDragAndADelayTheDragStartsOnceTheMenuHasOpened() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, openingDelay: 0.3,
-                                                       trackpadTrigger: .threeFingerTap))
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers,
+                                                       trackpadOpeningDelay: 0.3))
         rig.feed([Recording.frame(10.000, Recording.a, Recording.b, Recording.c)])
         XCTAssertEqual(rig.log, [])
         rig.clock.advance(by: 0.3)
@@ -205,15 +229,15 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testWithClickAndDragFingersLandingOnAnOpenMenuCloseItAtOnce() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
         rig.menuIsOpen = true
         rig.feed(Recording.threeFingerSwipe)
         XCTAssertEqual(rig.log, ["menu"], "Closing never drags")
     }
 
     func testFingersSpinnetTookKeepTheSystemsThreeFingerDragClicksFromTheMenu() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
-        rig.feed([Recording.frame(10.000, Recording.a, Recording.b, Recording.c)])
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+        rig.holdOpen()
         XCTAssertTrue(rig.leftMouse(.leftMouseDown), "Three-finger drag's press would close the Menu")
         rig.feed([Recording.frame(10.100, Recording.moved(Recording.a, 0.1),
                                   Recording.moved(Recording.b, 0.1), Recording.moved(Recording.c, 0.1))])
@@ -226,8 +250,8 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testWhenTheSystemDragsThePointerTheSelectionFollowsItExactly() throws {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
-        rig.feed([Recording.frame(10.000, Recording.a, Recording.b, Recording.c)])
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+        rig.holdOpen()
         XCTAssertTrue(rig.leftMouse(.leftMouseDown))
         let systemPointer = CGPoint(x: TrackpadRig.pointer.x + 40, y: TrackpadRig.pointer.y - 30)
         XCTAssertTrue(rig.leftMouse(.leftMouseDragged, at: systemPointer), "Three-finger drag moves the pointer")
@@ -242,8 +266,8 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testAPressWhoseReleaseNeverComesIsForgottenSoon() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
-        rig.feed([Recording.frame(10.000, Recording.a, Recording.b, Recording.c)])
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+        rig.holdOpen()
         XCTAssertTrue(rig.leftMouse(.leftMouseDown))
         rig.feed([Recording.frame(10.150)])
         XCTAssertFalse(rig.leftMouse(.leftMouseDown), "A new press after the lift is the user's click")
@@ -251,8 +275,8 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testAKeptPressesLateReleaseIsKeptOnlyBriefly() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
-        rig.feed([Recording.frame(10.000, Recording.a, Recording.b, Recording.c)])
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+        rig.holdOpen()
         XCTAssertTrue(rig.leftMouse(.leftMouseDown))
         rig.feed([Recording.frame(10.150)])
         XCTAssertTrue(rig.leftMouse(.leftMouseUp), "Its own release still follows the kept press")
@@ -261,9 +285,8 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testADragEndsWithoutRunningAnythingWhenTheMenuClosedMeanwhile() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingerTap))
-        rig.feed([Recording.frame(10.000, Recording.a, Recording.b, Recording.c)])
-        rig.menuIsOpen = true
+        let rig = TrackpadRig(MenuTriggerConfiguration(clickDragEnabled: true, trackpadTrigger: .threeFingers))
+        rig.holdOpen()
         rig.feed([Recording.frame(10.100, Recording.moved(Recording.a, 0.1),
                                   Recording.moved(Recording.b, 0.1), Recording.moved(Recording.c, 0.1))])
         rig.menuIsOpen = false
@@ -276,7 +299,7 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testAHoldDoesNotCloseAMenuThatOpenedMeanwhile() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(openingDelay: 0.3, trackpadTrigger: .threeFingerTap))
+        let rig = TrackpadRig(MenuTriggerConfiguration(trackpadTrigger: .threeFingers, trackpadOpeningDelay: 0.3))
         rig.feed(Array(Recording.threeFingerRest.prefix(2)))
         rig.menuIsOpen = true
         rig.clock.advance(by: 0.3)
@@ -285,18 +308,18 @@ final class TrackpadTapTriggerTests: XCTestCase {
     }
 
     func testChangingTheDelayMidGestureDropsTheWaitingHold() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(openingDelay: 0.3, trackpadTrigger: .threeFingerTap))
+        let rig = TrackpadRig(MenuTriggerConfiguration(trackpadTrigger: .threeFingers, trackpadOpeningDelay: 0.3))
         XCTAssertTrue(rig.controller.start(configuration: rig.controller.configuration))
         defer { rig.controller.stop() }
         rig.feed(Array(Recording.threeFingerRest.prefix(2)))
-        _ = rig.controller.apply(MenuTriggerConfiguration(openingDelay: 0, trackpadTrigger: .threeFingerTap))
+        _ = rig.controller.apply(MenuTriggerConfiguration(trackpadTrigger: .threeFingers, trackpadOpeningDelay: 0.5))
         rig.clock.advance(by: 1)
         XCTAssertEqual(rig.log, [])
         XCTAssertEqual(rig.clock.pending, 0)
     }
 
     func testClicksAreLeftAloneWhileSpinnetHasNotTakenTheFingers() {
-        let rig = TrackpadRig(MenuTriggerConfiguration(trackpadTrigger: .threeFingerTap))
+        let rig = TrackpadRig(MenuTriggerConfiguration(trackpadTrigger: .threeFingers))
         XCTAssertFalse(rig.leftMouse(.leftMouseDown))
         XCTAssertFalse(rig.leftMouse(.leftMouseUp))
         rig.feed(Array(Recording.threeFingerTap.prefix(3)))
@@ -310,15 +333,16 @@ final class TrackpadTapTriggerTests: XCTestCase {
         defer { rig.controller.stop() }
         XCTAssertEqual(rig.liveTaps, 0, "No trackpad trigger, no trackpad tap")
 
-        _ = rig.controller.apply(MenuTriggerConfiguration(trackpadTrigger: .threeFingerTap))
+        _ = rig.controller.apply(MenuTriggerConfiguration(trackpadTrigger: .threeFingers))
         XCTAssertEqual(rig.liveTaps, 1)
-        rig.deliver(Recording.threeFingerTap)
+        rig.deliver(Array(Recording.threeFingerRest.prefix(2)))
+        rig.clock.advance(by: 0.25)
         XCTAssertEqual(rig.log, ["menu"])
 
         _ = rig.controller.apply(MenuTriggerConfiguration(trackpadTrigger: .off))
         XCTAssertEqual(rig.liveTaps, 0)
 
-        _ = rig.controller.apply(MenuTriggerConfiguration(trackpadTrigger: .fourFingerTap))
+        _ = rig.controller.apply(MenuTriggerConfiguration(trackpadTrigger: .fourFingers))
         rig.controller.stop()
         XCTAssertEqual(rig.liveTaps, 0, "Switched off, Spinnet stops reading the trackpad")
     }
@@ -328,8 +352,8 @@ final class TrackpadTapTriggerTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).trackpadTrigger, .off)
-        MenuTriggerConfiguration(trackpadTrigger: .fourFingerTap).save(to: defaults)
-        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).trackpadTrigger, .fourFingerTap)
+        MenuTriggerConfiguration(trackpadTrigger: .fourFingers).save(to: defaults)
+        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).trackpadTrigger, .fourFingers)
     }
 
     // MARK: Settings
@@ -350,27 +374,39 @@ final class TrackpadTapTriggerTests: XCTestCase {
         model.trigger.onChange = { applied.append($0.trackpadTrigger) }
         model.selectPage(.menu)
         let lookUp = "Look Up & data detectors also uses a three-finger tap. "
-            + "Set it to Force Click with one finger in System Settings → Trackpad, or choose Four-Finger Tap."
+            + "Set it to Force Click with one finger in System Settings → Trackpad, or choose Four Fingers."
 
         XCTAssertTrue(model.accessibleNames.contains("Trackpad: Off"))
         XCTAssertFalse(model.accessibleNames.contains(lookUp), "Off conflicts with nothing")
 
-        model.trigger.trackpadTrigger = .threeFingerTap
-        XCTAssertEqual(applied, [.threeFingerTap])
-        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).trackpadTrigger, .threeFingerTap)
-        XCTAssertTrue(model.accessibleNames.contains("Trackpad: Three-Finger Tap"))
+        model.trigger.trackpadTrigger = .threeFingers
+        XCTAssertEqual(applied, [.threeFingers])
+        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).trackpadTrigger, .threeFingers)
+        XCTAssertTrue(model.accessibleNames.contains("Trackpad: Three Fingers"))
         XCTAssertTrue(model.accessibleNames.contains(lookUp))
         try HostLocalization.withLanguage(.simplifiedChinese) {
-            XCTAssertTrue(model.accessibleNames.contains("触控板：三指轻点"))
+            XCTAssertTrue(model.accessibleNames.contains("触控板：三指"))
         }
+        model.selectPage(.general)
+        XCTAssertTrue(model.accessibleNames.contains("Trackpad Opening Delay: 250 ms"))
+        model.trigger.trackpadOpeningDelay = 0.1
+        XCTAssertTrue(model.accessibleNames.contains("Trackpad Opening Delay: 250 ms"), "Never under 250 ms")
+        model.trigger.trackpadOpeningDelay = 0.4
+        XCTAssertEqual(MenuTriggerConfiguration(defaults: defaults).trackpadOpeningDelay, 0.4)
+        model.selectPage(.menu)
 
         trackpadSettings = [:]
         model.trigger.refreshConflicts()
         XCTAssertFalse(model.accessibleNames.contains(lookUp), "Changed in System Settings meanwhile")
 
         trackpadSettings = ["TrackpadThreeFingerTapGesture": 2]
-        model.trigger.trackpadTrigger = .fourFingerTap
+        model.trigger.trackpadTrigger = .fourFingers
         XCTAssertFalse(model.accessibleNames.contains(lookUp), "No system gesture taps with four fingers")
+
+        model.trigger.trackpadTrigger = .off
+        model.selectPage(.general)
+        XCTAssertFalse(model.accessibleNames.contains { $0.hasPrefix("Trackpad Opening Delay") },
+                       "Without a trackpad trigger there is no trackpad delay to set")
     }
 
     func testClickAndDragNamesTheSystemGesturesThatAlsoFollowTheFingers() {
@@ -384,10 +420,10 @@ final class TrackpadTapTriggerTests: XCTestCase {
         func conflicts(_ trigger: TrackpadTrigger, drag: Bool) -> [String] {
             detector.detect(MenuTriggerConfiguration(clickDragEnabled: drag, trackpadTrigger: trigger)).map(\.id)
         }
-        XCTAssertEqual(conflicts(.threeFingerTap, drag: false), [], "A tap does not move the fingers")
-        XCTAssertEqual(conflicts(.threeFingerTap, drag: true), ["three-finger-swipes"],
+        XCTAssertEqual(conflicts(.threeFingers, drag: false), [], "A tap does not move the fingers")
+        XCTAssertEqual(conflicts(.threeFingers, drag: true), ["three-finger-swipes"],
                        "Three-finger drag is followed, not a conflict")
-        XCTAssertEqual(conflicts(.fourFingerTap, drag: true), ["four-finger-swipes"])
+        XCTAssertEqual(conflicts(.fourFingers, drag: true), ["four-finger-swipes"])
         XCTAssertEqual(conflicts(.off, drag: true), [])
     }
 }
@@ -440,6 +476,12 @@ private final class TrackpadRig {
             self?.log.append("release")
             self?.menuIsOpen = false
         }
+    }
+
+    /// Three fingers land and stay still for the default trackpad delay.
+    func holdOpen() {
+        feed([Recording.frame(10.000, Recording.a, Recording.b, Recording.c)])
+        clock.advance(by: 0.25)
     }
 
     /// Frames as the classifier receives them, without a tap.

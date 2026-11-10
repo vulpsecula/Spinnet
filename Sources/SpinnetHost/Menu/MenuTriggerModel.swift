@@ -23,9 +23,22 @@ final class MenuTriggerModel: ObservableObject {
     @Published var alternateActionMode: AlternateActionMode {
         didSet { configurationDidChange() }
     }
-    /// The trackpad gesture that opens the Menu, off by default.
+    /// The trackpad fingers that open the Menu, off by default.
     @Published var trackpadTrigger: TrackpadTrigger {
         didSet { configurationDidChange() }
+    }
+    /// How long those fingers must rest before the Menu opens, shown on
+    /// General. Edits are clamped to
+    /// `MenuTriggerConfiguration.trackpadOpeningDelayRange`.
+    @Published var trackpadOpeningDelay: TimeInterval {
+        didSet {
+            let bounded = MenuTriggerConfiguration.boundedTrackpadOpeningDelay(trackpadOpeningDelay)
+            guard bounded == trackpadOpeningDelay else {
+                trackpadOpeningDelay = bounded
+                return
+            }
+            configurationDidChange()
+        }
     }
     /// How long the trigger must be held before the Menu opens, shown on
     /// General. Edits are clamped to `MenuTriggerConfiguration.openingDelayRange`.
@@ -72,7 +85,8 @@ final class MenuTriggerModel: ObservableObject {
             keyboardShortcut: keyboardShortcut,
             openingDelay: openingDelay,
             alternateActionMode: alternateActionMode,
-            trackpadTrigger: trackpadTrigger
+            trackpadTrigger: trackpadTrigger,
+            trackpadOpeningDelay: trackpadOpeningDelay
         )
     }
 
@@ -99,6 +113,7 @@ final class MenuTriggerModel: ObservableObject {
         openingDelay = saved.openingDelay
         alternateActionMode = saved.alternateActionMode
         trackpadTrigger = saved.trackpadTrigger
+        trackpadOpeningDelay = saved.trackpadOpeningDelay
         mouseInputConflicts = conflictCheck(saved.mouseButton)
         trackpadConflicts = trackpadConflictCheck(saved)
         isEnabled = Self.isEnabled(in: defaults)

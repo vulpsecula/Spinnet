@@ -41,36 +41,37 @@ every App, and deleting a Slot names the Apps whose overrides go with it.
 While an App is edited, the Menu Editor's centre shows its icon.
 
 Mouse Side Button 1 opens the Menu by default. Change the mouse trigger or
-record or enter a keyboard shortcut under Settings → Menu.
-
-Without a mouse, choose Trackpad → Three-Finger Tap or Four-Finger Tap under
-Settings → Menu (off by default). Tap the trackpad with that many fingers,
-landing and lifting together without moving, and the Menu opens at the
-pointer; the same fingers on an open Menu close it. Then point with one
-finger to select, click or tap to run the Primary Action, and secondary-click
-(a two-finger tap) for the Alternate Actions. A resting thumb is not counted,
-and swipes, pinches and slower touches stay with the system. With Click &
-Drag, the Menu opens as the fingers land, so a swipe of the same fingers
-opens it too; keep them down, drag to a Menu Item
-and lift to run it, or lift without dragging to point instead. The pointer
-moves with the selection, so the next Menu opens where this one ended. When
-three-finger drag is on, the system already moves the pointer with those
-fingers, and the selection follows it with the system's own tracking;
-otherwise Spinnet moves the pointer itself, accelerating fast motion like the
-pointer and scaled by the trackpad's tracking speed. Spinnet reads
-the touches through public AppKit events and never holds them back from the
-App; only while the fingers that opened or closed the Menu stay down does it
-keep from the App the clicks three-finger drag makes with them. It needs the
-same Accessibility permission as the mouse trigger; it
-reads the trackpad only while a trackpad trigger is chosen and Spinnet is on.
-Settings names system gestures that use the same fingers: Look Up & data
-detectors set to a three-finger tap and, with Click & Drag, swipes or
-pinches of the same finger count. The Library
+record or enter a keyboard shortcut under Settings → Menu. The Library
 contains Plugins, including those whose Commands directly call Host Services.
 Spinnet itself contains no Plugins: install a package from the Library. Official
 Plugins from [SpinnetPlugins](https://github.com/vulpsecula/SpinnetPlugins)
 are installed, updated and removed like any other Plugin; the Host's fixed list
 of them, in `OfficialPlugins.swift`, only feeds the Welcome Guide's checklist.
+
+Without a mouse, choose Trackpad → Three Fingers or Four Fingers under
+Settings → Menu (off by default). Rest that many fingers on the trackpad,
+landing together and staying still, for the Trackpad Opening Delay on
+General (250 ms by default and never less, separate from the Menu Opening
+Delay), and the Menu opens at the pointer; a tap of the same fingers on an
+open Menu closes it. Then point with one finger to select, click or tap to
+run the Primary Action, and secondary-click (a two-finger tap) for the
+Alternate Actions. A resting thumb is not counted, and quicker taps, swipes
+and pinches stay with the system. With Click & Drag, once the Menu has
+opened keep the fingers down, drag to a Menu Item and lift to run it, or lift
+without dragging to point instead; landing them on an open Menu closes it.
+The pointer moves with the selection, so the next Menu opens where this one
+ended. When three-finger drag is on, the system already moves the pointer
+with those fingers, and the selection follows it with the system's own
+tracking; otherwise Spinnet moves the pointer itself, accelerating fast
+motion like the pointer and scaled by the trackpad's tracking speed. Spinnet
+reads the touches through public AppKit events and never holds them back
+from the App; only while the fingers that opened or closed the Menu stay
+down does it keep from the App the clicks three-finger drag makes with them.
+It needs the same Accessibility permission as the mouse trigger, and reads
+the trackpad only while a trackpad trigger is chosen and Spinnet is on.
+Settings names system gestures that use the same fingers: Look Up & data
+detectors set to a three-finger tap and, with Click & Drag, swipes or
+pinches of the same finger count.
 
 In Settings → Menu → Library, Browse Plugins lists published Plugins from
 SpinnetPlugins. Add Repository accepts another public GitHub repository as
@@ -129,11 +130,11 @@ General says so next to the delay when a shortcut is set without Accessibility.
 With Click & Drag, the delay comes first: a press-drag-release shorter than
 the delay is a short press and goes to the App, motion included. Once the Menu
 opens, drag selection measures from where it opened, so motion during the
-delay is not a selection. The trackpad trigger follows the same rule: with a
-delay, the fingers must stay down and still for it before the Menu opens at
-the pointer, and a drag selects only from there. Lifted or moved sooner,
-nothing opens and the touches, which Spinnet never holds back, stay with the
-App and the system.
+delay is not a selection. The trackpad trigger has its own Trackpad Opening
+Delay, at least 250 ms, and follows the same rule: the fingers must stay down
+and still for it before the Menu opens at the pointer, and a drag selects
+only from there. Lifted or moved sooner, nothing opens and the touches, which
+Spinnet never holds back, stay with the App and the system.
 
 ### Plugin Updates
 
