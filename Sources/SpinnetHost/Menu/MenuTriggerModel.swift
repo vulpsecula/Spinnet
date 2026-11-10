@@ -23,6 +23,10 @@ final class MenuTriggerModel: ObservableObject {
     @Published var alternateActionMode: AlternateActionMode {
         didSet { configurationDidChange() }
     }
+    /// The trackpad gesture that opens the Menu, off by default.
+    @Published var trackpadTrigger: TrackpadTrigger {
+        didSet { configurationDidChange() }
+    }
     /// How long the trigger must be held before the Menu opens, shown on
     /// General. Edits are clamped to `MenuTriggerConfiguration.openingDelayRange`.
     @Published var openingDelay: TimeInterval {
@@ -37,6 +41,8 @@ final class MenuTriggerModel: ObservableObject {
     }
 
     @Published private(set) var mouseInputConflicts: [MouseInputConflict]
+    /// System trackpad gestures that use the chosen trackpad tap.
+    @Published private(set) var trackpadConflicts: [TrackpadGestureConflict]
 
     /// Spinnet's master switch. Off, the Host stops listening for the mouse
     /// button and keyboard shortcut, so both go back to other apps, and the
@@ -65,35 +71,45 @@ final class MenuTriggerModel: ObservableObject {
             clickDragEnabled: clickDragEnabled,
             keyboardShortcut: keyboardShortcut,
             openingDelay: openingDelay,
-            alternateActionMode: alternateActionMode
+            alternateActionMode: alternateActionMode,
+            trackpadTrigger: trackpadTrigger
         )
     }
 
     private let defaults: UserDefaults
     private let conflictCheck: (Int) -> [MouseInputConflict]
+    private let trackpadConflictCheck: (MenuTriggerConfiguration) -> [TrackpadGestureConflict]
 
     init(
         defaults: UserDefaults = .standard,
         conflictCheck: @escaping (Int) -> [MouseInputConflict] = {
             MouseInputConflictDetector().detect(mouseButton: $0)
+        },
+        trackpadConflictCheck: @escaping (MenuTriggerConfiguration) -> [TrackpadGestureConflict] = {
+            TrackpadGestureConflictDetector().detect($0)
         }
     ) {
         self.defaults = defaults
         self.conflictCheck = conflictCheck
+        self.trackpadConflictCheck = trackpadConflictCheck
         let saved = MenuTriggerConfiguration(defaults: defaults)
         mouseButton = saved.mouseButton
         clickDragEnabled = saved.clickDragEnabled
         keyboardShortcut = saved.keyboardShortcut
         openingDelay = saved.openingDelay
         alternateActionMode = saved.alternateActionMode
+        trackpadTrigger = saved.trackpadTrigger
         mouseInputConflicts = conflictCheck(saved.mouseButton)
+        trackpadConflicts = trackpadConflictCheck(saved)
         isEnabled = Self.isEnabled(in: defaults)
     }
 
     /// Re-runs detection without changing the trigger. The set of conflicting
-    /// apps can change while Settings sits open.
+    /// apps, and the system's trackpad gestures, can change while Settings
+    /// sits open.
     func refreshConflicts() {
         mouseInputConflicts = conflictCheck(mouseButton)
+        trackpadConflicts = trackpadConflictCheck(configuration)
     }
 
     private func configurationDidChange() {

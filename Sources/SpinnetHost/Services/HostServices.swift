@@ -645,6 +645,56 @@ final class GlobalTriggerController {
     private let postEvent: (CGEvent) -> Void
     private let createMouseEventTap: (@escaping MouseEventTapHandler) -> MouseEventTapConnection?
     private let otherMouseEventTapIDs: () -> Set<UInt32>?
+    private let createTrackpadTouchTap: (@escaping (TrackpadInput) -> Bool) -> MouseEventTapConnection?
+    /// Reads the trackpad only while a trackpad trigger is chosen.
+    private var trackpadTap: MouseEventTapConnection?
+    private var trackpadClassifier: TrackpadTapClassifier?
+    /// The opening delay running for fingers held still on the trackpad.
+    private var cancelTrackpadHold: (() -> Void)?
+    /// Whether a tap of the fingers now down opens nothing: they must be
+    /// held for the opening delay, or they already opened or closed the Menu.
+    private var trackpadTapIgnored = false
+    private var lastTrackpadFrame: TrackpadTouchFrame?
+    /// Click & Drag on the trackpad: the fingers' landing positions and the
+    /// pointer where the Menu opened.
+    private struct TrackpadDrag {
+        let pointer: CGPoint
+        let trackingSpeed: Double
+        /// The screen the Menu opened on, which the selection stays on.
+        let bounds: CGRect?
+        var fingers: [Int: CGPoint]
+        var time: TimeInterval
+        var point: CGPoint
+        var didDrag = false
+        /// The system moves the pointer with these fingers, as three-finger
+        /// drag does, so the selection follows the pointer, with the
+        /// system's own tracking, instead of the fingers.
+        var followsSystemPointer = false
+
+        init(frame: TrackpadTouchFrame, pointer: CGPoint, trackingSpeed: Double, bounds: CGRect?) {
+            self.pointer = pointer
+            self.trackingSpeed = trackingSpeed
+            self.bounds = bounds
+            fingers = frame.positions
+            time = frame.time
+            point = pointer
+        }
+    }
+    private var trackpadDrag: TrackpadDrag?
+    /// Spinnet opened or closed the Menu with the fingers now down, so the
+    /// left-button events the system makes from them are not the App's.
+    private var trackpadFingersTaken = false
+    /// A left-button press kept from the App whose release is still due,
+    /// and the deadline that forgets it.
+    private var keptLeftMouseDown = false
+    private var cancelForgettingKeptPress: (() -> Void)?
+    private let pointerLocation: () -> CGPoint
+    /// The system's trackpad tracking speed, 0 to 3.
+    private let trackingSpeed: () -> Double
+    private let screenFrame: (CGPoint) -> CGRect?
+    /// Moves the pointer to an AppKit screen point, so a trackpad drag ends
+    /// with the pointer where the selection is, as a mouse drag does.
+    private let moveCursor: (CGPoint) -> Void
 
     /// A trigger press the opening delay is holding back from the Current
     /// App: the press and everything recorded since, in arrival order.
@@ -735,7 +785,16 @@ final class GlobalTriggerController {
         },
         postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: GlobalTriggerController.redeliveryLocation(for: $0)) },
         createMouseEventTap: @escaping (@escaping MouseEventTapHandler) -> MouseEventTapConnection? = QuartzMouseEventTap.connect,
-        otherMouseEventTapIDs: @escaping () -> Set<UInt32>? = QuartzMouseEventTap.otherButtonTapIDs
+        otherMouseEventTapIDs: @escaping () -> Set<UInt32>? = QuartzMouseEventTap.otherButtonTapIDs,
+        createTrackpadTouchTap: @escaping (@escaping (TrackpadInput) -> Bool) -> MouseEventTapConnection? = QuartzTrackpadTouchTap.connect,
+        pointerLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation },
+        trackingSpeed: @escaping () -> Double = {
+            UserDefaults.standard.object(forKey: "com.apple.trackpad.scaling") as? Double ?? 1 // Not localized: a file path or saved key
+        },
+        screenFrame: @escaping (CGPoint) -> CGRect? = { point in
+            NSScreen.screens.first { $0.frame.contains(point) }?.frame
+        },
+        moveCursor: @escaping (CGPoint) -> Void = { GlobalTriggerController.postCursorMove(to: $0) }
     ) {
         self.accessibilityPermission = accessibilityPermission
         self.mouseButtonStateCheck = mouseButtonStateCheck
@@ -743,6 +802,11 @@ final class GlobalTriggerController {
         self.postEvent = postEvent
         self.createMouseEventTap = createMouseEventTap
         self.otherMouseEventTapIDs = otherMouseEventTapIDs
+        self.createTrackpadTouchTap = createTrackpadTouchTap
+        self.pointerLocation = pointerLocation
+        self.trackingSpeed = trackingSpeed
+        self.screenFrame = screenFrame
+        self.moveCursor = moveCursor
     }
 
     func start(configuration: MenuTriggerConfiguration) -> Bool {
@@ -787,6 +851,7 @@ final class GlobalTriggerController {
         // mouse model. Drivers may recreate or enable taps on a device change.
         // No permission prompt is opened by this recovery path.
         scheduleMouseInterceptionChecks()
+        reconcileTrackpadTap()
 
         keyboardShortcutRegistered = registerInvokeShortcut()
         return true
@@ -794,10 +859,12 @@ final class GlobalTriggerController {
 
     func apply(_ configuration: MenuTriggerConfiguration) -> Bool {
         handHeldPressBack()
+        let trackpadChanged = configuration.trackpadTrigger != self.configuration.trackpadTrigger
         self.configuration = configuration
         guard isRunning else { return true }
         mouseGestureOrigin = nil
         mouseGestureDidDrag = false
+        if trackpadChanged { reconcileTrackpadTap() } else { resetTrackpadGesture() }
         if let invokeHotKey {
             UnregisterEventHotKey(invokeHotKey)
             self.invokeHotKey = nil
@@ -975,6 +1042,237 @@ final class GlobalTriggerController {
         }
     }
 
+    // MARK: Trackpad
+
+    /// How far, in screen points, a trigger gesture must move from where the
+    /// Menu opened before it is a drag that selects.
+    static let dragThreshold: CGFloat = 8
+
+    /// How the selection follows fingers on the trackpad with Click & Drag,
+    /// in screen points per point of finger travel: like the pointer, slow
+    /// motion is precise and fast motion is accelerated, up to the speed in
+    /// points per second where the gain stops growing. The system's tracking
+    /// speed scales both.
+    static let trackpadDragGain: (slow: CGFloat, fast: CGFloat, fullSpeed: CGFloat) = (1.3, 4.5, 500)
+
+    static func trackpadDragGain(speed: CGFloat, trackingSpeed: Double) -> CGFloat {
+        let scale = CGFloat(0.5 + 0.5 * min(max(trackingSpeed, 0), 3))
+        let ramp = min(speed / trackpadDragGain.fullSpeed, 1)
+        return scale * (trackpadDragGain.slow + (trackpadDragGain.fast - trackpadDragGain.slow) * ramp)
+    }
+
+    /// Returns whether a left-button event is kept from the App: every one
+    /// while Spinnet has taken the fingers, as three-finger drag makes them,
+    /// and afterwards the late release of a press it kept.
+    func receiveTrackpadInput(_ input: TrackpadInput) -> Bool {
+        switch input {
+        case .frame(let frame):
+            receiveTrackpadFrame(frame)
+            return false
+        case .leftMouse(let type, let location):
+            if trackpadFingersTaken {
+                switch type {
+                case .leftMouseDown: keptLeftMouseDown = true
+                case .leftMouseDragged: followSystemPointer(to: location)
+                default: forgetKeptLeftMouseDown()
+                }
+                return true
+            }
+            guard keptLeftMouseDown else { return false }
+            // A new press is the user's own click, whose release is its own.
+            if type != .leftMouseDragged { forgetKeptLeftMouseDown() }
+            return type != .leftMouseDown
+        }
+    }
+
+    /// One frame of fingers on the trackpad. A tap of the chosen number of
+    /// fingers toggles the Menu; with an opening delay, the fingers must
+    /// instead stay down and still for the delay, and an earlier lift leaves
+    /// the gesture to the App and the system. While the Menu is open, the
+    /// fingers close it at once. With Click & Drag the Menu opens as the
+    /// fingers land, or once they have been held for the delay, and the
+    /// selection then follows them until they lift.
+    func receiveTrackpadFrame(_ frame: TrackpadTouchFrame) {
+        defer { if frame.touches.isEmpty { releaseTrackpadFingers() } }
+        guard let fingerCount = configuration.trackpadTrigger.fingerCount else {
+            resetTrackpadGesture()
+            return
+        }
+        if trackpadClassifier?.fingerCount != fingerCount {
+            trackpadClassifier = TrackpadTapClassifier(fingerCount: fingerCount)
+        }
+        lastTrackpadFrame = frame
+        let event = trackpadClassifier?.receive(frame)
+        if trackpadDrag != nil {
+            continueTrackpadDrag(frame)
+            return
+        }
+        guard let event else { return }
+        HostLog.trigger.debug("Trackpad \(fingerCount, privacy: .public)-finger gesture: \(String(describing: event), privacy: .public)")
+        switch event {
+        case .began:
+            let menuIsOpen = isMenuOpen?() == true
+            if configuration.openingDelay > 0, !menuIsOpen {
+                trackpadTapIgnored = true
+                cancelTrackpadHold = scheduleDelay(configuration.openingDelay) { [weak self] in
+                    self?.cancelTrackpadHold = nil
+                    self?.finishTrackpadHold()
+                }
+            } else if configuration.clickDragEnabled, trackpadClassifier?.claimHold() == true {
+                trackpadTapIgnored = true
+                toggleFromTrackpad(dragging: !menuIsOpen)
+            }
+        case .tap:
+            let ignored = trackpadTapIgnored
+            endTrackpadHold()
+            if !ignored { onInvoke?() }
+        case .cancelled:
+            endTrackpadHold()
+        }
+    }
+
+    /// The fingers stayed down and still for the opening delay. A Menu that
+    /// opened some other way meanwhile is left open.
+    private func finishTrackpadHold() {
+        guard trackpadClassifier?.claimHold() == true, isMenuOpen?() != true else { return }
+        toggleFromTrackpad(dragging: true)
+    }
+
+    /// Toggles the Menu for fingers that are still down. With Click & Drag,
+    /// an opening Menu then follows them from where they are now.
+    private func toggleFromTrackpad(dragging: Bool) {
+        trackpadFingersTaken = true
+        onInvoke?()
+        guard dragging, configuration.clickDragEnabled, let frame = lastTrackpadFrame else { return }
+        let pointer = pointerLocation()
+        trackpadDrag = TrackpadDrag(frame: frame, pointer: pointer, trackingSpeed: trackingSpeed(),
+                                    bounds: screenFrame(pointer))
+    }
+
+    /// Moves the selection by the fingers' mean motion since the last frame,
+    /// accelerated like the pointer, and runs what is under it when every
+    /// finger has lifted after a drag. A finger landing or lifting does not
+    /// move it, and a Menu closed meanwhile, by Escape for example, ends it.
+    private func continueTrackpadDrag(_ frame: TrackpadTouchFrame) {
+        guard var drag = trackpadDrag else { return }
+        guard isMenuOpen?() != false else {
+            trackpadDrag = nil
+            return
+        }
+        guard !frame.touches.isEmpty else {
+            trackpadDrag = nil
+            endTrackpadHold()
+            if drag.didDrag { onMouseDragRelease?(drag.point) }
+            return
+        }
+        guard !drag.followsSystemPointer else { return }
+        let steps = frame.touches.compactMap { touch in
+            drag.fingers[touch.id].map {
+                CGPoint(x: (touch.position.x - $0.x) * frame.deviceSize.width,
+                        y: (touch.position.y - $0.y) * frame.deviceSize.height)
+            }
+        }
+        let interval = max(frame.time - drag.time, 1.0 / 120)
+        drag.fingers = frame.positions
+        drag.time = frame.time
+        if !steps.isEmpty {
+            let step = CGPoint(x: steps.map(\.x).reduce(0, +) / CGFloat(steps.count),
+                               y: steps.map(\.y).reduce(0, +) / CGFloat(steps.count))
+            let gain = Self.trackpadDragGain(speed: hypot(step.x, step.y) / CGFloat(interval),
+                                             trackingSpeed: drag.trackingSpeed)
+            drag.point.x += step.x * gain
+            drag.point.y += step.y * gain
+            if let bounds = drag.bounds {
+                drag.point.x = min(max(drag.point.x, bounds.minX), bounds.maxX - 1)
+                drag.point.y = min(max(drag.point.y, bounds.minY), bounds.maxY - 1)
+            }
+        }
+        let moved = drag.point != trackpadDrag?.point
+        updateTrackpadSelection(drag)
+        if moved { moveCursor(drag.point) }
+    }
+
+    /// The system dragged the pointer to `location` with the fingers Spinnet
+    /// took: from now on the selection is where the pointer is.
+    private func followSystemPointer(to location: CGPoint) {
+        guard var drag = trackpadDrag, isMenuOpen?() != false else { return }
+        drag.followsSystemPointer = true
+        drag.point = location
+        updateTrackpadSelection(drag)
+    }
+
+    /// Selects at the drag's point once it is a drag: far enough from where
+    /// the Menu opened.
+    private func updateTrackpadSelection(_ drag: TrackpadDrag) {
+        var drag = drag
+        let moved = drag.point != trackpadDrag?.point
+        if hypot(drag.point.x - drag.pointer.x, drag.point.y - drag.pointer.y) >= Self.dragThreshold {
+            drag.didDrag = true
+        }
+        trackpadDrag = drag
+        if moved, drag.didDrag { onMouseDrag?(drag.point) }
+    }
+
+    /// Posts pointer motion to `point`, in AppKit screen coordinates, at the
+    /// HID stage where real motion enters, marked so Spinnet's own mouse
+    /// trigger lets it through.
+    static func postCursorMove(to point: CGPoint) {
+        guard let primary = NSScreen.screens.first,
+              let event = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
+                                  mouseCursorPosition: CGPoint(x: point.x, y: primary.frame.maxY - point.y),
+                                  mouseButton: .left) else { return }
+        event.setIntegerValueField(.eventSourceUserData, value: redeliveryMarker)
+        event.post(tap: mouseEventTapLocation)
+    }
+
+    /// Every finger has lifted. A kept press's release usually follows at
+    /// once; a later one is kept only briefly, so a release that never comes
+    /// cannot swallow the user's next one.
+    private func releaseTrackpadFingers() {
+        guard trackpadFingersTaken else { return }
+        trackpadFingersTaken = false
+        guard keptLeftMouseDown, cancelForgettingKeptPress == nil else { return }
+        cancelForgettingKeptPress = scheduleDelay(0.5) { [weak self] in
+            self?.cancelForgettingKeptPress = nil
+            self?.forgetKeptLeftMouseDown()
+        }
+    }
+
+    private func forgetKeptLeftMouseDown() {
+        cancelForgettingKeptPress?()
+        cancelForgettingKeptPress = nil
+        keptLeftMouseDown = false
+    }
+
+    private func endTrackpadHold() {
+        cancelTrackpadHold?()
+        cancelTrackpadHold = nil
+        trackpadTapIgnored = false
+    }
+
+    /// Forgets the fingers now down, as when the trigger changes mid-gesture.
+    private func resetTrackpadGesture() {
+        endTrackpadHold()
+        trackpadClassifier = nil
+        trackpadDrag = nil
+        lastTrackpadFrame = nil
+        trackpadFingersTaken = false
+        forgetKeptLeftMouseDown()
+    }
+
+    /// Listens to the trackpad's touches while Spinnet is on and a trackpad
+    /// trigger is chosen, and stops listening otherwise. Like the mouse tap,
+    /// it needs Accessibility.
+    private func reconcileTrackpadTap() {
+        resetTrackpadGesture()
+        trackpadTap?.invalidate()
+        trackpadTap = nil
+        guard isRunning, configuration.trackpadTrigger.fingerCount != nil else { return }
+        trackpadTap = createTrackpadTouchTap { [weak self] input in
+            self?.receiveTrackpadInput(input) ?? false
+        }
+    }
+
     /// The keyboard shortcut read from the event tap, used only with an
     /// opening delay. Without one, the shortcut is a system hot key.
     func interceptKeyEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -1035,7 +1333,7 @@ final class GlobalTriggerController {
         }
         guard let origin = mouseGestureOrigin else { return false }
         let distance = hypot(event.location.x - origin.x, event.location.y - origin.y)
-        guard distance >= 8 else { return true }
+        guard distance >= Self.dragThreshold else { return true }
         mouseGestureDidDrag = true
         onMouseDrag?(appKitScreenLocation(for: event))
         return true
@@ -1077,6 +1375,9 @@ final class GlobalTriggerController {
     func retryMouseInterceptionIfAuthorized() {
         guard isRunning || isCapturingMouseButton,
               accessibilityPermission.isAuthorized else { return }
+        if isRunning, configuration.trackpadTrigger.fingerCount != nil, trackpadTap?.isEnabled != true {
+            reconcileTrackpadTap()
+        }
         let otherTapIDs = otherMouseEventTapIDs()
         let filtersChanged = otherTapIDs != nil && otherTapIDs != knownOtherMouseEventTapIDs
         guard mouseEventTap?.isEnabled != true || filtersChanged else { return }
@@ -1198,6 +1499,7 @@ final class GlobalTriggerController {
         swallowedKeyCode = nil
         removeKeyEventTap()
         isRunning = false
+        reconcileTrackpadTap()
         mouseInterceptionTimer?.invalidate()
         mouseInterceptionTimer = nil
         knownOtherMouseEventTapIDs = nil

@@ -124,6 +124,9 @@ final class SettingsWindowModel: ObservableObject {
         accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() },
         mouseInputConflictCheck: @escaping (Int) -> [MouseInputConflict] = {
             MouseInputConflictDetector().detect(mouseButton: $0)
+        },
+        trackpadConflictCheck: @escaping (MenuTriggerConfiguration) -> [TrackpadGestureConflict] = {
+            TrackpadGestureConflictDetector().detect($0)
         }
     ) {
         self.editor = editor
@@ -141,7 +144,8 @@ final class SettingsWindowModel: ObservableObject {
             defaults: defaults,
             backgroundOperationsRequest: HostBackgroundOperationsStatus.requestCurrent
         )
-        trigger = MenuTriggerModel(defaults: defaults, conflictCheck: mouseInputConflictCheck)
+        trigger = MenuTriggerModel(defaults: defaults, conflictCheck: mouseInputConflictCheck,
+                                   trackpadConflictCheck: trackpadConflictCheck)
         appearance = MenuAppearanceModel(defaults: defaults)
         clipboardHistory = ClipboardHistorySettingsModel(store: clipboardHistoryStore, defaults: defaults)
         screenshots = ScreenshotSettingsModel(defaults: defaults)
@@ -346,6 +350,8 @@ final class SettingsWindowModel: ObservableObject {
         if page.showsEditorMode { names.append(localized("Editor Mode")) }
         names.append(contentsOf: page.contentAccessibilityNames(metadata: metadata))
         if page == .menu {
+            names.append(localized("Trackpad: \(trigger.trackpadTrigger.displayName)"))
+            names.append(contentsOf: trigger.trackpadConflicts.map(\.guidance))
             let presets = editor.installedPlugins.menuItemPresets
             names.append(contentsOf: presets.map(\.localizedAccessibilityLabel))
             let slots = menuEditor.editedSlots
@@ -760,7 +766,25 @@ struct SettingsRootView: View {
 
             Toggle(localized("Click & Drag to select on release"), isOn: $trigger.clickDragEnabled)
                 .toggleStyle(.switch)
-                .accessibilityHint(localized("When enabled, hold the mouse trigger, drag to a Menu Item, and release to run it."))
+                .accessibilityHint(localized("When enabled, hold the mouse trigger or keep the trackpad fingers down, drag to a Menu Item, and release to run it."))
+
+            Picker(selection: $trigger.trackpadTrigger) {
+                ForEach(TrackpadTrigger.allCases, id: \.self) { gesture in
+                    Text(gesture.displayName).tag(gesture)
+                }
+            } label: {
+                Text(localized("Trackpad"))
+                    .frame(width: 68, alignment: .leading)
+            }
+            .accessibilityLabel(localized("Trackpad: \(trigger.trackpadTrigger.displayName)"))
+            .accessibilityHint(localized("Tap with the chosen number of fingers to open the Menu at the pointer."))
+
+            ForEach(trigger.trackpadConflicts) { conflict in
+                Label(conflict.guidance, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             HStack {
                 Text(localized("Keyboard"))
@@ -784,7 +808,7 @@ struct SettingsRootView: View {
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 8) {
-                    Label(localized("Accessibility enables mouse triggers and protected keyboard recording"), systemImage: "exclamationmark.triangle.fill")
+                    Label(localized("Accessibility enables mouse and trackpad triggers and protected keyboard recording"), systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                     Spacer(minLength: 4)

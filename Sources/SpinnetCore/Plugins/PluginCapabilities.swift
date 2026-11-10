@@ -522,7 +522,7 @@ public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Ha
     public var explanation: String {
         switch self {
         case .accessibility:
-            return "Lets Spinnet intercept the configured Side Button, read selected text, send keyboard actions such as Paste or Cut, move the focused window, and close or quit an App through its own menu for Plugins you allow to."
+            return "Lets Spinnet intercept the configured Side Button, see the chosen trackpad tap, read selected text, send keyboard actions such as Paste or Cut, move the focused window, and close or quit an App through its own menu for Plugins you allow to."
         case .screenRecording:
             return "Lets Spinnet take screenshots, for its own Capture commands and for Plugins you allow to capture the screen. Spinnet asks for it only when you choose Enable Screen Recording."
         }

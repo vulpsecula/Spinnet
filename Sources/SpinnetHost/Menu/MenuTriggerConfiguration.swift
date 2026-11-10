@@ -216,13 +216,15 @@ struct MenuTriggerConfiguration: Equatable {
     var keyboardShortcut: MenuKeyboardShortcut?
     var openingDelay: TimeInterval
     var alternateActionMode: AlternateActionMode
+    var trackpadTrigger: TrackpadTrigger
 
     init(
         mouseButton: Int = defaultMouseButton,
         clickDragEnabled: Bool = false,
         keyboardShortcut: MenuKeyboardShortcut? = nil,
         openingDelay: TimeInterval = 0,
-        alternateActionMode: AlternateActionMode = .rightClick
+        alternateActionMode: AlternateActionMode = .rightClick,
+        trackpadTrigger: TrackpadTrigger = .off
     ) {
         self.mouseButton = MouseTriggerButton.isSupported(mouseButton)
             ? mouseButton
@@ -231,6 +233,7 @@ struct MenuTriggerConfiguration: Equatable {
         self.keyboardShortcut = keyboardShortcut
         self.openingDelay = Self.boundedOpeningDelay(openingDelay)
         self.alternateActionMode = alternateActionMode
+        self.trackpadTrigger = trackpadTrigger
     }
 
     static func boundedOpeningDelay(_ delay: TimeInterval) -> TimeInterval {
@@ -253,6 +256,8 @@ struct MenuTriggerConfiguration: Equatable {
         openingDelay = Self.boundedOpeningDelay(defaults.double(forKey: Keys.openingDelay))
         alternateActionMode = defaults.string(forKey: Keys.alternateActionMode)
             .flatMap(AlternateActionMode.init(rawValue:)) ?? .rightClick
+        trackpadTrigger = defaults.string(forKey: Keys.trackpadTrigger)
+            .flatMap(TrackpadTrigger.init(rawValue:)) ?? .off
     }
 
     func save(to defaults: UserDefaults) {
@@ -269,6 +274,7 @@ struct MenuTriggerConfiguration: Equatable {
         }
         defaults.set(Self.boundedOpeningDelay(openingDelay), forKey: Keys.openingDelay)
         defaults.set(alternateActionMode.rawValue, forKey: Keys.alternateActionMode)
+        defaults.set(trackpadTrigger.rawValue, forKey: Keys.trackpadTrigger)
     }
 
     private enum Keys {
@@ -277,6 +283,7 @@ struct MenuTriggerConfiguration: Equatable {
         static let keyboardShortcut = "trigger.keyboard-shortcut"
         static let openingDelay = "trigger.opening-delay"
         static let alternateActionMode = "menu.alternate-action-mode"
+        static let trackpadTrigger = "trigger.trackpad-gesture"
     }
 }
 
