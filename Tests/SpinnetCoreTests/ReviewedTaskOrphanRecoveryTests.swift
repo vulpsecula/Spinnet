@@ -1,4 +1,5 @@
 import XCTest
+import SpinnetTestSupport
 import Foundation
 import Darwin
 import SpinnetCore
@@ -98,6 +99,7 @@ final class ReviewedTaskOrphanRecoveryTests: XCTestCase {
     }
 
     func testKnownPrivilegedTerminalResultsSurviveRootConnectionFailureAndRecovery() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         for outcome in ["completed", "failed"] {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             let id = "activity_terminal_root", directory = root.appendingPathComponent(id)
@@ -172,6 +174,7 @@ final class ReviewedTaskOrphanRecoveryTests: XCTestCase {
     }
 
     func testKilledRunnerRetainsOwnedChildStopSleepAndLaneUntilActualReapProof() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }

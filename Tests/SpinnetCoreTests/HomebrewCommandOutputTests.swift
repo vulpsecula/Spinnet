@@ -1,4 +1,5 @@
 import XCTest
+import SpinnetTestSupport
 @testable import SpinnetCore
 @testable import SpinnetReviewedTools
 
@@ -72,7 +73,8 @@ final class HomebrewCommandOutputTests: XCTestCase {
         XCTAssertEqual(result.value(atPointer: "/output_truncated"), .bool(false))
     }
 
-    func testTranscriptIsBoundedRedactedAndDoesNotChangeTheLegacyLog() {
+    func testTranscriptIsBoundedRedactedAndDoesNotChangeTheLegacyLog() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let log = HomebrewTaskLog()
         log.append(Data((0..<300).map { "\($0) " + String(repeating: "x", count: 240) + "\n" }.joined().utf8))
         log.append(Data("password=split".utf8)); log.append(Data("secret\nlast line\n".utf8)); log.finish()

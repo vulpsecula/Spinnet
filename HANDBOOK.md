@@ -232,6 +232,12 @@ once the app has stayed up. Both modes write or read your real saved data.
 
 Run package tests with `swift test`. For Xcode-native builds, tests and
 diagnostics, follow [development verification](AGENTS.md#development-verification).
+
+While editing, `SPINNET_FAST_TESTS=1 swift test` skips the tests that take
+seconds: timing budgets, real processes and tools on this Mac, and scans of the
+whole repository. Each calls `XCTSkipIf(SlowTests.skipped, …)` from
+`Tests/Support/SlowTests.swift`; mark a new test that way only for one of those
+reasons. Report the full `swift test` run, never the fast one.
 Passing package tests does not establish native permissions or actual App
 behaviour. Report native acceptance with the change being verified.
 

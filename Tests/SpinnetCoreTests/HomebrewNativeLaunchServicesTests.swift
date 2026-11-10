@@ -1,4 +1,5 @@
 import XCTest
+import SpinnetTestSupport
 import Darwin
 import SpinnetCore
 @testable import SpinnetReviewedTools
@@ -50,6 +51,7 @@ final class HomebrewNativeLaunchServicesTests: XCTestCase {
         XCTAssertThrowsError(try HomebrewNativeLaunchServices.captureOwnedFixture(context: context, declarations: [.init(label)], root: root, jobs: [], deadline: Date().addingTimeInterval(5)))
     }
     func testActualReadOnlyWorkerProvesUniqueAbsentLabelAcrossAllTaskDomainsAndRoots() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let context = try HomebrewNativeLaunchServices.Context(uid: getuid(), home: URL(fileURLWithPath: NSHomeDirectory()))
         let declaration = try HomebrewNativeLaunchServices.Declaration("com.vulpsecula.spinnet.owned.absent." + UUID().uuidString)
         let request = HomebrewNativeLaunchServiceInventory.Request(context: context, declarations: [declaration], deadline: Date().addingTimeInterval(15))

@@ -3,6 +3,7 @@ import SpinnetCore
 import SpinnetPluginTestKit
 import SpinnetReviewedTools
 import XCTest
+import SpinnetTestSupport
 @testable import SpinnetHost
 
 final class HostActivityPresentationTests: XCTestCase {
@@ -222,6 +223,7 @@ final class HostActivityPresentationTests: XCTestCase {
     }
 
     func testVisibleRowsRefreshWithTheActualRunLoopTimerAndPauseWhenHidden() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let recorded = RecordedKeepAwake()
         let owner = PluginID("clock")
         try recorded.effects.start(KeepAwakeRequest(mode: .duration(60)), owner: owner, pluginName: "Clock")
@@ -295,6 +297,7 @@ final class HostActivityPresentationTests: XCTestCase {
     }
 
     func testActualPanelWorkspaceVisibilityPausesNativeActivityUpdatesAndCloseLeavesEffectHeld() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         _ = NSApplication.shared
         let oldPolicy = NSApplication.shared.activationPolicy()
         _ = NSApplication.shared.setActivationPolicy(.accessory)

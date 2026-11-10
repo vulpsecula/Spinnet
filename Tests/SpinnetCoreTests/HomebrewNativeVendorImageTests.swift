@@ -1,4 +1,5 @@
 import XCTest
+import SpinnetTestSupport
 import CryptoKit
 import Darwin
 import SpinnetCore
@@ -6,6 +7,7 @@ import SpinnetCore
 
 final class HomebrewNativeVendorImageTests: XCTestCase {
     func testOwnedReadonlyImageCopiesFrozenProgramAndResourcesThenActuallyDetaches() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         XCTAssertNotEqual(getuid(), 0, "Owned fixture validation, not Root acceptance")
         let raw = URL(fileURLWithPath: "/private/tmp/spinnet-image-fixture-" + UUID().uuidString)
         try NativeFileQuarantine.makePrivateDirectory(raw)

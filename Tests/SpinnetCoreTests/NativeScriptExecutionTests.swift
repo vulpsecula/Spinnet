@@ -1,4 +1,5 @@
 import XCTest
+import SpinnetTestSupport
 import SpinnetCore
 @testable import SpinnetReviewedTools
 import Foundation
@@ -49,6 +50,7 @@ final class NativeScriptExecutionTests: XCTestCase {
     }
 
     func testFixedNativeManifestInputPolicyIsSeparateFromVendorInputBound() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let bytes = Data(repeating: 97, count: 300 * 1024)
         let vendor = HomebrewTaskProcess(executable: URL(fileURLWithPath: "/usr/bin/tee"), arguments: [], environment: [:], standardInput: bytes)
         XCTAssertThrowsError(try vendor.start(output: { _ in }, finished: { _ in }))

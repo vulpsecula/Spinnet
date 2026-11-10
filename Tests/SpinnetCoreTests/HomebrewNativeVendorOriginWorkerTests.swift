@@ -1,4 +1,5 @@
 import XCTest
+import SpinnetTestSupport
 import Darwin
 @testable import SpinnetCore
 @testable import SpinnetReviewedTools
@@ -36,6 +37,7 @@ final class HomebrewNativeVendorOriginWorkerTests: XCTestCase {
         XCTAssertEqual(try cli(Data(repeating: 65, count: HomebrewNativeVendorOriginWorker.maximumMessageBytes + 1)).failure, .outputTooLarge)
     }
     func testActualFixedCLICStopInterruptsHeldStdinAndReturnsStructuredRefusal() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         XCTAssertEqual(try cli(nil, signal: SIGINT).failure, .planChanged)
         XCTAssertEqual(try cli(nil, signal: SIGTERM).failure, .planChanged)
     }
@@ -79,6 +81,7 @@ final class HomebrewNativeVendorOriginWorkerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: missing.path))
     }
     func testFixedWorkerIndependentlyReverifiesSourceBeforeRejectingWrongOriginalBytes() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         XCTAssertNotEqual(getuid(), 0, "Current-UID source seam, not Root acceptance")
         let snapshot = try HomebrewSignedCatalogFixture.snapshot("shadowsocksx-ng")
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).resolvingSymlinksInPath()

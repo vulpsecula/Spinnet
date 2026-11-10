@@ -27,6 +27,7 @@ final class LocalizationCompletenessTests: XCTestCase {
     // MARK: Sources
 
     func testHostStringsGoThroughTheCatalog() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let catalog = try LocalizedSurfaces.catalog()
         XCTAssertGreaterThan(LocalizedSurfaces.sourceFiles.count, 100)
         for file in LocalizedSurfaces.nonInterfaceFiles.keys {
@@ -122,6 +123,7 @@ final class LocalizationCompletenessTests: XCTestCase {
     /// The Chinese of each GLOSSARY term is chosen once, in GLOSSARY.md, and
     /// every catalog entry that names the term uses it.
     func testCatalogTranslationsUseTheGlossarysChineseTerms() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let terms = try LocalizedSurfaces.glossaryTerms()
         XCTAssertGreaterThan(terms.count, 40)
         let catalog = try LocalizedSurfaces.catalog()

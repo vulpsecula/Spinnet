@@ -2,6 +2,7 @@ import AppKit
 import SpinnetCore
 import SwiftUI
 import XCTest
+import SpinnetTestSupport
 @testable import SpinnetHost
 
 /// A page in the Host's real panel, driven by key events sent through
@@ -665,6 +666,7 @@ final class PluginPageRenderingMeasurementTests: XCTestCase {
     }
 
     func testAGridOfTwoThousandItemsStaysWithinTheTypingBudget() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let figures = try measure(windowed: false)
         XCTAssertEqual(figures.selected?.hasPrefix("0-"), true, "Back in the first section")
         XCTAssertEqual(figures.ranges, 0, "A whole collection asks for nothing")
@@ -673,6 +675,7 @@ final class PluginPageRenderingMeasurementTests: XCTestCase {
     }
 
     func testAWindowedGridOfTwoThousandItemsAsksForRangesWithinTheBudget() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let figures = try measure(windowed: true)
         XCTAssertEqual(figures.selected?.hasPrefix("0-"), true, "Back in the first section")
         XCTAssertGreaterThan(figures.ranges, 5, "The Host asked for ranges as the selection moved")

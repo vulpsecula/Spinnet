@@ -1,4 +1,5 @@
 import XCTest
+import SpinnetTestSupport
 import CryptoKit
 import Darwin
 import SpinnetCore
@@ -6,6 +7,7 @@ import SpinnetCore
 
 final class HomebrewOpaqueURLOriginTests: XCTestCase {
     func testRealSignedOpaqueURLAndOwnedConfirmedDMGProduceFullSupervisedMemberProof() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         XCTAssertNotEqual(getuid(), 0, "Current-UID fixed Host-confirmation fixture; no real publisher download/historical claim")
         let root = URL(fileURLWithPath: "/private/tmp/spinnet-opaque-source-" + UUID().uuidString).resolvingSymlinksInPath()
         try NativeFileQuarantine.makePrivateDirectory(root)

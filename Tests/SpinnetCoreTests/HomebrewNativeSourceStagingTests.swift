@@ -1,4 +1,5 @@
 import XCTest
+import SpinnetTestSupport
 import CryptoKit
 import Darwin
 import SpinnetCore
@@ -42,6 +43,7 @@ final class HomebrewNativeSourceStagingTests: XCTestCase {
         XCTAssertThrowsError(try HomebrewNativeSourceStaging.select(evidence: evidence, configuration: configuration, token: "sound-siphon", purpose: .relativeRemoval(recipeExecutable: configuration.appDirectory.path + "/Sound Siphon.app/Contents/Resources/uninstall_soundsiphon")))
     }
     func testConfirmedFixturePackageStagesThroughActualWorkerWithoutInstalledProgramShortcut() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         XCTAssertNotEqual(getuid(), 0, "Owned current-UID fixture; no Root production or publisher body claim")
         let root = URL(fileURLWithPath: "/private/tmp/spinnet-stage-only-" + UUID().uuidString)
         try NativeFileQuarantine.makePrivateDirectory(root)

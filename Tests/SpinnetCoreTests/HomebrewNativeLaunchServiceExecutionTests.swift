@@ -1,10 +1,12 @@
 import XCTest
+import SpinnetTestSupport
 import Darwin
 import SpinnetCore
 @testable import SpinnetReviewedTools
 
 final class HomebrewNativeLaunchServiceExecutionTests: XCTestCase {
     func testOwnedInheritedChildStopKeepsIsolatedParentAliveAndOrphanOuterStopReaps() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         try fixture("fixture.inherited-stop") { request, tools in
             let result = try HomebrewNativeLaunchServiceExecution.capture(request, toolsDirectory: tools)
             XCTAssertEqual(result.state, .completed); XCTAssertNil(result.response?.failure)
@@ -24,6 +26,7 @@ final class HomebrewNativeLaunchServiceExecutionTests: XCTestCase {
         }
     }
     func testFixedReadOnlyInventoryStopBeforeSpawnAndBadOutputRefuseAuthority() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         try fixture("fixture.malformed") { request, tools in
             var started = false
             XCTAssertThrowsError(try HomebrewNativeLaunchServiceExecution.capture(request, toolsDirectory: tools, isCancelled: { true }, willStart: { _ in started = true; return true }))
@@ -49,6 +52,7 @@ final class HomebrewNativeLaunchServiceExecutionTests: XCTestCase {
         }
     }
     func testOwnedFoundationLaunchChildSeparateGroupActuallyReapsAndRSSIsAggregate() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         for mode in ["fixture.escape", "fixture.rss"] {
             try fixture(mode, duration: mode == "fixture.rss" ? 8 : 0.9) { request, tools in
                 let result = try HomebrewNativeLaunchServiceExecution.capture(request, toolsDirectory: tools)

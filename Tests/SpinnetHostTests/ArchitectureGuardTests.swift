@@ -52,6 +52,7 @@ final class ArchitectureGuardTests: XCTestCase {
     }
 
     func testHostModulesNameNoPluginSpecificLiteralsBeyondTheExceptions() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let declared = try declaredLiterals()
         let sources = try hostSources()
         XCTAssertGreaterThanOrEqual(Set(declared.map(\.pluginID)).count, 6, "the manifests were not found")

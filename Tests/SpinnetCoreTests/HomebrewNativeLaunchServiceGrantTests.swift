@@ -1,4 +1,5 @@
 import XCTest
+import SpinnetTestSupport
 import Darwin
 @testable import SpinnetCore
 @testable import SpinnetReviewedTools
@@ -25,6 +26,7 @@ final class HomebrewNativeLaunchServiceGrantTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
     }
     func testNativeGrantHoldsCompletePrivateBytesAndRefusesDigestOrPhaseSubstitution() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).resolvingSymlinksInPath()
         try NativeFileQuarantine.makePrivateDirectory(root); defer { try? FileManager.default.removeItem(at: root) }
         let context = try HomebrewNativeLaunchServices.Context(uid: getuid(), home: URL(fileURLWithPath: NSHomeDirectory()))

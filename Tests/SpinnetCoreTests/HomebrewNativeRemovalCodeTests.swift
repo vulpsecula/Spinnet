@@ -1,10 +1,12 @@
 import XCTest
+import SpinnetTestSupport
 import SpinnetCore
 @testable import SpinnetReviewedTools
 import Darwin
 
 final class HomebrewNativeRemovalCodeTests: XCTestCase {
     func testIndependentlySignedOldVersionSourceFreezesOnlyDeclaredActions() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let envelope = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Caches/Homebrew/api/internal/packages.arm64_golden_gate.jws.json")
         let evidence = try HomebrewSignedCaskCatalog.load(envelope, deadline: Date().addingTimeInterval(5))
         let configuration = try HomebrewSignedCaskCatalog.Configuration(languages: [], home: URL(fileURLWithPath: NSHomeDirectory()), prefix: URL(fileURLWithPath: "/opt/homebrew"), appDirectory: URL(fileURLWithPath: "/Applications"))

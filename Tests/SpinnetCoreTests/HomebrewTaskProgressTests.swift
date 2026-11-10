@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import XCTest
+import SpinnetTestSupport
 import SpinnetCore
 @testable import SpinnetReviewedTools
 
@@ -26,6 +27,7 @@ final class HomebrewTaskProgressTests: XCTestCase {
     }
 
     func testTerminalOutputSupportsHomebrewsActualDownloadRenderer() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let executable: URL
         do { executable = try HomebrewReadProfile.discover() }
         catch { throw XCTSkip("Homebrew is unavailable for the read-only rendering probe") }
@@ -82,6 +84,7 @@ final class HomebrewTaskProgressTests: XCTestCase {
     }
 
     func testRealCurlPublishesDownloadProgressThroughTerminalAndTaskLog() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
         let listener = try NWListener(using: parameters)

@@ -495,6 +495,7 @@ extension HomebrewManagementReadTests {
     }
 
     func testNativeReadOnlyLinkPreviewIncludesRealKegMetadataWithoutChangingLinks() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let brew = URL(fileURLWithPath: "/opt/homebrew/bin/brew")
         let linked = "/opt/homebrew/var/homebrew/linked/libtommath"
         guard FileManager.default.isExecutableFile(atPath: brew.path),

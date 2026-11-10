@@ -653,6 +653,7 @@ final class PluginRuntimeTests: XCTestCase {
     }
 
     func testSilentHelperReachesAStableTimeoutAtTheActionDeadline() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         let silentHelperURL = try makeShellHelper(
             """
             #!/bin/sh

@@ -77,6 +77,7 @@ final class AdaptiveViewportPanelTests: XCTestCase {
     }
 
     func testFourMetricCardsFillBothViewportDimensionsAcrossDensityChanges() throws {
+        try XCTSkipIf(SlowTests.skipped, SlowTests.reason)
         _ = NSApplication.shared
         let helper = try PluginTestHelper(); defer { helper.shutdown() }
         let plugin = try PluginUnderTest(packageAt: fixture)
