@@ -503,6 +503,7 @@ public final class HostConfigurationEditor {
         inputs: [CommandID: JSONValue] = [:],
         alternateCommandOrder: [CommandID]? = nil,
         replacingEmptySlot: Bool = false,
+        replacingMenuItem: Bool = false,
         validateInputs: Bool = true,
         preserveUnselectedAlternates: Bool = false,
         for app: AppBundleIdentifier? = nil
@@ -527,6 +528,7 @@ public final class HostConfigurationEditor {
                 inputs: inputs,
                 alternateCommandOrder: requestedAlternateOrder,
                 replacingEmptySlot: replacingEmptySlot,
+                replacingMenuItem: replacingMenuItem,
                 validateInputs: validateInputs,
                 preserveUnselectedAlternates: preserveUnselectedAlternates,
                 app: app
@@ -543,10 +545,33 @@ public final class HostConfigurationEditor {
         inputs: [CommandID: JSONValue],
         alternateCommandOrder requestedAlternateOrder: [CommandID],
         replacingEmptySlot: Bool,
+        replacingMenuItem: Bool,
         validateInputs: Bool,
         preserveUnselectedAlternates: Bool,
         app: AppBundleIdentifier?
     ) throws -> HostConfiguration {
+        // A replaced Menu Item keeps nothing: its Slot is emptied and its
+        // Actions removed before the new Menu Item is built.
+        if replacingMenuItem, let replacedItem = configuration.menu.slots(for: app)[index].item {
+            let replacedActionIDs = Set(replacedItem.boundActionIDs)
+            var slots = configuration.menu.slots(for: app)
+            slots[index] = .empty
+            try replaceConfiguration(
+                actions: configuration.actions.filter { !replacedActionIDs.contains($0.id) },
+                editedSlots: slots,
+                for: app
+            )
+            return try configuredEmptyMenuItem(
+                at: index,
+                pluginID: pluginID,
+                primaryCommandID: primaryCommandID,
+                alternateCommandIDs: alternateCommandIDs,
+                alternateCommandOrder: requestedAlternateOrder,
+                inputs: inputs,
+                validateInputs: validateInputs,
+                app: app
+            )
+        }
         guard let existingItem = configuration.menu.slots(for: app)[index].item else {
             guard replacingEmptySlot else {
                 throw ConfigurationError.invalidMenu("Menu Slot is empty")

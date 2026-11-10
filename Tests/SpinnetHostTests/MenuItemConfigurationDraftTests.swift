@@ -78,6 +78,59 @@ final class MenuItemConfigurationDraftTests: XCTestCase {
         XCTAssertEqual(model.menuSlots[0].item?.icon, draft.defaultIcon, "The sheet showed what the Menu Item shows")
     }
 
+    /// A Menu Item replaced by a Setup-Required Preset keeps nothing of the
+    /// old one: the draft starts from the Preset, and saving leaves no alias,
+    /// own icon or Action of the replaced Menu Item.
+    func testReplacingAMenuItemStartsFromThePresetAlone() throws {
+        let model = try makeModel()
+        let item = try XCTUnwrap(model.editor.configuration.menu.slots[0].item)
+        model.editor.restore(try HostConfiguration(
+            actions: model.editor.configuration.actions,
+            menu: MenuConfiguration(slots: [.occupied(item.withAlias("Tile").withIcon("star")), .empty])))
+        XCTAssertFalse(model.placePreset(pluginID: speech.rawValue, at: 0))
+        model.confirmPresetReplacement()
+        let setup = try XCTUnwrap(model.pendingPresetSetup)
+
+        let draft = MenuItemConfigurationDraft(editor: model.editor, slotIndex: setup.slotIndex,
+                                               presetPluginID: setup.pluginID)
+        XCTAssertEqual(draft.alias, "")
+        XCTAssertNil(draft.ownIcon)
+        XCTAssertTrue(draft.isAlternateEnabled(CommandID("listen")), "The Preset's default Alternate Actions are on")
+
+        try model.saveMenuItemConfiguration(draft.makeConfiguration())
+        let saved = try XCTUnwrap(model.editor.configuration.menu.slots[0].item)
+        XCTAssertNil(saved.alias)
+        XCTAssertNil(saved.icon)
+        XCTAssertEqual(Set(model.editor.configuration.actions.map(\.pluginID)), [speech])
+        XCTAssertEqual(saved.boundActionIDs.count, 2)
+    }
+
+    /// Replacing a Menu Item with its own Plugin's Preset also starts over:
+    /// the old Actions, their inputs and choices go.
+    func testReplacingAMenuItemWithItsOwnPluginsPresetStartsOver() throws {
+        let model = try makeModel()
+        let speechManifest = try speechManifest()
+        let speak = try ActionConfiguration(id: ActionID("speak"), pluginID: speech,
+                                            command: speechManifest.commands[0], input: .null)
+        model.editor.restore(try HostConfiguration(actions: [speak], menu: MenuConfiguration(slots: [
+            .occupied(MenuItemConfiguration(primaryActionID: speak.id).withAlias("Talk")), .empty
+        ])))
+        XCTAssertFalse(model.placePreset(pluginID: speech.rawValue, at: 0))
+        model.confirmPresetReplacement()
+        let setup = try XCTUnwrap(model.pendingPresetSetup)
+
+        let draft = MenuItemConfigurationDraft(editor: model.editor, slotIndex: setup.slotIndex,
+                                               presetPluginID: setup.pluginID)
+        XCTAssertEqual(draft.alias, "")
+        XCTAssertTrue(draft.isAlternateEnabled(CommandID("listen")))
+
+        try model.saveMenuItemConfiguration(draft.makeConfiguration())
+        let saved = try XCTUnwrap(model.editor.configuration.menu.slots[0].item)
+        XCTAssertNil(saved.alias)
+        XCTAssertFalse(model.editor.configuration.actions.contains { $0.id == speak.id }, "The old Action is replaced")
+        XCTAssertEqual(model.editor.configuration.actions.count, 2)
+    }
+
     /// Opening the sheet on a Menu Item shows its own configuration.
     func testADraftStartsFromTheMenuItemsConfiguration() throws {
         let model = try makeModel()

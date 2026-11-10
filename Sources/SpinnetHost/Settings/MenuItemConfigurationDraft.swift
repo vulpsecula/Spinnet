@@ -40,6 +40,9 @@ final class MenuItemConfigurationDraft: ObservableObject {
     /// Plugin is not loaded.
     private let savedDefaultIcon: MenuItemIcon
 
+    /// Whether saving replaces the Slot's Menu Item with a Preset's.
+    private let isReplacement: Bool
+
     /// The Menu Item `app` sees at `slotIndex`, nil for the default Menu.
     /// `presetPluginID` names the Plugin of a Preset being placed there,
     /// into an empty Slot or replacing its Menu Item.
@@ -52,7 +55,11 @@ final class MenuItemConfigurationDraft: ObservableObject {
         self.plugins = plugins
         let configuration = editor.configuration
         let slots = configuration.menu.slots(for: app)
-        let item = slots.indices.contains(slotIndex) ? slots[slotIndex].item : nil
+        let slotItem = slots.indices.contains(slotIndex) ? slots[slotIndex].item : nil
+        // A Preset placed over a Menu Item replaces it entirely: the draft
+        // starts from the Preset alone and keeps nothing of the old one.
+        isReplacement = presetPluginID != nil && slotItem != nil
+        let item = isReplacement ? nil : slotItem
         let actions = Dictionary(uniqueKeysWithValues: configuration.actions.map { ($0.id, $0) })
         let primaryAction = item.flatMap { actions[$0.primaryActionID] }
 
@@ -311,6 +318,7 @@ final class MenuItemConfigurationDraft: ObservableObject {
             inputs: inputs,
             alternateCommandOrder: alternateCommandOrder,
             replacingEmptySlot: editor.configuration.menu.slots(for: app)[slotIndex].item == nil,
+            replacingMenuItem: isReplacement,
             validateInputs: true,
             preserveUnselectedAlternates: true,
             for: app
