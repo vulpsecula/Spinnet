@@ -152,8 +152,8 @@ public final class PluginInstallationStore {
         storage?.invalidatePendingRequests(for: pluginID)
         grants.removeGrants(for: pluginID)
         try persistGrants()
-        forgetHostPreferences(pluginID)
-        if !keepingData { try clearPluginData(pluginID) }
+        // Clearing the data forgets the Host's preferences for it too.
+        if keepingData { forgetHostPreferences(pluginID) } else { try clearPluginData(pluginID) }
     }
 
     /// Clears the Plugin's own data, settings, credentials and decisions,
