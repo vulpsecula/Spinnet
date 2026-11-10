@@ -445,7 +445,14 @@ struct SettingsRootView: View {
             navigation.frame(width: 188)
             Divider()
             if model.page.showsEditorMode {
-                editorMode.frame(width: editorModeColumnWidth)
+                // The column keeps its layout while it fits the window and
+                // scrolls once its trigger controls no longer do.
+                GeometryReader { column in
+                    ScrollView(.vertical) {
+                        editorMode.frame(minHeight: column.size.height, alignment: .top)
+                    }
+                }
+                .frame(width: editorModeColumnWidth)
                 Divider()
             }
             pageContent
