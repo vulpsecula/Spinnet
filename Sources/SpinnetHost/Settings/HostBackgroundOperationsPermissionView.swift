@@ -3,6 +3,7 @@ import SwiftUI
 struct HostBackgroundOperationsPermissionView: View {
     let status: HostBackgroundOperationsStatus
     let error: String?
+    var working = false
     let manage: () -> Void
 
     private var statusLabel: String {
@@ -40,7 +41,7 @@ struct HostBackgroundOperationsPermissionView: View {
                 }
             }
             Spacer(minLength: 12)
-            Button(actionTitle, action: manage).controlSize(.small)
+            Button(actionTitle, action: manage).controlSize(.small).disabled(working)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 16)

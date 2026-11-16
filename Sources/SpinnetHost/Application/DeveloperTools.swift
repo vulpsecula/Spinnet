@@ -66,6 +66,12 @@ struct DeveloperDiagnostics: Equatable {
 /// What the Developer page of Settings runs. Only a DEBUG Host builds one,
 /// so a release build never offers these shortcuts.
 final class DeveloperTools: ObservableObject {
+    /// The outcome of the last background component maintenance action.
+    enum BackgroundComponentAction: Equatable {
+        case idle, working, installed, removed
+        case failed(String)
+    }
+
     /// Streams the Host's own output and that of its helpers, which run as
     /// separate processes.
     static let logStreamCommand =
@@ -75,6 +81,9 @@ final class DeveloperTools: ObservableObject {
     let canRelaunch: Bool
     @Published private(set) var taskLogRecordingEnabled: Bool
     @Published private(set) var taskLogRecordingFailed = false
+    @Published private(set) var backgroundComponent = BackgroundComponentAction.idle
+    private let reinstallBackground: @Sendable () throws -> Void
+    private let removeBackground: @Sendable () throws -> Void
     private let taskLogs: DeveloperTaskLogs
     private let dataDirectory: URL
     private let showLifecycleTestWindow: () -> Void
@@ -84,7 +93,9 @@ final class DeveloperTools: ObservableObject {
     init(diagnostics: @escaping () -> DeveloperDiagnostics, dataDirectory: URL,
          showLifecycleTestWindow: @escaping () -> Void,
          canRelaunch: Bool = HostRelaunch.isAvailable, relaunch: @escaping () -> Void = HostRelaunch.relaunch,
-         pasteboard: NSPasteboard = .general) {
+         pasteboard: NSPasteboard = .general,
+         reinstallBackgroundComponent: @escaping @Sendable () throws -> Void = HomebrewSystemAuthorization.reinstallService,
+         removeBackgroundComponent: @escaping @Sendable () throws -> Void = HomebrewHelperInstallation.uninstall) {
         self.diagnostics = diagnostics
         self.dataDirectory = dataDirectory
         taskLogs = DeveloperTaskLogs(directory: dataDirectory.appendingPathComponent("TaskLogs"))
@@ -93,6 +104,8 @@ final class DeveloperTools: ObservableObject {
         self.canRelaunch = canRelaunch
         relaunchHost = relaunch
         self.pasteboard = pasteboard
+        reinstallBackground = reinstallBackgroundComponent
+        removeBackground = removeBackgroundComponent
     }
 
     func relaunch() {
@@ -103,6 +116,28 @@ final class DeveloperTools: ObservableObject {
     func copyDiagnostics() { copy(diagnostics().text) }
 
     func copyLogStreamCommand() { copy(Self.logStreamCommand) }
+
+    /// Installs this build's privileged background component again. macOS
+    /// asks for an administrator, and the install checks the helper answers.
+    func reinstallBackgroundComponent() { runBackgroundAction(reinstallBackground, succeeded: .installed) }
+
+    /// Stops and removes the installed background component, for testing a first install.
+    func removeBackgroundComponent() { runBackgroundAction(removeBackground, succeeded: .removed) }
+
+    private func runBackgroundAction(_ action: @escaping @Sendable () throws -> Void, succeeded: BackgroundComponentAction) {
+        guard backgroundComponent != .working else { return }
+        backgroundComponent = .working
+        let focus = HostFocusReturn.capture()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let outcome: BackgroundComponentAction
+            do { try action(); outcome = succeeded }
+            catch { outcome = .failed(error.localizedDescription) }
+            DispatchQueue.main.async {
+                self?.backgroundComponent = outcome
+                focus.restore()
+            }
+        }
+    }
 
     func setTaskLogRecording(_ enabled: Bool) {
         do {

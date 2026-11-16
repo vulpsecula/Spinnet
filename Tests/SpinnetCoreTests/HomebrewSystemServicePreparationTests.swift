@@ -1,10 +1,57 @@
 import XCTest
 import ServiceManagement
+import CryptoKit
 @testable import SpinnetCore
 @testable import SpinnetReviewedTools
 
 final class HomebrewSystemServicePreparationTests: XCTestCase {
-    func testDailyBuildKeepsItsServiceAndSigningIdentitiesSeparateFromLifecycleFixtures() {
+    func testReinstallationAlwaysInstallsAgainAndChecksTheResult() throws {
+        var state = HomebrewHelperInstallation.Status.installed, installs = 0
+        try HomebrewSystemAuthorization.reinstallService(status: { state }, install: { installs += 1; state = .installed },
+            openSettings: { XCTFail("Installed after reinstalling") }, bundledServiceExists: true)
+        XCTAssertEqual(installs, 1)
+    }
+
+    func testReinstallationThatTheLoginItemsSwitchBlocksOpensLoginItems() {
+        var opened = false
+        XCTAssertThrowsError(try HomebrewSystemAuthorization.reinstallService(status: { .approvalRequired }, install: {},
+            openSettings: { opened = true }, bundledServiceExists: true)) {
+            XCTAssertTrue($0.localizedDescription.contains("Login Items"))
+        }
+        XCTAssertTrue(opened)
+    }
+
+    func testAppleIssuedSignerRequiresTheSameTeam() throws {
+        let expression = try HomebrewSystemAuthorization.requirement(identifier: "com.vulpsecula.SpinnetHost.preview", signer: .team("3T85X744CB"))
+        XCTAssertEqual(expression, "anchor apple generic and identifier \"com.vulpsecula.SpinnetHost.preview\" and certificate leaf[subject.OU] = \"3T85X744CB\"")
+        var requirement: SecRequirement?
+        XCTAssertEqual(SecRequirementCreateWithString(expression as CFString, [], &requirement), errSecSuccess)
+    }
+
+    func testSelfSignedReleaseSignerPinsTheExactLeafCertificate() throws {
+        let hash = String(repeating: "ab", count: 20)
+        let expression = try HomebrewSystemAuthorization.requirement(identifier: "com.vulpsecula.SpinnetHost.task-runner", signer: .certificate(sha1: hash))
+        XCTAssertEqual(expression, "identifier \"com.vulpsecula.SpinnetHost.task-runner\" and certificate leaf = H\"\(hash)\"")
+        var requirement: SecRequirement?
+        XCTAssertEqual(SecRequirementCreateWithString(expression as CFString, [], &requirement), errSecSuccess)
+    }
+
+    func testMalformedSignerIdentitiesNeverBecomeRequirements() {
+        for signer: HomebrewSystemAuthorization.Signer in [.team(""), .team("3t85x744cb"), .team("ABC\" or true"),
+                                                           .certificate(sha1: ""), .certificate(sha1: "AB"), .certificate(sha1: String(repeating: "g", count: 40))] {
+            XCTAssertThrowsError(try HomebrewSystemAuthorization.requirement(identifier: "com.vulpsecula.SpinnetHost.preview", signer: signer))
+        }
+    }
+
+    func testSignerPrefersTeamAndRefusesAdHocSignatures() throws {
+        let certificate = Data([0x30, 0x03, 0x02, 0x01, 0x01])
+        XCTAssertEqual(HomebrewSystemAuthorization.signer(team: "3T85X744CB", leafCertificate: certificate), .team("3T85X744CB"))
+        XCTAssertEqual(HomebrewSystemAuthorization.signer(team: nil, leafCertificate: certificate),
+                       .certificate(sha1: Insecure.SHA1.hash(data: certificate).map { String(format: "%02X", $0) }.joined()))
+        XCTAssertNil(HomebrewSystemAuthorization.signer(team: nil, leafCertificate: nil))
+    }
+
+    func testServiceAndSigningIdentitiesUseTheHostPrefix() {
         XCTAssertEqual(HomebrewSystemAuthorization.hostIdentifier, "com.vulpsecula.SpinnetHost.preview")
         XCTAssertEqual(HomebrewSystemAuthorization.helperIdentifier, "com.vulpsecula.SpinnetHost.privileged-tools")
         XCTAssertEqual(HomebrewSystemAuthorization.service, "com.vulpsecula.SpinnetHost.reviewed-tools")
@@ -22,59 +69,54 @@ final class HomebrewSystemServicePreparationTests: XCTestCase {
         XCTAssertEqual(definition["allow-root"] as? Bool, false)
         XCTAssertEqual(definition["group"] as? String, "admin")
     }
-    func testMissingRegistrationWithCompleteBundledHelperAttemptsRegistration() throws {
-        var state = SMAppService.Status.notFound
-        var registrations = 0
-        try HomebrewSystemAuthorization.prepareService(status: { state }, register: {
-            registrations += 1
-            state = .enabled
-        }, openSettings: { XCTFail("An enabled service needs no Settings prompt") }, bundledServiceExists: true)
-        XCTAssertEqual(registrations, 1)
+    func testMissingInstallationWithCompleteBundledHelperInstallsIt() throws {
+        var state = HomebrewHelperInstallation.Status.notInstalled
+        var installs = 0
+        try HomebrewSystemAuthorization.prepareService(status: { state }, install: {
+            installs += 1
+            state = .installed
+        }, openSettings: { XCTFail("An installed helper needs no Settings prompt") }, bundledServiceExists: true)
+        XCTAssertEqual(installs, 1)
     }
-    func testFirstRegistrationWaitsForApprovalAndDoesNotRepeatRegistrationOnRetry() throws {
-        for initial in [SMAppService.Status.notFound, .notRegistered, .requiresApproval] {
+    func testABlockedInstallationOpensLoginItemsAndIsNotInstalledAgainOnRetry() throws {
+        for initial in [HomebrewHelperInstallation.Status.notInstalled, .approvalRequired] {
             var state = initial
-            var registrations = 0, prompts = 0
-            XCTAssertThrowsError(try HomebrewSystemAuthorization.prepareService(status: { state }, register: {
-                registrations += 1; state = .requiresApproval
+            var installs = 0, prompts = 0
+            XCTAssertThrowsError(try HomebrewSystemAuthorization.prepareService(status: { state }, install: {
+                installs += 1; state = .approvalRequired
             }, openSettings: { prompts += 1 }, bundledServiceExists: true)) {
                 XCTAssertTrue($0.localizedDescription.contains("Login Items"))
             }
-            XCTAssertEqual(registrations, initial == .requiresApproval ? 0 : 1)
+            XCTAssertEqual(installs, initial == .approvalRequired ? 0 : 1)
             XCTAssertEqual(prompts, 1)
         }
     }
-    func testEnabledHelperDoesNotChangeRegistrationOrOpenSettings() throws {
-        try HomebrewSystemAuthorization.prepareService(status: { .enabled }, register: { XCTFail("Already enabled") },
+    func testInstalledHelperIsNotInstalledAgainOrSentToSettings() throws {
+        try HomebrewSystemAuthorization.prepareService(status: { .installed }, install: { XCTFail("Already installed") },
             openSettings: { XCTFail("Already approved") }, bundledServiceExists: true)
     }
-    func testIncompleteBundleCannotRegisterOrBeReportedAsAnApprovalProblem() {
-        for state in [SMAppService.Status.notFound, .notRegistered] {
-            XCTAssertThrowsError(try HomebrewSystemAuthorization.prepareService(status: { state }, register: { XCTFail("Missing payload") },
-                openSettings: { XCTFail("No registered item to approve") }, bundledServiceExists: false)) {
-                XCTAssertTrue($0.localizedDescription.contains("missing from this app bundle"))
-                XCTAssertFalse($0.localizedDescription.contains("Login Items"))
-            }
-        }
-    }
-    func testRegistrationFailureKeepsSystemDiagnosticAndDoesNotRequestApproval() {
-        XCTAssertThrowsError(try HomebrewSystemAuthorization.prepareService(status: { .notFound }, register: {
-            throw NSError(domain: "SMAppServiceErrorDomain", code: 22, userInfo: [NSLocalizedDescriptionKey: "Invalid daemon configuration"])
-        }, openSettings: { XCTFail("Registration failed") }, bundledServiceExists: true)) {
-            XCTAssertTrue($0.localizedDescription.contains("SMAppServiceErrorDomain 22"))
-            XCTAssertTrue($0.localizedDescription.contains("Invalid daemon configuration"))
+    func testIncompleteBundleCannotInstallOrBeReportedAsAnApprovalProblem() {
+        XCTAssertThrowsError(try HomebrewSystemAuthorization.prepareService(status: { .notInstalled }, install: { XCTFail("Missing payload") },
+            openSettings: { XCTFail("No installed item to approve") }, bundledServiceExists: false)) {
+            XCTAssertTrue($0.localizedDescription.contains("missing from this app bundle"))
             XCTAssertFalse($0.localizedDescription.contains("Login Items"))
         }
     }
-    func testUnresolvedRegistrationDoesNotLoopOrPretendApprovalWillFixIt() {
-        for state in [SMAppService.Status.notFound, .notRegistered] {
-            var registrations = 0
-            XCTAssertThrowsError(try HomebrewSystemAuthorization.prepareService(status: { state }, register: { registrations += 1 },
-                openSettings: { XCTFail("No approval-pending service") }, bundledServiceExists: true)) {
-                XCTAssertTrue($0.localizedDescription.contains("after the registration attempt"))
-                XCTAssertFalse($0.localizedDescription.contains("Login Items"))
-            }
-            XCTAssertEqual(registrations, 1)
+    func testInstallationFailureKeepsItsDiagnosticAndDoesNotRequestApproval() {
+        XCTAssertThrowsError(try HomebrewSystemAuthorization.prepareService(status: { .notInstalled }, install: {
+            throw PluginHostServiceError.unavailable("launchctl bootstrap failed: 5: Input/output error")
+        }, openSettings: { XCTFail("Installation failed") }, bundledServiceExists: true)) {
+            XCTAssertTrue($0.localizedDescription.contains("launchctl bootstrap failed"))
+            XCTAssertFalse($0.localizedDescription.contains("Login Items"))
         }
+    }
+    func testUnresolvedInstallationDoesNotLoopOrPretendApprovalWillFixIt() {
+        var installs = 0
+        XCTAssertThrowsError(try HomebrewSystemAuthorization.prepareService(status: { .notInstalled }, install: { installs += 1 },
+            openSettings: { XCTFail("No approval-pending helper") }, bundledServiceExists: true)) {
+            XCTAssertTrue($0.localizedDescription.contains("after the installation attempt"))
+            XCTAssertFalse($0.localizedDescription.contains("Login Items"))
+        }
+        XCTAssertEqual(installs, 1)
     }
 }

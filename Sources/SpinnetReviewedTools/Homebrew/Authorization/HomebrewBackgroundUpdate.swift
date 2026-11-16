@@ -4,8 +4,8 @@ import Security
 import ServiceManagement
 import Darwin
 
-/// Preserve the existing registration and approval. An authenticated idle
-/// helper exits itself when its loaded revision differs from the app bundle.
+/// Keeps the installed helper at the app bundle's revision. An authenticated
+/// idle helper installs a staged, verified update and exits to load it.
 public enum HomebrewBackgroundUpdate {
     private static let lock = NSLock()
     /// BundleProgram may supply a relative argv[0]. Resolve the running image
@@ -32,21 +32,51 @@ public enum HomebrewBackgroundUpdate {
         }
         return cdhash.map { String(format: "%02x", $0) }.joined()
     }
-    public static func refreshEnabledService() throws {
+    /// Brings the installed helper up to this app bundle. The installed helper
+    /// copies and verifies the staged update itself, so no password is asked.
+    /// A changed launchd definition needs an administrator: with
+    /// `reinstallIfNeeded` this asks for one, otherwise it reports the need.
+    public static func refreshEnabledService(reinstallIfNeeded: Bool = false) throws {
         lock.lock(); defer { lock.unlock() }
-        let daemon = SMAppService.daemon(plistName: HomebrewSystemAuthorization.helperIdentifier + ".plist")
-        guard daemon.status == .enabled else { return }
-        let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetPrivilegedToolHelper")
-        try refresh(revision: helperRevision(at: url), request: { expected in
+        guard HomebrewHelperInstallation.status() == .installed else { return }
+        guard HomebrewHelperInstallation.installedPlistIsCurrent else {
+            guard reinstallIfNeeded else {
+                throw PluginHostServiceError.unavailable("Spinnet's background component must be reinstalled for this version. Enable it again in Spinnet Settings > Privacy & Permissions; no Task was started")
+            }
+            try HomebrewHelperInstallation.install()
+            return
+        }
+        let helpers = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers", isDirectory: true)
+        var staging: URL?
+        defer { if let staging { try? FileManager.default.removeItem(at: staging) } }
+        try refreshInstalled(revision: helperRevision(at: helpers.appendingPathComponent(HomebrewHelperInstallation.executableName)), ask: { expected, path in
             let connection = try HomebrewSystemAuthorization.hostConnection(); defer { connection.invalidate() }
             let done = DispatchSemaphore(value: 0), result = Reply()
-            guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in result.finish("", "Spinnet's background component is enabled but could not be reached. Its startup or connection failed; no Task was started"); done.signal() }) as? HomebrewPrivilegeHostProtocol else { throw PluginHostServiceError.tool(.failed) }
-            proxy.refreshForUpdate(expected) { revision, failure in result.finish(revision, failure); done.signal() }
-            guard done.wait(timeout: .now() + 5) == .success else { throw PluginHostServiceError.tool(.timedOut) }
+            guard let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in result.finish("", "Spinnet's background component is installed but could not be reached. Its startup or connection failed; no Task was started"); done.signal() }) as? HomebrewPrivilegeHostProtocol else { throw PluginHostServiceError.tool(.failed) }
+            proxy.refreshForUpdate(expected, staging: path) { revision, failure in result.finish(revision, failure); done.signal() }
+            guard done.wait(timeout: .now() + 20) == .success else { throw PluginHostServiceError.tool(.timedOut) }
             let value = result.value
             guard value.1.isEmpty else { throw PluginHostServiceError.unavailable(value.1) }
             return value.0
+        }, stage: {
+            let staged = try HomebrewHelperInstallation.stage(from: helpers)
+            staging = staged
+            return staged
         }, wait: { Thread.sleep(forTimeInterval: 0.25) })
+    }
+    /// Asks without a staged update first; stages only when the helper reports
+    /// that its loaded revision differs, then waits for its restart.
+    package static func refreshInstalled(revision: String, ask: (String, String) throws -> String,
+                                         stage: () throws -> URL, wait: () -> Void) throws {
+        var staging = ""
+        try refresh(revision: revision, request: { expected in
+            let reply = try ask(expected, staging)
+            guard reply == "update-required", staging.isEmpty else { return reply }
+            staging = try stage().path
+            // The helper replaces its own file before replying; macOS may then
+            // refuse that reply, so a lost reply here means it is restarting.
+            do { return try ask(expected, staging) } catch { return "restarting" }
+        }, wait: wait)
     }
     private final class Reply: @unchecked Sendable {
         private let lock = NSLock()

@@ -1,6 +1,27 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Install this build's privileged background component again, then check that it answers. macOS asks for an administrator. Stops any running Homebrew Task.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新安装本构建的特权后台组件，然后检查它能否响应。macOS 会要求管理员授权。会停止正在运行的 Homebrew 任务。" } } }
+    },
+    "Reinstall": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新安装" } } }
+    },
+    "Reinstall Background Component": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新安装后台组件" } } }
+    },
+    "Remove Background Component": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "移除后台组件" } } }
+    },
+    "Stop and delete the installed background component, to test a first install. macOS asks for an administrator.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "停止并删除已安装的后台组件，用于测试首次安装。macOS 会要求管理员授权。" } } }
+    },
+    "The background component answers.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "后台组件已响应。" } } }
+    },
+    "The background component was removed.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "后台组件已移除。" } } }
+    },
     "Trackpad Opening Delay": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "触控板打开延迟" } } }
     },
@@ -30,6 +51,9 @@
     },
     "Look Up & data detectors also uses a three-finger tap. Set it to Force Click with one finger in System Settings → Trackpad, or choose Four Fingers.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "“查询与数据检测器”也使用三指轻点。请在“系统设置”→“触控板”中将其改为“用单指用力点按”，或选择四指。" } } }
+    },
+    "Waiting for macOS…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在等待 macOS…" } } }
     },
     "Window": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "窗口" } } }

@@ -51,48 +51,31 @@ private func cleanupKnownStages(_ task: Task) {
 }
 
 final class HostEndpoint: NSObject, HomebrewPrivilegeHostProtocol {
-    #if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
-    func lifecycleSnapshot(reply: @escaping (Int32, String, String) -> Void) {
-        #if SPINNET_BACKGROUND_LIFECYCLE_NEXT
-        reply(getpid(), loadedHelperRevision, "next")
-        #else
-        reply(getpid(), loadedHelperRevision, "baseline")
-        #endif
-    }
-    #endif
     let pid: pid_t; let uid: uid_t; let identity: UInt64?
     init(_ connection: NSXPCConnection) { pid = connection.processIdentifier; uid = connection.effectiveUserIdentifier; identity = HomebrewTaskProcess.startIdentity(connection.processIdentifier) }
-    func refreshForUpdate(_ expectedRevision: String, reply: @escaping (String, String) -> Void) {
+    func refreshForUpdate(_ expectedRevision: String, staging: String, reply: @escaping (String, String) -> Void) {
         do {
             guard uid != 0, let identity, HomebrewTaskProcess.startIdentity(pid) == identity,
-                  expectedRevision.range(of: "^[a-f0-9]{40,64}$", options: .regularExpression) != nil else { throw PluginHostServiceError.tool(.planChanged) }
-            guard try HomebrewBackgroundUpdate.helperRevision(at: HomebrewBackgroundUpdate.currentExecutableURL()) == expectedRevision else { throw PluginHostServiceError.tool(.planChanged) }
+                  expectedRevision.range(of: "^[a-f0-9]{40,64}$", options: .regularExpression) != nil,
+                  staging.isEmpty || staging.hasPrefix("/") else { throw PluginHostServiceError.tool(.planChanged) }
             state.lock.lock(); defer { state.lock.unlock() }
             if state.updating { reply("restarting", ""); return }
             let busy = !state.tasks.isEmpty || !state.admissions.isEmpty || state.inspection != nil || state.inspectionRecoveryUnavailable
-            if try HomebrewBackgroundUpdate.needsRestart(loadedRevision: loadedHelperRevision, expectedRevision: expectedRevision, hasWork: busy) {
-                state.updating = true
-                reply("restarting", "")
-                DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { exit(0) }
-            } else { reply(loadedHelperRevision, "") }
+            guard try HomebrewBackgroundUpdate.needsRestart(loadedRevision: loadedHelperRevision, expectedRevision: expectedRevision, hasWork: busy) else {
+                reply(loadedHelperRevision, ""); return
+            }
+            guard !staging.isEmpty else { reply("update-required", ""); return }
+            // Every staged copy must carry this helper's own signer before it
+            // replaces the installed directory; the requested revision must match.
+            try HomebrewHelperInstallation.installStaged(from: URL(fileURLWithPath: staging, isDirectory: true))
+            guard try HomebrewBackgroundUpdate.helperRevision(at: HomebrewHelperInstallation.executableURL) == expectedRevision else { throw PluginHostServiceError.tool(.planChanged) }
+            state.updating = true
+            reply("restarting", "")
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { exit(0) }
         } catch { reply("", error.localizedDescription) }
     }
     func admit(_ data: Data, reply: @escaping (String) -> Void) {
-        #if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
-        // The isolated lifecycle fixture holds only an admission lane. Even
-        // this build's runner and mutation clients cannot execute old plans.
-        do {
-            guard uid != 0, let identity = HomebrewTaskProcess.startIdentity(pid) else { throw PluginHostServiceError.tool(.failed) }
-            let plan = try HomebrewPrivilegePlan.decodeValidated(data)
-            state.lock.lock(); defer { state.lock.unlock() }
-            guard !state.updating, state.tasks.isEmpty, state.admissions.isEmpty, state.inspection == nil, !state.inspectionRecoveryUnavailable,
-                  plan.casks.allSatisfy({ ($0.receipts ?? []).isEmpty }) else { throw PluginHostServiceError.tool(.busy) }
-            state.admissions[plan.taskID] = HostAdmission(plan: plan, pid: pid, identity: identity, uid: uid, expires: ProcessInfo.processInfo.systemUptime + 60)
-            reply("")
-        } catch { reply("Authenticated Host admission was refused") }
-        #else
         reply(retiredExecutionMessage)
-        #endif
     }
     func cancel(_ taskID: String, reply: @escaping () -> Void) {
         state.lock.lock()
@@ -164,9 +147,6 @@ final class ClientEndpoint: NSObject, HomebrewPrivilegeClientProtocol {
 /// Exercises the actual exported endpoint implementations before Root startup.
 /// No connection is resumed and no recovery directory or listener is created.
 private func verifyRetiredEntrypoints() throws {
-    #if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
-    throw PluginHostServiceError.unavailable("Verify retirement using the production helper, not the isolated lifecycle fixture")
-    #else
     let connection = NSXPCConnection(machServiceName: "com.vulpsecula.Spinnet.retirement-verification")
     defer { connection.invalidate() }
     let host = HostEndpoint(connection), runner = RunnerEndpoint(connection), client = ClientEndpoint(connection)
@@ -215,7 +195,6 @@ private func verifyRetiredEntrypoints() throws {
                                "rootStateUntouched": true, "rootStartupSkipped": true]
     let body = try JSONSerialization.data(withJSONObject: report, options: [.sortedKeys])
     print(String(decoding: body, as: UTF8.self))
-    #endif
 }
 
 final class Listener: NSObject, NSXPCListenerDelegate {
@@ -247,6 +226,18 @@ do {
     if CommandLine.arguments == [CommandLine.arguments[0], "--verify-retired-entrypoints"] {
         try verifyRetiredEntrypoints()
         exit(0)
+    }
+    // Run once as Root by the administrator-approved install script, after it
+    // verified this copy's signature. Installs and loads the legacy daemon.
+    if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--install" {
+        guard getuid() == 0 else { exit(77) }
+        do {
+            try HomebrewHelperInstallation.installAndActivate(from: URL(fileURLWithPath: CommandLine.arguments[2], isDirectory: true))
+            exit(0)
+        } catch {
+            FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+            exit(1)
+        }
     }
     guard getuid() == 0 else { exit(77) }
     loadedHelperRevision = try HomebrewBackgroundUpdate.helperRevision(at: HomebrewBackgroundUpdate.currentExecutableURL())

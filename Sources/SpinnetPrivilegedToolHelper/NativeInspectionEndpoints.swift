@@ -37,11 +37,7 @@ final class NativeInspectionOperation {
     }
 }
 
-#if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
-private let inspectionRoot = URL(fileURLWithPath: "/private/var/tmp/spinnet-background-lifecycle-inspections")
-#else
 private let inspectionRoot = URL(fileURLWithPath: "/private/var/tmp/spinnet-native-inspections")
-#endif
 func initializeNativeInspectionRecovery() throws {
     // New executions are retired; startup only examines existing recovery data.
     // lstat distinguishes an absent directory from a dangling link or an error.

@@ -9,6 +9,8 @@ struct DeveloperSettingsSection: View {
         localized("Developer"),
         localized("Relaunch Spinnet"),
         localized("Lifecycle Test Window"),
+        localized("Reinstall Background Component"),
+        localized("Remove Background Component"),
         localized("Record Task logs"),
         localized("Copy Diagnostics"),
         localized("Reveal Data Folder"),
@@ -40,6 +42,8 @@ struct DeveloperSettingsSection: View {
                         detail: localized("Run the slow and hanging Action fixtures."),
                         action: tools.openLifecycleTestWindow
                     )
+                    Divider()
+                    backgroundComponentRows
                 }
 
                 section(localized("Diagnostics")) {
@@ -79,6 +83,39 @@ struct DeveloperSettingsSection: View {
                 }
             }
         .onAppear { diagnostics = tools.diagnostics() }
+    }
+
+    private var backgroundComponentRows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            actionRow(
+                localized("Reinstall Background Component"), button: localized("Reinstall"),
+                detail: localized("Install this build's privileged background component again, then check that it answers. macOS asks for an administrator. Stops any running Homebrew Task."),
+                action: tools.reinstallBackgroundComponent
+            )
+            .disabled(tools.backgroundComponent == .working)
+            Divider()
+            actionRow(
+                localized("Remove Background Component"), button: localized("Remove"),
+                detail: localized("Stop and delete the installed background component, to test a first install. macOS asks for an administrator."),
+                action: tools.removeBackgroundComponent
+            )
+            .disabled(tools.backgroundComponent == .working)
+            switch tools.backgroundComponent {
+            case .idle: EmptyView()
+            case .working:
+                Label(localized("Waiting for macOS…"), systemImage: "hourglass")
+                    .font(.caption).foregroundStyle(.secondary).padding(.bottom, 12)
+            case .installed:
+                Label(localized("The background component answers."), systemImage: "checkmark.circle.fill")
+                    .font(.caption).foregroundStyle(.secondary).padding(.bottom, 12)
+            case .removed:
+                Label(localized("The background component was removed."), systemImage: "checkmark.circle.fill")
+                    .font(.caption).foregroundStyle(.secondary).padding(.bottom, 12)
+            case .failed(let message):
+                Text(message).font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled).padding(.bottom, 12)
+            }
+        }
     }
 
     private var taskLogRecordingRow: some View {

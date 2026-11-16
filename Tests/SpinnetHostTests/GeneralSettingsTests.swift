@@ -292,6 +292,8 @@ final class GeneralSettingsTests: XCTestCase {
             "Developer",
             "Relaunch Spinnet",
             "Lifecycle Test Window",
+            "Reinstall Background Component",
+            "Remove Background Component",
             "Record Task logs",
             "Copy Diagnostics",
             "Reveal Data Folder",

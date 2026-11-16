@@ -95,7 +95,7 @@ public enum HomebrewNativeInspection {
         public let operation: Operation
         public let packages: [Package]
         /// Complete admitted native graph, with fixed placeholder receipt seals.
-        /// Required by the production adapter; omitted only by lifecycle fixtures.
+        /// Required by the production adapter; omitted only by test fixtures.
         public let provisionalPlan: Data?
         public let includeZap: Bool?
         public init(taskID: String, uid: UInt32, home: String, prefix: String, operation: Operation, packages: [Package], provisionalPlan: Data? = nil, includeZap: Bool? = nil) throws {

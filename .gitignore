@@ -13,4 +13,3 @@ dist/
 tmp/
 /.audit-archive/
 /measurements/
-/Tools/.state/

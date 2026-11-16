@@ -7,7 +7,8 @@ import Darwin
 /// a Root process executes them. Validating a mutable App path alone races.
 public enum NativeSignedToolStaging {
     private final class Marker: NSObject {}
-    private static let identifiers = [
+    /// The signed tools a Root process copies before running; installed beside the helper.
+    package static let toolIdentifiers = [
         "SpinnetReceiptInventory": "com.vulpsecula.SpinnetHost.receipt-inventory",
         "SpinnetToolAuthorizationClient": "com.vulpsecula.SpinnetHost.authorization-client",
         "SpinnetArchiveBootstrap": "com.vulpsecula.SpinnetHost.archive-bootstrap",
@@ -17,6 +18,7 @@ public enum NativeSignedToolStaging {
         "SpinnetPathRemoval": "com.vulpsecula.SpinnetHost.path-removal",
         "SpinnetLaunchServiceInventory": "com.vulpsecula.SpinnetHost.launch-service-inventory"
     ]
+    private static var identifiers: [String: String] { toolIdentifiers }
     public struct Copies {
         public let directory: URL
         public let tools: [String: URL]

@@ -335,17 +335,10 @@ continue independently. Release builds do not record these developer files.
 | Entry point | Implementation | Purpose |
 | --- | --- | --- |
 | [`script/ax_insertion_matrix.sh`](script/ax_insertion_matrix.sh) | [`Tools/AXInsertionProbe/`](Tools/AXInsertionProbe/) | Native insertion checks using current Host sources by default; `--build-only` builds, signs and self-checks the probe. |
-| [`script/check_background_lifecycle.sh`](script/check_background_lifecycle.sh) | [`Tools/BackgroundLifecycleProbe/`](Tools/BackgroundLifecycleProbe/) | Isolated background-service lifecycle integration checks. |
 | [`script/measure_view_sessions.sh`](script/measure_view_sessions.sh) | [`Tools/ViewSessionMeasurement/`](Tools/ViewSessionMeasurement/) | Current View Session latency, memory and authority measurements using the real helper. |
 
 The insertion matrix's explicit `--host a2` mode reproduces historical Host A2.
 It establishes historical results, not acceptance of the current Host.
-
-The lifecycle tool's `--status` reads test registration state. `--clean`
-removes unregistered test state and rebuildable caches; only the explicit
-`--clean --unregister` also unregisters its isolated test service. Its fixed
-`Tools/.state/` location can remain registered or pending system approval,
-so use this flow when cleaning it. Raw results remain in `tmp/`.
 
 ## Repository layout
 
@@ -358,7 +351,6 @@ so use this flow when cleaning it. Raw results remain in `tmp/`.
 | `Tools/` | Developer-only probe and measurement sources. |
 | `dist/` | The packaged Host app. |
 | `.build/` | Rebuildable compiler and verification caches. |
-| `Tools/.state/` | Local test service registration state, managed by its explicit cleanup command. |
 | `tmp/` | Local task and verification working outputs, grouped by task or run. |
 | `.audit-archive/` | Local retained audit evidence and removal archives. |
 | `docs/` | Optional local agent workflows, ADRs and internal rationale. |

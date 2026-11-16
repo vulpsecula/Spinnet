@@ -27,14 +27,13 @@ public enum HomebrewNativeInspectionAuthorization {
     public static let hostService = HomebrewSystemAuthorization.service + ".inspection.host"
     public static let clientService = HomebrewSystemAuthorization.service + ".inspection.client"
     public static var isServiceEnabled: Bool {
-        SMAppService.daemon(plistName: HomebrewSystemAuthorization.helperIdentifier + ".plist").status == .enabled
+        HomebrewHelperInstallation.status() == .installed
     }
     /// Status check only. This path neither registers a daemon nor opens
     /// Settings. A missing helper is explicit unavailability before inspection.
     public static func requireExistingService() throws {
         _ = try HomebrewSystemAuthorization.requirement(identifier: HomebrewSystemAuthorization.helperIdentifier)
-        let service = SMAppService.daemon(plistName: HomebrewSystemAuthorization.helperIdentifier + ".plist")
-        guard service.status == .enabled else { throw PluginHostServiceError.unavailable("Enable Spinnet Background Operations in Spinnet Settings > Privacy & Permissions before retrying. Background access was not changed and no Task has started") }
+        guard HomebrewHelperInstallation.status() == .installed else { throw PluginHostServiceError.unavailable("Enable Spinnet Background Operations in Spinnet Settings > Privacy & Permissions before retrying. Background access was not changed and no Task has started") }
     }
     public static func hostConnection() throws -> NSXPCConnection {
         let connection = NSXPCConnection(machServiceName: hostService, options: .privileged)

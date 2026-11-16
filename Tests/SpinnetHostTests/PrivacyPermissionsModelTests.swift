@@ -142,6 +142,33 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         XCTAssertTrue(model.capabilityGrants.allSatisfy { $0.decision == .notDetermined })
     }
 
+    func testEnablingWaitsOffTheMainThreadAndIgnoresARepeatedClick() {
+        var state = HostBackgroundOperationsStatus.notEnabled
+        let started = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
+        var requests = 0, ranOnMain = true
+        let model = PrivacyPermissionsModel(grantStore: .init(), manifests: { [] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            backgroundOperationsCheck: { state }, backgroundOperationsEnable: {
+                requests += 1; ranOnMain = Thread.isMainThread
+                started.signal(); release.wait()
+                state = .enabled
+            }, openBackgroundOperationsSettings: { XCTFail("Installed without approval") },
+            enablesBackgroundOperationsAsynchronously: true)
+        model.manageBackgroundOperations()
+        XCTAssertTrue(model.backgroundOperationsEnabling)
+        XCTAssertEqual(started.wait(timeout: .now() + 2), .success)
+        model.manageBackgroundOperations()
+        release.signal()
+        let done = expectation(description: "enabled")
+        func poll() { model.backgroundOperationsEnabling ? DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: poll) : done.fulfill() }
+        poll()
+        wait(for: [done], timeout: 2)
+        XCTAssertEqual(requests, 1)
+        XCTAssertFalse(ranOnMain)
+        XCTAssertEqual(model.backgroundOperationsStatus, .enabled)
+        XCTAssertNil(model.backgroundOperationsError)
+    }
+
     func testPendingApprovalAndEnabledBackgroundAccessOpenHostSettingsWithoutReregistering() {
         for state in [HostBackgroundOperationsStatus.approvalRequired, .enabled] {
             var opened = 0

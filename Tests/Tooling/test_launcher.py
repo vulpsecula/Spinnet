@@ -82,7 +82,7 @@ class LauncherTests(unittest.TestCase):
         launcher = self.script.read_text()
         self.assertEqual(launcher.count("/usr/bin/open "), 2)
         self.script.write_text(launcher.replace("/usr/bin/open ", shlex.quote(str(self.stubs / "open")) + " "))
-        for name in ["check_background_helper.sh", "check_background_lifecycle.sh"]:
+        for name in ["check_background_helper.sh"]:
             (self.script.parent / name).write_text(
                 '#!/bin/bash\nprintf \'{"tool":"' + name + '","args":["%s"]}\\n\' "$*" >> "$LAUNCHER_TEST_LOG"\n')
         self.packages = self.root / "SpinnetPlugins checkout"
@@ -127,14 +127,9 @@ class LauncherTests(unittest.TestCase):
                  ("--install-plugins",), ("--install-plugins", ""),
                  ("--install-plugins", str(self.packages), "--package"),
                  ("--install-plugins", str(self.packages), "--help"),
-                 ("--install-plugins", str(self.packages), "--background-lifecycle-check"),
                  ("--install-plugins", str(self.packages), "--verify", "ignored"),
                  ("--verify", "--install-plugins", str(self.packages)),
-                 ("--background-lifecycle-check", "--typo"),
-                 ("--background-lifecycle-check", ""),
-                 ("--background-lifecycle-check", "--prepare", "ignored"),
-                 ("--background-lifecycle-check", "--clean", "--wrong"),
-                 ("--background-lifecycle-check", "--clean", "--unregister", "ignored")]
+                 ("--background-lifecycle-check",)]
         for args in cases:
             with self.subTest(args=args):
                 result, commands = self.launch(*args, LAUNCHER_TEST_STOP_AT_BUILD="1")
@@ -153,18 +148,6 @@ class LauncherTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("cannot read the Host release version", result.stderr)
                 self.assertEqual(commands, [])
-                self.assertEqual(self.sentinel.read_text(), "existing app")
-
-    def test_lifecycle_delegates_only_its_valid_arguments_without_packaging(self):
-        cases = [([], "--prepare"), (["--prepare"], "--prepare"), (["--run"], "--run"),
-                 (["--status"], "--status"), (["--clean"], "--clean"),
-                 (["--clean", "--unregister"], "--clean --unregister"),
-                 (["--help"], "--help"), (["-h"], "-h")]
-        for args, expected in cases:
-            with self.subTest(args=args):
-                result, commands = self.launch("--background-lifecycle-check", *args)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(commands, [{"tool": "check_background_lifecycle.sh", "args": [expected]}])
                 self.assertEqual(self.sentinel.read_text(), "existing app")
 
     def test_package_preserves_every_helper_and_signing_policy_without_restart(self):

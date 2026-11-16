@@ -111,12 +111,10 @@ enum NativePathInventorySupervisor {
         guard fstat(parent, &directory) == 0, directory.st_uid == 0, directory.st_mode & 0o022 == 0,
               fstatat(parent, name, &file, AT_SYMLINK_NOFOLLOW) == 0, file.st_mode & S_IFMT == S_IFREG,
               file.st_uid == 0, file.st_nlink == 1, file.st_mode & 0o022 == 0 else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
-        var code: SecStaticCode?
+        var code: SecStaticCode?, requirement: SecRequirement?
+        let expression = try HomebrewSystemAuthorization.requirement(identifier: "com.vulpsecula.SpinnetHost.path-inventory")
         guard SecStaticCodeCreateWithPath(path as CFURL, [], &code) == errSecSuccess, let code,
-              SecStaticCodeCheckValidity(code, [], nil) == errSecSuccess else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
-        var values: CFDictionary?
-        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &values) == errSecSuccess,
-              let values = values as? [String: Any], values[kSecCodeInfoIdentifier as String] as? String == "com.vulpsecula.SpinnetHost.path-inventory",
-              let team = values[kSecCodeInfoTeamIdentifier as String] as? String, !team.isEmpty else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
+              SecRequirementCreateWithString(expression as CFString, [], &requirement) == errSecSuccess, let requirement,
+              SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), requirement) == errSecSuccess else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
     }
 }

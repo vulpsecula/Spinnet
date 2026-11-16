@@ -142,7 +142,8 @@ final class SettingsWindowModel: ObservableObject {
             manifests: { [editor] in editor.installedPlugins.manifests },
             accessibilityPermissionCheck: accessibilityPermissionCheck,
             defaults: defaults,
-            backgroundOperationsRequest: HostBackgroundOperationsStatus.requestCurrent
+            backgroundOperationsRequest: HostBackgroundOperationsStatus.requestCurrent,
+            enablesBackgroundOperationsAsynchronously: true
         )
         trigger = MenuTriggerModel(defaults: defaults, conflictCheck: mouseInputConflictCheck,
                                    trackpadConflictCheck: trackpadConflictCheck)
@@ -967,6 +968,7 @@ struct SettingsRootView: View {
                     enableScreenRecording: { privacy.requestScreenRecordingPermission() },
                     backgroundOperationsStatus: privacy.backgroundOperationsStatus,
                     backgroundOperationsError: privacy.backgroundOperationsError,
+                    backgroundOperationsEnabling: privacy.backgroundOperationsEnabling,
                     manageBackgroundOperations: privacy.manageBackgroundOperations
                 )
                 .onAppear {
@@ -2110,6 +2112,7 @@ private struct PrivacySettingsView: View {
     var enableScreenRecording: () -> Bool = { false }
     var backgroundOperationsStatus: HostBackgroundOperationsStatus = .notEnabled
     var backgroundOperationsError: String?
+    var backgroundOperationsEnabling = false
     var manageBackgroundOperations: () -> Void = {}
 
     var body: some View {
@@ -2134,7 +2137,7 @@ private struct PrivacySettingsView: View {
                     }
                     Divider().padding(.leading, 52)
                     HostBackgroundOperationsPermissionView(status: backgroundOperationsStatus,
-                        error: backgroundOperationsError, manage: manageBackgroundOperations)
+                        error: backgroundOperationsError, working: backgroundOperationsEnabling, manage: manageBackgroundOperations)
                     Divider().padding(.leading, 52)
                     Text(localized("Input Monitoring is not requested. Screen Recording and app-specific Automation are requested only for an explicit feature action."))
                         .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)

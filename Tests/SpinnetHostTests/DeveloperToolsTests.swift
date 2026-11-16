@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import XCTest
+import SpinnetCore
 @testable import SpinnetHost
 
 final class DeveloperToolsTests: XCTestCase {
@@ -61,6 +62,39 @@ final class DeveloperToolsTests: XCTestCase {
         XCTAssertTrue(lifecycleShown)
         tools.relaunch()
         XCTAssertTrue(relaunched)
+    }
+
+    func testBackgroundComponentActionsReportTheirOutcome() {
+        var installs = 0, removals = 0, failure: Error?
+        let tools = DeveloperTools(diagnostics: { Self.minimalDiagnostics },
+                                   dataDirectory: FileManager.default.temporaryDirectory,
+                                   showLifecycleTestWindow: {}, canRelaunch: false, relaunch: {},
+                                   reinstallBackgroundComponent: { installs += 1; if let failure { throw failure } },
+                                   removeBackgroundComponent: { removals += 1 })
+        XCTAssertEqual(tools.backgroundComponent, .idle)
+
+        tools.reinstallBackgroundComponent()
+        XCTAssertEqual(tools.backgroundComponent, .working)
+        tools.removeBackgroundComponent()
+        wait(until: { tools.backgroundComponent == .installed })
+        XCTAssertEqual(removals, 0, "A second action waits for the first to finish")
+
+        tools.removeBackgroundComponent()
+        wait(until: { tools.backgroundComponent == .removed })
+
+        let error = PluginHostServiceError.unavailable("The administrator request was cancelled")
+        failure = error
+        tools.reinstallBackgroundComponent()
+        wait(until: { tools.backgroundComponent == .failed(error.localizedDescription) })
+        XCTAssertEqual(installs, 2)
+        XCTAssertEqual(removals, 1)
+    }
+
+    private func wait(until condition: @escaping () -> Bool) {
+        let done = expectation(description: "condition")
+        func poll() { condition() ? done.fulfill() : DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: poll) }
+        poll()
+        wait(for: [done], timeout: 2)
     }
 
     func testRelaunchDoesNothingOutsideAnAppBundle() {

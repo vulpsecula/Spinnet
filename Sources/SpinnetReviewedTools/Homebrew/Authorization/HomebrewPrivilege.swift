@@ -299,10 +299,10 @@ public struct HomebrewPrivilegeRequest: Codable, Equatable {
     func stop(_ taskID: String, reply: @escaping () -> Void)
 }
 @objc public protocol HomebrewPrivilegeHostProtocol {
-    #if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
-    func lifecycleSnapshot(reply: @escaping (Int32, String, String) -> Void)
-    #endif
-    func refreshForUpdate(_ expectedRevision: String, reply: @escaping (String, String) -> Void)
+    /// Replies with the loaded revision when it matches; otherwise
+    /// "update-required" without a staging path, or installs the staged
+    /// update, replies "restarting" and exits.
+    func refreshForUpdate(_ expectedRevision: String, staging: String, reply: @escaping (String, String) -> Void)
     func admit(_ plan: Data, reply: @escaping (String) -> Void)
     func cancel(_ taskID: String, reply: @escaping () -> Void)
     /// Stop/status only: these cannot admit a mutation or restore old rights.
@@ -320,11 +320,7 @@ public enum HomebrewSystemAuthorization {
         ["class": "user", "group": "admin", "authenticate-user": true, "shared": false, "timeout": 120, "allow-root": false]
     }
     public static let noLaunchServicesToRemove = "spinnet.no-launch-services-to-remove"
-    #if SPINNET_BACKGROUND_LIFECYCLE_FIXTURE
-    private static let identifierPrefix = "com.vulpsecula.SpinnetHost.lifecycle-fixture"
-    #else
     private static let identifierPrefix = "com.vulpsecula.SpinnetHost"
-    #endif
     public static let service = identifierPrefix + ".reviewed-tools"
     public static let right = identifierPrefix + ".install-reviewed-package"
     public static let runnerIdentifier = identifierPrefix + ".task-runner"
@@ -332,54 +328,114 @@ public enum HomebrewSystemAuthorization {
     public static let helperIdentifier = identifierPrefix + ".privileged-tools"
     public static let hostIdentifier = identifierPrefix + ".preview"
 
-    /// Requires the stable signing team. Ad-hoc builds cannot elevate.
+    /// The stable identity that signed this build. Apple-issued identities are
+    /// matched by team; Spinnet's self-signed release identity has no team, so
+    /// its exact leaf certificate is pinned instead. Ad-hoc builds have neither.
+    public enum Signer: Equatable, Sendable {
+        case team(String)
+        case certificate(sha1: String)
+    }
+
+    package static func signer(team: String?, leafCertificate: Data?) -> Signer? {
+        if let team, !team.isEmpty { return .team(team) }
+        guard let leafCertificate, !leafCertificate.isEmpty else { return nil }
+        return .certificate(sha1: Insecure.SHA1.hash(data: leafCertificate).map { String(format: "%02X", $0) }.joined())
+    }
+
+    /// Requires peers signed by this build's own stable identity. Ad-hoc builds cannot elevate.
     public static func requirement(identifier: String) throws -> String {
+        guard let signer = currentSigner else { throw unstableSigner }
+        return try requirement(identifier: identifier, signer: signer)
+    }
+
+    /// Read once: a process's signer never changes, but an updated helper
+    /// replaces its own file, after which macOS can no longer read it back.
+    private static let currentSigner: Signer? = {
         var code: SecCode?, staticCode: SecStaticCode?, information: CFDictionary?
         guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
               SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
               SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
-              let dictionary = information as? [String: Any], let team = dictionary[kSecCodeInfoTeamIdentifier as String] as? String,
-              team.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil else {
-            throw PluginHostServiceError.unavailable("System authorization requires a stable signed Spinnet build")
+              let dictionary = information as? [String: Any] else { return nil }
+        let leaf = (dictionary[kSecCodeInfoCertificates as String] as? [SecCertificate])?.first.map { SecCertificateCopyData($0) as Data }
+        return signer(team: dictionary[kSecCodeInfoTeamIdentifier as String] as? String, leafCertificate: leaf)
+    }()
+
+    package static func requirement(identifier: String, signer: Signer) throws -> String {
+        switch signer {
+        case .team(let team):
+            guard team.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil else { throw unstableSigner }
+            return "anchor apple generic and identifier \"\(identifier)\" and certificate leaf[subject.OU] = \"\(team)\""
+        case .certificate(let hash):
+            guard hash.range(of: "^[0-9A-Fa-f]{40}$", options: .regularExpression) != nil else { throw unstableSigner }
+            return "identifier \"\(identifier)\" and certificate leaf = H\"\(hash)\""
         }
-        return "anchor apple generic and identifier \"\(identifier)\" and certificate leaf[subject.OU] = \"\(team)\""
     }
+
+    private static var unstableSigner: PluginHostServiceError {
+        .unavailable("System authorization requires a stable signed Spinnet build")
+    }
+    /// Installs the background component when it is missing, then brings an
+    /// installed one up to this build. Blocks while macOS asks for an
+    /// administrator, so never call it on the main thread.
     public static func prepareService() throws {
         _ = try requirement(identifier: helperIdentifier)
-        let daemon = SMAppService.daemon(plistName: helperIdentifier + ".plist")
-        try prepareService(status: { daemon.status }, register: { try daemon.register() },
-            openSettings: { SMAppService.openSystemSettingsLoginItems() },
-            bundledServiceExists: FileManager.default.fileExists(atPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons/" + helperIdentifier + ".plist").path)
-                && FileManager.default.isExecutableFile(atPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SpinnetPrivilegedToolHelper").path))
+        try retireServiceManagementRegistration()
+        try prepareService(status: HomebrewHelperInstallation.status, install: { try HomebrewHelperInstallation.install() },
+            openSettings: { SMAppService.openSystemSettingsLoginItems() }, bundledServiceExists: bundledHelperExists)
+        try HomebrewBackgroundUpdate.refreshEnabledService(reinstallIfNeeded: true)
+    }
+    /// Development recovery: installs this build's helper again, whatever is installed.
+    public static func reinstallService() throws {
+        _ = try requirement(identifier: helperIdentifier)
+        try retireServiceManagementRegistration()
+        try reinstallService(status: HomebrewHelperInstallation.status, install: { try HomebrewHelperInstallation.install() },
+            openSettings: { SMAppService.openSystemSettingsLoginItems() }, bundledServiceExists: bundledHelperExists)
         try HomebrewBackgroundUpdate.refreshEnabledService()
     }
-    package static func prepareService(status: () -> SMAppService.Status, register: () throws -> Void,
-                               openSettings: () -> Void, bundledServiceExists: Bool) throws {
-        let initial = status()
-        if initial == .notRegistered || initial == .notFound {
-            // macOS can report notFound before it has ever seen this service,
-            // even when the signed app contains the complete daemon payload.
-            guard bundledServiceExists else {
-                throw PluginHostServiceError.unavailable("Spinnet's background system operations are missing from this app bundle. Reinstall a complete signed Spinnet app; the Task has not started")
-            }
-            do { try register() }
-            catch {
-                let failure = error as NSError
-                throw PluginHostServiceError.unavailable("macOS could not enable Spinnet's background system operations (\(failure.domain) \(failure.code)): \(failure.localizedDescription). The Task has not started")
-            }
+    private static var bundledHelperExists: Bool {
+        let helpers = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers", isDirectory: true)
+        return HomebrewHelperInstallation.toolNames.allSatisfy { FileManager.default.isExecutableFile(atPath: helpers.appendingPathComponent($0).path) }
+    }
+    /// Earlier builds registered the helper through SMAppService. That job
+    /// owns the same label and Mach services, so it must go before install.
+    /// Once the legacy plist exists, SMAppService reports that item under the
+    /// same name but cannot unregister it, so retirement happens only before.
+    private static func retireServiceManagementRegistration() throws {
+        guard !FileManager.default.fileExists(atPath: HomebrewHelperInstallation.plistURL.path) else { return }
+        let daemon = SMAppService.daemon(plistName: helperIdentifier + ".plist")
+        guard daemon.status != .notRegistered, daemon.status != .notFound else { return }
+        do { try daemon.unregister() }
+        catch {
+            let failure = error as NSError
+            throw PluginHostServiceError.unavailable("macOS could not remove Spinnet's earlier background registration (\(failure.domain) \(failure.code)): \(failure.localizedDescription)")
         }
+    }
+    package static func reinstallService(status: () -> HomebrewHelperInstallation.Status, install: () throws -> Void,
+                                         openSettings: () -> Void, bundledServiceExists: Bool) throws {
+        guard bundledServiceExists else { throw incompleteBundle }
+        try install()
+        try confirmInstalled(status: status, openSettings: openSettings)
+    }
+    package static func prepareService(status: () -> HomebrewHelperInstallation.Status, install: () throws -> Void,
+                                       openSettings: () -> Void, bundledServiceExists: Bool) throws {
+        if status() == .notInstalled {
+            guard bundledServiceExists else { throw incompleteBundle }
+            try install()
+        }
+        try confirmInstalled(status: status, openSettings: openSettings)
+    }
+    private static func confirmInstalled(status: () -> HomebrewHelperInstallation.Status, openSettings: () -> Void) throws {
         switch status() {
-        case .enabled: return
-        case .requiresApproval:
+        case .installed: return
+        case .approvalRequired:
             openSettings()
             throw PluginHostServiceError.unavailable("Allow Spinnet under Background Activity in macOS Login Items & Extensions, then retry. You can manage this in Spinnet Settings > Privacy & Permissions. The Task has not started")
-        case .notRegistered:
-            throw PluginHostServiceError.unavailable("macOS has not registered Spinnet for background system operations after the registration attempt; the Task has not started")
-        case .notFound:
-            throw PluginHostServiceError.unavailable("macOS cannot find Spinnet's background system operations after the registration attempt; the Task has not started")
-        @unknown default:
-            throw PluginHostServiceError.unavailable("macOS returned an unknown Spinnet background activity status; the Task has not started")
+        case .notInstalled:
+            throw PluginHostServiceError.unavailable("Spinnet's background component is still missing after the installation attempt; the Task has not started")
         }
+    }
+    private static var incompleteBundle: PluginHostServiceError {
+        .unavailable("Spinnet's background system operations are missing from this app bundle. Reinstall a complete signed Spinnet app; the Task has not started")
     }
     /// The external form exists only in native memory and XPC; it never enters
     /// a journal, Plugin response, environment, argv or log.

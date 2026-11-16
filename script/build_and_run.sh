@@ -4,7 +4,6 @@ set -euo pipefail
 usage() {
     printf 'usage: %s [--install-plugins DIR] [run|--debug|--logs|--telemetry|--verify|--lifecycle-check]\n' "$0"
     printf '       %s --package\n' "$0"
-    printf '       %s --background-lifecycle-check [--prepare|--run|--status|--clean [--unregister]]\n' "$0"
     printf '\n--install-plugins installs or updates every .spinnetplugin package in DIR,\n'
     printf 'or in DIR/Plugins for a SpinnetPlugins checkout, into your saved data through\n'
     printf 'the install-and-update path the Library uses, before the app opens.\n'
@@ -34,17 +33,6 @@ case "$MODE" in
         usage
         exit 0
         ;;
-    --background-lifecycle-check)
-        BACKGROUND_MODE="${2---prepare}"
-        case "$BACKGROUND_MODE" in
-            --prepare|--run|--status|-h|--help) [[ $# -le 2 ]] || reject_arguments ;;
-            --clean)
-                [[ $# -le 3 ]] || reject_arguments
-                [[ $# -lt 3 || "$3" == --unregister ]] || reject_arguments
-                ;;
-            *) reject_arguments ;;
-        esac
-        ;;
     run|--package|--lifecycle-check|--debug|debug|--logs|logs|--telemetry|telemetry|--verify|verify)
         [[ $# -le 1 ]] || reject_arguments
         ;;
@@ -61,12 +49,6 @@ if [[ -n "$INSTALL_PLUGINS_DIR" ]]; then
         exit 1
     fi
     INSTALL_PLUGINS_DIR="$(cd "$INSTALL_PLUGINS_DIR" && pwd)"
-fi
-if [[ "$MODE" == --background-lifecycle-check ]]; then
-    if [[ $# -eq 3 ]]; then
-        exec bash "$ROOT_DIR/script/check_background_lifecycle.sh" "$BACKGROUND_MODE" "$3"
-    fi
-    exec bash "$ROOT_DIR/script/check_background_lifecycle.sh" "$BACKGROUND_MODE"
 fi
 # Package the same release version that unbundled Host and helper code use.
 VERSION_SOURCE="$ROOT_DIR/Sources/SpinnetCore/Plugins/HostCompatibility.swift"
@@ -226,7 +208,10 @@ codesign --verify --deep --strict "$APP_BUNDLE"
 "$APP_CONTENTS/Helpers/SpinnetHomebrewAskpass" --verify
 "$APP_BINARY" --verify-localizations
 if [[ -n "$SIGNING_IDENTITY" && "$SIGNING_IDENTITY" != "-" ]]; then
-    "$APP_BINARY" --verify-homebrew-transport
+    if ! "$APP_BINARY" --verify-homebrew-transport; then
+        echo "error: the signed Task runner refused this Host's signature; Homebrew Tasks would fail with runner_refused" >&2
+        exit 1
+    fi
     bash "$ROOT_DIR/script/check_background_helper.sh" "$APP_CONTENTS/Helpers/SpinnetPrivilegedToolHelper"
 fi
 if [[ "$MODE" != "--package" ]]; then

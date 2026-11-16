@@ -25,6 +25,8 @@ final class PrivacyPermissionsModel: ObservableObject {
     @Published private(set) var screenRecordingAwaitsRestart = false
     @Published private(set) var backgroundOperationsStatus: HostBackgroundOperationsStatus
     @Published private(set) var backgroundOperationsError: String?
+    /// True while an Enable request waits, possibly for macOS's administrator dialog.
+    @Published private(set) var backgroundOperationsEnabling = false
 
     /// The Plugin whose access sheet is open, for review or for consent.
     @Published var pluginSettingsManifest: PluginManifest?
@@ -65,6 +67,7 @@ final class PrivacyPermissionsModel: ObservableObject {
     private let backgroundOperationsRequest: (@escaping (HostBackgroundOperationsStatus) -> Void) -> Void
     private let backgroundOperationsEnable: () throws -> Void
     private let openBackgroundOperationsSettings: () -> Void
+    private let enablesBackgroundOperationsAsynchronously: Bool
     private lazy var backgroundStatusRefresh = BackgroundStatusRefresh<HostBackgroundOperationsStatus>(
         request: backgroundOperationsRequest,
         apply: { [weak self] status in
@@ -86,8 +89,10 @@ final class PrivacyPermissionsModel: ObservableObject {
         backgroundOperationsCheck: @escaping () -> HostBackgroundOperationsStatus = HostBackgroundOperationsStatus.current,
         backgroundOperationsRequest: ((@escaping (HostBackgroundOperationsStatus) -> Void) -> Void)? = nil,
         backgroundOperationsEnable: @escaping () throws -> Void = HomebrewSystemAuthorization.prepareService,
-        openBackgroundOperationsSettings: @escaping () -> Void = { SMAppService.openSystemSettingsLoginItems() }
+        openBackgroundOperationsSettings: @escaping () -> Void = { SMAppService.openSystemSettingsLoginItems() },
+        enablesBackgroundOperationsAsynchronously: Bool = false
     ) {
+        self.enablesBackgroundOperationsAsynchronously = enablesBackgroundOperationsAsynchronously
         self.backgroundOperationsCheck = backgroundOperationsCheck
         self.backgroundOperationsRequest = backgroundOperationsRequest ?? { completion in completion(backgroundOperationsCheck()) }
         self.backgroundOperationsEnable = backgroundOperationsEnable
@@ -165,8 +170,8 @@ final class PrivacyPermissionsModel: ObservableObject {
             // Another window may already have registered or approved Spinnet.
             switch backgroundOperationsCheck() {
             case .notEnabled:
-                do { try backgroundOperationsEnable() }
-                catch { backgroundOperationsError = error.localizedDescription }
+                enableBackgroundOperations()
+                return
             case .approvalRequired: openBackgroundOperationsSettings()
             case .enabled, .unavailable: break
             }
@@ -174,6 +179,37 @@ final class PrivacyPermissionsModel: ObservableObject {
             openBackgroundOperationsSettings()
         case .unavailable: break
         }
+        finishBackgroundOperationsAction()
+    }
+
+    /// Installing asks macOS for an administrator. Production waits for that
+    /// off the main thread so Settings keeps drawing behind the dialog.
+    private func enableBackgroundOperations() {
+        guard !backgroundOperationsEnabling else { return }
+        let enable = backgroundOperationsEnable
+        let finish: (Error?) -> Void = { [weak self] error in
+            guard let self else { return }
+            self.backgroundOperationsEnabling = false
+            if let error { self.backgroundOperationsError = error.localizedDescription }
+            self.finishBackgroundOperationsAction()
+        }
+        guard enablesBackgroundOperationsAsynchronously else {
+            do { try enable(); finish(nil) } catch { finish(error) }
+            return
+        }
+        backgroundOperationsEnabling = true
+        let focus = HostFocusReturn.capture()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let failure: Error?
+            do { try enable(); failure = nil } catch { failure = error }
+            DispatchQueue.main.async {
+                finish(failure)
+                focus.restore()
+            }
+        }
+    }
+
+    private func finishBackgroundOperationsAction() {
         refreshSystemPermissionStatus()
         // Waiting for macOS approval is a normal setup state, not a Task error.
         if backgroundOperationsStatus == .approvalRequired { backgroundOperationsError = nil }
