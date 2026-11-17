@@ -258,13 +258,17 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         if resizing != nil { minimumSizeChanged() }
     }
 
-    /// AppKit keeps live resizing above the minimum, and a size the user
-    /// chose below a larger minimum grows from its top.
+    /// AppKit keeps live resizing above the minimum, and a panel below a
+    /// larger minimum grows from its top: a size the user chose, or one
+    /// following content narrower than the minimum.
     private func minimumSizeChanged() {
         let minimumSize = minimumSize
         panel.contentMinSize = minimumSize
-        if let layout, !layout.followsContent,
-           layout.frame.width < minimumSize.width || layout.frame.height < minimumSize.height {
+        guard let layout, layout.frame.width < minimumSize.width || layout.frame.height < minimumSize.height else { return }
+        if layout.followsContent {
+            let screens = screens()
+            change(reports: true) { $0.hold(resizableMinimum: minimumSize, screens: screens) }
+        } else {
             let frame = layout.frame
             change(reports: true) { $0.userResized(to: frame, minimumSize: minimumSize) }
         }
@@ -288,7 +292,8 @@ final class PluginViewPanelWindow: NSObject, PluginViewWindow, NSWindowDelegate 
         hosting.view.layoutSubtreeIfNeeded()
         let restoring = resizing == nil ? pinned.map { PluginPanelGeometry(frame: $0.frame, isUserSized: false) } : pinned
         apply(PluginPanelLayout.opening(contentSize: contentSize ?? panel.frame.size, pointer: pointer, screens: screens(),
-                                        restoring: restoring, minimumSize: minimumSize))
+                                        restoring: restoring, minimumSize: minimumSize,
+                                        resizableMinimum: resizing == nil ? nil : minimumSize))
         bringForward()
         // A choice field can be reachable by Tab without being an initial
         // focus target. Clear AppKit's automatic Pin selection whenever the

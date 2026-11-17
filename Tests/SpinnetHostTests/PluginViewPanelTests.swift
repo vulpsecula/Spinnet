@@ -116,6 +116,16 @@ final class PluginViewPanelTests: XCTestCase {
                        "The declared minimum holds")
     }
 
+    /// A page declaring a minimum wider than the default opens at it, and
+    /// its content fills the panel (Homebrew declares 720 by 440).
+    func testAResizablePageOpensAtItsDeclaredMinimum() throws {
+        let (_, window) = try shownPanel(resizing: PluginPageResizing(minimumWidth: 720, minimumHeight: 440))
+        defer { window.close() }
+        XCTAssertEqual(window.presentationSnapshot.frame.size, NSSize(width: 720, height: 440))
+        XCTAssertTrue(window.panelSnapshot.fills)
+        XCTAssertTrue(window.geometry.isUserSized)
+    }
+
     /// A page that stops declaring resizing returns to the Host's default
     /// layout: not resizable, following its content again.
     func testAPageThatStopsDeclaringResizingReturnsToItsContentsSize() throws {

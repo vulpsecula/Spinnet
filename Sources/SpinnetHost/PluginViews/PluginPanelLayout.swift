@@ -48,9 +48,12 @@ struct PluginPanelLayout: Equatable {
     var geometry: PluginPanelGeometry { PluginPanelGeometry(frame: frame, isUserSized: !followsContent) }
 
     /// The panel's frame when a view opens: beside the pointer, or where the
-    /// remembered pinned geometry puts it.
+    /// remembered pinned geometry puts it. A resizable page whose minimum
+    /// (`resizableMinimum`) is wider than its content opens at no less than
+    /// that minimum, its content filling the panel as if the user had sized it.
     static func opening(contentSize: NSSize, pointer: NSPoint, screens: [PluginPanelScreen],
-                        restoring pinned: PluginPanelGeometry?, minimumSize: NSSize = minimumSize) -> PluginPanelLayout {
+                        restoring pinned: PluginPanelGeometry?, minimumSize: NSSize = minimumSize,
+                        resizableMinimum: NSSize? = nil) -> PluginPanelLayout {
         let screens = screens.isEmpty ? [fallbackScreen] : screens
         if let pinned, pinned.isUserSized {
             let size = NSSize(width: max(pinned.frame.width, minimumSize.width),
@@ -58,17 +61,30 @@ struct PluginPanelLayout: Equatable {
             let frame = constrain(NSRect(origin: pinned.frame.origin, size: size), to: screens)
             return PluginPanelLayout(frame: frame, followsContent: false, top: frame.maxY)
         }
+        let follows = !widerThanContent(resizableMinimum, contentSize.width)
+        let size = follows ? contentSize : atLeast(contentSize, resizableMinimum!)
         if let pinned {
-            let placed = NSRect(x: pinned.frame.minX, y: pinned.frame.maxY - contentSize.height,
-                                width: contentSize.width, height: contentSize.height)
+            let placed = NSRect(x: pinned.frame.minX, y: pinned.frame.maxY - size.height,
+                                width: size.width, height: size.height)
             let frame = constrain(placed, to: screens)
-            return PluginPanelLayout(frame: frame, followsContent: true, top: frame.maxY)
+            return PluginPanelLayout(frame: frame, followsContent: follows, top: frame.maxY)
         }
         let screen = screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? screens[0]
-        let topLeft = besidePointer(size: contentSize, pointer: pointer, visible: screen.visible)
-        return PluginPanelLayout(frame: NSRect(x: topLeft.x, y: topLeft.y - contentSize.height,
-                                               width: contentSize.width, height: contentSize.height),
-                                 followsContent: true, top: topLeft.y)
+        let topLeft = besidePointer(size: size, pointer: pointer, visible: screen.visible)
+        let frame = constrain(NSRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height),
+                              to: [screen])
+        return PluginPanelLayout(frame: frame, followsContent: follows, top: frame.maxY)
+    }
+
+    /// Content is laid out at the default width; only a wider minimum
+    /// makes it fill the panel.
+    private static func widerThanContent(_ minimum: NSSize?, _ width: CGFloat) -> Bool {
+        guard let minimum else { return false }
+        return minimum.width > width
+    }
+
+    private static func atLeast(_ size: NSSize, _ minimum: NSSize) -> NSSize {
+        NSSize(width: max(size.width, minimum.width), height: max(size.height, minimum.height))
     }
 
     /// Centred under the pointer, its top just below it, and inside the
@@ -112,6 +128,18 @@ struct PluginPanelLayout: Equatable {
         let screen = screens.max { overlap($0, placed) < overlap($1, placed) } ?? screens[0]
         let bottom = screen.visible.minY + Self.screenMargin
         frame = NSRect(x: placed.minX, y: max(placed.minY, bottom), width: size.width, height: size.height)
+    }
+
+    /// A resizable page's minimum became wider than the panel following its
+    /// content: the panel grows to the minimum from its top and left edge,
+    /// and its content fills it from then on.
+    mutating func hold(resizableMinimum minimum: NSSize, screens: [PluginPanelScreen]) {
+        guard followsContent, Self.widerThanContent(minimum, frame.width) else { return }
+        followsContent = false
+        let size = Self.atLeast(frame.size, minimum)
+        frame = Self.constrain(NSRect(x: frame.minX, y: top - size.height, width: size.width, height: size.height),
+                               to: screens)
+        top = frame.maxY
     }
 
     /// The user started dragging an edge: the size is theirs from now on.

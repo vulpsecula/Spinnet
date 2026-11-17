@@ -707,7 +707,9 @@ ui.page({ id: "search", title: "Emoji", resizable: { minHeight: 240 }, content: 
   scrolling region and one row of its collection (40 points of a page
   without one). Once the user has resized it, the page fills the panel: its
   collection, or the whole page when it has none, takes the width and height
-  left and scrolls; answers no longer change the panel's size.
+  left and scrolls; answers no longer change the panel's size. A page whose
+  minimum width is more than 440 points opens at no less than its minimum
+  width and height and fills the panel from the start, as if resized.
 - A page without it, and every form/detail view, keeps the Host's default
   layout whether pinned or not: 440 points wide, as tall as its content. A
   panel the user resized for an earlier page returns to that when such a

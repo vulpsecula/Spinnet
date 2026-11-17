@@ -49,6 +49,49 @@ final class PluginPanelLayoutTests: XCTestCase {
         XCTAssertTrue(layout.followsContent)
     }
 
+    /// A resizable page opens no smaller than its declared minimum, and its
+    /// content fills the larger panel instead of following its own size.
+    func testAResizableOpeningIsNoSmallerThanItsDeclaredMinimum() {
+        let layout = PluginPanelLayout.opening(contentSize: content, pointer: NSPoint(x: 700, y: 600),
+                                               screens: [main], restoring: nil,
+                                               resizableMinimum: NSSize(width: 720, height: 440))
+        XCTAssertEqual(layout.frame.size, NSSize(width: 720, height: 440))
+        XCTAssertEqual(layout.frame.midX, 700, "Still centred under the pointer")
+        XCTAssertFalse(layout.followsContent)
+    }
+
+    /// At the default width the content keeps setting the size, even
+    /// shorter than the minimum height, so answers can still grow it.
+    func testAResizableOpeningAtTheDefaultWidthFollowsTheContent() {
+        let short = NSSize(width: 440, height: 100)
+        let layout = PluginPanelLayout.opening(contentSize: short, pointer: NSPoint(x: 700, y: 600),
+                                               screens: [main], restoring: nil,
+                                               resizableMinimum: NSSize(width: 440, height: 160))
+        XCTAssertEqual(layout.frame.size, short)
+        XCTAssertTrue(layout.followsContent)
+    }
+
+    /// Pinned but never resized, a resizable page comes back at its
+    /// minimum from the remembered top-left.
+    func testARestoredPlaceOfAResizablePageIsNoSmallerThanItsMinimum() {
+        let pinned = PluginPanelGeometry(frame: NSRect(x: 100, y: 400, width: 440, height: 200), isUserSized: false)
+        let layout = PluginPanelLayout.opening(contentSize: content, pointer: NSPoint(x: 700, y: 600),
+                                               screens: [main], restoring: pinned,
+                                               resizableMinimum: NSSize(width: 720, height: 440))
+        XCTAssertEqual(layout.frame, NSRect(x: 100, y: 160, width: 720, height: 440))
+        XCTAssertFalse(layout.followsContent)
+    }
+
+    /// A minimum declared after opening grows a followed panel from its top.
+    func testALargerMinimumGrowsAFollowedPanelFromItsTop() {
+        var layout = PluginPanelLayout.opening(contentSize: content, pointer: NSPoint(x: 700, y: 600),
+                                               screens: [main], restoring: nil)
+        let before = layout.frame
+        layout.hold(resizableMinimum: NSSize(width: 720, height: 200), screens: [main])
+        XCTAssertEqual(layout.frame, NSRect(x: before.minX, y: before.maxY - 300, width: 720, height: 300))
+        XCTAssertFalse(layout.followsContent)
+    }
+
     // MARK: - Screen constraints
 
     /// The display it was pinned on is gone: the panel comes back on a
