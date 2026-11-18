@@ -9,6 +9,8 @@ usage() {
     printf 'the install-and-update path the Library uses, before the app opens.\n'
     printf '%s\n' '--verify reports the installed Plugin versions saved on disk once the app has stayed up.'
     printf '%s\n' '--official (or SPINNET_OFFICIAL_BUILD=1) builds an Official Build, with its Trial and Activation.'
+    printf '%s\n' 'SPINNET_BUILD_CONFIGURATION=release builds the release configuration; SPINNET_DIST_DIR moves dist/.'
+    printf '%s\n' 'Release DMGs are made by script/package_release.sh.'
 }
 reject_arguments() {
     usage >&2
@@ -30,6 +32,11 @@ SWIFT_BUILD_ARGUMENTS=()
 if [[ "$OFFICIAL_BUILD" == 1 ]]; then
     SWIFT_BUILD_ARGUMENTS=(--scratch-path .build/official -Xswiftc -DSPINNET_OFFICIAL_BUILD)
 fi
+# Release packaging (script/package_release.sh) builds the release
+# configuration, which leaves out DEBUG-only Developer tools.
+BUILD_CONFIGURATION="${SPINNET_BUILD_CONFIGURATION:-debug}"
+[[ "$BUILD_CONFIGURATION" == debug || "$BUILD_CONFIGURATION" == release ]] || reject_arguments
+SWIFT_BUILD_ARGUMENTS+=(-c "$BUILD_CONFIGURATION")
 INSTALL_PLUGINS_DIR=""
 if [[ "${1-}" == --install-plugins ]]; then
     [[ $# -ge 2 && -n "$2" ]] || reject_arguments
@@ -71,7 +78,7 @@ if [[ ! "$APP_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
     echo "error: cannot read the Host release version from $VERSION_SOURCE" >&2
     exit 1
 fi
-DIST_DIR="$ROOT_DIR/dist"
+DIST_DIR="${SPINNET_DIST_DIR:-$ROOT_DIR/dist}"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"

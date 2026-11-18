@@ -1,5 +1,6 @@
 """Exercise launcher argument and package boundaries in an isolated fake checkout."""
 import json
+import re
 import os
 from pathlib import Path
 import shlex
@@ -233,6 +234,37 @@ class LauncherTests(unittest.TestCase):
                 for build in builds:
                     self.assertEqual(build[1:5] == official, is_official, build)
                     self.assertEqual("-DSPINNET_OFFICIAL_BUILD" in build, is_official, build)
+
+    def test_the_release_configuration_reaches_every_build_and_dist_can_move(self):
+        dist = self.root / "release dist"
+        # The moved release build leaves dist/ alone; the default build then replaces it.
+        for configuration, extra in [("release", {"SPINNET_DIST_DIR": str(dist)}), ("", {})]:
+            with self.subTest(configuration=configuration):
+                result, commands = self.launch("--package", SPINNET_CODESIGN_IDENTITY="FIXTURE_ID",
+                                               SPINNET_BUILD_CONFIGURATION=configuration or "debug", **extra)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                builds = [call["args"] for call in commands if call["tool"] == "swift"]
+                for build in builds:
+                    self.assertIn(["-c", configuration or "debug"], [build[i:i + 2] for i in range(len(build))], build)
+                if configuration:
+                    self.assertTrue((dist / "SpinnetHost.app/Contents/Info.plist").exists())
+                    self.assertEqual(self.sentinel.read_text(), "existing app")
+        result, commands = self.launch("--package", SPINNET_BUILD_CONFIGURATION="fast",
+                                       LAUNCHER_TEST_STOP_AT_BUILD="1")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(commands, [])
+
+    def test_release_packaging_rejects_a_label_that_is_not_the_host_version(self):
+        version = re.search(r'currentString = "([0-9.]+)"', self.version_source.read_text()).group(1)
+        package = self.script.parent / "package_release.sh"
+        shutil.copy2(ROOT / "script/package_release.sh", package)
+        for label in ["9.9.9", version + "beta", version + "-", "v" + version, ""]:
+            with self.subTest(label=label):
+                result = subprocess.run(["/bin/bash", str(package), label], text=True, capture_output=True,
+                                        env=dict(os.environ, PATH=str(self.stubs) + os.pathsep + os.defpath,
+                                                 LAUNCHER_TEST_LOG=str(self.log)))
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertFalse(self.log.exists())
 
     def test_bad_official_build_requests_are_rejected_before_any_side_effect(self):
         for args, env in [(("--official", "--official"), {}), (("--package", "--official"), {}),

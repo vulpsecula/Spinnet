@@ -427,8 +427,8 @@ GPL rights — to read, modify, build, and redistribute the source, and to
 publish GPL-compliant forks — always apply, including to any licensing and
 trial code itself.
 
-Official Builds are released as a DMG on GitHub Releases and through a
-Homebrew tap. They are signed with Spinnet's own self-signed "Vulpsecula
+Official Builds are released as a DMG on GitHub Releases, for Apple silicon
+Macs; a Homebrew tap may follow. They are signed with Spinnet's own self-signed "Vulpsecula
 Software" certificate, not an Apple Developer ID, and are not notarized: on
 first open macOS cannot verify the developer, and the user allows Spinnet in
 System Settings › Privacy & Security. Every release is signed with that same
@@ -452,6 +452,13 @@ is stored.
 `./script/build_and_run.sh --official` (or `SPINNET_OFFICIAL_BUILD=1`) builds
 an Official Build in `.build/official`. In a DEBUG Official Build, General's
 Developer section can end the Trial and remove the Activation, for acceptance.
+
+`./script/package_release.sh 1.0.0-beta.1` packages a release from a clean
+HEAD: an Official Build in the release configuration, signed with the
+Vulpsecula Software certificate, as `Spinnet.app` in
+`dist/release/Spinnet-1.0.0-beta.1.dmg` with its SHA-256 beside it. The label
+is the Host version, optionally with a pre-release suffix, and the release
+tag is `v` followed by it.
 
 `SpinnetActivationSigner` makes the signing key and signs codes. The private
 key never enters the repository; keep it, and a backup, outside it:
