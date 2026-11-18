@@ -53,7 +53,7 @@ struct GeneralSettingsView: View {
 
                 #if DEBUG
                 if let tools = model.developerTools {
-                    DeveloperSettingsSection(tools: tools)
+                    DeveloperSettingsSection(tools: tools, activation: model.activation)
                 }
                 #endif
             }

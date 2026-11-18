@@ -30,6 +30,8 @@ final class SettingsWindowModel: ObservableObject {
 
     let editor: HostConfigurationEditor
     let metadata: ApplicationMetadata
+    /// The Trial or Activation About shows. A source build is never limited.
+    let activation: ActivationModel
 
     @Published var page: SettingsPage = .menu
     #if DEBUG
@@ -121,6 +123,7 @@ final class SettingsWindowModel: ObservableObject {
         clipboardHistoryStore: ClipboardHistoryStore? = nil,
         loginItem: LoginItemService = AppBundleLoginItemService(),
         interfaceLanguage: InterfaceLanguageModel? = nil,
+        activation: ActivationModel? = nil,
         accessibilityPermissionCheck: @escaping () -> Bool = { AXIsProcessTrusted() },
         mouseInputConflictCheck: @escaping (Int) -> [MouseInputConflict] = {
             MouseInputConflictDetector().detect(mouseButton: $0)
@@ -131,6 +134,7 @@ final class SettingsWindowModel: ObservableObject {
     ) {
         self.editor = editor
         self.metadata = metadata
+        self.activation = activation ?? ActivationModel(defaults: defaults)
         self.defaults = defaults
         launchAtLogin = LaunchAtLoginModel(service: loginItem)
         self.interfaceLanguage = interfaceLanguage ?? InterfaceLanguageModel(defaults: defaults)
@@ -397,6 +401,8 @@ final class SettingsWindowModel: ObservableObject {
             names.append(contentsOf: privacy.capabilityGrants.map { grant in
                 "\(grant.capability.localizedTitle): \(grant.decision.localizedTitle)"
             })
+        } else if page == .about {
+            names.append(contentsOf: activation.accessibleNames)
         }
         if welcomeGuide.isPresented {
             names.append(contentsOf: welcomeGuideAccessibleNames)
@@ -976,7 +982,7 @@ struct SettingsRootView: View {
                     privacy.refreshBackgroundOperationsStatusAsynchronously()
                 }
             case .about:
-                AboutSettingsView(metadata: model.metadata)
+                AboutSettingsView(metadata: model.metadata, activation: model.activation, openURL: openURL)
             }
         }
         .padding(.horizontal, 28)
@@ -2334,6 +2340,8 @@ private struct PrivacySettingsView: View {
 
 private struct AboutSettingsView: View {
     let metadata: ApplicationMetadata
+    let activation: ActivationModel
+    let openURL: (URL) -> Bool
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -2354,6 +2362,8 @@ private struct AboutSettingsView: View {
                 }
                 .accessibilityLabel(localized("Source on GitHub"))
                 .accessibilityHint(localized("Open Spinnet's source repository in the default browser."))
+
+                ActivationSection(activation: activation, openURL: openURL)
 
                 VStack(spacing: 0) {
                     aboutRow(title: localized("Licence"), value: metadata.licence)

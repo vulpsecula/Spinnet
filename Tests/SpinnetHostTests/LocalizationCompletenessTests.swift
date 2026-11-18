@@ -451,7 +451,7 @@ enum LocalizedSurfaces {
     /// Names that stay as they are in every language, and the Plugin-supplied
     /// text of the Settings test fixtures.
     static let untranslatedNames: [String] = [
-        "Spinnet", "GitHub", "macOS", "Mac", "App", "GPL-3.0-only", "Swift", "AppKit", "vulpsecula",
+        "Spinnet", "GitHub", "macOS", "Mac", "App", "GPL-3.0-only", "Swift", "AppKit", "vulpsecula", "Vulpsecula Software",
         "English", "Fixture", "Open URL", "Transform Text", "https://example.com",
         "Command", "Option", "Shift", "Control", "Return", "Esc", "Home", "End", "Page Up", "Page Down", "Help"
     ]

@@ -52,6 +52,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var feedback: HostFeedbackPresenter!
     /// Internal so a test can stand in for the launched window.
     var settings: SettingsWindowController!
+    private var activationReminder: ActivationReminderWindowController?
     private var configurationStore: HostConfigurationStore!
     private var statusItemController: StatusItemController?
     private var triggers: GlobalTriggerController?
@@ -516,7 +517,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             settings.onShowsStatusItemChanged = { [weak self] in self?.statusItemController?.setShowsStatusItem($0) }
             try installTriggers()
             settings.openWelcomeGuideAtLaunchIfNeeded()
-            if settings.welcomeGuidePresented || settings.permissionGuidePresented { settings.present() }
+            if settings.welcomeGuidePresented || settings.permissionGuidePresented {
+                settings.present()
+            } else {
+                presentActivationReminderIfDue()
+            }
             #if DEBUG
             if CommandLine.arguments.contains("--lifecycle-check") {
                 showLifecycleTestWindow()
@@ -1043,6 +1048,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         return candidates.first {
             FileManager.default.isExecutableFile(atPath: $0.path)
         }
+    }
+
+    /// After an Official Build's Trial, at most once a day at launch.
+    private func presentActivationReminderIfDue() {
+        guard OfficialBuild.isOfficial else { return }
+        let reminder = ActivationReminderWindowController(
+            activation: settings.activation,
+            enterCode: { [weak self] in self?.settings.presentActivation() }
+        )
+        if reminder.presentIfDue() { activationReminder = reminder }
     }
 
     private func showStartupFailure(_ error: Error) {

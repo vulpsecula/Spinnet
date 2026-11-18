@@ -352,6 +352,18 @@ _Avoid_: Spinnet License, marketplace licence
 A Plugin that interacts with the Host exclusively through the Documented Plugin Interface and uses no Spinnet-Owned Code beyond what Spinnet publishes under a permissive licence for Plugin authors. Its Upstream Licence is not replaced by the Host's GPL solely because of that interaction.
 _Avoid_: GPL Plugin, bundled code, Host module
 
+**Official Build**:
+A Host built with `SPINNET_OFFICIAL_BUILD` and signed with the Vulpsecula Software certificate, as the released DMG and Homebrew builds are. Only an Official Build has a Trial and takes an Activation Code; any other build is a source build and is never limited. Either way the recipient keeps every GPL right.
+_Avoid_: Paid version, release build, licensed build
+
+**Trial**:
+The 30 days from an Official Build's first launch on a Mac, with every feature. After it every feature keeps working, and the Host shows its state and a reminder at most once a day at launch.
+_Avoid_: Demo, evaluation period, free tier
+
+**Activation Code**:
+Text signed offline with Spinnet's private key, beginning `SPN1-`, that a buyer enters once to activate every Official Build for good. The Host verifies it with the public key alone and sends nothing anywhere. It carries a random serial, its issue day and its edition, and no personal data.
+_Avoid_: Licence key, serial number, licence (the GPL is the Licence)
+
 ## Simplified Chinese
 
 The Chinese for each term, chosen once for the interface's 简体中文. Host-owned text in `Sources/SpinnetHost/Resources/Localizable.xcstrings` uses these words; `LocalizationCompletenessTests` checks every catalog entry that names a term. The interface's short forms follow the term they shorten.
@@ -444,3 +456,6 @@ The Chinese for each term, chosen once for the interface's 简体中文. Host-ow
 | Spinnet-Owned Code | Spinnet 自有代码 |
 | Upstream Licence | 上游许可证 |
 | Independent Plugin | 独立插件 |
+| Official Build | 官方构建 |
+| Trial | 试用期 |
+| Activation Code | 激活码 |

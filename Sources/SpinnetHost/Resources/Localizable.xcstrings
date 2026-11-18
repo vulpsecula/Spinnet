@@ -1,6 +1,21 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Activation": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "激活" } } }
+    },
+    "Activation Code": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "激活码" } } }
+    },
+    "Activate": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "激活" } } }
+    },
+    "Buy Spinnet…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "购买 Spinnet…" } } }
+    },
+    "Built from source. No activation is needed.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "从源码构建，无需激活。" } } }
+    },
     "Install this build's privileged background component again, then check that it answers. macOS asks for an administrator. Stops any running Homebrew Task.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新安装本构建的特权后台组件，然后检查它能否响应。macOS 会要求管理员授权。会停止正在运行的 Homebrew 任务。" } } }
     },
@@ -21,6 +36,66 @@
     },
     "The background component was removed.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "后台组件已移除。" } } }
+    },
+    "Trial: 1 day left": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "试用期：剩余 1 天" } } }
+    },
+    "Trial: %lld days left": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "试用期：剩余 %lld 天" } } }
+    },
+    "The Trial has ended. Every feature keeps working; an Activation Code supports Spinnet.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "试用期已结束。所有功能照常可用；购买激活码可以支持 Spinnet。" } } }
+    },
+    "Activated. Thank you for supporting Spinnet.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "已激活。感谢你对 Spinnet 的支持。" } } }
+    },
+    "Serial %@": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "序列号 %@" } } }
+    },
+    "The Activation Code could not be saved to the Keychain.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法将激活码保存到钥匙串。" } } }
+    },
+    "This is not an Activation Code. Paste the whole code, starting with SPN1.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "这不是激活码。请粘贴以 SPN1 开头的完整激活码。" } } }
+    },
+    "This Activation Code needs a newer version of Spinnet.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "此激活码需要更新版本的 Spinnet。" } } }
+    },
+    "This Activation Code is not valid. Check that it was copied completely and unchanged.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "此激活码无效。请确认它被完整、原样地复制。" } } }
+    },
+    "Waiting for macOS…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在等待 macOS…" } } }
+    },
+    "Your Spinnet Trial has ended": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "Spinnet 试用期已结束" } } }
+    },
+    "Every feature keeps working. If Spinnet is useful to you, an Activation Code supports its development and removes this reminder.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "所有功能照常可用。如果 Spinnet 对你有帮助，购买激活码可以支持它的开发，并且不再显示此提醒。" } } }
+    },
+    "Later": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "稍后" } } }
+    },
+    "Enter Activation Code…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "输入激活码…" } } }
+    },
+    "End Trial": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "结束试用期" } } }
+    },
+    "Move the Trial start back so the Trial has just ended, and make the reminder due at the next launch.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "将试用期开始时间提前，使试用期刚好结束，并在下次启动时显示提醒。" } } }
+    },
+    "Trial ended": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "试用期已结束" } } }
+    },
+    "Remove Activation": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "移除激活" } } }
+    },
+    "Delete the saved Activation Code from the Keychain.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "从钥匙串中删除已保存的激活码。" } } }
+    },
+    "Activation removed": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "已移除激活" } } }
     },
     "Trackpad Opening Delay": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "触控板打开延迟" } } }
@@ -51,9 +126,6 @@
     },
     "Look Up & data detectors also uses a three-finger tap. Set it to Force Click with one finger in System Settings → Trackpad, or choose Four Fingers.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "“查询与数据检测器”也使用三指轻点。请在“系统设置”→“触控板”中将其改为“用单指用力点按”，或选择四指。" } } }
-    },
-    "Waiting for macOS…": {
-      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在等待 macOS…" } } }
     },
     "Window": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "窗口" } } }

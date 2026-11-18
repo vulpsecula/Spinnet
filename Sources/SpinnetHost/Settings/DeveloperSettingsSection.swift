@@ -18,6 +18,8 @@ struct DeveloperSettingsSection: View {
     ] }
 
     @ObservedObject var tools: DeveloperTools
+    /// Official Builds only: lets acceptance reach the end of the Trial.
+    @ObservedObject var activation: ActivationModel
     @State private var diagnostics: DeveloperDiagnostics?
     @State private var notice: String?
 
@@ -44,6 +46,22 @@ struct DeveloperSettingsSection: View {
                     )
                     Divider()
                     backgroundComponentRows
+                }
+
+                if activation.isOfficial {
+                    section(localized("Activation")) {
+                        actionRow(
+                            localized("End Trial"), button: localized("End Trial"),
+                            detail: localized("Move the Trial start back so the Trial has just ended, and make the reminder due at the next launch."),
+                            action: { run(localized("Trial ended"), activation.endTrial) }
+                        )
+                        Divider()
+                        actionRow(
+                            localized("Remove Activation"), button: localized("Remove"),
+                            detail: localized("Delete the saved Activation Code from the Keychain."),
+                            action: { run(localized("Activation removed"), activation.removeActivation) }
+                        )
+                    }
                 }
 
                 section(localized("Diagnostics")) {

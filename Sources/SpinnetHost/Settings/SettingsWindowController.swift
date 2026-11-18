@@ -211,7 +211,8 @@ final class SettingsWindowController: NSWindowController {
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
         credentialStore: PluginCredentialStore? = nil,
         pluginSettingsStore: PluginSettingsStore? = nil,
-        pluginStorage: PluginStorage? = nil
+        pluginStorage: PluginStorage? = nil,
+        activation: ActivationModel? = nil
     ) {
         model = SettingsWindowModel(
             editor: editor,
@@ -220,7 +221,8 @@ final class SettingsWindowController: NSWindowController {
             defaults: defaults,
             clipboardHistoryStore: clipboardHistoryStore,
             loginItem: loginItem,
-            interfaceLanguage: interfaceLanguage
+            interfaceLanguage: interfaceLanguage,
+            activation: activation
         )
         model.credentialStore = credentialStore
         model.pluginSettingsStore = pluginSettingsStore
@@ -318,6 +320,17 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func refreshMenuSlots() { model.menuEditor.refreshMenuSlots() }
+
+    var activation: ActivationModel { model.activation }
+
+    /// Opens About with its Activation Code field focused.
+    func presentActivation() {
+        select(page: .about)
+        present()
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: ActivationModel.focusCodeField, object: nil)
+        }
+    }
 
     func refreshSystemPermissionStatus() {
         model.privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false)

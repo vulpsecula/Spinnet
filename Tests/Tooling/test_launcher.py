@@ -51,6 +51,8 @@ if name == "swift":
         (strings / "Localizable.strings").write_text("fixture")
 elif name == "security":
     print('1) FIXTURE_ID "Apple Development: Fixture"')
+    if os.environ.get("LAUNCHER_TEST_RELEASE_IDENTITY"):
+        print('2) RELEASE_ID "Vulpsecula Software"')
 elif name == "git":
     if "rev-parse" in args:
         print("fixture")
@@ -209,6 +211,37 @@ class LauncherTests(unittest.TestCase):
         self.assertNotIn("--install-plugins", [args[0] for args in host_calls if args])
         self.assertIn(["--report-installed-plugins"], host_calls)
         self.assertIn("Installed Plugins, as saved on disk:\ncom.example.fixture 1.2.3 Fixture", result.stdout)
+
+    def test_signs_with_the_release_certificate_when_it_is_installed(self):
+        for release, expected in [("", "FIXTURE_ID"), ("1", "RELEASE_ID")]:
+            with self.subTest(release=bool(release)):
+                result, commands = self.launch("--package", LAUNCHER_TEST_RELEASE_IDENTITY=release)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                identities = {call["args"][call["args"].index("--sign") + 1]
+                              for call in commands if call["tool"] == "codesign" and "--sign" in call["args"]}
+                self.assertEqual(identities, {expected})
+
+    def test_only_an_official_build_compiles_activation_in_its_own_scratch_directory(self):
+        official = ["--scratch-path", ".build/official", "-Xswiftc", "-DSPINNET_OFFICIAL_BUILD"]
+        cases = [((), {}, False), (("--official",), {}, True), ((), {"SPINNET_OFFICIAL_BUILD": "1"}, True)]
+        for args, env, is_official in cases:
+            with self.subTest(args=args, env=env):
+                result, commands = self.launch(*args, "--package", SPINNET_CODESIGN_IDENTITY="FIXTURE_ID", **env)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                builds = [call["args"] for call in commands if call["tool"] == "swift"]
+                self.assertEqual(len(builds), len(HELPERS) + 2)
+                for build in builds:
+                    self.assertEqual(build[1:5] == official, is_official, build)
+                    self.assertEqual("-DSPINNET_OFFICIAL_BUILD" in build, is_official, build)
+
+    def test_bad_official_build_requests_are_rejected_before_any_side_effect(self):
+        for args, env in [(("--official", "--official"), {}), (("--package", "--official"), {}),
+                          (("--package",), {"SPINNET_OFFICIAL_BUILD": "yes"})]:
+            with self.subTest(args=args, env=env):
+                result, commands = self.launch(*args, LAUNCHER_TEST_STOP_AT_BUILD="1", **env)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(commands, [])
+                self.assertEqual(self.sentinel.read_text(), "existing app")
 
     def test_missing_install_directory_is_rejected_before_building(self):
         result, commands = self.launch("--install-plugins", str(self.root / "missing"), "--verify")

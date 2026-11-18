@@ -85,6 +85,13 @@ let package = Package(
             dependencies: ["SpinnetCore"],
             path: "Tools/ViewSessionMeasurement"
         ),
+        // Makes the activation signing key and signs Activation Codes. It
+        // ships in no product and holds no key; see HANDBOOK › Licence.
+        .executableTarget(
+            name: "SpinnetActivationSigner",
+            dependencies: ["SpinnetCore"],
+            path: "Tools/ActivationSigner"
+        ),
         // Runs a Plugin's scripts in the real helper against recorded Host
         // Service answers. It must not depend on SpinnetHost, so a Plugin can
         // use it from its own repository (ADR 0014).

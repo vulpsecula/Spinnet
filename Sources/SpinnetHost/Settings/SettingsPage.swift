@@ -53,7 +53,7 @@ struct ApplicationMetadata {
         sourceURL: URL(string: "https://github.com/vulpsecula/Spinnet")!,
         licence: "GPL-3.0-only", // Not localized: a licence identifier
         acknowledgements: localized("Built with Swift and AppKit."),
-        copyright: "© 2026 vulpsecula" // Not localized: a name
+        copyright: "© 2026 Vulpsecula Software" // Not localized: a name
     ) }
 }
 

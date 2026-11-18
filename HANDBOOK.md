@@ -222,7 +222,8 @@ packaged app for normal development:
 ./script/build_and_run.sh
 ```
 
-The launcher selects an Apple Development identity or uses
+The launcher signs with the self-signed "Vulpsecula Software" certificate
+when it is in the Keychain, otherwise an Apple Development identity, or uses
 `SPINNET_CODESIGN_IDENTITY`. An ad-hoc build requires the explicit
 `SPINNET_ALLOW_ADHOC_SIGNING=1` opt-in and cannot establish persistent
 Accessibility consent. Launcher modes are listed by
@@ -253,6 +254,8 @@ data before the app opens. An update keeps Plugin Storage and Capability
 decisions; newly requested Capabilities stay undecided, as after a Library
 install. `--verify` reports the installed Plugin versions, as saved on disk,
 once the app has stayed up. Both modes write or read your real saved data.
+A leading `--official` builds an [Official Build](#source-and-binaries) instead
+of a source build.
 
 ## Verification
 
@@ -399,7 +402,7 @@ published contract by `DocumentedBudgetsTests`.
 
 ## Licence
 
-Copyright © 2026 vulpsecula and the Spinnet contributors.
+Copyright © 2026 Vulpsecula Software and the Spinnet contributors.
 
 Spinnet is free software: you can redistribute it and/or modify it under the
 terms of the **GNU General Public License, version 3 only**
@@ -424,9 +427,47 @@ GPL rights — to read, modify, build, and redistribute the source, and to
 publish GPL-compliant forks — always apply, including to any licensing and
 trial code itself.
 
-Website and Homebrew distribution of signed, notarized builds, with a trial and
-paid lifetime licence, are planned. Distributed binaries, including sold builds,
-retain the recipient's rights under the GPL.
+Official Builds are released as a DMG on GitHub Releases and through a
+Homebrew tap. They are signed with Spinnet's own self-signed "Vulpsecula
+Software" certificate, not an Apple Developer ID, and are not notarized: on
+first open macOS cannot verify the developer, and the user allows Spinnet in
+System Settings › Privacy & Security. Every release is signed with that same
+certificate, so Accessibility consent survives updates; signing with another
+certificate makes macOS treat Spinnet as a new app. Keep the certificate and
+its private key backed up outside the repository. Buy in About opens the website's pricing. Distributed binaries, including sold builds, retain the recipient's
+rights under the GPL.
+
+An Official Build, built with `SPINNET_OFFICIAL_BUILD`, starts a 30-day Trial
+on its first launch on a Mac. After it every feature keeps working; About says
+the Trial has ended and a small window reminds at most once a day at launch.
+An Activation Code bought once activates it for good: paste it into About.
+Codes are verified offline against the public keys in
+`ActivationCodeVerifier.officialPublicKeys`; nothing is sent anywhere. The
+Trial start and the code are kept in the user's Keychain, so reinstalling does
+not restart the Trial, and a stored code that no longer verifies falls back to
+the Trial. Any other build, including `swift run SpinnetHost` and the default
+launcher, is a source build: About says no activation is needed and nothing
+is stored.
+
+`./script/build_and_run.sh --official` (or `SPINNET_OFFICIAL_BUILD=1`) builds
+an Official Build in `.build/official`. In a DEBUG Official Build, General's
+Developer section can end the Trial and remove the Activation, for acceptance.
+
+`SpinnetActivationSigner` makes the signing key and signs codes. The private
+key never enters the repository; keep it, and a backup, outside it:
+
+```sh
+swift run SpinnetActivationSigner generate-key --out ~/.spinnet/activation-signing.key
+swift run SpinnetActivationSigner sign --key ~/.spinnet/activation-signing.key --count 1
+swift run SpinnetActivationSigner verify SPN1-…
+```
+
+`generate-key` prints the public key to add to `officialPublicKeys`. Two keys
+are trusted: one for codes signed by hand, and one held only by the website,
+which signs a code for each paid Paddle order; either can be replaced without
+the other. Keep a
+retired key's public key there so the codes it signed keep working. A lost
+private key cannot be recovered: issue later codes from a new key.
 
 ### Plugins
 

@@ -2,12 +2,13 @@
 set -euo pipefail
 
 usage() {
-    printf 'usage: %s [--install-plugins DIR] [run|--debug|--logs|--telemetry|--verify|--lifecycle-check]\n' "$0"
+    printf 'usage: %s [--official] [--install-plugins DIR] [run|--debug|--logs|--telemetry|--verify|--lifecycle-check]\n' "$0"
     printf '       %s --package\n' "$0"
     printf '\n--install-plugins installs or updates every .spinnetplugin package in DIR,\n'
     printf 'or in DIR/Plugins for a SpinnetPlugins checkout, into your saved data through\n'
     printf 'the install-and-update path the Library uses, before the app opens.\n'
     printf '%s\n' '--verify reports the installed Plugin versions saved on disk once the app has stayed up.'
+    printf '%s\n' '--official (or SPINNET_OFFICIAL_BUILD=1) builds an Official Build, with its Trial and Activation.'
 }
 reject_arguments() {
     usage >&2
@@ -16,6 +17,19 @@ reject_arguments() {
 
 # Validate before consulting signing identities, building or touching the
 # running app. In particular, help and spelling errors must be inert.
+# An Official Build has a Trial and takes an Activation Code; every other
+# build is a source build and is never limited. It builds in its own scratch
+# directory so switching does not rebuild the everyday one.
+OFFICIAL_BUILD="${SPINNET_OFFICIAL_BUILD:-0}"
+if [[ "${1-}" == --official ]]; then
+    OFFICIAL_BUILD=1
+    shift
+fi
+[[ "$OFFICIAL_BUILD" == 0 || "$OFFICIAL_BUILD" == 1 ]] || reject_arguments
+SWIFT_BUILD_ARGUMENTS=()
+if [[ "$OFFICIAL_BUILD" == 1 ]]; then
+    SWIFT_BUILD_ARGUMENTS=(--scratch-path .build/official -Xswiftc -DSPINNET_OFFICIAL_BUILD)
+fi
 INSTALL_PLUGINS_DIR=""
 if [[ "${1-}" == --install-plugins ]]; then
     [[ $# -ge 2 && -n "$2" ]] || reject_arguments
@@ -84,20 +98,27 @@ HELPER_SPECS=(
     'SpinnetLaunchServiceInventory|com.vulpsecula.SpinnetHost.launch-service-inventory'
 )
 
+# Official Builds ship signed with Spinnet's own self-signed certificate, so
+# Accessibility consent survives updates; it is preferred whenever present.
+# Without it, an Apple Development identity serves local development.
+RELEASE_SIGNING_NAME="Vulpsecula Software"
 SIGNING_IDENTITY="${SPINNET_CODESIGN_IDENTITY:-}"
 if [[ -z "$SIGNING_IDENTITY" ]]; then
-    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development:/{print $2; exit}')"
+    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk -v name="\"$RELEASE_SIGNING_NAME\"" '
+        index($0, name) && !release { release = $2 }
+        /Apple Development:/ && !development { development = $2 }
+        END { print (release ? release : development) }')"
 fi
 
 if [[ "$SIGNING_IDENTITY" == "-" && "$ALLOW_ADHOC_SIGNING" != "1" ]]; then
     echo "error: ad-hoc signing is disabled because it invalidates Accessibility consent." >&2
-    echo "       Use an Apple Development identity, or set SPINNET_ALLOW_ADHOC_SIGNING=1 for a deliberate permission-free run." >&2
+    echo "       Use the Vulpsecula Software or an Apple Development identity, or set SPINNET_ALLOW_ADHOC_SIGNING=1 for a deliberate permission-free run." >&2
     exit 1
 fi
 
 if [[ -z "$SIGNING_IDENTITY" && "$ALLOW_ADHOC_SIGNING" != "1" ]]; then
     echo "error: no stable code-signing identity found; refusing ad-hoc signing because it invalidates Accessibility consent." >&2
-    echo "       Install/select an Apple Development identity, or set SPINNET_ALLOW_ADHOC_SIGNING=1 for a deliberate permission-free run." >&2
+    echo "       Install/select the Vulpsecula Software or an Apple Development identity, or set SPINNET_ALLOW_ADHOC_SIGNING=1 for a deliberate permission-free run." >&2
     exit 1
 fi
 
@@ -112,11 +133,11 @@ if [[ "$MODE" != "--package" ]]; then
 fi
 
 cd "$ROOT_DIR"
-swift build --product "$APP_NAME"
+swift build ${SWIFT_BUILD_ARGUMENTS[@]+"${SWIFT_BUILD_ARGUMENTS[@]}"} --product "$APP_NAME"
 for specification in "${HELPER_SPECS[@]}"; do
-    swift build --product "${specification%%|*}"
+    swift build ${SWIFT_BUILD_ARGUMENTS[@]+"${SWIFT_BUILD_ARGUMENTS[@]}"} --product "${specification%%|*}"
 done
-BUILD_DIR="$(swift build --show-bin-path)"
+BUILD_DIR="$(swift build ${SWIFT_BUILD_ARGUMENTS[@]+"${SWIFT_BUILD_ARGUMENTS[@]}"} --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
 
 rm -rf "$APP_BUNDLE"
