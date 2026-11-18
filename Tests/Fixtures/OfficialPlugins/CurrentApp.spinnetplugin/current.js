@@ -1,4 +1,4 @@
-// MIT License, Copyright (c) 2026 Dzx. See LICENSE.
+// MIT License, Copyright (c) 2026 Vulpsecula Software. See LICENSE.
 (() => {
   const ui = spinnet.ui;
   const c = ui.components;
