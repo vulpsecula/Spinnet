@@ -12,6 +12,8 @@ struct OfficialPlugin: Identifiable, Equatable {
     let updateSource: PluginUpdateSource
     /// Checked when the Welcome Guide offers it.
     let isStarter: Bool
+    /// Part of the Starter Menu, which only a Ready-to-Use Preset can be.
+    let inStarterMenu: Bool
 
     /// One line saying what it does, in the interface language.
     var summary: String { localized(key: summaryKey) }
@@ -25,18 +27,19 @@ extension OfficialPlugin {
     /// are the Plugins' own.
     static let all: [OfficialPlugin] = {
         let source = try! PluginUpdateSource(github: repository)
-        func plugin(_ id: String, _ name: String, _ summary: String, starter: Bool = false) -> OfficialPlugin {
-            OfficialPlugin(id: PluginID(id), name: name, summaryKey: summary, updateSource: source, isStarter: starter)
+        func plugin(_ id: String, _ name: String, _ summary: String, starter: Bool = false, menu: Bool = false) -> OfficialPlugin {
+            OfficialPlugin(id: PluginID(id), name: name, summaryKey: summary, updateSource: source,
+                           isStarter: starter, inStarterMenu: menu)
         }
         return [
-            plugin("com.spinnet.builtin.copy-selected-text", "Copy Selected Text", "Copies the selected text.", starter: true), // Not localized: the Plugin name; the summary is its catalog key
-            plugin("com.spinnet.builtin.cut", "Cut", "Cuts the selection.", starter: true), // Not localized: the Plugin name; the summary is its catalog key
-            plugin("com.spinnet.builtin.paste", "Paste", "Pastes what is on the clipboard.", starter: true), // Not localized: the Plugin name; the summary is its catalog key
+            plugin("com.spinnet.builtin.copy-selected-text", "Copy Selected Text", "Copies the selected text.", starter: true, menu: true), // Not localized: the Plugin name; the summary is its catalog key
+            plugin("com.spinnet.builtin.cut", "Cut", "Cuts the selection.", starter: true, menu: true), // Not localized: the Plugin name; the summary is its catalog key
+            plugin("com.spinnet.builtin.paste", "Paste", "Pastes what is on the clipboard.", starter: true, menu: true), // Not localized: the Plugin name; the summary is its catalog key
             plugin("com.spinnet.builtin.open-application", "Open Application", "Opens an App you choose.", starter: true), // Not localized: the Plugin name; the summary is its catalog key
             plugin("com.spinnet.builtin.open-url", "Open URL", "Opens a web address you choose.", starter: true), // Not localized: the Plugin name; the summary is its catalog key
-            plugin("com.spinnet.builtin.screenshot", "Screenshot", "Captures an area, a window or the full screen.", starter: true), // Not localized: the Plugin name; the summary is its catalog key
-            plugin("com.spinnet.probe.current-app", "Current App", "Closes the current window or quits the Current App.", starter: true), // Not localized: the Plugin name; the summary is its catalog key
-            plugin("com.spinnet.coffee", "Keep Awake", "Keeps the Mac awake until stopped, for a while or while an App runs.", starter: true), // Not localized: the Plugin name; the summary is its catalog key
+            plugin("com.spinnet.builtin.screenshot", "Screenshot", "Captures an area, a window or the full screen.", starter: true, menu: true), // Not localized: the Plugin name; the summary is its catalog key
+            plugin("com.spinnet.probe.current-app", "Current App", "Closes the current window or quits the Current App.", starter: true, menu: true), // Not localized: the Plugin name; the summary is its catalog key
+            plugin("com.spinnet.coffee", "Keep Awake", "Keeps the Mac awake until stopped, for a while or while an App runs.", starter: true, menu: true), // Not localized: the Plugin name; the summary is its catalog key
             plugin("com.spinnet.bob", "Bob", "Translates the selection, typed text, the clipboard or a capture with Bob."), // Not localized: the Plugin name; the summary is its catalog key
             plugin("com.spinnet.clipboard-history", "Clipboard History", "Browses what you copied earlier."), // Not localized: the Plugin name; the summary is its catalog key
             plugin("com.spinnet.homebrew", "Homebrew", "Shows, searches and updates Homebrew packages."), // Not localized: the Plugin name; the summary is its catalog key
@@ -55,15 +58,20 @@ extension OfficialPlugin {
     }()
 }
 
+extension OfficialPlugin {
+    /// The Starter Menu's Plugins, in Slot order.
+    static var starterMenu: [PluginID] { all.filter(\.inStarterMenu).map(\.id) }
+}
+
 /// The Welcome Guide's Official Plugins step: a checklist that installs each
-/// checked Plugin's newest acceptable version from its Update Source through
-/// the Library's installation review. Each Plugin shows its own progress and
-/// failure, and nothing is placed into Slots.
+/// checked Plugin's newest acceptable version from its Update Source with the
+/// access it asks for, as allowing the Library's installation review would;
+/// the step says access can be revoked in Plugin Settings. Each Plugin shows
+/// its own progress and failure, and nothing is placed into Slots.
 final class OfficialPluginInstallModel: ObservableObject {
     enum State: Equatable {
         case notInstalled
         case downloading
-        case awaitingReview
         case installed
         case failed(String)
     }
@@ -71,9 +79,8 @@ final class OfficialPluginInstallModel: ObservableObject {
     let plugins: [OfficialPlugin]
     @Published private var selection: Set<PluginID> = []
     @Published private var states: [PluginID: State] = [:]
-    /// The review shown now; others wait their turn in `queuedReviews`.
-    @Published private(set) var pendingReview: PendingPluginInstallation?
-    private var queuedReviews: [PendingPluginInstallation] = []
+    /// Every Plugin the user chose to install since the guide opened.
+    private(set) var started: Set<PluginID> = []
 
     /// Finds the newest acceptable version at the Plugin's Update Source; it
     /// reaches the network.
@@ -102,19 +109,19 @@ final class OfficialPluginInstallModel: ObservableObject {
     func reset() {
         guard !hasInstallsUnderWay else { return }
         states = [:]
+        started = []
         selection = Set(plugins.filter { $0.isStarter && !isInstalled($0.id) }.map(\.id))
     }
 
     func state(for pluginID: PluginID) -> State {
         let state = states[pluginID]
-        if state != .downloading, state != .awaitingReview, isInstalled(pluginID) { return .installed }
+        if state != .downloading, isInstalled(pluginID) { return .installed }
         return state == .installed ? .notInstalled : state ?? .notInstalled
     }
 
-    /// Whether a started install is still looking up its release or waiting
-    /// for its review.
+    /// Whether a started install is still looking up its release.
     var hasInstallsUnderWay: Bool {
-        states.values.contains { $0 == .downloading || $0 == .awaitingReview }
+        states.values.contains { $0 == .downloading }
     }
 
     func isSelected(_ pluginID: PluginID) -> Bool { selection.contains(pluginID) }
@@ -123,13 +130,18 @@ final class OfficialPluginInstallModel: ObservableObject {
         if selected { selection.insert(pluginID) } else { selection.remove(pluginID) }
     }
 
-    /// Whether Install Selected has anything to start.
+    /// Whether leaving the step has a checked Plugin to install.
     var canInstallSelected: Bool { plugins.contains { isSelected($0.id) && canStart($0.id) } }
+
+    /// The guide's Continue on this step, which installs what is checked.
+    var continueTitle: String {
+        canInstallSelected ? localized("Continue & Install Selected") : localized("Continue")
+    }
 
     private func canStart(_ pluginID: PluginID) -> Bool {
         switch state(for: pluginID) {
         case .notInstalled, .failed: return true
-        case .downloading, .awaitingReview, .installed: return false
+        case .downloading, .installed: return false
         }
     }
 
@@ -144,6 +156,7 @@ final class OfficialPluginInstallModel: ObservableObject {
 
     private func start(_ plugin: OfficialPlugin) {
         guard canStart(plugin.id), let lookUpRelease else { return }
+        started.insert(plugin.id)
         states[plugin.id] = .downloading
         runInBackground { [weak self] in
             let result = Result { try lookUpRelease(plugin) }
@@ -160,48 +173,25 @@ final class OfficialPluginInstallModel: ObservableObject {
                     [localized("SpinnetPlugins has no release of \(plugin.name) that Spinnet can install.")] + [reason].compactMap { $0 }))
                 return
             }
-            // Reviewed now, as the Library reviews a package the user chose.
+            // Reviewed as the Library reviews a package the user chose, and
+            // installed with the access it asks for: checking it was the
+            // user's choice, and the step says how to revoke it.
             let pending = PendingPluginInstallation(source: offer.packageURL, review: try review(offer.packageURL),
                                                     installationSource: .github(plugin.updateSource))
-            if pending.review.requestedAccess.isEmpty {
-                try finishInstall(pending)
-            } else {
-                states[plugin.id] = .awaitingReview
-                queuedReviews.append(pending)
-                showNextReview()
-            }
+            try install(pending)
+            states[plugin.id] = .installed
         } catch {
             states[plugin.id] = .failed(localizedFailure(error))
         }
     }
 
-    private func finishInstall(_ pending: PendingPluginInstallation) throws {
-        try install(pending)
-        states[pending.review.manifest.id] = .installed
-    }
-
-    private func showNextReview() {
-        guard pendingReview == nil, !queuedReviews.isEmpty else { return }
-        pendingReview = queuedReviews.removeFirst()
-    }
-
-    /// Install in the review: the Plugin installs with the access it asked for.
-    func confirmReview() {
-        guard let pending = pendingReview else { return }
-        pendingReview = nil
-        do {
-            try finishInstall(pending)
-        } catch {
-            states[pending.review.manifest.id] = .failed(localizedFailure(error))
+    /// The names of the Starter Menu's Plugins that are installed or being
+    /// installed, in Slot order: what the Starter Menu will place.
+    var starterMenuNames: [String] {
+        OfficialPlugin.starterMenu.compactMap { id in
+            guard started.contains(id) || isInstalled(id) else { return nil }
+            return plugins.first { $0.id == id }?.name
         }
-        showNextReview()
-    }
-
-    func cancelReview() {
-        guard let pending = pendingReview else { return }
-        pendingReview = nil
-        states[pending.review.manifest.id] = .failed(localized("Not installed: its access was not allowed."))
-        showNextReview()
     }
 
     /// What the step presents, for the Settings seam.
@@ -211,7 +201,7 @@ final class OfficialPluginInstallModel: ObservableObject {
             names.append(plugin.name)
             if case .failed = state(for: plugin.id) { names.append(localized("Retry \(plugin.name)")) }
         }
-        names.append(localized("Install Selected"))
+        names.append(localized("You can revoke access later in Plugin Settings."))
         return names
     }
 }

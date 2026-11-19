@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ fill your empty Slots, ready to use. Rearrange or replace them at any time.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 将放入空槽位，即刻可用。之后可随时调整顺序或替换。"
+          }
+        }
+      }
+    },
     "Activation": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "激活" } } }
     },
@@ -16,6 +26,46 @@
     "Built from source. No activation is needed.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "从源码构建，无需激活。" } } }
     },
+    "Continue & Install Selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续并安装所选"
+          }
+        }
+      }
+    },
+    "Empty Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空菜单"
+          }
+        }
+      }
+    },
+    "Every Slot starts empty, and you add Menu Items from the Library yourself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有槽位保持为空，由你自己从资源库添加菜单项。"
+          }
+        }
+      }
+    },
+    "How should your Menu start? You can change everything later in the Menu Editor.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你希望菜单以什么方式开始？之后都可以在菜单编辑器中更改。"
+          }
+        }
+      }
+    },
     "Install this build's privileged background component again, then check that it answers. macOS asks for an administrator. Stops any running Homebrew Task.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新安装本构建的特权后台组件，然后检查它能否响应。macOS 会要求管理员授权。会停止正在运行的 Homebrew 任务。" } } }
     },
@@ -27,6 +77,16 @@
     },
     "Remove Background Component": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "移除后台组件" } } }
+    },
+    "Starter Menu": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "入门菜单"
+          }
+        }
+      }
     },
     "Stop and delete the installed background component, to test a first install. macOS asks for an administrator.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "停止并删除已安装的后台组件，用于测试首次安装。macOS 会要求管理员授权。" } } }
@@ -4522,16 +4582,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "安装插件"
-          }
-        }
-      }
-    },
-    "Install Selected": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安装所选"
           }
         }
       }

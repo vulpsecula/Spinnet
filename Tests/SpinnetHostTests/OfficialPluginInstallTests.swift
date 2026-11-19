@@ -6,7 +6,7 @@ import XCTest
 
 /// The Welcome Guide's Official Plugins step, driven through the Settings
 /// window model against GitHub answers recorded as SpinnetPlugins publishes
-/// them, and installed through the Library's own installation review.
+/// them, and installed with the access they ask for.
 final class OfficialPluginInstallTests: XCTestCase {
     private var directory: URL!
     private var defaults: UserDefaults!
@@ -39,11 +39,11 @@ final class OfficialPluginInstallTests: XCTestCase {
     }
 
     /// The settings model as a launch of the Host makes and wires it.
-    private func launch() throws {
+    private func launch(slots: Int = 2) throws {
         let updater = PluginUpdater(store: store, registry: registry, transport: transport,
                                     downloads: directory.appendingPathComponent("Downloads"))
         editor = HostConfigurationEditor(registry: registry, configuration: try HostConfiguration(
-            actions: [], menu: MenuConfiguration(slots: [.empty, .empty])))
+            actions: [], menu: MenuConfiguration(slots: Array(repeating: .empty, count: slots))))
         settings = SettingsWindowModel(editor: editor, metadata: .current, capabilityGrantStore: grants,
                                        defaults: defaults, accessibilityPermissionCheck: { true },
                                        mouseInputConflictCheck: { _ in [] })
@@ -114,32 +114,23 @@ final class OfficialPluginInstallTests: XCTestCase {
             XCTAssertEqual(official.state(for: plugin.id), .notInstalled)
         }
         XCTAssertEqual(Set(official.plugins.filter { official.isSelected($0.id) }.map(\.name)), Set(starterNames))
-        XCTAssertTrue(settings.accessibleNames.contains("Install Selected"))
+        XCTAssertTrue(settings.accessibleNames.contains("Continue & Install Selected"),
+                      "Continue installs what is checked; there is no separate Install button")
+        XCTAssertTrue(settings.accessibleNames.contains("You can revoke access later in Plugin Settings."))
         XCTAssertTrue(settings.accessibleNames.contains("Keep Awake"))
         XCTAssertEqual(transport.requests, [], "Showing the step asks nothing of GitHub")
     }
 
-    func testInstallSelectedInstallsEachNewestVersionThroughTheReviewAndPlacesNothing() throws {
+    func testContinueInstallsEachNewestVersionWithItsAccessAndPlacesNothing() throws {
         for name in starterNames { try publish(name) }
         try launch()
         toOfficialStep()
         let menu = editor.configuration
 
-        official.installSelected()
+        settings.continueWelcomeGuide()
 
-        // Plugins asking for nothing install at once; each that asks for
-        // access waits for its own review, one at a time.
-        for name in ["Cut", "Paste", "Open Application", "Open URL"] {
-            XCTAssertEqual(official.state(for: try id(name)), .installed, name)
-        }
-        var reviewed: [String] = []
-        while let review = official.pendingReview {
-            XCTAssertEqual(official.state(for: review.review.manifest.id), .awaitingReview)
-            XCTAssertFalse(review.review.requestedAccess.isEmpty)
-            reviewed.append(review.review.manifest.name)
-            official.confirmReview()
-        }
-        XCTAssertEqual(Set(reviewed), ["Copy Selected Text", "Screenshot", "Current App", "Keep Awake"])
+        // No review stops the guide: each installs with what it asks for.
+        XCTAssertEqual(settings.welcomeGuide.step, .finish)
         XCTAssertEqual(installedNames, Set(starterNames))
         XCTAssertEqual(store.installationSource(for: try id("Cut")), .github(try PluginUpdateSource(github: repository)))
         for name in starterNames { XCTAssertEqual(official.state(for: try id(name)), .installed, name) }
@@ -148,9 +139,23 @@ final class OfficialPluginInstallTests: XCTestCase {
                        try OfficialPluginFixtures.named("Keep Awake").manifest.version)
         let currentApp = try OfficialPluginFixtures.named("Current App").manifest
         XCTAssertEqual(grants.decision(for: currentApp.id, pluginVersion: currentApp.version, capability: .readFrontmostApp),
-                       .granted, "Allowing the review grants what it asked for, as a Library install does")
-        XCTAssertEqual(editor.configuration, menu, "Nothing is placed into Slots")
+                       .granted, "Checking it grants what it asks for, as allowing a Library review does")
+        XCTAssertEqual(editor.configuration, menu, "Installing places nothing into Slots")
         XCTAssertEqual(settings.menuEditor.installationResult, nil, "The guide shows progress in its own rows")
+    }
+
+    func testWithNothingCheckedContinueOnlyContinues() throws {
+        try launch()
+        toOfficialStep()
+        for plugin in official.plugins { official.setSelected(false, for: plugin.id) }
+
+        XCTAssertEqual(official.continueTitle, "Continue")
+        settings.continueWelcomeGuide()
+
+        XCTAssertEqual(settings.welcomeGuide.step, .finish)
+        XCTAssertEqual(transport.requests, [])
+        XCTAssertFalse(settings.offersStarterMenu, "Nothing of the Starter Menu was installed")
+        XCTAssertFalse(settings.accessibleNames.contains("Starter Menu"))
     }
 
     func testOfflineEachPluginFailsOnItsOwnAndRetryInstallsIt() throws {
@@ -233,32 +238,11 @@ final class OfficialPluginInstallTests: XCTestCase {
         XCTAssertTrue(guide.isPresented, "The guide does not close while installs are under way")
 
         for work in held { work() }
-        XCTAssertEqual(official.pendingReview?.review.manifest.name, "Keep Awake")
-        XCTAssertFalse(guide.canComplete, "A review is still waiting")
-        guide.complete()
-        XCTAssertTrue(guide.isPresented)
-
-        official.confirmReview()
         XCTAssertTrue(guide.canComplete)
         XCTAssertFalse(settings.accessibleNames.contains(waiting))
         guide.complete()
         XCTAssertFalse(guide.isPresented)
         XCTAssertEqual(installedNames, ["Keep Awake", "Cut"])
-    }
-
-    func testDecliningTheReviewLeavesThePluginNotInstalledWithRetry() throws {
-        try publish("Keep Awake")
-        try launch()
-        toOfficialStep()
-        for plugin in official.plugins where plugin.name != "Keep Awake" { official.setSelected(false, for: plugin.id) }
-
-        official.installSelected()
-        XCTAssertEqual(official.pendingReview?.review.manifest.name, "Keep Awake")
-        official.cancelReview()
-
-        XCTAssertNil(official.pendingReview)
-        XCTAssertEqual(official.state(for: try id("Keep Awake")), .failed("Not installed: its access was not allowed."))
-        XCTAssertEqual(installedNames, [])
     }
 
     func testAnInstalledOfficialPluginIsShownInstalledAndNotDownloadedAgain() throws {
@@ -279,5 +263,83 @@ final class OfficialPluginInstallTests: XCTestCase {
 
         XCTAssertEqual(official.state(for: try id("Paste")), .installed)
         XCTAssertFalse(transport.requestedURLs.contains { $0.contains(cut.rawValue) }, "\(transport.requestedURLs)")
+    }
+
+    // MARK: Starter Menu
+
+    private func pluginIDs(inSlotsOf configuration: HostConfiguration) -> [String?] {
+        configuration.menu.slots.map { slot in
+            slot.item.flatMap { item in configuration.actions.first { $0.id == item.primaryActionID }?.pluginID.rawValue }
+        }
+    }
+
+    private func finishWithStarterPluginsInstalled(slots: Int = 8) throws {
+        for name in starterNames { try publish(name) }
+        try launch(slots: slots)
+        toOfficialStep()
+        settings.continueWelcomeGuide()
+    }
+
+    func testTheStarterMenuFillsEmptySlotsWithReadyToUsePresetsInOrder() throws {
+        try finishWithStarterPluginsInstalled()
+
+        XCTAssertTrue(settings.offersStarterMenu)
+        XCTAssertTrue(settings.accessibleNames.contains("Starter Menu"))
+        XCTAssertTrue(settings.accessibleNames.contains("Empty Menu"))
+        XCTAssertEqual(settings.welcomeGuide.menuStart, .starterMenu, "The Starter Menu is the suggested start")
+        XCTAssertEqual(official.starterMenuNames,
+                       ["Copy Selected Text", "Cut", "Paste", "Screenshot", "Current App", "Keep Awake"])
+        settings.welcomeGuide.complete()
+
+        // Open Application and Open URL need setup, so they stay in the Library.
+        XCTAssertEqual(pluginIDs(inSlotsOf: editor.configuration), [
+            "com.spinnet.builtin.copy-selected-text", "com.spinnet.builtin.cut", "com.spinnet.builtin.paste",
+            "com.spinnet.builtin.screenshot", "com.spinnet.probe.current-app", "com.spinnet.coffee", nil, nil,
+        ])
+        XCTAssertNil(settings.menuEditor.editingMenuIndex, "No Configuration Sheet opens")
+        XCTAssertEqual(settings.page, .menu)
+
+        settings.menuEditor.undoSlotEdit()
+        XCTAssertEqual(pluginIDs(inSlotsOf: editor.configuration), Array(repeating: nil, count: 8),
+                       "One undo takes the whole Starter Menu back")
+    }
+
+    func testTheStarterMenuStopsWhenTheSlotsAreFull() throws {
+        try finishWithStarterPluginsInstalled(slots: 2)
+        settings.welcomeGuide.complete()
+        XCTAssertEqual(pluginIDs(inSlotsOf: editor.configuration),
+                       ["com.spinnet.builtin.copy-selected-text", "com.spinnet.builtin.cut"])
+    }
+
+    func testChoosingAnEmptyMenuPlacesNothing() throws {
+        try finishWithStarterPluginsInstalled()
+        let menu = editor.configuration
+
+        settings.welcomeGuide.menuStart = .empty
+        settings.welcomeGuide.complete()
+
+        XCTAssertEqual(editor.configuration, menu)
+        XCTAssertEqual(settings.page, .menu)
+    }
+
+    func testAMenuThatAlreadyHasAMenuItemIsNotOfferedTheStarterMenu() throws {
+        try finishWithStarterPluginsInstalled()
+        XCTAssertTrue(settings.menuEditor.placePreset(pluginID: "com.spinnet.builtin.paste", at: 3))
+        let menu = editor.configuration
+
+        XCTAssertFalse(settings.offersStarterMenu)
+        XCTAssertFalse(settings.accessibleNames.contains("Starter Menu"))
+        settings.welcomeGuide.complete()
+        XCTAssertEqual(editor.configuration, menu)
+    }
+
+    func testReopeningTheGuideSuggestsTheStarterMenuAgain() throws {
+        try finishWithStarterPluginsInstalled()
+        settings.welcomeGuide.menuStart = .empty
+        settings.welcomeGuide.complete()
+
+        settings.openWelcomeGuide()
+        XCTAssertEqual(settings.welcomeGuide.menuStart, .starterMenu)
+        XCTAssertFalse(settings.offersStarterMenu, "Nothing was installed since the guide reopened")
     }
 }

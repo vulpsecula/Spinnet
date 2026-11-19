@@ -10,6 +10,14 @@ enum WelcomeGuideStep: String, CaseIterable, Equatable {
     case finish
 }
 
+/// How the Menu starts when the Welcome Guide finishes.
+enum WelcomeGuideMenuStart: Equatable {
+    /// The Starter Menu's Menu Items fill the empty Slots.
+    case starterMenu
+    /// Every Slot stays empty.
+    case empty
+}
+
 /// Owns whether the Welcome Guide shows and which step it is on.
 ///
 /// The guide opens by itself only at a launch with no Plugin installed, and
@@ -18,6 +26,8 @@ enum WelcomeGuideStep: String, CaseIterable, Equatable {
 final class WelcomeGuideModel: ObservableObject {
     @Published private(set) var isPresented = false
     @Published private(set) var step: WelcomeGuideStep = .welcome
+    /// The finish step's choice, when it offers the Starter Menu.
+    @Published var menuStart: WelcomeGuideMenuStart = .starterMenu
 
     /// Finishing the guide continues in the Menu Editor.
     var onComplete: (() -> Void)?
@@ -72,6 +82,7 @@ final class WelcomeGuideModel: ObservableObject {
     func open() {
         onOpen?()
         step = .welcome
+        menuStart = .starterMenu
         isPresented = true
     }
 

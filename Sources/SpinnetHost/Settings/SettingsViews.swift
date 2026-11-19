@@ -201,8 +201,12 @@ final class SettingsWindowModel: ObservableObject {
         welcomeGuide.hasInstallsUnderWay = { [weak officialPlugins] in officialPlugins?.hasInstallsUnderWay ?? false }
         // The guide's permission step stood in for the first-run banner.
         welcomeGuide.onComplete = { [weak self] in
-            self?.privacy.dismissPermissionGuide()
-            self?.selectPage(.menu)
+            guard let self else { return }
+            privacy.dismissPermissionGuide()
+            if offersStarterMenu, welcomeGuide.menuStart == .starterMenu {
+                menuEditor.fillEmptySlots(withPresetsOf: OfficialPlugin.starterMenu)
+            }
+            selectPage(.menu)
         }
         // The Library bumps its token after each install, update or removal.
         pluginUpdates.observeInstalledPlugins(menuEditor.$refreshToken.dropFirst())
@@ -237,6 +241,20 @@ final class SettingsWindowModel: ObservableObject {
         if let relaunchPage { selectPage(relaunchPage) }
         welcomeGuide.openAtLaunchIfNeeded()
         return relaunchPage != nil || welcomeGuide.isPresented
+    }
+
+    /// The guide's Continue: on the Official Plugins step it also installs
+    /// what is checked.
+    func continueWelcomeGuide() {
+        if welcomeGuide.step == .officialPlugins { officialPlugins.installSelected() }
+        welcomeGuide.next()
+    }
+
+    /// The finish step offers the Starter Menu when the user chose to install
+    /// a Plugin of it in this guide and the default Menu has no Menu Item.
+    var offersStarterMenu: Bool {
+        !officialPlugins.started.isDisjoint(with: OfficialPlugin.starterMenu)
+            && editor.configuration.menu.slots.allSatisfy { $0.item == nil }
     }
 
     /// General's Open Welcome Guide…, available whatever is installed.
@@ -588,7 +606,8 @@ struct SettingsRootView: View {
             set: { if !$0, welcomeGuide.isPresented, !model.isQuitting { welcomeGuide.skip() } }
         )) {
             WelcomeGuideSheet(guide: welcomeGuide, officialPlugins: model.officialPlugins, privacy: privacy, openURL: openURL,
-                              triggerControls: menuTriggerSettings)
+                              triggerControls: menuTriggerSettings,
+                              offersStarterMenu: { model.offersStarterMenu }, continueGuide: model.continueWelcomeGuide)
         }
         .overlay(alignment: .topTrailing) {
             if privacy.permissionGuidePresented, !welcomeGuide.isPresented {

@@ -14,6 +14,16 @@ extension WelcomeGuideStep {
         }
     }
 
+    /// The finish step's Starter Menu choice, naming what it places.
+    static func starterMenuSummary(_ names: [String]) -> String {
+        let list = names.formatted(.list(type: .and).locale(HostLocalization.locale))
+        return localized("\(list) fill your empty Slots, ready to use. Rearrange or replace them at any time.")
+    }
+
+    static var emptyMenuSummary: String {
+        localized("Every Slot starts empty, and you add Menu Items from the Library yourself.")
+    }
+
     /// Why Open Menu Editor is unavailable while installs are under way.
     static var installsUnderWayNote: String {
         localized("Open Menu Editor is available once the Official Plugins being installed are done.")
@@ -38,12 +48,15 @@ extension SettingsWindowModel {
         case .officialPlugins:
             names.append(contentsOf: officialPlugins.accessibleNames)
         case .finish:
+            if offersStarterMenu {
+                names.append(contentsOf: [localized("Starter Menu"), localized("Empty Menu")])
+            }
             names.append(localized("Open Menu Editor"))
             if !guide.canComplete { names.append(WelcomeGuideStep.installsUnderWayNote) }
         }
         if guide.canGoBack { names.append(localized("Back")) }
         if guide.step != .finish {
-            names.append(localized("Continue"))
+            names.append(guide.step == .officialPlugins ? officialPlugins.continueTitle : localized("Continue"))
             names.append(localized("Skip Welcome Guide"))
         }
         return names
@@ -58,6 +71,10 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
     @ObservedObject var privacy: PrivacyPermissionsModel
     let openURL: (URL) -> Bool
     let triggerControls: TriggerControls
+    /// Whether the finish step offers the Starter Menu, read as it shows.
+    let offersStarterMenu: () -> Bool
+    /// Continue, which on the Official Plugins step installs what is checked.
+    let continueGuide: () -> Void
 
     /// System Permissions change in System Settings while the sheet is open.
     private let permissionPoll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -86,15 +103,6 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
         .onReceive(permissionPoll) { _ in
             guard guide.step == .systemPermissions || guide.step == .menuTrigger else { return }
             privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false)
-        }
-        // The Library's installation review, over the guide.
-        .sheet(item: Binding(
-            get: { officialPlugins.pendingReview },
-            set: { if $0 == nil { officialPlugins.cancelReview() } }
-        )) { installation in
-            PluginInstallSheet(installation: installation,
-                               onCancel: officialPlugins.cancelReview,
-                               onInstall: officialPlugins.confirmReview)
         }
     }
 
@@ -132,8 +140,12 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
         case .officialPlugins:
             officialPluginsStep
         case .finish:
-            Text(localized("Next, add Menu Items to your Slots in the Menu Editor. Plugins from the Library provide them."))
-                .fixedSize(horizontal: false, vertical: true)
+            if offersStarterMenu() {
+                menuStartChoice
+            } else {
+                Text(localized("Next, add Menu Items to your Slots in the Menu Editor. Plugins from the Library provide them."))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !guide.canComplete {
                 Label(WelcomeGuideStep.installsUnderWayNote, systemImage: "hourglass")
                     .foregroundStyle(.secondary)
@@ -157,12 +169,54 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
                 .padding(.horizontal, 14)
             }
             .settingsCard()
-            HStack {
-                Spacer()
-                Button(localized("Install Selected"), action: officialPlugins.installSelected)
-                    .disabled(!officialPlugins.canInstallSelected)
-            }
+            Label(localized("You can revoke access later in Plugin Settings."), systemImage: "checkmark.shield")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var menuStartChoice: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(localized("How should your Menu start? You can change everything later in the Menu Editor."))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            menuStartOption(.starterMenu, title: localized("Starter Menu"), systemImage: "circle.grid.cross",
+                            summary: WelcomeGuideStep.starterMenuSummary(officialPlugins.starterMenuNames))
+            menuStartOption(.empty, title: localized("Empty Menu"), systemImage: "circle.dashed",
+                            summary: WelcomeGuideStep.emptyMenuSummary)
+        }
+    }
+
+    private func menuStartOption(_ start: WelcomeGuideMenuStart, title: String, systemImage: String,
+                                 summary: String) -> some View {
+        let selected = guide.menuStart == start
+        return Button { guide.menuStart = start } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                    .font(.title3)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Label(title, systemImage: systemImage).font(.headline)
+                    Text(summary)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .overlay(RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(selected ? Color.accentColor : Color.secondary.opacity(0.25), lineWidth: selected ? 2 : 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(summary)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
     private func officialPluginRow(_ plugin: OfficialPlugin) -> some View {
@@ -188,8 +242,6 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
             case .downloading:
                 ProgressView().controlSize(.small)
                     .accessibilityLabel(localized("Installing \(plugin.name)"))
-            case .awaitingReview:
-                Text(localized("Waiting for review")).font(.caption).foregroundStyle(.secondary)
             case .installed:
                 Label(localized("Installed"), systemImage: "checkmark.circle.fill")
                     .font(.caption)
@@ -255,7 +307,8 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(!guide.canComplete)
             } else {
-                Button(localized("Continue"), action: guide.next)
+                Button(guide.step == .officialPlugins ? officialPlugins.continueTitle : localized("Continue"),
+                       action: continueGuide)
                     .keyboardShortcut(.defaultAction)
             }
         }

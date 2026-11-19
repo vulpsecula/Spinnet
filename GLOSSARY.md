@@ -126,6 +126,10 @@ _Avoid_: Preview Menu, test Menu
 The Host's first-run walkthrough of System Permissions, how to open the Menu and which Official Plugins to install, ending in the Menu Editor. It opens at a launch with no Plugin installed until completed or skipped, and General reopens it.
 _Avoid_: Onboarding, setup assistant, permission guide
 
+**Starter Menu**:
+The Menu Items the Welcome Guide places in the default Menu's empty Slots when it finishes, if the user installed any of its Official Plugins in the guide and chose it over an empty Menu. Each comes from a Ready-to-Use Preset, so none needs a Configuration Sheet.
+_Avoid_: Default Menu, preset Menu, template Menu
+
 **Runtime Mode**:
 The executable presentation of a Menu when the user invokes it outside Settings.
 _Avoid_: Live preview, actual Menu
@@ -400,6 +404,7 @@ The Chinese for each term, chosen once for the interface's 简体中文. Host-ow
 | Menu Editor | 菜单编辑器 |
 | Editor Mode | 编辑模式 |
 | Welcome Guide | 欢迎指南 |
+| Starter Menu | 入门菜单 |
 | Runtime Mode | 运行模式 |
 | Current App | 当前 App |
 | App Override | App 覆盖 |

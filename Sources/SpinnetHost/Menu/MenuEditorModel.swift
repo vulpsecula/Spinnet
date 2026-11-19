@@ -727,6 +727,35 @@ final class MenuEditorModel: ObservableObject {
         return applyPreset(pluginID: pluginID, at: index, replacing: false)
     }
 
+    /// Places each Plugin's Menu Item Preset, in order, into the next empty
+    /// Slot of the default Menu: the Welcome Guide's Starter Menu. Only an
+    /// installed, available Ready-to-Use Preset is placed, so no Configuration
+    /// Sheet opens; one undo takes them all back. Returns how many it placed.
+    @discardableResult
+    func fillEmptySlots(withPresetsOf pluginIDs: [PluginID]) -> Int {
+        switchEditedApp(to: nil)
+        let before = editor.configuration
+        let selectedIndexBefore = selectedMenuIndex
+        var placed: [Int] = []
+        for pluginID in pluginIDs {
+            guard let preset = editor.installedPlugins.menuItemPreset(pluginID),
+                  preset.isAvailable, preset.readiness == .readyToUse,
+                  let index = editor.configuration.menu.slots.firstIndex(where: { $0.item == nil }) else { continue }
+            do {
+                _ = try editor.placePreset(pluginID: pluginID, inSlotAt: index)
+                placed.append(index)
+            } catch {
+                continue
+            }
+        }
+        guard let first = placed.first else { return 0 }
+        selectedMenuIndex = first
+        placementMessage = nil
+        configurationDidChange(editor.configuration)
+        recordComposition(before: before, selectedIndexBefore: selectedIndexBefore)
+        return placed.count
+    }
+
     /// Adds a new Slot at `index` holding the Preset: what dropping a Preset
     /// from the Library onto an occupied Slot does. One undo takes it back.
     @discardableResult
