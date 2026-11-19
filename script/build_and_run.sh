@@ -171,6 +171,9 @@ if [[ ! -f "$HOST_RESOURCES/zh-Hans.lproj/Localizable.strings" ]]; then
 fi
 cp -R "$HOST_RESOURCES/"*.lproj "$APP_RESOURCES/"
 mkdir -p "$APP_RESOURCES/en.lproj"
+# Made from Prototype/logo.png: the icon body masked to the macOS shape on a
+# 1024-point canvas with its shadow, every size in one icns.
+cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_RESOURCES/AppIcon.icns"
 
 # The app contains no Plugins: every Plugin, official or not, is installed
 # into the user's saved data the way the Library installs one.
@@ -188,6 +191,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>Spinnet</string>
   <key>CFBundleDisplayName</key>
   <string>Spinnet</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleLocalizations</key>

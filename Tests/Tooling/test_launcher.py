@@ -96,6 +96,7 @@ class LauncherTests(unittest.TestCase):
         resources.mkdir(parents=True)
         (resources / "com.vulpsecula.SpinnetHost.privileged-tools.plist").write_text('fixture')
         (resources.parent / "SpinnetHost.entitlements").write_text('fixture')
+        (resources.parent / "AppIcon.icns").write_text('fixture icon')
         self.sentinel = self.root / "dist/SpinnetHost.app/sentinel"
         self.sentinel.parent.mkdir(parents=True)
         self.sentinel.write_text("existing app")
@@ -170,6 +171,9 @@ class LauncherTests(unittest.TestCase):
                 self.assertTrue((contents / "Resources/zh-Hans.lproj/Localizable.strings").exists(),
                                 "The app carries the Host's String Catalog in its own resources")
                 self.assertTrue((contents / "Resources/en.lproj").is_dir())
+                self.assertEqual((contents / "Resources/AppIcon.icns").read_text(), "fixture icon")
+                self.assertIn("<key>CFBundleIconFile</key>\n  <string>AppIcon</string>",
+                              (contents / "Info.plist").read_text())
                 self.assertIn(["--verify-localizations"],
                               [call["args"] for call in commands if call["tool"] == "SpinnetHost"])
                 signed = [call["args"] for call in commands if call["tool"] == "codesign" and "--sign" in call["args"]]
