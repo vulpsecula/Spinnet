@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Packages a release: an Official Build in the release configuration, signed
-# with the Vulpsecula Software certificate, as Spinnet.app inside a DMG.
+# with the Vulpsecula Software certificate, as Spinnet.app inside an unsigned
+# DMG.
 #
 #   ./script/package_release.sh 1.0.0-beta.1
 #
@@ -40,6 +41,10 @@ if [[ -z "$IDENTITY" ]]; then
     exit 1
 fi
 
+# The DMG window layout is written by dmgbuild, run through uv.
+DMGBUILD_VERSION="1.6.5"
+command -v uvx >/dev/null || { echo "error: uv is needed to run dmgbuild (brew install uv)" >&2; exit 1; }
+
 OUTPUT_DIR="$ROOT_DIR/dist/release"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/spinnet-release.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -53,14 +58,19 @@ SPINNET_OFFICIAL_BUILD=1 SPINNET_BUILD_CONFIGURATION=release SPINNET_DIST_DIR="$
 STAGE="$WORK_DIR/stage"
 mkdir -p "$STAGE"
 ditto "$WORK_DIR/build/SpinnetHost.app" "$STAGE/Spinnet.app"
-ln -s /Applications "$STAGE/Applications"
 codesign --verify --deep --strict "$STAGE/Spinnet.app"
 
 mkdir -p "$OUTPUT_DIR"
 rm -f "$DMG" "$DMG.sha256"
-hdiutil create -quiet -volname "Spinnet $LABEL" -srcfolder "$STAGE" -fs HFS+ -format UDZO "$DMG"
-codesign --force --sign "$IDENTITY" "$DMG"
-codesign --verify "$DMG"
+# The DMG itself stays unsigned. macOS checks a signed disk image when it is
+# opened, and without notarization it blocks it, so a signed DMG made people
+# choose Open Anyway twice: once for the DMG, once for the app. The app
+# inside is still signed, and the published SHA-256 covers the DMG.
+# dmgbuild lays out the window (background arrow, icon places) without
+# scripting Finder; dmg_settings.py describes it.
+uvx --from "dmgbuild==$DMGBUILD_VERSION" dmgbuild -s "$ROOT_DIR/script/dmg_settings.py" \
+    -D app="$STAGE/Spinnet.app" -D background="$ROOT_DIR/Resources/DMGBackground.tiff" \
+    "Spinnet $LABEL" "$DMG"
 (cd "$OUTPUT_DIR" && shasum -a 256 "$(basename "$DMG")" >"$(basename "$DMG").sha256")
 
 echo "Packaged $DMG"
