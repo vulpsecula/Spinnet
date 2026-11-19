@@ -7456,16 +7456,6 @@
         }
       }
     },
-    "Restart Spinnet to finish": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新启动 Spinnet 以完成"
-          }
-        }
-      }
-    },
     "Restart Spinnet to finish enabling Screen Recording": {
       "localizations": {
         "zh-Hans": {
@@ -7792,16 +7782,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "屏幕录制：未授予"
-          }
-        }
-      }
-    },
-    "Screen Recording: Restart Spinnet to finish": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "屏幕录制：重新启动 Spinnet 以完成"
           }
         }
       }
@@ -9562,6 +9542,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭剪贴板历史？"
+          }
+        }
+      }
+    },
+    "Turn on Spinnet in System Settings, then choose Quit & Reopen": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在“系统设置”中开启 Spinnet，然后选择“退出并重新打开”"
           }
         }
       }

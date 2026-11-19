@@ -398,7 +398,7 @@ final class LocalizationCompletenessTests: XCTestCase {
                                                 configuration: try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))),
                 metadata: .current, defaults: defaults, accessibilityPermissionCheck: { false },
                 mouseInputConflictCheck: { _ in [] })
-            model.openWelcomeGuideAtLaunchIfNeeded()
+            model.openAtLaunch()
             let pluginNames = model.officialPlugins.plugins.map(\.name) + ["SpinnetPlugins"]
             while true {
                 let english = model.welcomeGuideAccessibleNames

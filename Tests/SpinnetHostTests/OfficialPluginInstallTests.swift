@@ -52,7 +52,7 @@ final class OfficialPluginInstallTests: XCTestCase {
         settings.officialPlugins.lookUpRelease = { try updater.newestRelease(of: $0.id, named: $0.name, from: $0.updateSource) }
         settings.officialPlugins.runInBackground = { $0() }
         settings.officialPlugins.deliver = { $0() }
-        settings.openWelcomeGuideAtLaunchIfNeeded()
+        settings.openAtLaunch()
     }
 
     private var official: OfficialPluginInstallModel { settings.officialPlugins }

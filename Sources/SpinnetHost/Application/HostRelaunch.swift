@@ -23,6 +23,7 @@ enum HostRelaunch {
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = arguments
         do { try process.run() } catch { return }
-        NSApp.terminate(nil)
+        // A quit the user cancels must not reopen Spinnet when it quits later.
+        HostQuit.shared.quit(relaunching: true, onCancel: { if process.isRunning { process.terminate() } })
     }
 }

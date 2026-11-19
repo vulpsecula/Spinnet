@@ -372,6 +372,60 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         XCTAssertFalse(model.screenRecordingAwaitsRestart)
     }
 
+    /// After asking, the user turns Spinnet on in System Settings and chooses
+    /// its Quit & Reopen; the button goes there, and a restart is offered
+    /// beside it for a user who chose Later.
+    func testAScreenRecordingRequestPointsToSystemSettingsAndOffersARestart() throws {
+        var opened: [URL] = []
+        var relaunches = 0
+        let model = PrivacyPermissionsModel(
+            grantStore: PluginCapabilityGrantStore(), manifests: { [] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            screenRecordingPermissionCheck: { false },
+            screenRecordingPermissionRequest: { false }
+        )
+        model.canRelaunch = true
+        model.relaunch = { relaunches += 1 }
+        XCTAssertEqual(model.actionTitle(for: .screenRecording), "Enable Screen Recording…")
+        XCTAssertFalse(model.offersRestart(for: .screenRecording))
+
+        model.performAction(for: .screenRecording) { opened.append($0); return true }
+        XCTAssertEqual(opened, [], "the first press asks macOS")
+        XCTAssertEqual(model.actionTitle(for: .screenRecording), "Open Screen Recording Settings…")
+        XCTAssertEqual(model.statusTitle(for: .screenRecording),
+                       "Turn on Spinnet in System Settings, then choose Quit & Reopen")
+        XCTAssertTrue(model.offersRestart(for: .screenRecording))
+        XCTAssertFalse(model.offersRestart(for: .accessibility))
+
+        model.performAction(for: .screenRecording) { opened.append($0); return true }
+        XCTAssertEqual(opened, [try XCTUnwrap(PluginSystemPermission.screenRecording.systemSettingsURL)])
+        XCTAssertEqual(relaunches, 0, "only the restart link relaunches")
+
+        model.restart()
+        XCTAssertEqual(relaunches, 1)
+    }
+
+    /// A Host that cannot reopen itself, such as `swift run`, still says what
+    /// to do in System Settings but offers no restart.
+    func testAHostThatCannotRelaunchOffersNoRestart() throws {
+        var relaunches = 0
+        let model = PrivacyPermissionsModel(
+            grantStore: PluginCapabilityGrantStore(), manifests: { [] },
+            accessibilityPermissionCheck: { true }, defaults: defaults,
+            screenRecordingPermissionCheck: { false },
+            screenRecordingPermissionRequest: { false }
+        )
+        model.canRelaunch = false
+        model.relaunch = { relaunches += 1 }
+        model.requestScreenRecordingPermission()
+
+        XCTAssertFalse(model.offersRestart(for: .screenRecording))
+        XCTAssertEqual(model.statusTitle(for: .screenRecording),
+                       "Turn on Spinnet in System Settings, then choose Quit & Reopen")
+        model.restart()
+        XCTAssertEqual(relaunches, 0)
+    }
+
     func testAnEarlierSessionsRequestDoesNotAwaitARestart() throws {
         defaults.set(true, forKey: "privacy.screen-recording-requested")
         let model = PrivacyPermissionsModel(

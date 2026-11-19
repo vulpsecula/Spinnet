@@ -226,10 +226,15 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
             }
             Spacer(minLength: 12)
             if !privacy.isGranted(permission) {
-                let title = privacy.actionTitle(for: permission)
-                Button(title) { privacy.performAction(for: permission, openURL: openURL) }
-                    .controlSize(.small)
-                    .accessibilityLabel(title.replacingOccurrences(of: "…", with: ""))
+                VStack(alignment: .trailing, spacing: 4) {
+                    let title = privacy.actionTitle(for: permission)
+                    Button(title) { privacy.performAction(for: permission, openURL: openURL) }
+                        .controlSize(.small)
+                        .accessibilityLabel(title.replacingOccurrences(of: "…", with: ""))
+                    if privacy.offersRestart(for: permission) {
+                        RestartSpinnetLink(action: privacy.restart)
+                    }
+                }
             }
         }
         .padding(.vertical, 12)

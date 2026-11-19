@@ -29,15 +29,21 @@ final class WelcomeGuideTests: XCTestCase {
     /// A launch of the Host with this saved data.
     private func launch(withPlugins: Bool = false,
                         accessibilityGranted: @escaping () -> Bool = { false }) throws -> SettingsWindowModel {
-        let model = SettingsWindowModel(
+        let launched = try model(withPlugins: withPlugins, accessibilityGranted: accessibilityGranted)
+        launched.openAtLaunch()
+        return launched
+    }
+
+    /// The Settings model a launch builds, before it decides what to show.
+    private func model(withPlugins: Bool = false,
+                       accessibilityGranted: @escaping () -> Bool = { false }) throws -> SettingsWindowModel {
+        SettingsWindowModel(
             editor: withPlugins ? try makeEditor() : try emptyEditor(),
             metadata: .current,
             defaults: defaults,
             accessibilityPermissionCheck: accessibilityGranted,
             mouseInputConflictCheck: { _ in [] }
         )
-        model.openWelcomeGuideAtLaunchIfNeeded()
-        return model
     }
 
     func testAFirstLaunchWithNoPluginInstalledOpensTheGuideAtWelcome() throws {
@@ -80,6 +86,88 @@ final class WelcomeGuideTests: XCTestCase {
         _ = try launch()
 
         XCTAssertTrue(try launch().welcomeGuide.isPresented)
+    }
+
+    /// Spinnet reopens itself, for System Settings' Quit & Reopen or its own
+    /// restart, while the guide is on its permission step; Settings shows
+    /// again with the guide there, even once a Plugin is installed.
+    func testARelaunchMidGuideReopensSettingsWithTheGuideAtTheSameStep() throws {
+        let first = try launch()
+        first.welcomeGuide.next()
+        XCTAssertEqual(first.welcomeGuide.step, .systemPermissions)
+
+        first.prepareToQuit(reopeningSettings: true)
+        XCTAssertTrue(first.isQuitting)
+        XCTAssertTrue(first.welcomeGuide.isPresented, "a quit takes the sheet down without skipping the guide")
+
+        let second = try model(withPlugins: true)
+        XCTAssertTrue(second.openAtLaunch())
+        XCTAssertTrue(second.welcomeGuide.isPresented)
+        XCTAssertEqual(second.welcomeGuide.step, .systemPermissions)
+
+        // Only that one launch continues; the guide is still owed until
+        // completed or skipped, from Welcome as before.
+        XCTAssertEqual(try launch().welcomeGuide.step, .welcome)
+    }
+
+    func testARelaunchResumesAGuideReopenedFromGeneral() throws {
+        let first = try launch()
+        first.welcomeGuide.skip()
+        first.openWelcomeGuide()
+        first.welcomeGuide.next()
+
+        first.prepareToQuit(reopeningSettings: true)
+
+        let second = try launch()
+        XCTAssertTrue(second.welcomeGuide.isPresented)
+        XCTAssertEqual(second.welcomeGuide.step, .systemPermissions)
+        XCTAssertFalse(try launch().welcomeGuide.isPresented, "a finished guide stays closed after that launch")
+    }
+
+    func testARelaunchWithSettingsOpenShowsTheSamePageOnce() throws {
+        let first = try launch(withPlugins: true)
+        first.selectPage(.privacyAndPermissions)
+
+        first.prepareToQuit(reopeningSettings: true)
+
+        let second = try model(withPlugins: true)
+        XCTAssertTrue(second.openAtLaunch())
+        XCTAssertEqual(second.page, .privacyAndPermissions)
+        XCTAssertFalse(second.welcomeGuide.isPresented)
+        XCTAssertFalse(try model(withPlugins: true).openAtLaunch())
+    }
+
+    func testAnOrdinaryQuitRestoresNothing() throws {
+        let first = try launch()
+        first.welcomeGuide.next()
+        first.selectPage(.general)
+
+        first.prepareToQuit()
+
+        let second = try model(withPlugins: true)
+        XCTAssertFalse(second.openAtLaunch())
+        XCTAssertEqual(try launch().welcomeGuide.step, .welcome, "a first-run guide still starts over")
+    }
+
+    func testACancelledRelaunchKeepsTheGuideOpenAndForgetsIt() throws {
+        let first = try launch()
+        first.welcomeGuide.next()
+        first.prepareToQuit(reopeningSettings: true)
+
+        first.cancelQuit()
+
+        XCTAssertFalse(first.isQuitting)
+        XCTAssertTrue(first.welcomeGuide.isPresented)
+        XCTAssertFalse(try model(withPlugins: true).openAtLaunch())
+    }
+
+    func testARelaunchWithTheGuideClosedResumesNoGuide() throws {
+        let first = try launch()
+        first.welcomeGuide.next()
+        first.welcomeGuide.skip()
+        first.prepareToQuit(reopeningSettings: true)
+
+        XCTAssertFalse(try launch().welcomeGuide.isPresented)
     }
 
     func testCompletingTheGuideOpensTheMenuEditorAndItDoesNotReappear() throws {
@@ -142,8 +230,7 @@ final class WelcomeGuideTests: XCTestCase {
     func testTheSettingsWindowOpensWithTheGuideAtAFirstLaunch() throws {
         let controller = SettingsWindowController(editor: try emptyEditor(), defaults: defaults)
 
-        controller.openWelcomeGuideAtLaunchIfNeeded()
-
+        XCTAssertTrue(controller.openAtLaunch())
         XCTAssertTrue(controller.welcomeGuidePresented)
         XCTAssertTrue(controller.presentationSnapshot.accessibleNames.contains("Welcome Guide"))
     }

@@ -135,6 +135,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private static let defaultSlotCount = 8
 
     func applicationWillTerminate(_ notification: Notification) {
+        HostQuit.shared.terminationProceeds()
         actionDispatcher?.shutdown()
         keepAwake.shutdown()
         pluginRuntime?.shutdown()
@@ -370,6 +371,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 pluginStorage: pluginStorage
             )
             settings.onEndedTaskRetentionChanged = { [activities] in activities.setEndedTaskRetention($0) }
+            HostQuit.shared.dismissPresentations = { [weak self] in self?.settings?.prepareToQuit(relaunching: $0) }
+            HostQuit.shared.restorePresentations = { [weak self] in self?.settings?.cancelQuit() }
+            HostQuit.shared.installQuitEventHandler()
             #if DEBUG
             settings.developerTools = DeveloperTools(
                 diagnostics: { [unowned self] in self.developerDiagnostics() },
@@ -516,8 +520,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             installStatusItem()
             settings.onShowsStatusItemChanged = { [weak self] in self?.statusItemController?.setShowsStatusItem($0) }
             try installTriggers()
-            settings.openWelcomeGuideAtLaunchIfNeeded()
-            if settings.welcomeGuidePresented || settings.permissionGuidePresented {
+            if settings.openAtLaunch() || settings.permissionGuidePresented {
                 settings.present()
             } else {
                 presentActivationReminderIfDue()
@@ -533,6 +536,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        HostQuit.shared.terminationRequested()
         reviewedTasks.refresh()
         if reviewedTasks.hasRunningTasks {
             reviewedTasks.beginExit()
@@ -555,7 +559,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                     let answer = alert.runModal()
                     if answer == .alertThirdButtonReturn {
                         timer.invalidate(); self.taskQuitTimer = nil; self.taskQuitAlert = nil
-                        self.reviewedTasks.cancelExit(); NSApp.reply(toApplicationShouldTerminate: false); return
+                        self.reviewedTasks.cancelExit(); NSApp.reply(toApplicationShouldTerminate: false)
+                        HostQuit.shared.terminationCancelled(); return
                     }
                     if answer == .alertSecondButtonReturn { self.reviewedTasks.stopAll(); alert.informativeText = localized("Attempting to stop running Homebrew Tasks. Stopping does not undo package changes.") }
                     else { alert.informativeText = localized("Waiting for running Homebrew Tasks to finish. You can still choose Stop and Quit.") }
@@ -667,7 +672,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func installStatusItem() {
         let controller = StatusItemController(
             openSettings: { [weak self] in self?.settings.present() },
-            quit: { NSApp.terminate(nil) }, activities: activities, releases: settings.spinnetReleases
+            quit: { HostQuit.shared.quit() }, activities: activities, releases: settings.spinnetReleases
         )
         controller.setShowsStatusItem(settings.showsStatusItem)
         controller.install()

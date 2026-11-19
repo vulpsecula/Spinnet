@@ -180,9 +180,9 @@ final class SettingsWindowController: NSWindowController {
 
     var permissionGuidePresented: Bool { model.privacy.permissionGuidePresented }
     var welcomeGuidePresented: Bool { model.welcomeGuide.isPresented }
-    /// Opens the Welcome Guide when no Plugin is installed and the guide was
-    /// never completed or skipped.
-    func openWelcomeGuideAtLaunchIfNeeded() { model.openWelcomeGuideAtLaunchIfNeeded() }
+    /// Restores what a relaunch left open, or opens the Welcome Guide when
+    /// it is owed. True when Settings should show.
+    func openAtLaunch() -> Bool { model.openAtLaunch() }
     var clipboardCollectionEnabled: Bool {
         get { model.clipboardHistory.collectionEnabled }
         set { model.clipboardHistory.collectionEnabled = newValue }
@@ -320,6 +320,14 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func refreshMenuSlots() { model.menuEditor.refreshMenuSlots() }
+
+    /// Takes down every sheet and alert so AppKit lets Spinnet quit. Open
+    /// Settings that Spinnet is about to reopen shows again after the relaunch.
+    func prepareToQuit(relaunching: Bool) {
+        model.prepareToQuit(reopeningSettings: relaunching && window?.isVisible == true)
+    }
+    /// Brings them back when the quit was cancelled.
+    func cancelQuit() { model.cancelQuit() }
 
     var activation: ActivationModel { model.activation }
 

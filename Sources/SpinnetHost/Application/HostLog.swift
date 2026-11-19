@@ -9,4 +9,5 @@ enum HostLog {
     static let deepLink = Logger(subsystem: subsystem, category: "deep-link")
     static let keepAwake = Logger(subsystem: subsystem, category: "keep-awake")
     static let developer = Logger(subsystem: subsystem, category: "developer")
+    static let lifecycle = Logger(subsystem: subsystem, category: "lifecycle")
 }

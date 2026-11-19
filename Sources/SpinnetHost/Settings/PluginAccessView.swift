@@ -273,10 +273,14 @@ struct MenuItemAccessSummary: View {
                 if needsScreenRecording {
                     // The Screenshot Configuration Sheet is one of the two
                     // places the Screen Recording prompt may come from.
-                    if privacy.screenRecordingAwaitsRestart && HostRelaunch.isAvailable {
-                        Label(localized("Screen Recording: Restart Spinnet to finish"), systemImage: "arrow.clockwise")
-                        Button(localized("Restart Spinnet")) { HostRelaunch.relaunch() }
-                            .accessibilityLabel(localized("Restart Spinnet to finish enabling Screen Recording"))
+                    if privacy.screenRecordingAwaitsRestart {
+                        Label(privacy.statusTitle(for: .screenRecording), systemImage: "arrow.clockwise")
+                        let openTitle = localized("Open \(PluginSystemPermission.screenRecording.localizedTitle) Settings…")
+                        Button(openTitle, action: openScreenRecordingSettings)
+                            .accessibilityLabel(openTitle.replacingOccurrences(of: "…", with: ""))
+                        if privacy.offersRestart(for: .screenRecording) {
+                            RestartSpinnetLink(action: privacy.restart)
+                        }
                     } else {
                         Label(localized("Screen Recording: Not granted"), systemImage: "lock")
                         Button(localized("Enable Screen Recording…")) {

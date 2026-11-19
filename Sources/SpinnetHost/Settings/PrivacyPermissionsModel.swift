@@ -21,9 +21,13 @@ final class PrivacyPermissionsModel: ObservableObject {
     @Published private(set) var accessibilityPermissionGranted: Bool
     @Published private(set) var screenRecordingPermissionGranted: Bool
     /// The user asked for Screen Recording during this run and it still reads
-    /// as missing. macOS applies the grant only to a relaunched process, so the
-    /// page offers a restart instead of asking again.
+    /// as missing. macOS applies the grant only to a relaunched process: the
+    /// user turns Spinnet on in System Settings and chooses its Quit & Reopen,
+    /// and a restart stays on offer for when they chose Later.
     @Published private(set) var screenRecordingAwaitsRestart = false
+    /// Whether this Host can reopen itself, and how it does.
+    var canRelaunch = HostRelaunch.isAvailable
+    var relaunch: () -> Void = HostRelaunch.relaunch
     @Published private(set) var backgroundOperationsStatus: HostBackgroundOperationsStatus
     @Published private(set) var backgroundOperationsError: String?
     /// True while an Enable request waits, possibly for macOS's administrator dialog.
@@ -362,31 +366,37 @@ extension PrivacyPermissionsModel {
     /// permission step shows it.
     func statusTitle(for permission: PluginSystemPermission) -> String {
         if isGranted(permission) { return localized("\(permission.localizedTitle) granted") }
-        if awaitsRestart(permission) { return localized("Restart Spinnet to finish") }
+        if permission == .screenRecording && screenRecordingAwaitsRestart {
+            return localized("Turn on Spinnet in System Settings, then choose Quit & Reopen")
+        }
         return localized("\(permission.localizedTitle) required")
     }
 
-    /// Screen Recording is requested from the user's click; every other
-    /// permission opens System Settings.
+    /// Screen Recording is requested from the user's first click; after that,
+    /// and for every other permission, the button opens System Settings.
     func actionTitle(for permission: PluginSystemPermission) -> String {
-        if awaitsRestart(permission) { return localized("Restart Spinnet") }
-        return permission == .screenRecording && !isGranted(permission)
+        return permission == .screenRecording && !isGranted(permission) && !screenRecordingAwaitsRestart
             ? localized("Enable Screen Recording…")
             : localized("Open \(permission.localizedTitle) Settings…")
     }
 
-    /// What the permission's button does: relaunch to apply a new Screen
-    /// Recording grant, ask macOS once (Screen Recording, Accessibility), or
-    /// open the System Settings pane.
+    /// What the permission's button does: ask macOS once (Screen Recording,
+    /// Accessibility), or open the System Settings pane.
     func performAction(for permission: PluginSystemPermission, openURL: (URL) -> Bool) {
-        if awaitsRestart(permission) { HostRelaunch.relaunch(); return }
         if permission == .screenRecording, !isGranted(permission), requestScreenRecordingPermission() { return }
         if permission == .accessibility, !isGranted(permission), requestAccessibilityPermission() { return }
         if let url = permission.systemSettingsURL { _ = openURL(url) }
     }
 
-    private func awaitsRestart(_ permission: PluginSystemPermission) -> Bool {
-        permission == .screenRecording && screenRecordingAwaitsRestart && HostRelaunch.isAvailable
+    /// System Settings' Quit & Reopen applies a new Screen Recording grant;
+    /// a restart is offered beside it for a user who chose Later.
+    func offersRestart(for permission: PluginSystemPermission) -> Bool {
+        permission == .screenRecording && screenRecordingAwaitsRestart && canRelaunch
+    }
+
+    func restart() {
+        guard canRelaunch else { return }
+        relaunch()
     }
 }
 

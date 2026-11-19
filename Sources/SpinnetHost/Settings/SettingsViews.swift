@@ -34,6 +34,10 @@ final class SettingsWindowModel: ObservableObject {
     let activation: ActivationModel
 
     @Published var page: SettingsPage = .menu
+    /// True while Spinnet quits. The window then shows no content, which
+    /// takes down every sheet and alert in it: AppKit refuses to quit while a
+    /// sheet is attached. Each keeps its own state for a cancelled quit.
+    @Published private(set) var isQuitting = false
     #if DEBUG
     /// What General's Developer section runs. Only a DEBUG Host sets it.
     @Published var developerTools: DeveloperTools?
@@ -219,15 +223,42 @@ final class SettingsWindowModel: ObservableObject {
         }
     }
 
-    /// Opens the Welcome Guide when this launch has no Plugin installed and
-    /// the guide was never completed or skipped.
-    func openWelcomeGuideAtLaunchIfNeeded() {
+    /// The Settings page that was open when Spinnet reopened itself.
+    static let relaunchPageKey = "settings.relaunch-page"
+
+    /// Shows what this launch owes the user: Settings on the page a relaunch
+    /// left open, with its Welcome Guide step, or the Welcome Guide when it
+    /// has never been completed or skipped and no Plugin is installed.
+    /// Returns whether Settings should show.
+    @discardableResult
+    func openAtLaunch() -> Bool {
+        let relaunchPage = defaults.string(forKey: Self.relaunchPageKey).flatMap(SettingsPage.init(rawValue:))
+        defaults.removeObject(forKey: Self.relaunchPageKey)
+        if let relaunchPage { selectPage(relaunchPage) }
         welcomeGuide.openAtLaunchIfNeeded()
+        return relaunchPage != nil || welcomeGuide.isPresented
     }
 
     /// General's Open Welcome Guide…, available whatever is installed.
     func openWelcomeGuide() {
         welcomeGuide.open()
+    }
+
+    /// Spinnet is quitting. When it reopens itself with Settings open, such
+    /// as for Screen Recording, the next launch shows the same page and
+    /// Welcome Guide step; an ordinary quit leaves nothing to restore.
+    func prepareToQuit(reopeningSettings: Bool = false) {
+        if reopeningSettings {
+            defaults.set(page.rawValue, forKey: Self.relaunchPageKey)
+            welcomeGuide.rememberStepForNextLaunch()
+        }
+        isQuitting = true
+    }
+
+    func cancelQuit() {
+        defaults.removeObject(forKey: Self.relaunchPageKey)
+        welcomeGuide.forgetStepForNextLaunch()
+        isQuitting = false
     }
 
     /// Persist a sheet draft before changing editor state, Undo or presentation.
@@ -451,6 +482,14 @@ struct SettingsRootView: View {
     private let menuPreviewContainerDiameter: CGFloat = 456
 
     var body: some View {
+        if model.isQuitting {
+            Color(nsColor: .windowBackgroundColor)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         HStack(spacing: 0) {
             navigation.frame(width: 188)
             Divider()
@@ -544,8 +583,9 @@ struct SettingsRootView: View {
         }
         .sheet(isPresented: Binding(
             get: { welcomeGuide.isPresented },
-            // Closing the sheet any other way counts as skipping it.
-            set: { if !$0, welcomeGuide.isPresented { welcomeGuide.skip() } }
+            // Closing the sheet any other way counts as skipping it; a quit
+            // takes it down without closing it.
+            set: { if !$0, welcomeGuide.isPresented, !model.isQuitting { welcomeGuide.skip() } }
         )) {
             WelcomeGuideSheet(guide: welcomeGuide, officialPlugins: model.officialPlugins, privacy: privacy, openURL: openURL,
                               triggerControls: menuTriggerSettings)
@@ -955,7 +995,6 @@ struct SettingsRootView: View {
                 )
             case .privacyAndPermissions:
                 PrivacySettingsView(
-                    accessibilityPermissionGranted: privacy.accessibilityPermissionGranted,
                     pluginData: model.pluginData,
                     privacy: privacy,
                     clipboardCollectionEnabled: $clipboardHistory.collectionEnabled,
@@ -969,9 +1008,6 @@ struct SettingsRootView: View {
                     removeExcludedApplication: clipboardHistory.removeExcludedApplication,
                     exclusionsFocus: clipboardHistory.exclusionsFocus,
                     openURL: openURL,
-                    screenRecordingPermissionGranted: privacy.screenRecordingPermissionGranted,
-                    screenRecordingAwaitsRestart: privacy.screenRecordingAwaitsRestart,
-                    enableScreenRecording: { privacy.requestScreenRecordingPermission() },
                     backgroundOperationsStatus: privacy.backgroundOperationsStatus,
                     backgroundOperationsError: privacy.backgroundOperationsError,
                     backgroundOperationsEnabling: privacy.backgroundOperationsEnabling,
@@ -2094,7 +2130,6 @@ private struct MenuSizeControl: View {
 }
 
 private struct PrivacySettingsView: View {
-    let accessibilityPermissionGranted: Bool
     @ObservedObject var pluginData: PluginDataManagementModel
     @ObservedObject var privacy: PrivacyPermissionsModel
     @Binding var clipboardCollectionEnabled: Bool
@@ -2111,11 +2146,6 @@ private struct PrivacySettingsView: View {
     @State private var confirmDisable = false
     let exclusionsFocus: UUID?
     let openURL: (URL) -> Bool
-    var screenRecordingPermissionGranted = false
-    var screenRecordingAwaitsRestart = false
-    /// Asks macOS for Screen Recording, returning false when it will not ask
-    /// again and System Settings is the way forward.
-    var enableScreenRecording: () -> Bool = { false }
     var backgroundOperationsStatus: HostBackgroundOperationsStatus = .notEnabled
     var backgroundOperationsError: String?
     var backgroundOperationsEnabling = false
@@ -2133,9 +2163,10 @@ private struct PrivacySettingsView: View {
                             icon: systemPermissionIconName(permission),
                             title: permission.localizedTitle,
                             body: permission.localizedExplanation,
-                            status: systemPermissionStatus(permission),
-                            actionTitle: systemPermissionActionTitle(permission),
-                            action: { systemPermissionAction(permission) }
+                            status: privacy.statusTitle(for: permission),
+                            actionTitle: privacy.actionTitle(for: permission),
+                            action: { privacy.performAction(for: permission, openURL: openURL) },
+                            restart: privacy.offersRestart(for: permission) ? privacy.restart : nil
                         )
                         if permission != PluginSystemPermission.allCases.last {
                             Divider().padding(.leading, 52)
@@ -2248,15 +2279,6 @@ private struct PrivacySettingsView: View {
         }
     }
 
-    private func systemPermissionGranted(_ permission: PluginSystemPermission) -> Bool {
-        switch permission {
-        case .accessibility:
-            return accessibilityPermissionGranted
-        case .screenRecording:
-            return screenRecordingPermissionGranted
-        }
-    }
-
     private func systemPermissionIconName(_ permission: PluginSystemPermission) -> String {
         switch permission {
         case .accessibility:
@@ -2266,51 +2288,14 @@ private struct PrivacySettingsView: View {
         }
     }
 
-    /// Screen Recording is requested only here, from the user's click; every
-    /// other permission row opens System Settings.
-    private func systemPermissionActionTitle(_ permission: PluginSystemPermission) -> String {
-        if restartFinishes(permission) { return localized("Restart Spinnet") }
-        return permission == .screenRecording && !screenRecordingPermissionGranted
-            ? localized("Enable Screen Recording…")
-            : localized("Open \(permission.localizedTitle) Settings…")
-    }
-
-    private func systemPermissionStatus(_ permission: PluginSystemPermission) -> String {
-        if systemPermissionGranted(permission) { return localized("\(permission.localizedTitle) granted") }
-        if restartFinishes(permission) { return localized("Restart Spinnet to finish") }
-        return localized("\(permission.localizedTitle) required")
-    }
-
-    /// macOS applies a new Screen Recording grant only to a relaunched Spinnet.
-    private func restartFinishes(_ permission: PluginSystemPermission) -> Bool {
-        permission == .screenRecording && screenRecordingAwaitsRestart && HostRelaunch.isAvailable
-    }
-
-    private func systemPermissionAction(_ permission: PluginSystemPermission) {
-        if restartFinishes(permission) { HostRelaunch.relaunch(); return }
-        if permission == .screenRecording, !screenRecordingPermissionGranted, enableScreenRecording() { return }
-        openSystemSettings(for: permission)
-    }
-
-    private func openSystemSettings(for permission: PluginSystemPermission) {
-        let url: URL?
-        switch permission {
-        case .accessibility:
-            url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-        case .screenRecording:
-            url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
-        }
-        guard let url else { return }
-        _ = openURL(url)
-    }
-
     private func privacyRow(
         icon: String,
         title: String,
         body: String,
         status: String,
         actionTitle: String? = nil,
-        action: (() -> Void)? = nil
+        action: (() -> Void)? = nil,
+        restart: (() -> Void)? = nil
     ) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon).font(.title3).foregroundStyle(.secondary).frame(width: 28)
@@ -2327,10 +2312,13 @@ private struct PrivacySettingsView: View {
             }
             if let actionTitle, let action {
                 Spacer(minLength: 12)
-                Button(actionTitle, action: action)
-                    .controlSize(.small)
-                    .accessibilityLabel(actionTitle.replacingOccurrences(of: "…", with: ""))
-                    .accessibilityHint(localized("Open the matching macOS System Settings pane."))
+                VStack(alignment: .trailing, spacing: 4) {
+                    Button(actionTitle, action: action)
+                        .controlSize(.small)
+                        .accessibilityLabel(actionTitle.replacingOccurrences(of: "…", with: ""))
+                        .accessibilityHint(localized("Open the matching macOS System Settings pane."))
+                    if let restart { RestartSpinnetLink(action: restart) }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

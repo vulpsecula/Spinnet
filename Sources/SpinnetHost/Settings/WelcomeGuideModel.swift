@@ -2,7 +2,7 @@ import Combine
 import Foundation
 
 /// The Welcome Guide's steps, in order.
-enum WelcomeGuideStep: CaseIterable, Equatable {
+enum WelcomeGuideStep: String, CaseIterable, Equatable {
     case welcome
     case systemPermissions
     case menuTrigger
@@ -33,12 +33,35 @@ final class WelcomeGuideModel: ObservableObject {
     }
 
     func openAtLaunchIfNeeded() {
-        guard !hasInstalledPlugins(), !defaults.bool(forKey: Self.finishedKey) else { return }
+        let resumed = defaults.string(forKey: Self.resumeStepKey).flatMap(WelcomeGuideStep.init(rawValue:))
+        defaults.removeObject(forKey: Self.resumeStepKey)
+        // Spinnet reopened itself mid-guide, often to apply Screen
+        // Recording: continue where the user was, even in a guide reopened
+        // from General and whatever they installed.
+        if let resumed {
+            open()
+            step = resumed
+            return
+        }
+        guard !defaults.bool(forKey: Self.finishedKey), !hasInstalledPlugins() else { return }
         open()
     }
 
     /// Completed or skipped, either of which keeps it from opening at launch.
     static let finishedKey = "welcome-guide.finished"
+    /// The step an open guide was on when Spinnet reopened itself.
+    static let resumeStepKey = "welcome-guide.resume-step"
+
+    /// Spinnet is reopening itself: an open guide reopens at this step.
+    func rememberStepForNextLaunch() {
+        guard isPresented else { return }
+        defaults.set(step.rawValue, forKey: Self.resumeStepKey)
+    }
+
+    /// The quit was cancelled, and the guide is still open.
+    func forgetStepForNextLaunch() {
+        defaults.removeObject(forKey: Self.resumeStepKey)
+    }
 
     /// Closes the guide for good; General can still reopen it.
     func skip() {
