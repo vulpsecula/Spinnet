@@ -145,6 +145,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         if UIPreviewRenderer.renderIfRequested() { return }
         #endif
+        // Before anything reads or writes saved data.
+        if HostSingleInstance.deferToRunningInstance() { exit(0) }
         NSApp.setActivationPolicy(.accessory)
         // Never shown, but it is how editing shortcuts reach text fields.
         NSApp.mainMenu = HostEditMenu.make()
