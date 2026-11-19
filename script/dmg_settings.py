@@ -12,7 +12,8 @@ format = "UDZO"
 filesystem = "HFS+"
 files = [application]
 symlinks = {"Applications": "/Applications"}
-hide_extensions = [app_name]
+# No hide_extensions: it writes Finder info onto the bundle, which a strict
+# signature check rejects, and Finder hides ".app" anyway.
 
 background = defines["background"]  # noqa: F821
 # The window matches the background; the icons sit either side of its arrow.

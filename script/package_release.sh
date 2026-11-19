@@ -71,6 +71,17 @@ rm -f "$DMG" "$DMG.sha256"
 uvx --from "dmgbuild==$DMGBUILD_VERSION" dmgbuild -s "$ROOT_DIR/script/dmg_settings.py" \
     -D app="$STAGE/Spinnet.app" -D background="$ROOT_DIR/Resources/DMGBackground.tiff" \
     "Spinnet $LABEL" "$DMG"
+# Check the app as it ships, inside the DMG: install.sh verifies it the same
+# strict way, and Finder metadata on the bundle would fail that.
+MOUNT="$WORK_DIR/mount"
+mkdir "$MOUNT"
+hdiutil attach "$DMG" -nobrowse -readonly -noautoopen -mountpoint "$MOUNT" -quiet
+if ! codesign --verify --deep --strict "$MOUNT/Spinnet.app"; then
+    hdiutil detach "$MOUNT" -quiet
+    echo "error: Spinnet.app in the DMG fails a strict signature check" >&2
+    exit 1
+fi
+hdiutil detach "$MOUNT" -quiet
 (cd "$OUTPUT_DIR" && shasum -a 256 "$(basename "$DMG")" >"$(basename "$DMG").sha256")
 
 echo "Packaged $DMG"
