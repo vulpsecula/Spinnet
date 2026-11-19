@@ -26,6 +26,33 @@ final class MouseEventTapPriorityTests: XCTestCase {
         XCTAssertEqual(rig.appEvents, [])
     }
 
+    /// Creating a tap without Accessibility makes macOS ask at once, over the
+    /// Welcome Guide. Starting must not tap anything until the permission is
+    /// granted; the recovery check then installs the tap.
+    func testStartingWithoutAccessibilityTapsNothingUntilItIsGranted() {
+        var trusted = false
+        var requests = 0
+        var connections = 0
+        let controller = GlobalTriggerController(
+            accessibilityPermission: AccessibilityPermissionController(isTrusted: { trusted }, request: { requests += 1 }),
+            createMouseEventTap: { _ in connections += 1; return UntrustedRigTap() },
+            otherMouseEventTapIDs: { [] }
+        )
+        defer { controller.stop() }
+
+        XCTAssertTrue(controller.start(configuration: MenuTriggerConfiguration(mouseButton: 3)))
+        XCTAssertEqual(connections, 0, "no tap, so macOS shows no prompt at launch")
+        XCTAssertFalse(controller.mouseInterceptionAvailable)
+        controller.retryMouseInterceptionIfAuthorized()
+        XCTAssertEqual(connections, 0)
+
+        trusted = true
+        controller.retryMouseInterceptionIfAuthorized()
+        XCTAssertEqual(connections, 1)
+        XCTAssertTrue(controller.mouseInterceptionAvailable)
+        XCTAssertEqual(requests, 0, "the trigger never asks; the Welcome Guide does")
+    }
+
     func testRecoveryNoticesAButtonFilterEnabledAfterAMouseChange() throws {
         let rig = try PriorityRig()
         defer { rig.controller.stop() }
@@ -264,6 +291,12 @@ private final class PriorityTap: MouseEventTapConnection {
         self.handler = handler
     }
 
+    func enable() { isEnabled = true }
+    func invalidate() { isEnabled = false }
+}
+
+private final class UntrustedRigTap: MouseEventTapConnection {
+    private(set) var isEnabled = true
     func enable() { isEnabled = true }
     func invalidate() { isEnabled = false }
 }

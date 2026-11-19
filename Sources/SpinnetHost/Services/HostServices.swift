@@ -845,7 +845,11 @@ final class GlobalTriggerController {
         guard status == noErr else { return false }
         isRunning = true
 
-        mouseInterceptionAvailable = installMouseEventTap()
+        // Creating an event tap without Accessibility makes macOS ask for it
+        // at once, over the Welcome Guide that explains why. So nothing is
+        // tapped until the user grants it; the check below then installs the
+        // taps within a second.
+        mouseInterceptionAvailable = accessibilityPermission.isAuthorized && installMouseEventTap()
         onAccessibilityPermissionChanged?(accessibilityPermission.isAuthorized)
         // Poll connection health and active button-filter changes, not the
         // mouse model. Drivers may recreate or enable taps on a device change.
@@ -1266,7 +1270,8 @@ final class GlobalTriggerController {
         resetTrackpadGesture()
         trackpadTap?.invalidate()
         trackpadTap = nil
-        guard isRunning, configuration.trackpadTrigger.fingerCount != nil else { return }
+        guard isRunning, configuration.trackpadTrigger.fingerCount != nil,
+              accessibilityPermission.isAuthorized else { return }
         trackpadTap = createTrackpadTouchTap { [weak self] input in
             self?.receiveTrackpadInput(input) ?? false
         }
@@ -1384,7 +1389,17 @@ final class GlobalTriggerController {
         // filters. Let that press finish, then recover on the next check.
         guard heldPress == nil, mouseGestureOrigin == nil,
               handedBackButton == nil, capturedButtonAwaitingRelease == nil else { return }
+        let wasAvailable = mouseInterceptionAvailable
         _ = installMouseEventTap()
+        // The first tap after the permission arrives: a shortcut with an
+        // opening delay can now be read from its own tap, too.
+        if isRunning, !wasAvailable, handlesKeyboardShortcutInEventTap, keyEventTap == nil {
+            if let invokeHotKey {
+                UnregisterEventHotKey(invokeHotKey)
+                self.invokeHotKey = nil
+            }
+            keyboardShortcutRegistered = registerInvokeShortcut()
+        }
         onAccessibilityPermissionChanged?(accessibilityPermission.isAuthorized)
     }
 
@@ -1440,6 +1455,7 @@ final class GlobalTriggerController {
     /// original key events. It needs the Accessibility permission the mouse
     /// tap needs; without it the shortcut stays a hot key that opens at once.
     private func installKeyEventTap() -> Bool {
+        guard accessibilityPermission.isAuthorized else { return false }
         let eventMask = (CGEventMask(1) << CGEventType.keyDown.rawValue)
             | (CGEventMask(1) << CGEventType.keyUp.rawValue)
         guard let tap = CGEvent.tapCreate(

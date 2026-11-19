@@ -447,6 +447,7 @@ private final class TrackpadRig {
         var install: (@escaping (TrackpadInput) -> Bool) -> MouseEventTapConnection? = { _ in nil }
         var moveCursor: (CGPoint) -> Void = { _ in }
         controller = GlobalTriggerController(
+            accessibilityPermission: AccessibilityPermissionController(isTrusted: { true }, request: {}),
             scheduleDelay: { clock.schedule(after: $0, $1) },
             createMouseEventTap: { _ in FakeTap() },
             otherMouseEventTapIDs: { [] },

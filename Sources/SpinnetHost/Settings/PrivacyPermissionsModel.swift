@@ -1,3 +1,4 @@
+import ApplicationServices
 import Combine
 import CoreGraphics
 import Foundation
@@ -54,11 +55,13 @@ final class PrivacyPermissionsModel: ObservableObject {
     private enum Keys {
         static let permissionGuideShown = "privacy.permission-guide-shown"
         static let screenRecordingRequested = "privacy.screen-recording-requested"
+        static let accessibilityRequested = "privacy.accessibility-requested"
     }
 
     private let grantStore: PluginCapabilityGrantStore
     private let manifests: () -> [PluginManifest]
     private let accessibilityPermissionCheck: () -> Bool
+    private let accessibilityPermissionRequest: () -> Void
     private let defaults: UserDefaults
     private var grantObserver: UUID?
     private let screenRecordingPermissionCheck: () -> Bool
@@ -83,6 +86,10 @@ final class PrivacyPermissionsModel: ObservableObject {
         grantStore: PluginCapabilityGrantStore,
         manifests: @escaping () -> [PluginManifest],
         accessibilityPermissionCheck: @escaping () -> Bool,
+        accessibilityPermissionRequest: @escaping () -> Void = {
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
+        },
         defaults: UserDefaults,
         screenRecordingPermissionCheck: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
         screenRecordingPermissionRequest: @escaping () -> Bool = { CGRequestScreenCaptureAccess() },
@@ -104,6 +111,7 @@ final class PrivacyPermissionsModel: ObservableObject {
         self.grantStore = grantStore
         self.manifests = manifests
         self.accessibilityPermissionCheck = accessibilityPermissionCheck
+        self.accessibilityPermissionRequest = accessibilityPermissionRequest
         self.defaults = defaults
         let accessibilityGranted = accessibilityPermissionCheck()
         accessibilityPermissionGranted = accessibilityGranted
@@ -242,6 +250,18 @@ final class PrivacyPermissionsModel: ObservableObject {
         return prompted
     }
 
+    /// Asks macOS once, which also lists Spinnet under Accessibility so the
+    /// user only has to switch it on. Spinnet never asks at launch: the guide
+    /// explains the permission first, and this runs from its button.
+    /// Returns false once macOS has been asked, so the button opens Settings.
+    func requestAccessibilityPermission() -> Bool {
+        guard !defaults.bool(forKey: Keys.accessibilityRequested) else { return false }
+        defaults.set(true, forKey: Keys.accessibilityRequested)
+        accessibilityPermissionRequest()
+        refreshSystemPermissionStatus()
+        return true
+    }
+
     func dismissPermissionGuide() {
         permissionGuidePresented = false
     }
@@ -356,10 +376,12 @@ extension PrivacyPermissionsModel {
     }
 
     /// What the permission's button does: relaunch to apply a new Screen
-    /// Recording grant, ask macOS once, or open the System Settings pane.
+    /// Recording grant, ask macOS once (Screen Recording, Accessibility), or
+    /// open the System Settings pane.
     func performAction(for permission: PluginSystemPermission, openURL: (URL) -> Bool) {
         if awaitsRestart(permission) { HostRelaunch.relaunch(); return }
         if permission == .screenRecording, !isGranted(permission), requestScreenRecordingPermission() { return }
+        if permission == .accessibility, !isGranted(permission), requestAccessibilityPermission() { return }
         if let url = permission.systemSettingsURL { _ = openURL(url) }
     }
 

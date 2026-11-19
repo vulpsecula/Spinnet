@@ -305,6 +305,30 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         XCTAssertEqual(authorityChanges, 1)
     }
 
+    /// Accessibility is asked for from the Welcome Guide's button, never when
+    /// the model is built: the first press asks macOS, which also lists
+    /// Spinnet under Accessibility; later presses open System Settings.
+    func testAccessibilityIsRequestedOnceFromTheGuideButton() throws {
+        var requests = 0
+        var opened: [URL] = []
+        let model = PrivacyPermissionsModel(
+            grantStore: PluginCapabilityGrantStore(), manifests: { [] },
+            accessibilityPermissionCheck: { false },
+            accessibilityPermissionRequest: { requests += 1 },
+            defaults: defaults
+        )
+        model.refreshSystemPermissionStatus()
+        XCTAssertEqual(requests, 0)
+
+        model.performAction(for: .accessibility) { opened.append($0); return true }
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(opened, [])
+
+        model.performAction(for: .accessibility) { opened.append($0); return true }
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(opened, [try XCTUnwrap(PluginSystemPermission.accessibility.systemSettingsURL)])
+    }
+
     /// macOS prompts once. A declined request leaves the permission missing,
     /// and asking again sends the user to System Settings instead.
     func testADeclinedScreenRecordingRequestStaysMissing() throws {
