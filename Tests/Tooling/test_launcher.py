@@ -50,6 +50,12 @@ if name == "swift":
         strings = build / "Spinnet_SpinnetHost.bundle/Contents/Resources/zh-Hans.lproj"
         strings.mkdir(parents=True, exist_ok=True)
         (strings / "Localizable.strings").write_text("fixture")
+        (strings.parent / "StatusItemTemplate.pdf").write_text("fixture template")
+elif name == "xcrun" and args[0] == "actool":
+    resources = Path(args[args.index("--compile") + 1])
+    (resources / "AppIcon.icns").write_text("fixture icon")
+    (resources / "Assets.car").write_text("fixture compiled icon")
+    Path(args[args.index("--output-partial-info-plist") + 1]).write_text("fixture icon metadata")
 elif name == "security":
     print('1) FIXTURE_ID "Apple Development: Fixture"')
     if os.environ.get("LAUNCHER_TEST_RELEASE_IDENTITY"):
@@ -78,7 +84,7 @@ class LauncherTests(unittest.TestCase):
         self.log = self.root / "commands.jsonl"
         self.stubs = self.root / "commands"
         self.stubs.mkdir()
-        for name in ["swift", "security", "git", "pkill", "codesign", "ditto", "open", "pgrep", "sleep", "lldb"]:
+        for name in ["swift", "security", "git", "pkill", "codesign", "ditto", "open", "pgrep", "sleep", "lldb", "xcrun"]:
             self.executable(self.stubs / name, STUB)
         # Opening an app is the one absolute command; point it at the stub so
         # no test can open a real app.
@@ -96,7 +102,8 @@ class LauncherTests(unittest.TestCase):
         resources.mkdir(parents=True)
         (resources / "com.vulpsecula.SpinnetHost.privileged-tools.plist").write_text('fixture')
         (resources.parent / "SpinnetHost.entitlements").write_text('fixture')
-        (resources.parent / "AppIcon.icns").write_text('fixture icon')
+        (resources.parent / "AppIcon.icon").mkdir()
+        (resources.parent / "AppIcon.icon/icon.json").write_text('{}')
         self.sentinel = self.root / "dist/SpinnetHost.app/sentinel"
         self.sentinel.parent.mkdir(parents=True)
         self.sentinel.write_text("existing app")
@@ -172,8 +179,15 @@ class LauncherTests(unittest.TestCase):
                                 "The app carries the Host's String Catalog in its own resources")
                 self.assertTrue((contents / "Resources/en.lproj").is_dir())
                 self.assertEqual((contents / "Resources/AppIcon.icns").read_text(), "fixture icon")
+                self.assertEqual((contents / "Resources/Assets.car").read_text(), "fixture compiled icon")
+                self.assertEqual((contents / "Resources/StatusItemTemplate.pdf").read_text(), "fixture template")
                 self.assertIn("<key>CFBundleIconFile</key>\n  <string>AppIcon</string>",
                               (contents / "Info.plist").read_text())
+                self.assertIn("<key>CFBundleIconName</key>\n  <string>AppIcon</string>",
+                              (contents / "Info.plist").read_text())
+                icon_compile = next(call["args"] for call in commands if call["tool"] == "xcrun")
+                self.assertEqual(icon_compile[0], "actool")
+                self.assertEqual(icon_compile[icon_compile.index("--minimum-deployment-target") + 1], "13.0")
                 self.assertIn(["--verify-localizations"],
                               [call["args"] for call in commands if call["tool"] == "SpinnetHost"])
                 signed = [call["args"] for call in commands if call["tool"] == "codesign" and "--sign" in call["args"]]

@@ -171,9 +171,15 @@ if [[ ! -f "$HOST_RESOURCES/zh-Hans.lproj/Localizable.strings" ]]; then
 fi
 cp -R "$HOST_RESOURCES/"*.lproj "$APP_RESOURCES/"
 mkdir -p "$APP_RESOURCES/en.lproj"
-# Made from Prototype/logo.png: the icon body masked to the macOS shape on a
-# 1024-point canvas with its shadow, every size in one icns.
-cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_RESOURCES/AppIcon.icns"
+cp "$HOST_RESOURCES/StatusItemTemplate.pdf" "$APP_RESOURCES/StatusItemTemplate.pdf"
+# Compile the editable Icon Composer document for current macOS appearances
+# and the minimum supported macOS. actool emits Assets.car and AppIcon.icns.
+xcrun actool "$ROOT_DIR/Resources/AppIcon.icon" \
+    --compile "$APP_RESOURCES" \
+    --output-partial-info-plist "$DIST_DIR/AppIcon-info.plist" \
+    --app-icon AppIcon --platform macosx \
+    --minimum-deployment-target "$MIN_SYSTEM_VERSION" \
+    --output-format human-readable-text
 
 # The app contains no Plugins: every Plugin, official or not, is installed
 # into the user's saved data the way the Library installs one.
@@ -192,6 +198,8 @@ cat >"$INFO_PLIST" <<PLIST
   <key>CFBundleDisplayName</key>
   <string>Spinnet</string>
   <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleIconName</key>
   <string>AppIcon</string>
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>

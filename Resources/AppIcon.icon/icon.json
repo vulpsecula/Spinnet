@@ -1,0 +1,84 @@
+{
+  "fill": {
+    "linear-gradient": [
+      "extended-srgb:0.86275,0.91765,1.00000,1.00000",
+      "extended-srgb:0.44706,0.67451,0.98824,1.00000"
+    ],
+    "orientation": {
+      "start": {
+        "x": 0,
+        "y": 0
+      },
+      "stop": {
+        "x": 1,
+        "y": 1
+      }
+    }
+  },
+  "groups": [
+    {
+      "name": "Spinnet",
+      "layers": [
+        {
+          "name": "04 Center Hub",
+          "image-name": "04_Center_Hub.svg",
+          "glass": false
+        },
+        {
+          "name": "03 S Ribbon",
+          "image-name": "03_S_Ribbon.svg",
+          "glass": false
+        },
+        {
+          "name": "02 Selected Wedge",
+          "image-name": "02_Selected_Wedge.svg",
+          "glass": false
+        },
+        {
+          "name": "01 Fan",
+          "image-name": "01_Fan.svg",
+          "glass": false
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    },
+    {
+      "name": "Background",
+      "layers": [
+        {
+          "name": "00 Background",
+          "image-name": "00_Background.svg",
+          "glass": false
+        }
+      ],
+      "hidden-specializations": [
+        {
+          "appearance": "dark",
+          "value": true
+        },
+        {
+          "appearance": "tinted",
+          "value": true
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

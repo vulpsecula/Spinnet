@@ -60,16 +60,26 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         guard statusItem == nil else { return }
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.autosaveName = "Spinnet Status Item" // Not localized: the saved position's name
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "circle.hexagongrid.fill",
-            accessibilityDescription: "Spinnet"
-        )
+        statusItem.button?.image = Self.makeStatusItemImage()
         statusItem.button?.setAccessibilityLabel(localized("Spinnet Status Item"))
         statusItem.button?.setAccessibilityHelp(localized("Open Settings, stop ongoing activities, or Quit Spinnet."))
         statusItem.button?.toolTip = localized("Spinnet Status Item")
         statusItem.menu = makeMenu()
         self.statusItem = statusItem
         reconcileVisibility()
+    }
+
+    private static func makeStatusItemImage() -> NSImage? {
+        // The launcher copies this vector template into the app; SwiftPM
+        // launches and tests use the module resource bundle instead.
+        let url = Bundle.main.url(forResource: "StatusItemTemplate", withExtension: "pdf")
+            ?? Bundle.module.url(forResource: "StatusItemTemplate", withExtension: "pdf")
+        guard let url, let image = NSImage(contentsOf: url) else {
+            return NSImage(systemSymbolName: "circle.hexagongrid.fill", accessibilityDescription: "Spinnet")
+        }
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        return image
     }
 
     func setShowsStatusItem(_ shows: Bool) {
