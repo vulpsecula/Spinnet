@@ -53,7 +53,7 @@ struct SelectedTextLookup {
         if let focusedElement = try valueOrNil(
             client.focusedUIElement(in: systemWide),
             failureMessage: "Focused application has no accessible text selection" // Not localized: a Host Service failure returned to the Plugin
-        ), let selectedText = try nonemptySelection(in: focusedElement, using: client) {
+        ), let selectedText = try reportedSelection(in: focusedElement, using: client) {
             return selectedText
         }
 
@@ -73,10 +73,13 @@ struct SelectedTextLookup {
         if let focusedElement = try valueOrNil(
             client.focusedUIElement(in: application),
             failureMessage: "Focused application has no accessible text selection" // Not localized: a Host Service failure returned to the Plugin
-        ), let selectedText = try nonemptySelection(in: focusedElement, using: client) {
+        ), let selectedText = try reportedSelection(in: focusedElement, using: client) {
             return selectedText
         }
 
+        // Only an App whose focus says nothing about a selection is searched:
+        // another element's selection, such as the select-all an unfocused
+        // Chrome address bar keeps, is not the user's.
         guard let window = try valueOrNil(
             client.focusedWindow(in: application),
             failureMessage: "Focused application has no accessible window" // Not localized: a Host Service failure returned to the Plugin
@@ -86,14 +89,18 @@ struct SelectedTextLookup {
         return try searchWindow(window, using: client)
     }
 
-    private func nonemptySelection<Client: SelectedTextAXClient>(
+    /// The focused element's selection, empty when it reports none (an empty
+    /// string or no value), or nil when it has no selected-text attribute.
+    private func reportedSelection<Client: SelectedTextAXClient>(
         in element: Client.Element,
         using client: Client
     ) throws -> String? {
         switch client.selectedText(in: element, messagingTimeout: nil) {
         case .value(let text):
-            return text.isEmpty ? nil : text
-        case .noValue, .unsupported:
+            return text
+        case .noValue:
+            return ""
+        case .unsupported:
             return nil
         case .failure(let error):
             throw PluginHostServiceError.failed(

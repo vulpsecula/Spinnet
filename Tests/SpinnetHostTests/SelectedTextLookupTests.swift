@@ -55,6 +55,37 @@ final class SelectedTextLookupTests: XCTestCase {
 
         XCTAssertThrowsError(try SelectedTextLookup().read(using: client))
     }
+
+    // Chrome keeps the address bar's select-all range after the user clicks
+    // into the page: the focused web area reports no selection, and the
+    // unfocused address bar still reports the whole address as selected.
+    // The web area answers an empty string on some pages and no value on
+    // others; both say nothing is selected.
+    func testFocusedElementReportingNoSelectionIsNotOverriddenByAnotherElementsSelection() throws {
+        for webAreaSelection: SelectedTextAXResult<String> in [.value(""), .noValue] {
+            let client = FakeSelectedTextAXClient(
+                childrenByElement: [.window: [.addressBar, .webArea]],
+                focusedElement: .webArea,
+                selections: [
+                    .webArea: webAreaSelection,
+                    .addressBar: .value("https://www.bilibili.com/video/BV18Ryfz1ES9/?")
+                ]
+            )
+
+            let selectedText = try SelectedTextLookup().read(using: client)
+
+            XCTAssertEqual(selectedText, "", "\(webAreaSelection)")
+            XCTAssertFalse(client.selectionQueries.contains(.addressBar), "\(webAreaSelection)")
+        }
+    }
+
+    func testSearchesWindowWhenFocusedElementDoesNotReportSelectedText() throws {
+        let client = FakeSelectedTextAXClient(focusedElement: .contentGroup)
+
+        let selectedText = try SelectedTextLookup().read(using: client)
+
+        XCTAssertEqual(selectedText, "selected message text")
+    }
 }
 
 private final class FakeSelectedTextAXClient: SelectedTextAXClient {
@@ -67,10 +98,14 @@ private final class FakeSelectedTextAXClient: SelectedTextAXClient {
         case contentGroup
         case selectedText
         case otherWindow
+        case webArea
+        case addressBar
     }
 
     private let childrenByElement: [FakeElement: [FakeElement]]
     private let childrenFailure: FakeElement?
+    private let focusedElement: FakeElement?
+    private let selections: [FakeElement: SelectedTextAXResult<String>]
     private(set) var selectionQueries: [FakeElement] = []
 
     init(
@@ -78,16 +113,20 @@ private final class FakeSelectedTextAXClient: SelectedTextAXClient {
             .window: [.contentGroup],
             .contentGroup: [.selectedText, .otherWindow]
         ],
-        childrenFailure: FakeElement? = nil
+        childrenFailure: FakeElement? = nil,
+        focusedElement: FakeElement? = nil,
+        selections: [FakeElement: SelectedTextAXResult<String>] = [.selectedText: .value("selected message text")]
     ) {
         self.childrenByElement = childrenByElement
         self.childrenFailure = childrenFailure
+        self.focusedElement = focusedElement
+        self.selections = selections
     }
 
     func systemWideElement() -> FakeElement { .systemWide }
 
     func focusedUIElement(in element: FakeElement) -> SelectedTextAXResult<FakeElement> {
-        .noValue
+        focusedElement.map { .value($0) } ?? .noValue
     }
 
     func focusedApplication(in element: FakeElement) -> SelectedTextAXResult<FakeElement> {
@@ -102,10 +141,7 @@ private final class FakeSelectedTextAXClient: SelectedTextAXClient {
 
     func selectedText(in element: FakeElement, messagingTimeout: Float?) -> SelectedTextAXResult<String> {
         selectionQueries.append(element)
-        if element == .selectedText {
-            return .value("selected message text")
-        }
-        return .unsupported
+        return selections[element] ?? .unsupported
     }
 
     func children(
