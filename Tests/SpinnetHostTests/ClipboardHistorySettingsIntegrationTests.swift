@@ -206,14 +206,14 @@ final class ClipboardHistorySettingsIntegrationTests: XCTestCase {
         XCTAssertEqual(settings.menuEditor.pendingInstallation?.review.requestedAccess, [.readClipboardHistory])
         settings.menuEditor.confirmPendingInstallation()
         XCTAssertEqual(try h.query(XCTUnwrap(registry.package(for: PluginID("reader")))) .entries.map(\.text), ["pre-grant text"])
-        // A widened scope is asked for again; cancelling keeps the version the user had.
+        // A Plugin Update applies without review; its widened scope stays undecided.
         settings.menuEditor.installPluginPackage(at: try source(types: ["text", "image"], version: "2"))
-        XCTAssertEqual(settings.menuEditor.pendingInstallation?.review.requestedAccess, [.readClipboardHistory])
-        settings.menuEditor.cancelPendingInstallation()
-        XCTAssertEqual(registry.package(for: PluginID("reader"))?.manifest.version, "1")
-        settings.menuEditor.installPluginPackage(at: try source(types: ["text", "image"], version: "2"))
-        settings.menuEditor.confirmPendingInstallation()
+        XCTAssertNil(settings.menuEditor.pendingInstallation)
         let updated = try XCTUnwrap(registry.package(for: PluginID("reader")))
+        XCTAssertEqual(updated.manifest.version, "2")
+        XCTAssertThrowsError(try h.query(updated))
+        settings.privacy.setCapabilityDecision(.granted, for: updated.manifest.id, pluginVersion: "2",
+                                               capability: .readClipboardHistory)
         XCTAssertEqual(Set(try h.query(updated).entries.map(\.contentType)), [.text, .image])
         settings.privacy.setCapabilityDecision(.denied, for: updated.manifest.id, pluginVersion: "2",
                                                capability: .readClipboardHistory)

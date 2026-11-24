@@ -62,6 +62,11 @@ final class PrivacyPermissionsModel: ObservableObject {
         static let accessibilityRequested = "privacy.accessibility-requested"
     }
 
+    /// The settings that record what macOS was asked. macOS keys System
+    /// Permissions by bundle identifier, so they describe only the app that
+    /// asked and never move to another identity.
+    static let systemPermissionRequestKeys: Set<String> = [Keys.screenRecordingRequested, Keys.accessibilityRequested]
+
     private let grantStore: PluginCapabilityGrantStore
     private let manifests: () -> [PluginManifest]
     private let accessibilityPermissionCheck: () -> Bool
@@ -239,16 +244,17 @@ final class PrivacyPermissionsModel: ObservableObject {
     /// installing a Plugin, or refreshing status only preflights.
     ///
     /// macOS shows the prompt once and then expects the user to use System
-    /// Settings, so a second request does not ask again: it returns false and
-    /// the caller opens System Settings instead. A new grant may take effect
-    /// only after Spinnet relaunches.
+    /// Settings, so after the first request this returns false and the caller
+    /// opens System Settings too. Every request still asks macOS, which lists
+    /// Spinnet in System Settings: a first request macOS filed under another
+    /// app, as it can right after Spinnet replaced a beta at the same path
+    /// until the user logs out, is repaired by the next. A new grant may take
+    /// effect only after Spinnet relaunches.
     @discardableResult
     func requestScreenRecordingPermission() -> Bool {
         let prompted = !defaults.bool(forKey: Keys.screenRecordingRequested)
-        if prompted {
-            defaults.set(true, forKey: Keys.screenRecordingRequested)
-            _ = screenRecordingPermissionRequest()
-        }
+        defaults.set(true, forKey: Keys.screenRecordingRequested)
+        _ = screenRecordingPermissionRequest()
         refreshSystemPermissionStatus()
         screenRecordingAwaitsRestart = !screenRecordingPermissionGranted
         return prompted

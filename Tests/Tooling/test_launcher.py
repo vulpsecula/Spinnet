@@ -98,12 +98,11 @@ class LauncherTests(unittest.TestCase):
         package = self.packages / "Plugins/Example.spinnetplugin"
         package.mkdir(parents=True)
         (package / "manifest.json").write_text('{}')
-        resources = self.root / "Resources/LaunchDaemons"
+        resources = self.root / "Resources"
         resources.mkdir(parents=True)
-        (resources / "com.vulpsecula.SpinnetHost.privileged-tools.plist").write_text('fixture')
-        (resources.parent / "SpinnetHost.entitlements").write_text('fixture')
-        (resources.parent / "AppIcon.icon").mkdir()
-        (resources.parent / "AppIcon.icon/icon.json").write_text('{}')
+        (resources / "SpinnetHost.entitlements").write_text('fixture')
+        (resources / "AppIcon.icon").mkdir()
+        (resources / "AppIcon.icon/icon.json").write_text('{}')
         self.sentinel = self.root / "dist/SpinnetHost.app/sentinel"
         self.sentinel.parent.mkdir(parents=True)
         self.sentinel.write_text("existing app")
@@ -197,7 +196,7 @@ class LauncherTests(unittest.TestCase):
                     self.assertEqual(args[args.index("--sign") + 1], identity)
                     self.assertEqual("--options" in args, identity != "-")
                     if suffix:
-                        self.assertEqual(args[args.index("--identifier") + 1], "com.vulpsecula.SpinnetHost." + suffix)
+                        self.assertEqual(args[args.index("--identifier") + 1], "com.vulpsecula.SpinnetHost.dev." + suffix)
                     else:
                         self.assertNotIn("--identifier", args)
                 host_sign = next(args for args in signed if args[-1] == str(contents.parent))
@@ -267,6 +266,30 @@ class LauncherTests(unittest.TestCase):
                 if configuration:
                     self.assertTrue((dist / "SpinnetHost.app/Contents/Info.plist").exists())
                     self.assertEqual(self.sentinel.read_text(), "existing app")
+
+    def test_the_release_configuration_is_spinnet_and_debug_is_a_separate_app(self):
+        # SpinnetBuildIdentity.swift holds the same identities for the code.
+        identity = (ROOT / "Sources/SpinnetCore/Configuration/SpinnetBuildIdentity.swift").read_text()
+        for configuration, bundle_id, prefix in [("release", "com.vulpsecula.SpinnetHost", "com.vulpsecula.SpinnetHost"),
+                                                 ("debug", "com.vulpsecula.SpinnetHost.dev", "com.vulpsecula.SpinnetHost.dev")]:
+            with self.subTest(configuration=configuration):
+                self.assertIn(f'hostBundleIdentifier: "{bundle_id}",\n        identifierPrefix: "{prefix}"', identity)
+                result, commands = self.launch("--package", SPINNET_CODESIGN_IDENTITY="FIXTURE_ID",
+                                               SPINNET_BUILD_CONFIGURATION=configuration)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                contents = self.root / "dist/SpinnetHost.app/Contents"
+                self.assertIn(f"<key>CFBundleIdentifier</key>\n  <string>{bundle_id}</string>",
+                              (contents / "Info.plist").read_text())
+                signed = [call["args"] for call in commands if call["tool"] == "codesign" and "--identifier" in call["args"]]
+                self.assertEqual({args[args.index("--identifier") + 1] for args in signed},
+                                 {prefix + "." + suffix for suffix in HELPERS.values() if suffix})
+                daemons = list((contents / "Library/LaunchDaemons").iterdir())
+                self.assertEqual([path.name for path in daemons], [prefix + ".privileged-tools.plist"])
+                daemon = daemons[0].read_text()
+                self.assertIn(f"<key>Label</key><string>{prefix}.privileged-tools</string>", daemon)
+                self.assertIn(f"<array><string>{bundle_id}</string></array>", daemon)
+                for service in ["host", "runner", "client", "inspection.host", "inspection.client"]:
+                    self.assertIn(f"<key>{prefix}.reviewed-tools.{service}</key><true/>", daemon)
         result, commands = self.launch("--package", SPINNET_BUILD_CONFIGURATION="fast",
                                        LAUNCHER_TEST_STOP_AT_BUILD="1")
         self.assertEqual(result.returncode, 2, result.stderr)

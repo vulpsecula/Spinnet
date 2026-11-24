@@ -5,7 +5,7 @@ import SpinnetCore
 /// Keeps Plugin credentials as generic passwords in the user's Keychain, one
 /// item per Plugin and credential reference, readable only on this device.
 final class KeychainPluginCredentialStore: PluginCredentialStore, CredentialSaveNotifications {
-    static let defaultService = "com.vulpsecula.Spinnet.plugin-credential"
+    static let defaultService = SpinnetBuildIdentity.current.keychainService("plugin-credential") // Not localized: a Keychain service
 
     /// The Keychain item's account. Stored items are found by it, so it
     /// cannot change without moving every secret a user already saved.

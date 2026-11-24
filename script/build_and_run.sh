@@ -61,7 +61,17 @@ case "$MODE" in
 esac
 
 APP_NAME="SpinnetHost"
-BUNDLE_ID="com.vulpsecula.SpinnetHost.preview"
+# The release configuration is Spinnet itself; the debug configuration is a
+# separate development app, so the two never share System Permissions,
+# settings, saved data or the Root helper. SpinnetBuildIdentity.swift holds
+# the same identities for the code.
+if [[ "$BUILD_CONFIGURATION" == release ]]; then
+    BUNDLE_ID="com.vulpsecula.SpinnetHost"
+    ID_PREFIX="com.vulpsecula.SpinnetHost"
+else
+    BUNDLE_ID="com.vulpsecula.SpinnetHost.dev"
+    ID_PREFIX="com.vulpsecula.SpinnetHost.dev"
+fi
 MIN_SYSTEM_VERSION="13.0"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ -n "$INSTALL_PLUGINS_DIR" ]]; then
@@ -92,17 +102,17 @@ ALLOW_ADHOC_SIGNING="${SPINNET_ALLOW_ADHOC_SIGNING:-0}"
 # packaging and both signing modes use this same inventory.
 HELPER_SPECS=(
     'SpinnetPluginHelper|'
-    'SpinnetToolTaskRunner|com.vulpsecula.SpinnetHost.task-runner'
-    'SpinnetHomebrewAskpass|com.vulpsecula.SpinnetHost.homebrew-askpass'
-    'SpinnetToolAuthorizationClient|com.vulpsecula.SpinnetHost.authorization-client'
-    'SpinnetPrivilegedToolHelper|com.vulpsecula.SpinnetHost.privileged-tools'
-    'SpinnetReceiptInventory|com.vulpsecula.SpinnetHost.receipt-inventory'
-    'SpinnetArchiveBootstrap|com.vulpsecula.SpinnetHost.archive-bootstrap'
-    'SpinnetArchiveDecoder|com.vulpsecula.SpinnetHost.archive-decoder'
-    'SpinnetPathInventory|com.vulpsecula.SpinnetHost.path-inventory'
-    'SpinnetVendorOrigin|com.vulpsecula.SpinnetHost.vendor-origin'
-    'SpinnetPathRemoval|com.vulpsecula.SpinnetHost.path-removal'
-    'SpinnetLaunchServiceInventory|com.vulpsecula.SpinnetHost.launch-service-inventory'
+    "SpinnetToolTaskRunner|$ID_PREFIX.task-runner"
+    "SpinnetHomebrewAskpass|$ID_PREFIX.homebrew-askpass"
+    "SpinnetToolAuthorizationClient|$ID_PREFIX.authorization-client"
+    "SpinnetPrivilegedToolHelper|$ID_PREFIX.privileged-tools"
+    "SpinnetReceiptInventory|$ID_PREFIX.receipt-inventory"
+    "SpinnetArchiveBootstrap|$ID_PREFIX.archive-bootstrap"
+    "SpinnetArchiveDecoder|$ID_PREFIX.archive-decoder"
+    "SpinnetPathInventory|$ID_PREFIX.path-inventory"
+    "SpinnetVendorOrigin|$ID_PREFIX.vendor-origin"
+    "SpinnetPathRemoval|$ID_PREFIX.path-removal"
+    "SpinnetLaunchServiceInventory|$ID_PREFIX.launch-service-inventory"
 )
 
 # Official Builds ship signed with Spinnet's own self-signed certificate, so
@@ -158,7 +168,25 @@ for specification in "${HELPER_SPECS[@]}"; do
     chmod +x "$APP_CONTENTS/Helpers/$tool"
 done
 mkdir -p "$APP_CONTENTS/Library/LaunchDaemons"
-cp "$ROOT_DIR/Resources/LaunchDaemons/com.vulpsecula.SpinnetHost.privileged-tools.plist" "$APP_CONTENTS/Library/LaunchDaemons/"
+# The bundled daemon definition lets the Host find and retire a helper that
+# earlier builds registered through SMAppService under this identity.
+REVIEWED_TOOLS="$ID_PREFIX.reviewed-tools"
+cat >"$APP_CONTENTS/Library/LaunchDaemons/$ID_PREFIX.privileged-tools.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>$ID_PREFIX.privileged-tools</string>
+<key>BundleProgram</key><string>Contents/Helpers/SpinnetPrivilegedToolHelper</string>
+<key>AssociatedBundleIdentifiers</key><array><string>$BUNDLE_ID</string></array>
+<key>MachServices</key><dict>
+<key>$REVIEWED_TOOLS.host</key><true/>
+<key>$REVIEWED_TOOLS.runner</key><true/>
+<key>$REVIEWED_TOOLS.client</key><true/>
+<key>$REVIEWED_TOOLS.inspection.host</key><true/>
+<key>$REVIEWED_TOOLS.inspection.client</key><true/>
+</dict>
+</dict></plist>
+PLIST
 # Core no longer has runtime resources. Do not package its obsolete SwiftPM
 # bundle if an incremental build left the retired Ruby adapters behind.
 

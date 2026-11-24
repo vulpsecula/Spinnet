@@ -344,7 +344,7 @@ final class PrivacyPermissionsModelTests: XCTestCase {
         XCTAssertFalse(model.screenRecordingPermissionGranted)
 
         XCTAssertFalse(model.requestScreenRecordingPermission(), "the caller opens System Settings")
-        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(requests, 2, "Asking again lists Spinnet in System Settings if the first request went astray")
     }
 
     /// macOS applies a new Screen Recording grant only after Spinnet

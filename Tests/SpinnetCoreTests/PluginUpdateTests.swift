@@ -111,7 +111,8 @@ final class PluginUpdateTests: XCTestCase {
         let update = try XCTUnwrap(try updater.check(installed.id).update)
 
         XCTAssertEqual(update.review.requestedAccess, [.readSelectedText],
-                       "Only the newly requested Capability is reviewed before replacement")
+                       "The check reports the Capability that would be left undecided")
+        XCTAssertTrue(update.review.prerequisites.isEmpty)
         XCTAssertEqual(installedVersion, "1.0.0")
 
         try updater.apply(update)

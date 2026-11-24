@@ -318,17 +318,20 @@ decision. Adding a host does not change the Capability's own decision.
 ## Installing, updating and removing
 
 Install or Update Plugin in the Library first checks the package without
-copying it, then asks the user to install it, listing the access nobody has
-decided on yet, grouped as Reads, Monitors, Contacts, Controls, Changes, and
-System Access. Installing copies the package into Host-owned storage and grants
-that access; cancelling installs nothing. A package asking for no new access
-installs at once, and a refused one, such as one requiring an incompatible Host version, is reported. An update keeps the decisions for unchanged scopes and
-asks again for new or changed ones before replacing the installed copy;
-cancelling keeps that copy and its access decisions. The Access page immediately
-shows inherited granted and denied decisions for the updated version.
-Revoking access later leaves the Plugin
-and its Menu Items in place and makes the affected Commands unavailable with a
-Grant Access repair route; it also retires a running helper at once.
+copying it. For an installation, the review lists undecided access, grouped
+as Reads, Monitors, Contacts, Controls, Changes, and System Access. It also
+shows unmet environment prerequisites such as a missing External App or
+System Permission. Confirming an installation copies the package into
+Host-owned storage and grants the reviewed access. A package with no
+requested access or unmet environment prerequisites installs at once.
+
+Replacing an installed Plugin with a different version applies without a
+review; Settings summarizes it unless the user turned summaries off. The replacement keeps decisions for unchanged scopes
+and leaves new or changed scopes undecided. General records applied
+Plugin Updates and refusals. The Access page shows the decisions for the
+installed version. Revoking access leaves the Plugin and its Menu Items in
+place, makes affected Commands unavailable with a Grant Access repair route,
+and retires any running helper at once.
 
 Removing a Plugin forgets its access decisions. The user can keep its Plugin
 Settings, [Plugin Storage](host-services.md#plugin-storage) and credentials for
@@ -340,8 +343,8 @@ Every Plugin follows the same rules, whoever publishes it; the app itself
 contains no Plugins.
 
 A Plugin that declares an `update_source` also offers Check for Update on its
-Library entry. A newer version found there is applied through the same update
-path, with the same review; see [Update Source](update-source.md) for the
+Library entry. Update applies an accepted version. General also checks and
+applies updates in bulk. See [Update Source](update-source.md) for the
 declaration, the release format and how a version is chosen.
 
 ## The Preset

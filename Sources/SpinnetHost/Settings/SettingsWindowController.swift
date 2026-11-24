@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SpinnetWindowing
 import SwiftUI
 import SpinnetCore
@@ -56,6 +57,10 @@ final class SettingsWindowController: NSWindowController {
         get { model.menuEditor.applyPluginUpdate }
         set { model.menuEditor.applyPluginUpdate = newValue }
     }
+    var onPluginInstalled: ((PluginManifest, ((Error) -> Void)?) -> Void)? {
+        get { model.menuEditor.onPluginInstalled }
+        set { model.menuEditor.onPluginInstalled = newValue }
+    }
     var checkPluginUpdate: ((PluginID) throws -> PluginUpdateCheck)? {
         get { model.pluginUpdates.checkPluginUpdate }
         set { model.pluginUpdates.checkPluginUpdate = newValue }
@@ -78,7 +83,35 @@ final class SettingsWindowController: NSWindowController {
         set { model.pluginRepositories.lookUpRelease = newValue }
     }
     /// Schedules General's daily check of every Plugin; asks nothing until due.
-    func startAutomaticPluginUpdateChecks() { model.pluginUpdates.startAutomaticChecks() }
+    /// From then on Settings summarizes applied updates whenever it is open.
+    func startAutomaticPluginUpdateChecks() {
+        updateSummaryObservation = model.pluginUpdates.$unshownUpdates
+            .filter { !$0.isEmpty }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.presentUpdateSummary() }
+        model.pluginUpdates.startAutomaticChecks()
+    }
+    private var updateSummaryObservation: AnyCancellable?
+
+    /// Shows the update summary as a sheet on open Settings. Updates applied
+    /// while Settings is closed wait until the user opens it; nothing comes
+    /// forward on its own.
+    private func presentUpdateSummary() {
+        guard updateSummaryObservation != nil, let window, window.isVisible,
+              let summary = model.pluginUpdates.updateSummary else { return }
+        model.pluginUpdates.updateSummaryShown()
+        let alert = HostDialogs.makeAlert()
+        alert.messageText = summary.title
+        alert.informativeText = summary.message
+        alert.addButton(withTitle: localized("OK"))
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = localized("Don’t show update summaries")
+        alert.beginSheetModal(for: window) { [weak self, weak alert] _ in
+            if alert?.suppressionButton?.state == .on {
+                self?.model.pluginUpdates.showsUpdateSummary = false
+            }
+        }
+    }
     /// General's Spinnet release checks, also shown in the Status Item.
     var spinnetReleases: SpinnetReleaseChecksModel { model.spinnetReleases }
     var removePlugin: ((PluginID) throws -> Void)? {
@@ -317,6 +350,7 @@ final class SettingsWindowController: NSWindowController {
             window?.makeFirstResponder(hostingView)
         }
         NSApp.activate(ignoringOtherApps: true)
+        presentUpdateSummary()
     }
 
     func refreshMenuSlots() { model.menuEditor.refreshMenuSlots() }

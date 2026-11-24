@@ -11,6 +11,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         grantStore: capabilityGrants,
         systemPermissionCheck: { [pluginHostServiceProvider] in pluginHostServiceProvider.isGranted($0) },
         externalAppExists: { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil },
+        installedExternalAppName: { bundleID in
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return nil }
+            let bundle = Bundle(url: url)
+            let displayName = bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String // Not localized: a bundle metadata key
+            let name = bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String // Not localized: a bundle metadata key
+            return [displayName, name].compactMap { $0 }.first(where: { !$0.isEmpty })
+                ?? url.deletingPathExtension().lastPathComponent
+        },
+        backgroundOperationsEnabled: { HostBackgroundOperationsStatus.current() == .enabled },
         pluginSettingsComplete: { [unowned self] manifest in
             manifest.missingSettings(in: self.resolvedPluginSettings(manifest), hasSecret: { reference in
                 self.pluginCredentials.hasSecret(for: manifest.id, reference: reference)
@@ -417,7 +426,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 try self.pluginInstallation.review(url)
             }
             settings.installPluginWithSource = { [unowned self] url, source in
-                try self.finishInstallation(of: self.pluginInstallation.install(from: url, source: source), editor: editor)
+                try self.pluginInstallation.install(from: url, source: source)
             }
             // Checks Update Sources and applies Plugin Updates through the
             // same install store. Made here, on the main thread, before any
@@ -428,8 +437,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 downloads: FileManager.default.temporaryDirectory
                     .appendingPathComponent("Spinnet Plugin Updates", isDirectory: true) // Not localized: a folder name
             )
-            settings.applyPluginUpdate = { [unowned self] update in
-                try self.finishInstallation(of: pluginUpdater.apply(update), editor: editor)
+            settings.applyPluginUpdate = { update in try pluginUpdater.apply(update) }
+            settings.onPluginInstalled = { [unowned self] manifest, onFailure in
+                self.finishInstallation(of: manifest, editor: editor, onFailure: onFailure ?? self.showConfigurationError)
             }
             settings.checkPluginUpdate = { pluginID in
                 try pluginUpdater.check(pluginID)
@@ -611,12 +621,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func configurationDidChange(_ configuration: HostConfiguration) {
+    private func configurationDidChange(_ configuration: HostConfiguration, onFailure: ((Error) -> Void)? = nil) {
         applyConfiguration(configuration)
         do {
             try configurationStore.save(configuration)
         } catch {
-            showConfigurationError(error)
+            (onFailure ?? showConfigurationError)(error)
         }
     }
 
@@ -650,8 +660,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     /// After a Library install or a Plugin Update: an update's migrations
     /// move the data its earlier version left, as they would at the next
     /// launch. The Plugin is installed either way.
-    private func finishInstallation(of manifest: PluginManifest, editor: HostConfigurationEditor) -> PluginManifest {
-        guard let configuration = currentConfiguration else { return manifest }
+    private func finishInstallation(of manifest: PluginManifest, editor: HostConfigurationEditor,
+                                    onFailure: @escaping (Error) -> Void) {
+        guard let configuration = currentConfiguration else { return }
         let migrated: HostConfiguration
         do {
             let declared = try StoredDataMigration.applyMigrations(
@@ -660,15 +671,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             migrated = try DeepLinkMigration.migrate(declared, registry: registry) ?? declared
         } catch {
             migrated = configuration
-            showConfigurationError(error)
+            onFailure(error)
         }
         if migrated != configuration {
             editor.restore(migrated)
-            configurationDidChange(migrated)
+            configurationDidChange(migrated, onFailure: onFailure)
         } else {
             menu.reload(items: makeMenuSlots(from: configuration))
         }
-        return manifest
     }
 
     private func installStatusItem() {
@@ -1109,16 +1119,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Where the Host keeps the user's saved data.
-enum HostDataDirectory {
-    static var url: URL {
-        let supportDirectory = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? FileManager.default.temporaryDirectory
-        return supportDirectory.appendingPathComponent("Spinnet", isDirectory: true)
-    }
-}
+// A release build that replaced a beta keeps the beta's settings, and a
+// development build starts from a copy of the shared saved data. Before
+// anything reads either, the interface language included.
+HostIdentityMigration.prepareAtLaunch()
 
 // Read-only signed transport check. No user configuration, password UI,
 // background registration, sudo or Homebrew command is opened by this path.

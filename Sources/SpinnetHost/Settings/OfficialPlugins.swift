@@ -79,6 +79,9 @@ final class OfficialPluginInstallModel: ObservableObject {
     let plugins: [OfficialPlugin]
     @Published private var selection: Set<PluginID> = []
     @Published private var states: [PluginID: State] = [:]
+    @Published private var reviews: [PendingPluginInstallation] = []
+
+    var pendingReview: PendingPluginInstallation? { reviews.first }
     /// Every Plugin the user chose to install since the guide opened.
     private(set) var started: Set<PluginID> = []
 
@@ -119,7 +122,7 @@ final class OfficialPluginInstallModel: ObservableObject {
         return state == .installed ? .notInstalled : state ?? .notInstalled
     }
 
-    /// Whether a started install is still looking up its release.
+    /// Whether a started install is still preparing or awaiting review.
     var hasInstallsUnderWay: Bool {
         states.values.contains { $0 == .downloading }
     }
@@ -173,16 +176,51 @@ final class OfficialPluginInstallModel: ObservableObject {
                     [localized("SpinnetPlugins has no release of \(plugin.name) that Spinnet can install.")] + [reason].compactMap { $0 }))
                 return
             }
-            // Reviewed as the Library reviews a package the user chose, and
-            // installed with the access it asks for: checking it was the
-            // user's choice, and the step says how to revoke it.
             let pending = PendingPluginInstallation(source: offer.packageURL, review: try review(offer.packageURL),
                                                     installationSource: .github(plugin.updateSource))
-            try install(pending)
-            states[plugin.id] = .installed
+            guard pending.review.manifest.id == plugin.id else {
+                throw PluginUpdateError.changedSinceCheck(HostText("The downloaded package changed.")) // Not localized: HostText is localized by localizedFailure
+            }
+            if pending.review.unmetPrerequisites.isEmpty {
+                try finishInstall(pending)
+            } else {
+                reviews.append(pending)
+            }
         } catch {
             states[plugin.id] = .failed(localizedFailure(error))
         }
+    }
+
+    func confirmReview() {
+        guard let pending = pendingReview else { return }
+        let id = pending.review.manifest.id
+        do {
+            if isInstalled(id) {
+                states[id] = .installed
+            } else {
+                guard try review(pending.source).matchesAccessReview(pending.review) else {
+                    throw PluginUpdateError.changedSinceCheck(HostText("The downloaded package changed.")) // Not localized: HostText is localized by localizedFailure
+                }
+                try finishInstall(pending)
+            }
+        } catch {
+            states[id] = .failed(localizedFailure(error))
+        }
+        reviews.removeFirst()
+    }
+
+    private func finishInstall(_ pending: PendingPluginInstallation) throws {
+        try install(pending)
+        states[pending.review.manifest.id] = .installed
+    }
+
+    func cancelReview() {
+        guard let pending = pendingReview else { return }
+        let id = pending.review.manifest.id
+        states[id] = .notInstalled
+        selection.remove(id)
+        started.remove(id)
+        reviews.removeFirst()
     }
 
     /// The names of the Starter Menu's Plugins that are installed or being

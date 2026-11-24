@@ -151,9 +151,8 @@ final class RefusedPluginLaunchTests: XCTestCase {
         XCTAssertEqual(refused.libraryAccessibilityLabel, "Candidate Probe, refused: \(Self.reason)")
     }
 
-    /// Installing a copy the Host accepts over a Refused Plugin is an update,
-    /// and the Library says so.
-    func testInstallingAFixedCopyOverARefusedPluginIsReportedAsAnUpdate() throws {
+    /// Installing a copy the Host accepts over a Refused Plugin is silent.
+    func testInstallingAFixedCopyOverARefusedPluginIsSilent() throws {
         let model = try library(over: try launchRefusingTheProbe())
         let fixed = directory.appendingPathComponent("Fixed/CandidateProbe.spinnetplugin")
         try FileManager.default.createDirectory(at: fixed.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -168,10 +167,8 @@ final class RefusedPluginLaunchTests: XCTestCase {
 
         model.installPluginPackage(at: fixed)
 
-        XCTAssertEqual(model.installationResult, PluginInstallationResult(
-            title: "Plugin Updated",
-            message: "Candidate Probe is updated from 1.0.0 to 1.1.0. Its access decisions are kept."
-        ))
+        XCTAssertNil(model.installationResult)
+        XCTAssertNil(model.pendingInstallation)
         XCTAssertTrue(model.libraryRefusedPlugins(matching: "").isEmpty)
         XCTAssertTrue(model.libraryPresets(matching: "").contains { $0.pluginID == Self.probeID })
     }

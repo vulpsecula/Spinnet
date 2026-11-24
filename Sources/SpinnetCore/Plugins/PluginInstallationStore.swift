@@ -7,10 +7,12 @@ public struct PluginInstallationReview: Equatable, Sendable {
     public let manifest: PluginManifest
     /// The Capabilities nobody will have decided on once it is installed.
     public let requestedAccess: [PluginCapability]
+    public let prerequisites: [PluginPrerequisite]
 
-    public init(manifest: PluginManifest, requestedAccess: [PluginCapability]) {
+    public init(manifest: PluginManifest, requestedAccess: [PluginCapability], prerequisites: [PluginPrerequisite] = []) {
         self.manifest = manifest
         self.requestedAccess = requestedAccess
+        self.prerequisites = prerequisites
     }
 }
 
@@ -276,13 +278,14 @@ public final class PluginInstallationStore {
 
     /// What an install from `source` would do, found by the same checks the
     /// install makes, without copying, registering, or deciding anything.
-    public func review(_ source: URL) throws -> PluginInstallationReview {
+    public func review(_ source: URL, includingPrerequisites: Bool = true) throws -> PluginInstallationReview {
         let candidate = try check(source.resolvingSymlinksInPath())
         return PluginInstallationReview(
             manifest: candidate.manifest,
             requestedAccess: grants.requestsAfterInstallation(
                 of: candidate.manifest, replacing: replacedManifest(candidate.manifest.id)
-            )
+            ),
+            prerequisites: includingPrerequisites ? registry.prerequisites(for: candidate) : []
         )
     }
 

@@ -11,6 +11,66 @@
         }
       }
     },
+    "%@ isn’t installed on this Mac. Install it to use %lld Commands.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 上尚未安装 %1$@。安装后即可使用 %2$lld 条命令。"
+          }
+        }
+      }
+    },
+    "%@ isn’t installed on this Mac. Install it to use 1 Command.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 上尚未安装 %@。安装后即可使用 1 条命令。"
+          }
+        }
+      }
+    },
+    "%@ · %@ → %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@ → %@"
+          }
+        }
+      }
+    },
+    "%@ · Update check failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · 检查更新失败"
+          }
+        }
+      }
+    },
+    "%@. Affects %lld Commands.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@。影响 %2$lld 条命令。"
+          }
+        }
+      }
+    },
+    "%@. Affects 1 Command.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@。影响 1 条命令。"
+          }
+        }
+      }
+    },
     "Activation": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "激活" } } }
     },
@@ -25,6 +85,16 @@
     },
     "Built from source. No activation is needed.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "从源码构建，无需激活。" } } }
+    },
+    "Check each Plugin’s Update Source once a day and apply accepted updates.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每天检查各插件的更新源，并应用通过检查的更新。"
+          }
+        }
+      }
     },
     "Continue & Install Selected": {
       "localizations": {
@@ -42,6 +112,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "空菜单"
+          }
+        }
+      }
+    },
+    "Enable Spinnet Background Operations in Privacy & Permissions to run these Tasks": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在隐私与权限中启用 Spinnet 后台操作，以运行这些任务"
           }
         }
       }
@@ -69,6 +149,16 @@
     "Install this build's privileged background component again, then check that it answers. macOS asks for an administrator. Stops any running Homebrew Task.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新安装本构建的特权后台组件，然后检查它能否响应。macOS 会要求管理员授权。会停止正在运行的 Homebrew 任务。" } } }
     },
+    "Recent Plugin Updates": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近的插件更新"
+          }
+        }
+      }
+    },
     "Reinstall": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新安装" } } }
     },
@@ -77,6 +167,26 @@
     },
     "Remove Background Component": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "移除后台组件" } } }
+    },
+    "Review new access in Plugin Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在插件设置中查看新的访问请求"
+          }
+        }
+      }
+    },
+    "Some Tasks need Spinnet Background Operations. Enable it in Privacy & Permissions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "某些任务需要 Spinnet 后台操作。请在隐私与权限中启用此功能。"
+          }
+        }
+      }
     },
     "Starter Menu": {
       "localizations": {
@@ -124,8 +234,38 @@
     "This Activation Code is not valid. Check that it was copied completely and unchanged.": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "此激活码无效。请确认它被完整、原样地复制。" } } }
     },
+    "Unknown version": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知版本"
+          }
+        }
+      }
+    },
+    "Update Plugins automatically": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动更新插件"
+          }
+        }
+      }
+    },
     "Waiting for macOS…": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在等待 macOS…" } } }
+    },
+    "You can still install this Plugin.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你仍然可以安装此插件。"
+          }
+        }
+      }
     },
     "Your Spinnet Trial has ended": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "Spinnet 试用期已结束" } } }
@@ -751,26 +891,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 是最新版本。"
-          }
-        }
-      }
-    },
-    "%@ is updated from %@ to %@.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ 已从 %2$@ 更新到 %3$@。"
-          }
-        }
-      }
-    },
-    "%@ is updated to %@.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ 已更新到 %2$@。"
           }
         }
       }
@@ -2172,16 +2292,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "立即检查 Spinnet 更新"
-          }
-        }
-      }
-    },
-    "Check for Plugin updates automatically": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自动检查插件更新"
           }
         }
       }
@@ -5936,16 +6046,6 @@
         }
       }
     },
-    "Once a day, ask each Plugin's Update Source for a newer version. Nothing installs by itself.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每天一次向每个插件的更新源询问是否有新版本。不会自动安装任何内容。"
-          }
-        }
-      }
-    },
     "Only %@'s Menu Item in this Slot is replaced. The default Menu stays unchanged.": {
       "localizations": {
         "zh-Hans": {
@@ -6606,6 +6706,66 @@
         }
       }
     },
+    "Plugin Update Failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件更新失败"
+          }
+        }
+      }
+    },
+    "Plugin Updated": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件已更新"
+          }
+        }
+      }
+    },
+    "Plugins Updated": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件已更新"
+          }
+        }
+      }
+    },
+    "Some Plugin Updates Failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分插件更新失败"
+          }
+        }
+      }
+    },
+    "Don’t show update summaries": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不再显示更新摘要"
+          }
+        }
+      }
+    },
+    "Show a summary after updating Plugins": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新插件后显示摘要"
+          }
+        }
+      }
+    },
     "Plugin Reinstalled": {
       "localizations": {
         "zh-Hans": {
@@ -6662,16 +6822,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "插件设置…"
-          }
-        }
-      }
-    },
-    "Plugin Updated": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "插件已更新"
           }
         }
       }

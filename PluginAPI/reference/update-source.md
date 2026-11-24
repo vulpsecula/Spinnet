@@ -2,9 +2,10 @@
 
 A Plugin may declare an Update Source: the GitHub repository where its newer
 versions are published. A user who installed the Plugin, from a file or any
-other way, can then check its Library entry for a Plugin Update and apply one
-after reviewing any new Capabilities. Nothing installs by itself, and an
-Update Source grants no authority. Publishing needs only a GitHub Release.
+other way, can check its Library entry for a Plugin Update and apply it with
+Update. General's daily check and Check Now apply accepted Plugin Updates
+automatically. An Update Source grants no authority. Publishing needs only a
+GitHub Release.
 
 This is an addition to the current interface. It is declared in the
 [manifest](manifest.md) and its shape is in the
@@ -126,7 +127,7 @@ each Plugin as above within the bounds below, which apply to each Plugin.
 When that shared list is larger than the answer bound, each Plugin's own
 prefix is listed instead. Being offline, a timeout or GitHub's rate limit
 stops the check of the remaining Plugins until the next one; nothing is
-retried sooner.
+retried sooner. Each accepted update found by that check is applied.
 
 | Bound | Value |
 | --- | --- |
@@ -140,18 +141,24 @@ retried sooner.
 
 ## Applying a Plugin Update
 
-Applying replaces the package through the same path as
-[installing an update](manifest.md#installing-updating-and-removing): Plugin
+The Host revalidates the package against the currently installed Plugin and
+the install checks before replacing it. Applying a Plugin Update keeps Plugin
 Storage, Plugin Settings, Menu Items and Capability decisions for unchanged
-scopes are kept, the version's migrations run, and Capabilities the new
-version newly requests are shown for review before anything is replaced.
-The review is made again when the user applies the update, so a decision or
-Host change since the check counts. Cancelling keeps the installed version.
+scopes. The Host runs the version's migrations and leaves new or changed
+Capability scopes undecided. Commands that require undecided access report
+“Grant Access in Plugin Settings.”
 
-A Plugin without an Update Source offers no update controls; one the Host
-refused to load still offers them, so a version it can run can be found. Downgrades,
-rollback, automatic installation, signing, authenticated requests and
-sources other than GitHub Releases are not offered.
+Plugin Updates apply without a confirmation sheet. Settings then shows one
+summary alert listing each Plugin's versions, any failure and any new access
+to review. Updates applied while Settings is closed are summarized the next
+time the user opens Settings; nothing is shown on its own. The user can turn
+the summary off in the alert or on General. General also shows recent applied updates and failures with their reasons, and
+indicates when a version introduced access the user can review in Plugin Settings.
+
+A Plugin without an Update Source offers no update controls. A Refused Plugin
+with an Update Source can still be updated to a version this Host accepts.
+Update Sources do not support downgrades, rollback, signing, authenticated
+requests or sources other than GitHub Releases.
 
 The [Update Source fixtures](../fixtures/update-source/index.json) show which
 version is offered for given tags; the

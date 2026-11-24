@@ -74,19 +74,36 @@ struct PluginInstallSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(localized("Install \(manifest.name)?"))
                 .font(.title2.weight(.semibold))
-            Text(localized("Installing allows \(manifest.name) to use:"))
-                .font(.subheadline)
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(installation.review.requestedAccess, id: \.self) { capability in
-                    Label(capability.localizedTitle, systemImage: "checkmark.shield")
+            if !installation.review.requestedAccess.isEmpty {
+                Text(localized("Installing allows \(manifest.name) to use:"))
+                    .font(.subheadline)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(installation.review.requestedAccess, id: \.self) { capability in
+                        Label(capability.localizedTitle, systemImage: "checkmark.shield")
+                    }
                 }
             }
             ScrollView {
-                PluginAccessView(manifest: manifest, grants: [], setDecision: { _, _, _, _ in },
-                                 showsDecisions: false)
+                VStack(alignment: .leading, spacing: 12) {
+                    let unmet = installation.review.unmetPrerequisites
+                    if !unmet.isEmpty {
+                        Text(localized("You can still install this Plugin.")).font(.subheadline.weight(.semibold))
+                        ForEach(unmet, id: \.kind) { prerequisite in
+                            Label(prerequisite.localizedInstallationNote, systemImage: "exclamationmark.circle")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    PluginAccessView(manifest: manifest, grants: [], setDecision: { _, _, _, _ in },
+                                     showsDecisions: false)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Text(localized("You can revoke access later in Plugin Settings."))
-                .font(.caption).foregroundStyle(.secondary)
+            if !installation.review.requestedAccess.isEmpty {
+                Text(localized("You can revoke access later in Plugin Settings."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             HStack {
                 Button(localized("Cancel"), action: onCancel)
                     .keyboardShortcut(.cancelAction)

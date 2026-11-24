@@ -125,6 +125,30 @@ final class PluginSettingsModelTests: XCTestCase {
         XCTAssertEqual(preset.stateLabel, MenuItemPresetReadiness.readyToUse.label)
     }
 
+    func testIncompletePluginSettingsDoNotOpenAnInstallReview() throws {
+        var declaration = PluginReleaseFixture.manifest(version: "1.0.0", capabilities: [])
+        declaration["settings_fields"] = [["key": "name", "kind": "text", "title": "Name"]]
+        let source = try PluginReleaseFixture.package(declaration, in: directory)
+        let grants = PluginCapabilityGrantStore()
+        let registry = PluginRegistry(grantStore: grants, pluginSettingsComplete: { _ in false })
+        let store = PluginInstallationStore(directory: directory.appendingPathComponent("Installed"),
+            registry: registry, grants: grants, persistGrants: {})
+        let configuration = try HostConfiguration(actions: [], menu: MenuConfiguration(slots: [.empty]))
+        let model = MenuEditorModel(editor: HostConfigurationEditor(registry: registry, configuration: configuration))
+        model.reviewPluginInstallation = { try store.review($0) }
+        model.installPlugin = { try store.install(from: $0) }
+
+        XCTAssertTrue(try store.review(source).prerequisites.isEmpty)
+        model.installPluginPackage(at: source)
+
+        XCTAssertNil(model.pendingInstallation)
+        XCTAssertEqual(registry.menuItemPreset(for: PluginReleaseFixture.pluginID)?.stateLabel, "Needs Plugin Settings")
+        let manifest = try XCTUnwrap(registry.package(for: PluginReleaseFixture.pluginID)?.manifest)
+        let action = try ActionConfiguration(id: ActionID("run"), pluginID: manifest.id,
+                                             command: manifest.commands[0], input: .null)
+        XCTAssertEqual(registry.availability(for: action), .unavailable(.pluginSettingsIncomplete))
+    }
+
     // MARK: - Sources the user turns on and orders
 
     private func translatorModel() throws -> (PluginSettingsModel, PluginSettingsStore) {

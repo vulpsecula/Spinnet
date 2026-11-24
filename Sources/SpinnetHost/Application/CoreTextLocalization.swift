@@ -46,6 +46,8 @@ extension MenuItemPreset {
         return needsPluginSettings ? localized("Needs Plugin Settings") : readiness.localizedLabel
     }
 
+    var localizedUnavailableReason: String? { unavailableReason?.localizedDescription }
+
     var localizedConfigurationLabel: String {
         isConfigurable ? localized("Configurable") : localized("No Configuration")
     }
@@ -54,8 +56,26 @@ extension MenuItemPreset {
     var localizedAccessibilityLabel: String {
         let commandNames = commands.map(\.title).joined(separator: localized(", "))
         let state = [name, localizedStateLabel, localizedConfigurationLabel]
-            + (unavailableReason.map { [$0.localizedDescription] } ?? [])
+            + (localizedUnavailableReason.map { [$0] } ?? [])
         return localized("\(state.joined(separator: localized(", "))), Commands: \(commandNames)")
+    }
+}
+
+extension PluginPrerequisite {
+    var localizedInstallationNote: String {
+        let count = commandIDs.count
+        switch kind {
+        case .externalApp(_, let name):
+            return count == 1
+                ? localized("\(name) isn’t installed on this Mac. Install it to use 1 Command.")
+                : localized("\(name) isn’t installed on this Mac. Install it to use \(count) Commands.")
+        case .hostComponent(.backgroundOperations):
+            return localized("Some Tasks need Spinnet Background Operations. Enable it in Privacy & Permissions.")
+        case .systemPermission:
+            let repair = reason.localizedDescription
+            return count == 1 ? localized("\(repair). Affects 1 Command.")
+                : localized("\(repair). Affects \(count) Commands.")
+        }
     }
 }
 
@@ -78,6 +98,8 @@ extension ActionUnavailableReason {
         case .capabilityDenied: return localized("Grant Access in Plugin Settings")
         case .systemPermissionDenied: return localized("Enable Accessibility in Privacy & Permissions")
         case .hostServiceUnavailable: return localized("Required Host Service is not available in this version")
+        case .backgroundOperationsRequired:
+            return localized("Enable Spinnet Background Operations in Privacy & Permissions to run these Tasks")
         case .screenRecordingDenied: return localized("Enable Screen Recording in Privacy & Permissions")
         case .pluginSettingsIncomplete: return localized("Complete this Plugin's Plugin Settings in the Library")
         case .saveFolderUnavailable:

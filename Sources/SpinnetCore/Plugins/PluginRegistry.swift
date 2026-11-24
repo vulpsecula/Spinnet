@@ -20,6 +20,7 @@ public enum ActionUnavailableReason: Equatable, Hashable, CustomStringConvertibl
     case capabilityDenied
     case systemPermissionDenied
     case hostServiceUnavailable
+    case backgroundOperationsRequired
     /// The Screen Recording System Permission is missing. Accessibility keeps
     /// `systemPermissionDenied`, so each permission names its own repair.
     case screenRecordingDenied
@@ -44,6 +45,7 @@ public enum ActionUnavailableReason: Equatable, Hashable, CustomStringConvertibl
         case .capabilityDenied: return "Grant Access in Plugin Settings"
         case .systemPermissionDenied: return "Enable Accessibility in Privacy & Permissions"
         case .hostServiceUnavailable: return "Required Host Service is not available in this version"
+        case .backgroundOperationsRequired: return "Enable Spinnet Background Operations in Privacy & Permissions to run these Tasks"
         case .screenRecordingDenied: return "Enable Screen Recording in Privacy & Permissions"
         case .pluginSettingsIncomplete: return "Complete this Plugin's Plugin Settings in the Library"
         case .saveFolderUnavailable: return "Screenshot save folder is missing or not writable; choose it again in Screenshot Plugin Settings"
@@ -294,6 +296,8 @@ public final class PluginRegistry {
     private let grantStore: PluginCapabilityGrantStore?
     private let systemPermissionCheck: (PluginSystemPermission) -> Bool
     private let externalAppExists: (String) -> Bool
+    private let installedExternalAppName: (String) -> String?
+    private let backgroundOperationsEnabled: () -> Bool
     private let pluginSettingsComplete: (PluginManifest) -> Bool
     private let connectionStatusProvider: (ExternalAppConnectionCheck) -> ExternalAppConnectionStatus
 
@@ -302,6 +306,8 @@ public final class PluginRegistry {
         grantStore: PluginCapabilityGrantStore? = nil,
         systemPermissionCheck: @escaping (PluginSystemPermission) -> Bool = { _ in true },
         externalAppExists: @escaping (String) -> Bool = { _ in false },
+        installedExternalAppName: @escaping (String) -> String? = { _ in nil },
+        backgroundOperationsEnabled: @escaping () -> Bool = { true },
         pluginSettingsComplete: @escaping (PluginManifest) -> Bool = { _ in true },
         externalAppConnectionStatus: @escaping (ExternalAppConnectionCheck) -> ExternalAppConnectionStatus = { _ in .permissionNeeded }
     ) {
@@ -309,6 +315,8 @@ public final class PluginRegistry {
         self.grantStore = grantStore
         self.systemPermissionCheck = systemPermissionCheck
         self.externalAppExists = externalAppExists
+        self.installedExternalAppName = installedExternalAppName
+        self.backgroundOperationsEnabled = backgroundOperationsEnabled
         self.pluginSettingsComplete = pluginSettingsComplete
         self.connectionStatusProvider = externalAppConnectionStatus
     }
@@ -429,6 +437,90 @@ public final class PluginRegistry {
             }
     }
 
+    /// Evaluates a candidate or installed package without making access
+    /// decisions, prompting for System Permissions, or running Plugin code.
+    public func prerequisites(for package: PluginPackage) -> [PluginPrerequisite] {
+        let manifest = package.manifest
+        var result = externalAppPrerequisites(for: manifest)
+        for permission in PluginSystemPermission.allCases {
+            let affected = manifest.commands.filter { command in
+                manifest.requiredSystemPermissions(for: command, input: manifest.preset.defaultInputs[command.id])
+                    .contains(permission)
+            }.map(\.id)
+            if !affected.isEmpty {
+                result.append(evaluate(.systemPermission(permission), commands: affected))
+            }
+        }
+        let taskCommands = manifest.commands.filter {
+            manifest.declares(.runReviewedToolTasks, for: $0.id)
+        }.map(\.id)
+        if !taskCommands.isEmpty {
+            result.append(evaluate(.hostComponent(.backgroundOperations), commands: taskCommands))
+        }
+        return result
+    }
+
+    private func externalAppPrerequisites(for manifest: PluginManifest) -> [PluginPrerequisite] {
+        guard manifest.capabilityScopes.contains(where: { !$0.externalApps.isEmpty }) else { return [] }
+        var targets: [String: PluginCapabilityScope.ExternalAppScope] = [:]
+        var bundleIDs: [String] = []
+        var affected: [String: Set<CommandID>] = [:]
+        for command in manifest.commands {
+            // Optional access determines when a Command may ask for authority.
+            // The declared External App is still needed when it uses that access.
+            let capabilities = manifest.requiredCapabilities(for: command, input: manifest.preset.defaultInputs[command.id])
+                + manifest.optionalCapabilities(forCommand: command)
+            for target in externalAppTargets(in: manifest, commandID: command.id, capabilities: capabilities) {
+                if targets[target.bundleID] == nil {
+                    targets[target.bundleID] = target
+                    bundleIDs.append(target.bundleID)
+                } else if targets[target.bundleID]?.displayName == target.bundleID {
+                    targets[target.bundleID] = target
+                }
+                affected[target.bundleID, default: []].insert(command.id)
+            }
+        }
+        return bundleIDs.compactMap { bundleID in
+            guard let target = targets[bundleID], let commands = affected[bundleID] else { return nil }
+            return evaluate(externalAppKind(for: target), commands: manifest.commands.map(\.id).filter(commands.contains))
+        }
+    }
+
+    private func externalAppTargets(in manifest: PluginManifest, commandID: CommandID,
+                                    capabilities: [PluginCapability]) -> [PluginCapabilityScope.ExternalAppScope] {
+        manifest.capabilityScopes.filter {
+            capabilities.contains($0.capability) && $0.commandIDs.contains(commandID)
+        }.flatMap(\.externalApps)
+    }
+
+    private func externalAppKind(for target: PluginCapabilityScope.ExternalAppScope) -> PluginPrerequisite.Kind {
+        let name = target.displayName
+        let resolved = name == target.bundleID ? installedExternalAppName(target.bundleID) ?? name : name
+        return .externalApp(bundleID: target.bundleID, displayName: resolved)
+    }
+
+    private func evaluate(_ kind: PluginPrerequisite.Kind, commands: [CommandID]) -> PluginPrerequisite {
+        let satisfied: Bool
+        switch kind {
+        case .externalApp(let bundleID, _): satisfied = externalAppExists(bundleID)
+        case .systemPermission(let permission): satisfied = systemPermissionCheck(permission)
+        case .hostComponent(.backgroundOperations): satisfied = backgroundOperationsEnabled()
+        }
+        return PluginPrerequisite(kind: kind, commandIDs: commands, isSatisfied: satisfied)
+    }
+
+    private func needsPluginSettings(_ manifest: PluginManifest) -> Bool {
+        manifest.hasSettings && !pluginSettingsComplete(manifest)
+    }
+
+    private func missingExternalAppForPreset(in manifest: PluginManifest) -> ActionUnavailableReason? {
+        // A Preset with independent Commands can still be placed and configured.
+        let missing = externalAppPrerequisites(for: manifest).filter { !$0.isSatisfied }
+        let affected = Set(missing.flatMap(\.commandIDs))
+        guard affected.count == manifest.commands.count else { return nil }
+        return missing.first?.reason
+    }
+
     public func menuItemPresets() -> [MenuItemPreset] {
         lock.lock()
         defer { lock.unlock() }
@@ -443,8 +535,8 @@ public final class PluginRegistry {
                     declaration: package.manifest.preset,
                     unavailableReason: disabledPluginIDs.contains(package.manifest.id)
                         ? .pluginDisabled
-                        : nil,
-                    needsPluginSettings: package.manifest.hasSettings && !pluginSettingsComplete(package.manifest),
+                        : missingExternalAppForPreset(in: package.manifest),
+                    needsPluginSettings: needsPluginSettings(package.manifest),
                     icon: package.manifest.icon,
                     packageRoot: package.rootURL,
                     tags: package.manifest.vocabularyTags
@@ -496,10 +588,7 @@ public final class PluginRegistry {
                 for: action.pluginID, pluginVersion: package.manifest.version, capability: $0, scope: package.manifest.scope(for: $0)
             ) != .granted
         }) { return .unavailable(.capabilityDenied) }
-        let targets = package.manifest.capabilityScopes.filter {
-            capabilities.contains($0.capability) && $0.commandIDs.contains(action.commandID)
-        }
-            .flatMap(\.externalApps)
+        let targets = externalAppTargets(in: package.manifest, commandID: action.commandID, capabilities: capabilities)
         // Operation families need a Reviewed App Interface that offers them;
         // Deep Link Templates need nothing the Host has reviewed.
         if targets.contains(where: { target in
@@ -507,17 +596,19 @@ public final class PluginRegistry {
             guard let interface = ReviewedAppInterface.interface(for: target.bundleID) else { return true }
             return !Set(target.operationFamilies).isSubset(of: interface.operations.map(\.family))
         }) { return .unavailable(.externalAppOperationUnsupported) }
-        if let missingTarget = targets.first(where: { !externalAppExists($0.bundleID) }) {
-            return .unavailable(.externalAppMissing(missingTarget.displayName))
+        for target in targets {
+            let prerequisite = evaluate(externalAppKind(for: target), commands: [action.commandID])
+            if !prerequisite.isSatisfied { return .unavailable(prerequisite.reason) }
         }
         if capabilities.contains(where: { !$0.isSupportedByHostServices }) { return .unavailable(.hostServiceUnavailable) }
         let permissions = package.manifest.requiredSystemPermissions(for: action.declaredCommand, input: action.input)
-        if let missing = permissions.first(where: { !systemPermissionCheck($0) }) {
-            return .unavailable(missing == .screenRecording ? .screenRecordingDenied : .systemPermissionDenied)
+        for permission in permissions {
+            let prerequisite = evaluate(.systemPermission(permission), commands: [action.commandID])
+            if !prerequisite.isSatisfied { return .unavailable(prerequisite.reason) }
         }
-        if package.manifest.hasSettings, !pluginSettingsComplete(package.manifest) {
-            return .unavailable(.pluginSettingsIncomplete)
-        }
+        if needsPluginSettings(package.manifest) { return .unavailable(.pluginSettingsIncomplete) }
+        // Background Operations are checked when a Task needs them. Commands
+        // that also inspect Homebrew remain usable without that component.
         return .available
     }
 

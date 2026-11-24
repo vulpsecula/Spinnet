@@ -6,14 +6,22 @@ import SwiftUI
 import UniformTypeIdentifiers
 import SpinnetCore
 
-/// A package the user chose to install, waiting for them to allow the access
-/// it asks for. Nothing is copied or registered until they do.
+extension PluginInstallationReview {
+    var unmetPrerequisites: [PluginPrerequisite] { prerequisites.filter { !$0.isSatisfied } }
+    var needsConfirmation: Bool { !requestedAccess.isEmpty || !unmetPrerequisites.isEmpty }
+
+    /// Recheck the package and access request at confirmation. Prerequisites
+    /// reflect the environment and may be repaired while a review is open.
+    func matchesAccessReview(_ other: Self) -> Bool {
+        manifest == other.manifest && requestedAccess == other.requestedAccess
+    }
+}
+
+/// A candidate package and its installation review.
 struct PendingPluginInstallation: Identifiable, Equatable {
     let source: URL
     let review: PluginInstallationReview
     var installationSource: PluginInstallationSource = .localFile
-    /// Set when this is a Plugin Update found at the Plugin's Update Source.
-    var update: PluginUpdateOffer? = nil
 
     var id: URL { source }
 }
@@ -80,8 +88,10 @@ final class MenuEditorModel: ObservableObject {
     var installPlugin: ((URL) throws -> PluginManifest)?
     /// Applies a Plugin Update through the same install-and-replace path.
     var applyPluginUpdate: ((PluginUpdateOffer) throws -> PluginManifest)?
-    /// Grants reviewed requests after registration; an empty list refreshes
-    /// inherited decisions for the newly installed version without granting access.
+    var onPluginInstalled: ((PluginManifest, ((Error) -> Void)?) -> Void)?
+    var onPluginUpdate: ((PluginManifest, PluginManifest?, Error?) -> Void)?
+    var refreshPluginAccess: (() -> Void)?
+    /// Grants requests the user approved in the installation review.
     var grantRequestedAccess: ((PluginManifest, [PluginCapability]) -> Void)?
     var removePlugin: ((PluginID) throws -> Void)?
     /// Returns true when connection setup takes ownership of this placement.
@@ -307,38 +317,51 @@ final class MenuEditorModel: ObservableObject {
     }
 
     /// The native picker and automated Settings workflow enter the same install
-    /// intent. A Plugin that asks for access nobody has decided on waits for
-    /// the user to allow it; one that asks for nothing new installs at once.
+    /// intent. Show the review when there is new access or an unmet prerequisite.
     func installPluginPackage(at url: URL) {
         guard let reviewPluginInstallation else { return }
+        let installed = editor.installedPlugins
         do {
             let review = try reviewPluginInstallation(url)
-            if review.requestedAccess.isEmpty {
-                try install(PendingPluginInstallation(source: url, review: review))
-            } else {
-                pendingInstallation = PendingPluginInstallation(source: url, review: review)
-            }
+            try install(PendingPluginInstallation(source: url, review: review), presentReview: true)
         } catch {
+            // A readable declaration identifies a local update even when the
+            // package fails the Host's install checks.
+            let manifestURL = url.appendingPathComponent("manifest.json")
+            if let data = try? Data(contentsOf: manifestURL), let candidate = try? PluginManifestLoader.decode(data),
+               installed.isInstalled(candidate.id) {
+                let previous = installed.manifest(candidate.id) ?? installed.refusedPlugin(candidate.id)?.manifest
+                if previous?.version != candidate.version, let onPluginUpdate {
+                    // The update summary reports it.
+                    onPluginUpdate(candidate, previous, error)
+                    return
+                }
+            }
             reportInstallationFailure(error)
         }
     }
 
-    /// A Plugin Update found at the Update Source takes the same review as a
-    /// package the user chose.
+    /// Applies an accepted offer through the updater's validation and install
+    /// path, keeping the Capability decisions prepared by the install store.
     func installPluginUpdate(_ update: PluginUpdateOffer) {
-        guard let reviewPluginInstallation else { return }
+        guard let applyPluginUpdate else { return }
+        let installed = editor.installedPlugins
+        let id = update.manifest.id
+        let previous = installed.manifest(id) ?? installed.refusedPlugin(id)?.manifest
+        performPluginUpdate(update.manifest, replacing: previous) { try applyPluginUpdate(update) }
+    }
+
+    private func performPluginUpdate(_ candidate: PluginManifest, replacing previous: PluginManifest?,
+                                     install: () throws -> PluginManifest?) {
         do {
-            // Reviewed again now: decisions, Plugins or the Host may have
-            // changed since the check.
-            let review = try reviewPluginInstallation(update.packageURL)
-            let pending = PendingPluginInstallation(source: update.packageURL, review: review, update: update)
-            if review.requestedAccess.isEmpty {
-                try install(pending)
-            } else {
-                pendingInstallation = pending
-            }
+            guard let manifest = try install() else { return }
+            var configurationFailure: Error?
+            onPluginInstalled?(manifest, { configurationFailure = $0 })
+            refreshPluginAccess?()
+            refreshAfterInstallation()
+            onPluginUpdate?(manifest, previous, configurationFailure)
         } catch {
-            reportInstallationFailure(error)
+            onPluginUpdate?(candidate, previous, error)
         }
     }
 
@@ -361,59 +384,52 @@ final class MenuEditorModel: ObservableObject {
         pendingInstallation = nil
     }
 
-    private func install(_ pending: PendingPluginInstallation) throws {
-        let review = pending.review
+    private func install(_ pending: PendingPluginInstallation, presentReview: Bool = false) throws {
         let installed = editor.installedPlugins
-        let refused = installed.refusedPlugin(review.manifest.id)
-        let previous = installed.manifest(review.manifest.id)?.version ?? refused?.manifest?.version
-        guard let manifest = try installReviewed(pending) else { return }
-        let requested = review.requestedAccess
-        func message(_ sentence: String, keepsAccess: Bool = true) -> String {
-            guard keepsAccess, requested.isEmpty else { return sentence }
-            return HostLocalization.joiningSentences([sentence, localized("Its access decisions are kept.")])
+        let candidate = pending.review.manifest
+        let previous = installed.manifest(candidate.id) ?? installed.refusedPlugin(candidate.id)?.manifest
+        if installed.isInstalled(candidate.id), previous?.version != candidate.version {
+            performPluginUpdate(candidate, replacing: previous) { try installPackage(pending) }
+            return
         }
-        switch previous {
-        case nil where refused != nil:
-            // Its manifest could not be read, so there is no version to name.
-            installationResult = PluginInstallationResult(
-                title: localized("Plugin Updated"), message: message(localized("\(manifest.name) is updated to \(manifest.version).")))
-        case nil:
+        if presentReview, pending.review.needsConfirmation {
+            pendingInstallation = pending
+            return
+        }
+        guard let manifest = try installReviewed(pending) else { return }
+        if previous?.version == manifest.version {
+            var message = localized("\(manifest.name) \(manifest.version) is installed again.")
+            if pending.review.requestedAccess.isEmpty {
+                message = HostLocalization.joiningSentences([message, localized("Its access decisions are kept.")])
+            }
+            installationResult = PluginInstallationResult(title: localized("Plugin Reinstalled"), message: message)
+        } else {
             installationResult = PluginInstallationResult(
                 title: localized("Plugin Installed"), message: localized("\(manifest.name) \(manifest.version) is installed."))
-        case manifest.version:
-            installationResult = PluginInstallationResult(
-                title: localized("Plugin Reinstalled"), message: message(localized("\(manifest.name) \(manifest.version) is installed again.")))
-        case let previous?:
-            installationResult = PluginInstallationResult(
-                title: localized("Plugin Updated"),
-                message: message(localized("\(manifest.name) is updated from \(previous) to \(manifest.version).")))
         }
     }
 
-    /// Installs a reviewed package, or applies a reviewed Plugin Update,
-    /// granting what the review asked for, without reporting the result.
-    /// Nothing is placed into Slots. Returns nil when the Host cannot install.
+    /// Installs a reviewed package and grants what the user approved. Nothing
+    /// is placed into Slots. Returns nil when the Host cannot install.
     @discardableResult
     func installReviewed(_ pending: PendingPluginInstallation) throws -> PluginManifest? {
-        let perform: () throws -> PluginManifest
-        if let update = pending.update {
-            guard let applyPluginUpdate else { return nil }
-            perform = { try applyPluginUpdate(update) }
-        } else {
-            if let installPluginWithSource {
-                perform = { try installPluginWithSource(pending.source, pending.installationSource) }
-            } else {
-                guard let installPlugin else { return nil }
-                perform = { try installPlugin(pending.source) }
-            }
-        }
-        let manifest = try perform()
-        // Inheritance notifications precede registration. Even an update
-        // needing no consent must refresh Access against the new manifest.
+        guard let manifest = try installPackage(pending) else { return nil }
+        onPluginInstalled?(manifest, nil)
         grantRequestedAccess?(manifest, pending.review.requestedAccess)
+        refreshAfterInstallation()
+        return manifest
+    }
+
+    private func installPackage(_ pending: PendingPluginInstallation) throws -> PluginManifest? {
+        if let installPluginWithSource {
+            return try installPluginWithSource(pending.source, pending.installationSource)
+        }
+        return try installPlugin?(pending.source)
+    }
+
+    private func refreshAfterInstallation() {
         refreshMenuSlots()
         refreshToken += 1
-        return manifest
     }
 
     private func makeMenuSlots() -> [MenuSlotPresentation] {

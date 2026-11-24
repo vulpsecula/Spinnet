@@ -28,7 +28,7 @@ final class PluginUpgradeAccessTests: XCTestCase {
         return url
     }
 
-    func testUpgradeKeepsAccessVisibleAndReviewsChangesBeforeReplacing() throws {
+    func testLocalUpdateKeepsDecisionsVisibleAndLeavesNewAccessUndecided() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let suite = "PluginUpgradeAccess." + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -63,19 +63,18 @@ final class PluginUpgradeAccessTests: XCTestCase {
         let expanded = ["keep_awake", "read_frontmost_app", "quit_frontmost_app"]
         let next = try package(in: directory, version: "3", capabilities: expanded)
         settings.menuEditor.installPluginPackage(at: next)
-        XCTAssertEqual(settings.menuEditor.pendingInstallation?.review.requestedAccess, [.quitFrontmostApp])
-        XCTAssertEqual(registry.package(for: original.id)?.manifest.version, "2", "Review precedes replacement")
-        XCTAssertEqual(settings.privacy.capabilityGrants.filter { $0.pluginID == original.id }, shown)
-        settings.menuEditor.cancelPendingInstallation()
-        XCTAssertEqual(registry.package(for: original.id)?.manifest.version, "2", "Cancel keeps the installed version")
-
-        settings.menuEditor.installPluginPackage(at: next)
-        settings.menuEditor.confirmPendingInstallation()
+        XCTAssertNil(settings.menuEditor.pendingInstallation)
+        XCTAssertNil(settings.menuEditor.installationResult)
         XCTAssertEqual(registry.package(for: original.id)?.manifest.version, "3")
         let current = settings.privacy.capabilityGrants.filter { $0.pluginID == original.id && $0.pluginVersion == "3" }
         XCTAssertEqual(current.first { $0.capability == .keepAwake }?.decision, .granted)
         XCTAssertEqual(current.first { $0.capability == .readFrontmostApp }?.decision, .denied)
-        XCTAssertEqual(current.first { $0.capability == .quitFrontmostApp }?.decision, .granted)
+        XCTAssertEqual(current.first { $0.capability == .quitFrontmostApp }?.decision, .notDetermined)
+        XCTAssertEqual(settings.pluginUpdates.history.first?.leftNewAccessUndecided, true)
+
+        // Decide the new Capability before checking the separate same-version consent flow.
+        grants.setDecision(.granted, for: original.id, pluginVersion: "3", capability: .quitFrontmostApp)
+        let beforeReinstall = settings.privacy.capabilityGrants.filter { $0.pluginID == original.id }
 
         // A scope change also requires consent, even if the version is reused.
         let changed = try package(in: directory, version: "3", capabilities: expanded, appCommands: ["upgrade.run"])
@@ -83,7 +82,7 @@ final class PluginUpgradeAccessTests: XCTestCase {
         XCTAssertEqual(settings.menuEditor.pendingInstallation?.review.requestedAccess, [.readFrontmostApp])
         XCTAssertNil(registry.package(for: original.id)?.manifest.scope(for: .readFrontmostApp))
         settings.menuEditor.cancelPendingInstallation()
-        XCTAssertEqual(settings.privacy.capabilityGrants.filter { $0.pluginID == original.id }, current)
+        XCTAssertEqual(settings.privacy.capabilityGrants.filter { $0.pluginID == original.id }, beforeReinstall)
         settings.menuEditor.installPluginPackage(at: changed)
         settings.menuEditor.confirmPendingInstallation()
         let active = try XCTUnwrap(registry.package(for: original.id)?.manifest)

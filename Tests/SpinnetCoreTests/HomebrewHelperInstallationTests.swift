@@ -17,11 +17,11 @@ final class HomebrewHelperInstallationTests: XCTestCase {
 
     func testTheHelperIsInstalledOutsideTheUserWritableAppBundle() {
         XCTAssertEqual(HomebrewHelperInstallation.directory.path,
-                       "/Library/PrivilegedHelperTools/com.vulpsecula.SpinnetHost.privileged-tools")
+                       "/Library/PrivilegedHelperTools/com.vulpsecula.SpinnetHost.dev.privileged-tools")
         XCTAssertEqual(HomebrewHelperInstallation.executableURL.path,
-                       "/Library/PrivilegedHelperTools/com.vulpsecula.SpinnetHost.privileged-tools/SpinnetPrivilegedToolHelper")
+                       "/Library/PrivilegedHelperTools/com.vulpsecula.SpinnetHost.dev.privileged-tools/SpinnetPrivilegedToolHelper")
         XCTAssertEqual(HomebrewHelperInstallation.plistURL.path,
-                       "/Library/LaunchDaemons/com.vulpsecula.SpinnetHost.privileged-tools.plist")
+                       "/Library/LaunchDaemons/com.vulpsecula.SpinnetHost.dev.privileged-tools.plist")
     }
 
     func testEveryToolTheRootHelperCopiesIsInstalledBesideIt() {
@@ -29,22 +29,22 @@ final class HomebrewHelperInstallationTests: XCTestCase {
         XCTAssertEqual(names.first, "SpinnetPrivilegedToolHelper")
         XCTAssertEqual(Set(names.dropFirst()), Set(NativeSignedToolStaging.toolIdentifiers.keys))
         XCTAssertEqual(HomebrewHelperInstallation.identifier(for: "SpinnetPrivilegedToolHelper"), HomebrewSystemAuthorization.helperIdentifier)
-        XCTAssertEqual(HomebrewHelperInstallation.identifier(for: "SpinnetPathInventory"), "com.vulpsecula.SpinnetHost.path-inventory")
+        XCTAssertEqual(HomebrewHelperInstallation.identifier(for: "SpinnetPathInventory"), "com.vulpsecula.SpinnetHost.dev.path-inventory")
         XCTAssertNil(HomebrewHelperInstallation.identifier(for: "SpinnetHost"))
     }
 
     func testLegacyPlistRunsTheInstalledCopyWithEveryListener() throws {
         let plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: HomebrewHelperInstallation.launchdPlist(), format: nil) as? [String: Any])
-        XCTAssertEqual(plist["Label"] as? String, "com.vulpsecula.SpinnetHost.privileged-tools")
+        XCTAssertEqual(plist["Label"] as? String, "com.vulpsecula.SpinnetHost.dev.privileged-tools")
         XCTAssertEqual(plist["Program"] as? String, HomebrewHelperInstallation.executableURL.path)
         XCTAssertEqual(plist["ProgramArguments"] as? [String], [HomebrewHelperInstallation.executableURL.path])
         XCTAssertNil(plist["BundleProgram"], "A legacy daemon never runs from the user-writable app bundle")
         XCTAssertEqual(plist["AssociatedBundleIdentifiers"] as? [String], [HomebrewSystemAuthorization.hostIdentifier])
         let services = try XCTUnwrap(plist["MachServices"] as? [String: Bool])
         XCTAssertEqual(Set(services.keys), [
-            "com.vulpsecula.SpinnetHost.reviewed-tools.host", "com.vulpsecula.SpinnetHost.reviewed-tools.runner",
-            "com.vulpsecula.SpinnetHost.reviewed-tools.client", "com.vulpsecula.SpinnetHost.reviewed-tools.inspection.host",
-            "com.vulpsecula.SpinnetHost.reviewed-tools.inspection.client"
+            "com.vulpsecula.SpinnetHost.dev.reviewed-tools.host", "com.vulpsecula.SpinnetHost.dev.reviewed-tools.runner",
+            "com.vulpsecula.SpinnetHost.dev.reviewed-tools.client", "com.vulpsecula.SpinnetHost.dev.reviewed-tools.inspection.host",
+            "com.vulpsecula.SpinnetHost.dev.reviewed-tools.inspection.client"
         ])
         XCTAssertTrue(services.values.allSatisfy { $0 })
     }

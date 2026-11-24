@@ -100,6 +100,14 @@ struct WelcomeGuideSheet<TriggerControls: View>: View {
         .frame(width: 620, height: 600)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(localized("Welcome Guide"))
+        .sheet(item: Binding(
+            get: { officialPlugins.pendingReview },
+            set: { if $0 == nil { officialPlugins.cancelReview() } }
+        )) { installation in
+            PluginInstallSheet(installation: installation,
+                               onCancel: officialPlugins.cancelReview,
+                               onInstall: officialPlugins.confirmReview)
+        }
         .onReceive(permissionPoll) { _ in
             guard guide.step == .systemPermissions || guide.step == .menuTrigger else { return }
             privacy.refreshSystemPermissionStatus(includingBackgroundOperations: false)

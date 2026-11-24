@@ -6,7 +6,7 @@ import Security
 /// This channel carries permission to show a password window and command text.
 /// Passwords never enter it: the askpass executable writes only to sudo's pipe.
 public enum HomebrewAskpass {
-    public static let identifier = "com.vulpsecula.SpinnetHost.homebrew-askpass"
+    public static let identifier = SpinnetBuildIdentity.current.identifierPrefix + ".homebrew-askpass"
     public static let socketEnvironment = "HOMEBREW_SPINNET_ASKPASS_SOCKET"
     public struct Context: Codable, Equatable {
         public let command: String

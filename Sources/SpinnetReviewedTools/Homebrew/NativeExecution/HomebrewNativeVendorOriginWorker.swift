@@ -145,7 +145,7 @@ public enum HomebrewNativeVendorOriginWorker {
                     let identifier = name == "SpinnetArchiveBootstrap" ? "archive-bootstrap" : "archive-decoder"
                     var code: SecStaticCode?, requirement: SecRequirement?
                     guard SecStaticCodeCreateWithPath(binary as CFURL, [], &code) == errSecSuccess, let code,
-                          SecRequirementCreateWithString(try HomebrewSystemAuthorization.requirement(identifier: "com.vulpsecula.SpinnetHost." + identifier) as CFString, [], &requirement) == errSecSuccess,
+                          SecRequirementCreateWithString(try HomebrewSystemAuthorization.requirement(identifier: SpinnetBuildIdentity.current.identifierPrefix + "." + identifier) as CFString, [], &requirement) == errSecSuccess,
                           SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), requirement) == errSecSuccess else {
                         throw PluginHostServiceError.tool(.sourceNotAllowed)
                     }

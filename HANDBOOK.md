@@ -144,23 +144,25 @@ refused to load it. The check asks GitHub's public API for that repository's
 tags starting `<plugin-id>/v`, looks up their releases newest first, and
 offers the highest newer version it accepts: same Plugin identity and Update
 Source, a strictly greater SemVer version, a compatible Host range, and a
-package downloaded over HTTPS from the repository's release asset. Update then
-replaces the package through the Library's install path: Plugin Storage,
-Plugin Settings, Menu Items and Capability decisions are kept, and newly
-requested Capabilities are reviewed, again at that moment, before anything is
-replaced. Nothing
-installs automatically. A refused version, being offline or GitHub's rate
-limit is shown on the entry, and the installed version keeps working. A Plugin
-without an Update Source shows no update controls.
+package downloaded over HTTPS from the repository's release asset. Update
+replaces the package without a confirmation sheet, then Settings shows a
+summary alert of the versions applied, failures and new access to review.
+Updates applied while Settings is closed wait for the next time the user
+opens it. "Show a summary after updating Plugins" on General, or the alert's
+own checkbox, turns the summary off. Plugin
+Storage, Plugin Settings, Menu Items, and decisions for unchanged Capability
+scopes are kept. New or changed scopes remain undecided in Plugin Settings.
+A refused version, being offline or GitHub's rate limit is shown on the
+Library entry, and the installed version keeps working. A Plugin without an
+Update Source shows no update controls.
 
-General's "Check for Plugin updates automatically" (on by default) checks
-every such Plugin at most once a day across launches, never at launch before
-a check is due, with a single timer for the next one; turned off, no
-automatic request is made and an automatic check under way stops asking. General's Check Now and the Library's Check All
-for Updates run the same check at once. General shows how many updates are
-available, and each affected Library entry offers Update. Tags are listed once
-per repository; a failure or GitHub's rate limit is reported on General, not
-in an alert, and is not retried before the next check. Authors publish releases
+General's "Update Plugins automatically" (on by default) checks each Plugin
+with an Update Source at most once a day across launches and applies
+accepted updates. Turning it off cancels an automatic check in progress.
+General's Check Now and the Library's Check All for Updates check and apply
+accepted versions on demand. Tags are listed once per repository. General's
+Recent Plugin Updates shows the last 20 applied updates and failures and
+notes when a version introduced undecided access. Authors publish releases
 as described in [Update Source](PluginAPI/reference/update-source.md).
 
 ### Spinnet releases
@@ -230,6 +232,21 @@ Accessibility consent. Launcher modes are listed by
 `./script/build_and_run.sh --help`; their implementation lives in
 [the launcher](script/build_and_run.sh).
 
+The launcher's debug configuration builds a development app,
+`com.vulpsecula.SpinnetHost.dev`, which keeps its saved data in
+`~/Library/Application Support/Spinnet Dev`. A release
+(`com.vulpsecula.SpinnetHost`) uses `Spinnet` there, its own System Permissions
+and settings, and its own Root helper (`com.vulpsecula.SpinnetHost.*`), so both
+can be installed on one Mac. The first development launch copies an existing
+`Spinnet` folder once. 1.0.0-beta.1 and beta.2 shipped as
+`com.vulpsecula.SpinnetHost.preview`; both identities adopt its settings once,
+and a release replaces the beta's Root helper. Keychain items are not adopted:
+the betas' items trust only the beta app, so each identity keeps its Activation
+Code and Plugin credentials under its own prefix and beta users enter them
+again.
+[SpinnetBuildIdentity](Sources/SpinnetCore/Configuration/SpinnetBuildIdentity.swift)
+and the launcher hold the identities.
+
 Reserve `swift run SpinnetHost` for targeted debugging. Quit existing Hosts
 before switching entrypoints because they share saved user data. Confirm the
 running app path and Plugin versions when reporting packaged-app acceptance.
@@ -251,8 +268,8 @@ install them through the path a user takes:
 `--install-plugins DIR` installs or updates every `.spinnetplugin` package in
 `DIR`, or in `DIR/Plugins` for a SpinnetPlugins checkout, into the user's saved
 data before the app opens. An update keeps Plugin Storage and Capability
-decisions; newly requested Capabilities stay undecided, as after a Library
-install. `--verify` reports the installed Plugin versions, as saved on disk,
+decisions; newly requested Capabilities stay undecided, as with a Library
+update. `--verify` reports the installed Plugin versions, as saved on disk,
 once the app has stayed up. Both modes write or read your real saved data.
 A leading `--official` builds an [Official Build](#source-and-binaries) instead
 of a source build.

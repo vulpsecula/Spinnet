@@ -2373,7 +2373,7 @@
     {
       "area": "A script that checks for or installs its own Plugin's updates",
       "raycast": "Store extension updates",
-      "reason": "A Plugin declares only its manifest update_source; the Host checks the GitHub releases and the user applies a Plugin Update after reviewing new Capabilities (reference/update-source.md), so no operation offers it to a script"
+      "reason": "A Plugin declares only its manifest update_source; the Host checks GitHub Releases and applies Plugin Updates while leaving newly requested Capabilities undecided (reference/update-source.md), so no operation offers it to a script"
     }
   ],
   "host_version": "1.0.0"

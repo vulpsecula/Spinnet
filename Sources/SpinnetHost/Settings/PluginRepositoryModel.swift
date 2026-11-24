@@ -209,7 +209,7 @@ final class PluginRepositoryModel: ObservableObject {
             }
             let pending = PendingPluginInstallation(source: offer.packageURL, review: checked,
                                                     installationSource: .github(source))
-            if checked.requestedAccess.isEmpty {
+            if !checked.needsConfirmation {
                 try finishInstall(pending)
             } else {
                 pendingReview = pending
@@ -226,7 +226,7 @@ final class PluginRepositoryModel: ObservableObject {
 
     private func finishInstall(_ pending: PendingPluginInstallation) throws {
         let id = pending.review.manifest.id
-        guard !isInstalled(id), try review(pending.source) == pending.review else {
+        guard !isInstalled(id), try review(pending.source).matchesAccessReview(pending.review) else {
             throw PluginUpdateError.changedSinceCheck(HostText("The downloaded package changed.")) // Not localized: HostText is localized by localizedFailure
         }
         try install(pending)
@@ -248,7 +248,9 @@ final class PluginRepositoryModel: ObservableObject {
     func cancelReview() {
         guard let pending = pendingReview else { return }
         pendingReview = nil
-        failures[pending.review.manifest.id] = localized("Not installed: its access was not allowed.")
+        failures[pending.review.manifest.id] = pending.review.requestedAccess.isEmpty
+            ? localized("Plugin Not Installed")
+            : localized("Not installed: its access was not allowed.")
         activePlugin = nil
     }
 }

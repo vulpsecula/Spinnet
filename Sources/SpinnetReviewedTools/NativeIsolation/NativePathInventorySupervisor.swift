@@ -112,7 +112,7 @@ enum NativePathInventorySupervisor {
               fstatat(parent, name, &file, AT_SYMLINK_NOFOLLOW) == 0, file.st_mode & S_IFMT == S_IFREG,
               file.st_uid == 0, file.st_nlink == 1, file.st_mode & 0o022 == 0 else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
         var code: SecStaticCode?, requirement: SecRequirement?
-        let expression = try HomebrewSystemAuthorization.requirement(identifier: "com.vulpsecula.SpinnetHost.path-inventory")
+        let expression = try HomebrewSystemAuthorization.requirement(identifier: SpinnetBuildIdentity.current.identifierPrefix + ".path-inventory")
         guard SecStaticCodeCreateWithPath(path as CFURL, [], &code) == errSecSuccess, let code,
               SecRequirementCreateWithString(expression as CFString, [], &requirement) == errSecSuccess, let requirement,
               SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), requirement) == errSecSuccess else { throw PluginHostServiceError.tool(.sourceNotAllowed) }

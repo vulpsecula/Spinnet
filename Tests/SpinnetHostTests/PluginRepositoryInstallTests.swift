@@ -14,13 +14,16 @@ final class PluginRepositoryInstallTests: XCTestCase {
     private var transport: RecordedGitHubTransport!
     private var settings: SettingsWindowModel!
     private var editor: HostConfigurationEditor!
+    private var systemPermissionGranted = true
 
     override func setUpWithError() throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         suite = "PluginRepositoryInstall." + UUID().uuidString
         defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         grants = PluginCapabilityGrantStore()
-        registry = PluginRegistry(grantStore: grants)
+        registry = PluginRegistry(grantStore: grants, systemPermissionCheck: { [weak self] _ in
+            self?.systemPermissionGranted == true
+        })
         store = PluginInstallationStore(directory: directory.appendingPathComponent("Installed"),
                                         registry: registry, grants: grants, persistGrants: {})
         transport = RecordedGitHubTransport()
@@ -65,8 +68,8 @@ final class PluginRepositoryInstallTests: XCTestCase {
             PluginReleaseFixture.manifest(version: "1.2.0", capabilities: capabilities), in: directory))
     }
 
-    private func openPublishedPlugin() throws -> PublishedPlugin {
-        try publish()
+    private func openPublishedPlugin(capabilities: [String] = ["write_clipboard"]) throws -> PublishedPlugin {
+        try publish(capabilities: capabilities)
         model.open()
         XCTAssertTrue(model.addRepository("https://github.com/example-org/plugins/"))
         guard case .loaded(let listing) = model.listing else {
@@ -95,6 +98,19 @@ final class PluginRepositoryInstallTests: XCTestCase {
         XCTAssertEqual(grants.decision(for: pluginID, pluginVersion: "1.2.0", capability: .writeClipboard), .granted)
         XCTAssertEqual(model.state(for: plugin), .installed)
         XCTAssertEqual(editor.configuration, originalMenu, "Installing does not place a Menu Item")
+    }
+
+    func testRepairingAPrerequisiteWhileReviewingDoesNotBlockInstallation() throws {
+        systemPermissionGranted = false
+        let plugin = try openPublishedPlugin(capabilities: ["read_selected_text"])
+        model.install(plugin)
+        XCTAssertEqual(model.pendingReview?.review.unmetPrerequisites.map(\.kind), [.systemPermission(.accessibility)])
+
+        systemPermissionGranted = true
+        model.confirmReview()
+
+        XCTAssertEqual(model.state(for: plugin), .installed)
+        XCTAssertEqual(registry.package(for: pluginID)?.manifest.version, "1.2.0")
     }
 
     func testDecliningReviewAndAnInstalledIdentityNeverOverwriteThePlugin() throws {

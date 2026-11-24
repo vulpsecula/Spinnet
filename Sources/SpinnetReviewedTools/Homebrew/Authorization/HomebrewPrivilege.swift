@@ -320,13 +320,13 @@ public enum HomebrewSystemAuthorization {
         ["class": "user", "group": "admin", "authenticate-user": true, "shared": false, "timeout": 120, "allow-root": false]
     }
     public static let noLaunchServicesToRemove = "spinnet.no-launch-services-to-remove"
-    private static let identifierPrefix = "com.vulpsecula.SpinnetHost"
+    private static let identifierPrefix = SpinnetBuildIdentity.current.identifierPrefix
     public static let service = identifierPrefix + ".reviewed-tools"
     public static let right = identifierPrefix + ".install-reviewed-package"
     public static let runnerIdentifier = identifierPrefix + ".task-runner"
     public static let clientIdentifier = identifierPrefix + ".authorization-client"
     public static let helperIdentifier = identifierPrefix + ".privileged-tools"
-    public static let hostIdentifier = identifierPrefix + ".preview"
+    public static let hostIdentifier = SpinnetBuildIdentity.current.hostBundleIdentifier
 
     /// The stable identity that signed this build. Apple-issued identities are
     /// matched by team; Spinnet's self-signed release identity has no team, so

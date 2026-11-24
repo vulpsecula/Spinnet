@@ -5,8 +5,7 @@ import XCTest
 @testable import SpinnetHost
 
 /// The Library's per-Plugin Check for Update and Update, driven against
-/// recorded GitHub answers through the same install-and-update path and
-/// installation review a Library install uses.
+/// recorded GitHub answers through the Host's install-and-update path.
 final class PluginUpdatesModelTests: XCTestCase {
     private var directory: URL!
     private var defaults: UserDefaults!
@@ -72,13 +71,12 @@ final class PluginUpdatesModelTests: XCTestCase {
 
         XCTAssertEqual(updates.availableVersion(for: pluginID), "1.1.0")
         updates.update(pluginID)
-        settings.menuEditor.confirmPendingInstallation()
 
         XCTAssertEqual(installedVersion, "1.1.0")
         XCTAssertNil(registry.refusedPlugin(pluginID))
     }
 
-    func testAnUpdateIsReviewedAgainWhenTheUserAppliesIt() throws {
+    func testAnUpdateKeepsAnAccessDecisionMadeAfterTheCheck() throws {
         try install(version: "1.0.0")
         try publish(version: "1.0.1")
         updates.checkForUpdate(pluginID)
@@ -87,8 +85,10 @@ final class PluginUpdatesModelTests: XCTestCase {
 
         updates.update(pluginID)
 
-        XCTAssertNil(settings.menuEditor.pendingInstallation, "Nothing is left to review")
+        XCTAssertNil(settings.menuEditor.pendingInstallation)
         XCTAssertEqual(installedVersion, "1.0.1")
+        XCTAssertEqual(grants.decision(for: pluginID, pluginVersion: "1.0.1", capability: .writeClipboard), .granted)
+        XCTAssertEqual(updates.history.first?.leftNewAccessUndecided, false)
     }
 
     func testAnUpdateBelowRefusedVersionsShowsTheirReasons() throws {
@@ -159,27 +159,37 @@ final class PluginUpdatesModelTests: XCTestCase {
         XCTAssertEqual(installedVersion, "1.0.0", "Nothing installs automatically")
     }
 
-    func testUpdateReviewsNewCapabilitiesBeforeReplacingAndThenKeepsDecisions() throws {
+    func testAnUpdateIsSummarizedAndLeavesNewCapabilitiesUndecided() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        updates.now = { now }
         try install(version: "1.0.0")
-        grants.setDecision(.denied, for: pluginID, pluginVersion: "1.0.0", capability: .writeClipboard)
+        grants.setDecision(.granted, for: pluginID, pluginVersion: "1.0.0", capability: .writeClipboard)
         try publish(version: "2.0.0", capabilities: ["write_clipboard", "read_selected_text"])
         updates.checkForUpdate(pluginID)
 
         updates.update(pluginID)
 
-        XCTAssertEqual(settings.menuEditor.pendingInstallation?.review.requestedAccess, [.readSelectedText])
-        XCTAssertEqual(installedVersion, "1.0.0", "Review precedes replacement")
-        settings.menuEditor.cancelPendingInstallation()
-        XCTAssertEqual(installedVersion, "1.0.0", "Cancelling keeps the installed version")
-
-        updates.update(pluginID)
-        settings.menuEditor.confirmPendingInstallation()
-
+        XCTAssertNil(settings.menuEditor.pendingInstallation)
+        XCTAssertNil(settings.menuEditor.installationResult)
+        XCTAssertEqual(updates.updateSummary, PluginInstallationResult(
+            title: "Plugin Updated", message: "Updatable · 1.0.0 → 2.0.0\nReview new access in Plugin Settings"))
         XCTAssertEqual(installedVersion, "2.0.0")
-        XCTAssertEqual(settings.menuEditor.installationResult?.title, "Plugin Updated")
-        XCTAssertEqual(settings.menuEditor.installationResult?.message, "Updatable is updated from 1.0.0 to 2.0.0.")
-        XCTAssertEqual(grants.decision(for: pluginID, pluginVersion: "2.0.0", capability: .writeClipboard), .denied)
-        XCTAssertEqual(updates.status(for: pluginID), .notChecked, "The checked version is no longer the installed one")
+        XCTAssertEqual(grants.decision(for: pluginID, pluginVersion: "2.0.0", capability: .writeClipboard), .granted)
+        XCTAssertEqual(grants.decision(for: pluginID, pluginVersion: "2.0.0", capability: .readSelectedText), .notDetermined)
+        let manifest = try XCTUnwrap(registry.package(for: pluginID)?.manifest)
+        XCTAssertEqual(settings.privacy.pendingCapabilityRequests(for: manifest), [.readSelectedText])
+        let action = try ActionConfiguration(id: ActionID("run"), pluginID: pluginID,
+                                             command: manifest.commands[0], input: .null)
+        XCTAssertEqual(registry.availability(for: action), .unavailable(.capabilityDenied))
+        XCTAssertEqual(updates.status(for: pluginID), .notChecked)
+        let record = try XCTUnwrap(updates.history.first)
+        XCTAssertEqual(record.pluginName, "Updatable")
+        XCTAssertEqual(record.fromVersion, "1.0.0")
+        XCTAssertEqual(record.toVersion, "2.0.0")
+        XCTAssertEqual(record.date, now)
+        XCTAssertNil(record.failure)
+        XCTAssertTrue(record.leftNewAccessUndecided)
+        XCTAssertEqual(PluginUpdatesModel(manifests: { [] }, defaults: defaults).history, [record])
     }
 
     func testAnUpdateAskingForNothingNewIsAppliedOnceTheUserAsks() throws {
@@ -192,8 +202,116 @@ final class PluginUpdatesModelTests: XCTestCase {
 
         XCTAssertNil(settings.menuEditor.pendingInstallation)
         XCTAssertEqual(installedVersion, "1.0.1")
-        XCTAssertEqual(settings.menuEditor.installationResult?.message,
-                       "Updatable is updated from 1.0.0 to 1.0.1. Its access decisions are kept.")
+        XCTAssertNil(settings.menuEditor.installationResult)
+        XCTAssertEqual(updates.updateSummary, PluginInstallationResult(
+            title: "Plugin Updated", message: "Updatable · 1.0.0 → 1.0.1"))
+    }
+
+    func testAnOfferThatChangedAfterTheCheckIsRefusedRecordedAndSummarized() throws {
+        try install(version: "1.0.0")
+        try publish(version: "2.0.0")
+        let apply = try XCTUnwrap(settings.menuEditor.applyPluginUpdate)
+        settings.menuEditor.applyPluginUpdate = { offer in
+            try FileManager.default.removeItem(at: offer.packageURL.appendingPathComponent("manifest.json"))
+            return try apply(offer)
+        }
+        updates.checkForUpdate(pluginID)
+
+        updates.update(pluginID)
+
+        XCTAssertEqual(installedVersion, "1.0.0")
+        XCTAssertNil(settings.menuEditor.pendingInstallation)
+        XCTAssertNil(settings.menuEditor.installationResult)
+        XCTAssertEqual(updates.updateSummary, PluginInstallationResult(
+            title: "Plugin Update Failed",
+            message: "Updatable · 1.0.0 → 2.0.0\nThe update no longer applies: The downloaded package changed. Check again."))
+        let refusal = try XCTUnwrap(updates.history.first)
+        XCTAssertEqual(refusal.fromVersion, "1.0.0")
+        XCTAssertEqual(refusal.toVersion, "2.0.0")
+        XCTAssertEqual(refusal.failure, "The update no longer applies: The downloaded package changed. Check again.")
+        XCTAssertEqual(updates.status(for: pluginID), .notChecked, "A failed application lets the user check again")
+    }
+
+    func testAnIncompatibleLocalUpdateIsRefusedRecordedAndReported() throws {
+        try install(version: "1.0.0")
+        let requirement = "^\(HostVersion.current.major + 1).0.0"
+        let source = try PluginReleaseFixture.package(
+            PluginReleaseFixture.manifest(version: "2.0.0", engines: requirement), in: directory)
+
+        settings.menuEditor.installPluginPackage(at: source)
+
+        XCTAssertEqual(installedVersion, "1.0.0")
+        XCTAssertNil(settings.menuEditor.pendingInstallation)
+        // The update summary reports the refusal, once.
+        XCTAssertNil(settings.menuEditor.installationResult)
+        XCTAssertEqual(updates.updateSummary?.title, "Plugin Update Failed")
+        let refusal = try XCTUnwrap(updates.history.first)
+        XCTAssertEqual(refusal.toVersion, "2.0.0")
+        XCTAssertTrue(try XCTUnwrap(refusal.failure).contains(requirement))
+    }
+
+    func testUpdateHistoryKeepsOnlyTheTwentyMostRecentRecordsAcrossLaunches() throws {
+        try install(version: "1.0.0")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        var date = start
+        updates.now = { date }
+        let manifest = try XCTUnwrap(settings.menuEditor.editor.installedPlugins.manifest(pluginID))
+        for index in 0..<21 {
+            let next = try PluginManifestLoader.decode(JSONSerialization.data(
+                withJSONObject: PluginReleaseFixture.manifest(version: "1.0.\(index + 1)")))
+            updates.recordApplication(of: next, replacing: manifest, error: nil)
+            date += 1
+        }
+
+        let restored = PluginUpdatesModel(manifests: { [] }, defaults: defaults).history
+        XCTAssertEqual(restored.count, 20)
+        XCTAssertEqual(restored.first?.date, start + 20)
+        XCTAssertEqual(restored.last?.date, start + 1)
+    }
+
+    func testUnshownUpdatesWaitAcrossLaunchesUntilSettingsShowsThem() throws {
+        try install(version: "1.0.0")
+        try publish(version: "1.0.1")
+        updates.checkForUpdate(pluginID)
+        updates.update(pluginID)
+
+        let relaunched = PluginUpdatesModel(manifests: { [] }, defaults: defaults)
+        XCTAssertEqual(relaunched.updateSummary, PluginInstallationResult(
+            title: "Plugin Updated", message: "Updatable · 1.0.0 → 1.0.1"))
+
+        relaunched.updateSummaryShown()
+
+        XCTAssertNil(relaunched.updateSummary)
+        XCTAssertNil(PluginUpdatesModel(manifests: { [] }, defaults: defaults).updateSummary)
+        XCTAssertEqual(relaunched.history.count, 1, "History is kept")
+    }
+
+    func testTurningSummariesOffDropsThePendingOneAndSummarizesNothingMore() throws {
+        try install(version: "1.0.0")
+        try publish(version: "1.0.1")
+        updates.checkForUpdate(pluginID)
+        updates.update(pluginID)
+        XCTAssertNotNil(updates.updateSummary)
+
+        updates.showsUpdateSummary = false
+
+        XCTAssertNil(updates.updateSummary)
+        try publish(version: "1.0.2")
+        updates.checkForUpdate(pluginID)
+        updates.update(pluginID)
+        XCTAssertEqual(installedVersion, "1.0.2")
+        XCTAssertNil(updates.updateSummary)
+        XCTAssertEqual(updates.history.first?.toVersion, "1.0.2", "History still records it")
+        XCTAssertFalse(PluginUpdatesModel(manifests: { [] }, defaults: defaults).showsUpdateSummary)
+    }
+
+    func testARepeatedCheckFailureIsRecordedOnce() throws {
+        try install(version: "1.0.0")
+        updates.checkForUpdate(pluginID)
+        updates.checkForUpdate(pluginID)
+
+        XCTAssertEqual(updates.history.count, 1)
+        XCTAssertEqual(updates.history.first?.failure, "Spinnet could not reach GitHub. Check your connection and try again.")
     }
 
     func testRefusalsAndFailuresShowTheirReasonAndTheInstalledVersionKeepsWorking() throws {
@@ -215,6 +333,9 @@ final class PluginUpdatesModelTests: XCTestCase {
         XCTAssertEqual(updates.status(for: pluginID), .refused)
         XCTAssertEqual(updates.message(for: pluginID),
                        "No acceptable update. 1.1.0: The package is a different Plugin, com.example.impostor.")
+        XCTAssertEqual(updates.history.first?.toVersion, "1.1.0")
+        XCTAssertEqual(updates.history.first?.failure, "The package is a different Plugin, com.example.impostor.")
+        XCTAssertNil(settings.menuEditor.installationResult)
 
         try PluginReleaseFixture.publish([], on: transport)
         updates.checkForUpdate(pluginID)

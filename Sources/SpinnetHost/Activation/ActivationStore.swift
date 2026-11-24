@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import SpinnetCore
 
 /// Whether this Host is an Official Build: one built with
 /// `SPINNET_OFFICIAL_BUILD`, as `./script/build_and_run.sh --official` and
@@ -28,7 +29,7 @@ protocol ActivationStore: AnyObject {
 /// both survive deleting and reinstalling the app. The Trial start is also
 /// kept in UserDefaults, and the earlier of the two counts.
 final class KeychainActivationStore: ActivationStore {
-    static let service = "com.vulpsecula.Spinnet.activation" // Not localized: a Keychain service
+    static let service = SpinnetBuildIdentity.current.keychainService("activation") // Not localized: a Keychain service
     private static let trialAccount = "trial-start" // Not localized: a Keychain account
     private static let codeAccount = "activation-code" // Not localized: a Keychain account
     static let trialStartDefaultsKey = "activation.trial-start" // Not localized: a defaults key

@@ -9,14 +9,14 @@ public enum NativeSignedToolStaging {
     private final class Marker: NSObject {}
     /// The signed tools a Root process copies before running; installed beside the helper.
     package static let toolIdentifiers = [
-        "SpinnetReceiptInventory": "com.vulpsecula.SpinnetHost.receipt-inventory",
-        "SpinnetToolAuthorizationClient": "com.vulpsecula.SpinnetHost.authorization-client",
-        "SpinnetArchiveBootstrap": "com.vulpsecula.SpinnetHost.archive-bootstrap",
-        "SpinnetArchiveDecoder": "com.vulpsecula.SpinnetHost.archive-decoder",
-        "SpinnetPathInventory": "com.vulpsecula.SpinnetHost.path-inventory",
-        "SpinnetVendorOrigin": "com.vulpsecula.SpinnetHost.vendor-origin",
-        "SpinnetPathRemoval": "com.vulpsecula.SpinnetHost.path-removal",
-        "SpinnetLaunchServiceInventory": "com.vulpsecula.SpinnetHost.launch-service-inventory"
+        "SpinnetReceiptInventory": SpinnetBuildIdentity.current.identifierPrefix + ".receipt-inventory",
+        "SpinnetToolAuthorizationClient": SpinnetBuildIdentity.current.identifierPrefix + ".authorization-client",
+        "SpinnetArchiveBootstrap": SpinnetBuildIdentity.current.identifierPrefix + ".archive-bootstrap",
+        "SpinnetArchiveDecoder": SpinnetBuildIdentity.current.identifierPrefix + ".archive-decoder",
+        "SpinnetPathInventory": SpinnetBuildIdentity.current.identifierPrefix + ".path-inventory",
+        "SpinnetVendorOrigin": SpinnetBuildIdentity.current.identifierPrefix + ".vendor-origin",
+        "SpinnetPathRemoval": SpinnetBuildIdentity.current.identifierPrefix + ".path-removal",
+        "SpinnetLaunchServiceInventory": SpinnetBuildIdentity.current.identifierPrefix + ".launch-service-inventory"
     ]
     private static var identifiers: [String: String] { toolIdentifiers }
     public struct Copies {

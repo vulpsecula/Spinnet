@@ -506,7 +506,7 @@ public final class PluginCapabilityGrantStore {
 
 /// System authority that may be required in addition to a user-granted
 /// Plugin Capability.
-public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Hashable {
+public enum PluginSystemPermission: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
     case accessibility
     case screenRecording = "screen_recording"
 

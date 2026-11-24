@@ -58,29 +58,28 @@ struct CheckAllPluginUpdatesButton: View {
 }
 
 /// General's Plugin Update checks: the daily automatic check, Check Now, how
-/// many updates are available and why the last check did not complete. A
-/// failure is reported here only, never as an alert.
+/// many updates are available and recent update outcomes.
 struct PluginUpdateChecksSection: View {
     @ObservedObject var updates: PluginUpdatesModel
     let showLibrary: () -> Void
 
-    private let detail = localized("Once a day, ask each Plugin's Update Source for a newer version. Nothing installs by itself.")
+    private let detail = localized("Check each Plugin’s Update Source once a day and apply accepted updates.")
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(localized("Check for Plugin updates automatically")).font(.body.weight(.medium))
+                    Text(localized("Update Plugins automatically")).font(.body.weight(.medium))
                     Text(detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 12)
-                Toggle(localized("Check for Plugin updates automatically"), isOn: $updates.checksAutomatically)
+                Toggle(localized("Update Plugins automatically"), isOn: $updates.checksAutomatically)
                     .toggleStyle(.switch)
                     .labelsHidden()
-                    .accessibilityLabel(localized("Check for Plugin updates automatically"))
+                    .accessibilityLabel(localized("Update Plugins automatically"))
                     .accessibilityHint(detail)
             }
             HStack(spacing: 8) {
@@ -107,6 +106,12 @@ struct PluginUpdateChecksSection: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel(failure)
             }
+            Toggle(localized("Show a summary after updating Plugins"), isOn: $updates.showsUpdateSummary)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+            if !updates.history.isEmpty {
+                PluginUpdateHistory(records: updates.history)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 12)
@@ -123,5 +128,47 @@ struct PluginUpdateChecksSection: View {
         guard let last = updates.shownLastCheck else { return available }
         let relative = last.formatted(.relative(presentation: .named).locale(HostLocalization.locale))
         return HostLocalization.joiningSentences([available, localized("Last checked \(relative).")])
+    }
+}
+
+private struct PluginUpdateHistory: View {
+    let records: [PluginUpdatesModel.Record]
+
+    var body: some View {
+        DisclosureGroup(localized("Recent Plugin Updates")) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(records) { record in
+                    PluginUpdateHistoryRow(record: record)
+                }
+            }
+            .padding(.top, 6)
+        }
+    }
+}
+
+private struct PluginUpdateHistoryRow: View {
+    let record: PluginUpdatesModel.Record
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).fontWeight(.medium)
+            Text(record.date.formatted(.dateTime.year().month().day().hour().minute().locale(HostLocalization.locale)))
+                .foregroundStyle(.secondary)
+            if let failure = record.failure {
+                Text(failure).foregroundStyle(.orange)
+            }
+            if record.leftNewAccessUndecided {
+                Text(localized("Review new access in Plugin Settings")).foregroundStyle(.secondary)
+            }
+        }
+        .font(.caption)
+    }
+
+    private var title: String {
+        if let to = record.toVersion {
+            let from = record.fromVersion ?? localized("Unknown version")
+            return localized("\(record.pluginName) · \(from) → \(to)")
+        }
+        return localized("\(record.pluginName) · Update check failed")
     }
 }

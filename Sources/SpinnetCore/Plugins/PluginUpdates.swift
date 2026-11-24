@@ -44,13 +44,12 @@ public struct PluginUpdateRefusal: Equatable, Sendable {
     }
 }
 
-/// A newer version that passed every acceptance rule, unpacked and reviewed,
-/// waiting for the user to apply it.
+/// A published package that passed every acceptance rule and is ready to apply.
 public struct PluginUpdateOffer: Equatable, Sendable {
     public let tag: String
     public let manifest: PluginManifest
-    /// What installing it would have done when it was checked, including the
-    /// Capabilities it newly asks for. Review it again before applying.
+    /// A snapshot of the undecided access at lookup time. The install store
+    /// prepares current Capability decisions when the package is applied.
     public let review: PluginInstallationReview
     /// The unpacked package the update installs.
     public let packageURL: URL
@@ -411,11 +410,9 @@ public final class PluginUpdater {
         }
     }
 
-    /// An accepted package kept unpacked until its Plugin is updated or
-    /// removed, so a later check never removes an offer the user is
-    /// reviewing. A later check that offers the same release from the same
-    /// asset URL reuses it instead of downloading it again; it is still read,
-    /// version-checked and reviewed again like a fresh download.
+    /// The unpacked package from the latest successful check. A later check
+    /// for the same release and asset can reuse it, running the same checks
+    /// as for a fresh download.
     private struct KeptOffer {
         let asset: URL
         let packageURL: URL
@@ -555,7 +552,7 @@ public final class PluginUpdater {
         // The same checks as any install, Host Compatibility included.
         let review: PluginInstallationReview
         do {
-            review = try store.review(package)
+            review = try store.review(package, includingPrerequisites: false)
         } catch {
             throw Refusal(.verbatim(error.localizedDescription))
         }

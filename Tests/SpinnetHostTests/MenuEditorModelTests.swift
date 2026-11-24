@@ -286,17 +286,21 @@ final class MenuEditorModelTests: XCTestCase {
         )
     }
 
-    func testUpdatingAPluginSaysWhichVersionReplacedWhich() throws {
+    func testUpdatingALocalPluginHandsTheVersionsToTheUpdateSummary() throws {
         let model = try makeModel()
         let update = try fixtureManifest(version: "2.0.0")
         model.reviewPluginInstallation = { _ in PluginInstallationReview(manifest: update, requestedAccess: []) }
         model.installPlugin = { _ in update }
+        var recorded: (String?, String, Error?)?
+        model.onPluginUpdate = { candidate, previous, error in recorded = (previous?.version, candidate.version, error) }
 
         model.installPluginPackage(at: URL(fileURLWithPath: "/tmp/Fixture.spinnetplugin"))
 
-        XCTAssertEqual(model.installationResult, PluginInstallationResult(
-            title: "Plugin Updated", message: "Fixture is updated from 1.0.0 to 2.0.0. Its access decisions are kept."
-        ))
+        XCTAssertNil(model.installationResult)
+        XCTAssertNil(model.pendingInstallation)
+        XCTAssertEqual(recorded?.0, "1.0.0")
+        XCTAssertEqual(recorded?.1, "2.0.0")
+        XCTAssertNil(recorded?.2)
     }
 
     /// Installing the same version again changes nothing a user can see, so

@@ -52,12 +52,12 @@ final class HomebrewSystemServicePreparationTests: XCTestCase {
     }
 
     func testServiceAndSigningIdentitiesUseTheHostPrefix() {
-        XCTAssertEqual(HomebrewSystemAuthorization.hostIdentifier, "com.vulpsecula.SpinnetHost.preview")
-        XCTAssertEqual(HomebrewSystemAuthorization.helperIdentifier, "com.vulpsecula.SpinnetHost.privileged-tools")
-        XCTAssertEqual(HomebrewSystemAuthorization.service, "com.vulpsecula.SpinnetHost.reviewed-tools")
-        XCTAssertEqual(HomebrewSystemAuthorization.right, "com.vulpsecula.SpinnetHost.install-reviewed-package")
-        XCTAssertEqual(HomebrewSystemAuthorization.runnerIdentifier, "com.vulpsecula.SpinnetHost.task-runner")
-        XCTAssertEqual(HomebrewSystemAuthorization.clientIdentifier, "com.vulpsecula.SpinnetHost.authorization-client")
+        XCTAssertEqual(HomebrewSystemAuthorization.hostIdentifier, "com.vulpsecula.SpinnetHost.dev")
+        XCTAssertEqual(HomebrewSystemAuthorization.helperIdentifier, "com.vulpsecula.SpinnetHost.dev.privileged-tools")
+        XCTAssertEqual(HomebrewSystemAuthorization.service, "com.vulpsecula.SpinnetHost.dev.reviewed-tools")
+        XCTAssertEqual(HomebrewSystemAuthorization.right, "com.vulpsecula.SpinnetHost.dev.install-reviewed-package")
+        XCTAssertEqual(HomebrewSystemAuthorization.runnerIdentifier, "com.vulpsecula.SpinnetHost.dev.task-runner")
+        XCTAssertEqual(HomebrewSystemAuthorization.clientIdentifier, "com.vulpsecula.SpinnetHost.dev.authorization-client")
     }
     func testRequestRightSurvivesTheClientToHelperHandoffWithoutSharingCredentials() throws {
         let definition = HomebrewSystemAuthorization.requestRightDefinition

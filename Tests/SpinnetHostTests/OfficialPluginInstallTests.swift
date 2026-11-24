@@ -144,6 +144,32 @@ final class OfficialPluginInstallTests: XCTestCase {
         XCTAssertEqual(settings.menuEditor.installationResult, nil, "The guide shows progress in its own rows")
     }
 
+    func testMissingExternalAppInTheGuideCanBeReviewedAndInstalled() throws {
+        try publish("Spotify")
+        try launch()
+        toOfficialStep()
+        let spotify = try id("Spotify")
+        for plugin in official.plugins { official.setSelected(plugin.id == spotify, for: plugin.id) }
+
+        settings.continueWelcomeGuide()
+
+        let pending = try XCTUnwrap(official.pendingReview)
+        let note = try XCTUnwrap(pending.review.unmetPrerequisites.first)
+        XCTAssertEqual(note.kind, .externalApp(bundleID: "com.spotify.client", displayName: "Spotify"))
+        XCTAssertEqual(note.commandIDs.count, 9)
+        XCTAssertEqual(note.localizedInstallationNote,
+                       "Spotify isn’t installed on this Mac. Install it to use 9 Commands.")
+        XCTAssertTrue(official.hasInstallsUnderWay)
+        XCTAssertTrue(installedNames.isEmpty)
+
+        official.confirmReview()
+
+        XCTAssertEqual(installedNames, ["Spotify"])
+        XCTAssertEqual(registry.menuItemPreset(for: spotify)?.unavailableReason, .externalAppMissing("Spotify"))
+        XCTAssertNil(official.pendingReview)
+        XCTAssertFalse(official.hasInstallsUnderWay)
+    }
+
     func testWithNothingCheckedContinueOnlyContinues() throws {
         try launch()
         toOfficialStep()

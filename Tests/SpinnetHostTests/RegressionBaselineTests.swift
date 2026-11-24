@@ -233,7 +233,11 @@ final class RegressionBaselineTests: XCTestCase {
                 accounts.append(KeychainPluginCredentialStore.account(for: manifest.id, reference: reference))
             }
         }
-        XCTAssertEqual(recorded.service, KeychainPluginCredentialStore.defaultService)
+        // Recorded under the betas' service; each build identity now keeps its own
+        // items under the same name, and accounts are unchanged.
+        XCTAssertEqual(recorded.service, "com.vulpsecula.Spinnet.plugin-credential")
+        XCTAssertEqual(KeychainPluginCredentialStore.defaultService,
+                       SpinnetBuildIdentity.current.keychainService("plugin-credential"))
         XCTAssertEqual(accounts.sorted(), recorded.accounts.sorted())
     }
 

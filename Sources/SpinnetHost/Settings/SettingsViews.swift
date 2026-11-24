@@ -221,6 +221,10 @@ final class SettingsWindowModel: ObservableObject {
         menuEditor.preparePluginConnections = { [weak self] pluginID, completion in
             self?.prepareConnections(for: pluginID, completion: completion) ?? false
         }
+        menuEditor.onPluginUpdate = { [weak pluginUpdates] candidate, previous, error in
+            pluginUpdates?.recordApplication(of: candidate, replacing: previous, error: error)
+        }
+        menuEditor.refreshPluginAccess = { [weak privacy] in privacy?.refreshCapabilityGrants() }
         // Allowing an install is the user's decision on the access it asked for.
         menuEditor.grantRequestedAccess = { [weak privacy] manifest, requested in
             privacy?.grantRequestedAccess(manifest, requested)

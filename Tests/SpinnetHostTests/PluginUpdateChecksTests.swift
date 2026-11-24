@@ -4,8 +4,8 @@ import SpinnetTestSupport
 import XCTest
 @testable import SpinnetHost
 
-/// General's automatic daily check, Check Now and the count of available
-/// Plugin Updates, driven through the Host settings model against recorded
+/// General's automatic daily check and Check Now, driven through the Host
+/// settings model against recorded
 /// GitHub answers and a clock and timer the test controls.
 final class PluginUpdateChecksTests: XCTestCase {
     /// One timer the model asked for.
@@ -114,11 +114,12 @@ final class PluginUpdateChecksTests: XCTestCase {
         liveTimers[0].fire()
 
         XCTAssertEqual(transport.requestedURLs.first, PluginReleaseFixture.tagsURL)
-        XCTAssertEqual(updates.availableUpdateCount, 1)
-        XCTAssertEqual(updates.availableVersion(for: pluginID), "1.1.0", "The Library entry shows its Update action")
+        XCTAssertEqual(updates.availableUpdateCount, 0)
+        XCTAssertNil(settings.menuEditor.pendingInstallation)
+        XCTAssertNil(settings.menuEditor.installationResult)
         XCTAssertEqual(updates.lastCheck, now)
         XCTAssertEqual(liveTimers.map(\.interval), [day], "The next check is a day later")
-        XCTAssertEqual(registry.package(for: pluginID)?.manifest.version, "1.0.0", "Nothing installs by itself")
+        XCTAssertEqual(registry.package(for: pluginID)?.manifest.version, "1.1.0")
     }
 
     func testAutomaticChecksRunAtMostOnceADayAcrossLaunches() throws {
@@ -200,6 +201,21 @@ final class PluginUpdateChecksTests: XCTestCase {
         XCTAssertEqual(updates.status(for: pluginID), .notChecked)
     }
 
+    func testTurningChecksOffAfterFetchPreventsAutomaticApplication() throws {
+        try publish(version: "1.1.0")
+        try launch()
+        var delivery: (() -> Void)?
+        updates.deliver = { delivery = $0 }
+        liveTimers[0].fire()
+        XCTAssertTrue(updates.isCheckingAll)
+
+        updates.checksAutomatically = false
+        try XCTUnwrap(delivery)()
+
+        XCTAssertEqual(registry.package(for: pluginID)?.manifest.version, "1.0.0")
+        XCTAssertTrue(updates.history.isEmpty)
+    }
+
     func testTurningChecksOffLetsCheckNowFinish() throws {
         try publish(version: "1.1.0")
         try launch()
@@ -209,7 +225,7 @@ final class PluginUpdateChecksTests: XCTestCase {
         updates.checksAutomatically = false
         heldRuns.removeFirst()()
 
-        XCTAssertEqual(updates.availableUpdateCount, 1)
+        XCTAssertEqual(registry.package(for: pluginID)?.manifest.version, "1.1.0")
     }
 
     func testAPluginBeingCheckedWithEveryPluginCannotBeCheckedAgainUntilItIsDone() throws {
@@ -223,7 +239,8 @@ final class PluginUpdateChecksTests: XCTestCase {
 
         XCTAssertEqual(heldRuns.count, 1, "No second check of the Plugin starts")
         heldRuns.removeFirst()()
-        XCTAssertEqual(updates.status(for: pluginID), .available)
+        XCTAssertEqual(registry.package(for: pluginID)?.manifest.version, "1.1.0")
+        XCTAssertEqual(updates.status(for: pluginID), .notChecked)
     }
 
     func testOnlyAutomaticChecksRunAtLowPriority() throws {
@@ -262,35 +279,41 @@ final class PluginUpdateChecksTests: XCTestCase {
     func testGeneralIsToldWhenTheInstalledPluginsChange() throws {
         try publish(version: "1.1.0")
         try launch()
-        updates.checkNow()
+        updates.checkForUpdate(pluginID)
         var changes = 0
         let observation = updates.objectWillChange.sink { changes += 1 }
         defer { observation.cancel() }
 
         updates.update(pluginID)
-        settings.menuEditor.confirmPendingInstallation()
 
         XCTAssertGreaterThan(changes, 0, "Its count of available updates is shown again")
         XCTAssertEqual(updates.availableUpdateCount, 0)
     }
 
-    func testCheckNowRunsEvenWhenAutomaticChecksAreOffAndCountsUpdates() throws {
+    func testCheckNowAppliesUpdatesEvenWhenAutomaticChecksAreOff() throws {
         defaults.set(false, forKey: PluginUpdatesModel.checksAutomaticallyKey)
         try publish(version: "1.1.0")
         try launch()
 
         updates.checkNow()
 
-        XCTAssertEqual(updates.availableUpdateCount, 1)
-        XCTAssertEqual(updates.status(for: pluginID), .available)
         XCTAssertNil(updates.runFailure)
         XCTAssertEqual(timers.count, 0, "Check Now schedules no automatic check")
-
-        updates.update(pluginID)
-        settings.menuEditor.confirmPendingInstallation()
-
+        XCTAssertNil(settings.menuEditor.pendingInstallation)
+        XCTAssertNil(settings.menuEditor.installationResult)
         XCTAssertEqual(registry.package(for: pluginID)?.manifest.version, "1.1.0")
+        XCTAssertEqual(updates.history.first?.toVersion, "1.1.0")
         XCTAssertEqual(updates.availableUpdateCount, 0, "An applied update is no longer counted")
+        XCTAssertEqual(updates.updateSummary?.title, "Plugin Updated")
+        XCTAssertEqual(updates.updateSummary?.message.hasSuffix("→ 1.1.0"), true)
+    }
+
+    func testACheckWithNothingToApplyShowsNoSummary() throws {
+        try launch()
+
+        updates.checkNow()
+
+        XCTAssertNil(updates.updateSummary)
     }
 
     func testARateLimitIsReportedOnGeneralWithoutRetrying() throws {
@@ -307,13 +330,13 @@ final class PluginUpdateChecksTests: XCTestCase {
         try publish(version: "1.1.0")
         updates.checkNow()
         XCTAssertNil(updates.runFailure, "A later check that succeeds clears the report")
-        XCTAssertEqual(updates.availableUpdateCount, 1)
+        XCTAssertEqual(registry.package(for: pluginID)?.manifest.version, "1.1.0")
     }
 
     func testAFailedRunKeepsAnUpdateAlreadyFound() throws {
         try publish(version: "1.1.0")
         try launch()
-        updates.checkNow()
+        updates.checkForUpdate(pluginID)
 
         transport.answer(PluginReleaseFixture.tagsURL, status: 429)
         updates.checkNow()

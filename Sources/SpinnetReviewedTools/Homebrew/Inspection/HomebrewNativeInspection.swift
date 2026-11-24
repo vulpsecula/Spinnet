@@ -4,8 +4,8 @@ import Foundation
 /// Host/helper-private protocol. These values never constitute a Plugin
 /// Capability and contain no command, environment or caller-selected tool.
 public enum HomebrewNativeInspection {
-    public static let inspectionRightNamespace = "com.vulpsecula.SpinnetHost.inspect-reviewed-receipts"
-    public static let mutationRightNamespace = "com.vulpsecula.SpinnetHost.admit-inspected-mutation"
+    public static let inspectionRightNamespace = SpinnetBuildIdentity.current.identifierPrefix + ".inspect-reviewed-receipts"
+    public static let mutationRightNamespace = SpinnetBuildIdentity.current.identifierPrefix + ".admit-inspected-mutation"
     public static let reviewLifetime: TimeInterval = 120
     public static let inventoryLifetime: TimeInterval = 30
     public static let maximumWireBytes = 96 * 1024 * 1024

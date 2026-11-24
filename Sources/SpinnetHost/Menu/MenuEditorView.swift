@@ -211,6 +211,13 @@ struct MenuEditorView: View {
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                if let reason = preset.localizedUnavailableReason {
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityHidden(true) // The card's accessibility label includes the reason.
+                }
                 if let pluginUpdates {
                     PluginUpdateControls(updates: pluginUpdates, pluginID: preset.pluginID, pluginName: preset.name)
                 }
