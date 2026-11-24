@@ -54,11 +54,14 @@ final class PluginPagePanelTests: XCTestCase {
 
     private var panel: NSWindow { window.contentView!.window! }
 
+    private func keyEvent(_ code: UInt16, _ characters: String, modifiers: NSEvent.ModifierFlags) throws -> NSEvent {
+        try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+                                      windowNumber: panel.windowNumber, context: nil, characters: characters,
+                                      charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code))
+    }
+
     private func key(_ code: UInt16, _ characters: String, modifiers: NSEvent.ModifierFlags = []) throws {
-        let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
-                                                   windowNumber: panel.windowNumber, context: nil, characters: characters,
-                                                   charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code))
-        panel.sendEvent(event)
+        panel.sendEvent(try keyEvent(code, characters, modifiers: modifiers))
         settle(0.02)
     }
 
@@ -224,6 +227,40 @@ final class PluginPagePanelTests: XCTestCase {
         // The Edit menu's Copy reaches the first responder of the key panel.
         XCTAssertTrue(try XCTUnwrap(panel.firstResponder).tryToPerform(#selector(PageNSCollectionView.copy(_:)), with: nil))
         XCTAssertEqual(harness.performer.performed.map(\.operation.perform), ["clipboard.write"])
+    }
+
+    func testCommandWClosesWithTextFieldFocused() throws {
+        try show(PageHarness.search())
+        XCTAssertEqual(firstResponderComponent(), "query")
+        try assertCommandWCloses()
+    }
+
+    func testCommandWClosesWithCollectionFocused() throws {
+        try show(PageHarness.search())
+        try key(48, "\t")
+        try key(48, "\t")
+        XCTAssertEqual(firstResponderComponent(), "results")
+        try assertCommandWCloses()
+    }
+
+    private func assertCommandWCloses() throws {
+        try settleInitialRanges()
+        let model = self.model
+        let window = try XCTUnwrap(window)
+        var userCloses = 0
+        window.onUserClose = { [weak window] in
+            userCloses += 1
+            model.close()
+            window?.close()
+        }
+        let eventCount = harness.events.count
+        XCTAssertTrue(panel.isKeyWindow)
+        NSApp.sendEvent(try keyEvent(13, "w", modifiers: .command))
+
+        XCTAssertEqual(userCloses, 1)
+        XCTAssertFalse(window.presentationSnapshot.isVisible)
+        XCTAssertNil(harness.sessions.session(for: PageHarness.pluginID))
+        XCTAssertEqual(harness.events.count, eventCount)
     }
 
     /// A Collection with multiple selection in the real panel (ADR 0025):

@@ -59,6 +59,22 @@ final class HostWindowPolicyTests: XCTestCase {
         assertOneDesktop(panel)
     }
 
+    func testCommandWDoesNotCloseANonClosablePanel() throws {
+        let panel = HostPanel(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100),
+                              styleMask: [.titled, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        defer { panel.close() }
+        panel.orderFrontRegardless()
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+            windowNumber: panel.windowNumber, context: nil, characters: "w",
+            charactersIgnoringModifiers: "w", isARepeat: false, keyCode: 13
+        ))
+
+        XCTAssertFalse(panel.performKeyEquivalent(with: event))
+        XCTAssertTrue(panel.isVisible)
+    }
+
     func testNativeDialogsUseTheSameDesktopPolicy() {
         let alert = HostDialogs.makeAlert()
         let chooser = HostDialogs.makeOpenPanel()

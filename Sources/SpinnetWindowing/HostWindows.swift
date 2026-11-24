@@ -9,6 +9,20 @@ private enum HostDesktopPolicy {
     }
 }
 
+private extension NSWindow {
+    func performHostCloseKeyEquivalent(with event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard styleMask.contains(.closable),
+              modifiers == .command,
+              event.charactersIgnoringModifiers?.lowercased() == "w" else {
+            return false
+        }
+
+        performClose(nil)
+        return true
+    }
+}
+
 /// Base for every Host-owned window. Subclasses customize their content and
 /// interaction without being able to override the Desktop constraint.
 open class HostWindow: NSWindow {
@@ -21,6 +35,10 @@ open class HostWindow: NSWindow {
     public final override var collectionBehavior: NSWindow.CollectionBehavior {
         get { super.collectionBehavior }
         set { super.collectionBehavior = HostDesktopPolicy.behavior(newValue) }
+    }
+
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        performHostCloseKeyEquivalent(with: event) || super.performKeyEquivalent(with: event)
     }
 }
 
@@ -36,6 +54,10 @@ open class HostPanel: NSPanel {
     public final override var collectionBehavior: NSWindow.CollectionBehavior {
         get { super.collectionBehavior }
         set { super.collectionBehavior = HostDesktopPolicy.behavior(newValue) }
+    }
+
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        performHostCloseKeyEquivalent(with: event) || super.performKeyEquivalent(with: event)
     }
 }
 
