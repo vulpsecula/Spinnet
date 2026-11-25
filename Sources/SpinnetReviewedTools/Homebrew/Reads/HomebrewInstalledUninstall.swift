@@ -30,6 +30,10 @@ public enum HomebrewInstalledUninstall {
         }
     }
     public static func read(name: String, prefix: String) throws -> Record {
+        try read(name: name, prefix: prefix, matchingVersion: nil)
+    }
+
+    static func read(name: String, prefix: String, matchingVersion: String?) throws -> Record {
         guard HomebrewTaskInput.validPackageName(name), prefix.hasPrefix("/"), prefix == URL(fileURLWithPath: prefix).standardizedFileURL.path, let token = name.split(separator: "/").last else { throw PluginHostServiceError.tool(.planChanged) }
         guard let canonicalPrefix = realpath(prefix, nil) else { throw PluginHostServiceError.tool(.planChanged) }
         defer { free(canonicalPrefix) }
@@ -63,9 +67,11 @@ public enum HomebrewInstalledUninstall {
         guard let tab = try JSONSerialization.jsonObject(with: tabBytes) as? [String: Any],
               tab["uninstall_flight_blocks"] as? Bool != true, let source = tab["source"] as? [String: Any],
               let tap = source["tap"] as? String, tap.count <= 96, tap.range(of: "^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$", options: .regularExpression) != nil,
-              let version = source["version"] as? String, !version.isEmpty, version.count <= 80, !version.contains("/") else {
+              let version = source["version"] as? String, !version.isEmpty, version.count <= 80,
+              version != ".", version != "..", !version.contains("/") else {
             throw PluginHostServiceError.unavailable("The installed cask has missing or executable uninstall history; current catalog data cannot authorize removal")
         }
+        if let matchingVersion, version != matchingVersion { throw PluginHostServiceError.tool(.planChanged) }
         let nameParts = name.split(separator: "/")
         guard nameParts.count != 3 || nameParts.prefix(2).joined(separator: "/") == tap else { throw PluginHostServiceError.tool(.sourceNotAllowed) }
         let versionRoot = root.appendingPathComponent(version)

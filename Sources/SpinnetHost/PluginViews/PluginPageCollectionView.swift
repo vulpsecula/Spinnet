@@ -649,10 +649,11 @@ final class PageCellView: NSView {
     override func menu(for event: NSEvent) -> NSMenu? { collectionView?.menu(for: event) }
 }
 
-/// A grid cell: the item's symbol, or its title, on the selection's colour.
+/// A grid cell displaying the item's symbol, icon or title.
 final class PageGridCell: PageCell {
     static let identifier = NSUserInterfaceItemIdentifier("PageGridCell") // Not localized: a cell identifier
     private let label = PageCellLabel(labelWithString: "")
+    private let icon = PageIconImageView()
 
     override func loadView() {
         super.loadView()
@@ -660,6 +661,8 @@ final class PageGridCell: PageCell {
         label.lineBreakMode = .byTruncatingTail
         label.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(label)
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(icon)
         background.layer?.cornerRadius = 6
         NSLayoutConstraint.activate([
             background.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 1),
@@ -668,7 +671,11 @@ final class PageGridCell: PageCell {
             background.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -1),
             label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            label.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -4)
+            label.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -4),
+            icon.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            icon.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            icon.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.42),
+            icon.heightAnchor.constraint(equalTo: icon.widthAnchor)
         ])
     }
 
@@ -676,15 +683,21 @@ final class PageGridCell: PageCell {
                        actions: [NSAccessibilityCustomAction]) {
         super.show(item, isSelected: isSelected, isFocused: isFocused, label: text, actions: actions)
         let side = view.bounds.width > 0 ? view.bounds.width : 48
+        let iconSide = (side * 0.42).rounded()
+        let appIcon: PluginPageIconSource?
+        if case .app? = item?.icon { appIcon = item?.icon }
+        else { appIcon = nil }
+        icon.show(appIcon, side: iconSide, tint: .labelColor,
+                  symbolConfiguration: .init(pointSize: iconSide, weight: .regular))
+        label.isHidden = appIcon != nil
         if let item {
             let isSymbol = item.symbol != nil
             label.stringValue = item.symbol ?? item.title
             label.font = isSymbol ? .systemFont(ofSize: (side * 0.56).rounded()) : .systemFont(ofSize: NSFont.smallSystemFontSize)
             label.maximumNumberOfLines = isSymbol ? 1 : 2
-            // Without a symbol, an item's icon (#81) fills the cell.
-            if !isSymbol, let icon = item.icon,
-               let image = NSImage(systemSymbolName: icon.name, accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: (side * 0.42).rounded(), weight: .regular)) {
+            if !isSymbol, case .symbol(let name)? = item.icon,
+               let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: iconSide, weight: .regular)) {
                 let attachment = NSTextAttachment()
                 attachment.image = image
                 label.attributedStringValue = NSAttributedString(attachment: attachment)
@@ -745,9 +758,9 @@ private final class PageItemToggleButton: NSButton {
 final class PageListCell: PageCell {
     static let identifier = NSUserInterfaceItemIdentifier("PageListCell") // Not localized: a cell identifier
     static let toggleSide: CGFloat = 18
+    private static let iconSide: CGFloat = 22
     private let symbol = PageCellLabel(labelWithString: "")
-    /// The item's icon, a system symbol (#81), in the symbol's place.
-    private let icon = NSImageView()
+    private let icon = PageIconImageView()
     private let titleField = PageCellLabel(labelWithString: "")
     private let subtitle = PageCellLabel(labelWithString: "")
     private let accessory = PageCellLabel(labelWithString: "")
@@ -771,8 +784,6 @@ final class PageListCell: PageCell {
         text.spacing = 1
         text.setContentHuggingPriority(.defaultLow, for: .horizontal)
         text.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        icon.symbolConfiguration = NSImage.SymbolConfiguration(textStyle: .body)
-        icon.setAccessibilityElement(false)
         toggles.orientation = .horizontal
         toggles.spacing = 4
         toggles.setContentHuggingPriority(.required, for: .horizontal)
@@ -794,7 +805,8 @@ final class PageListCell: PageCell {
             row.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
             row.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             symbol.widthAnchor.constraint(equalToConstant: 22),
-            icon.widthAnchor.constraint(equalToConstant: 22)
+            icon.widthAnchor.constraint(equalToConstant: Self.iconSide),
+            icon.heightAnchor.constraint(equalToConstant: Self.iconSide)
         ])
     }
 
@@ -830,9 +842,9 @@ final class PageListCell: PageCell {
         let strong = isSelected && isFocused
         symbol.stringValue = item?.symbol ?? ""
         symbol.isHidden = item?.symbol == nil
-        icon.image = item?.icon.flatMap { NSImage(systemSymbolName: $0.name, accessibilityDescription: nil) }
+        icon.show(item?.icon, side: Self.iconSide, tint: strong ? .white : .secondaryLabelColor,
+                  symbolConfiguration: .init(textStyle: .body))
         icon.isHidden = item?.icon == nil
-        icon.contentTintColor = strong ? .white : .secondaryLabelColor
         titleField.stringValue = item?.title ?? ""
         subtitle.stringValue = item?.subtitle ?? ""
         subtitle.isHidden = (item?.subtitle ?? "").isEmpty

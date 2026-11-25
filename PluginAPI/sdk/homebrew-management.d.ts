@@ -1,6 +1,16 @@
 // MIT. Typed tools.read additions; every URL and executable route is Host-owned.
-import type { ReviewedPackage } from "./spinnet";
 export type PackageKind = "formula" | "cask";
+export interface ReviewedPackage {
+  kind: PackageKind; name: string; tap?: string; official?: true;
+  title?: string; description?: string; version?: string; installed_version?: string;
+  /** The first installed App artifact's bundle identifier, when available on an installed cask. */
+  bundle_id?: string;
+  outdated?: true; pinned?: true; auto_updates?: true; deprecated?: true; disabled?: true;
+  needs_privileges?: true; uninstall_needs_privileges?: true; zap_needs_privileges?: true; quits_app?: true; dependencies?: string[]; homepage?: string; download_url?: string;
+  installed_on_request?: boolean; installed_as_dependency?: boolean;
+  installed_path?: string; linked?: boolean; linkable?: boolean; keg_only?: boolean;
+  languages?: string[]; selected_language?: string;
+}
 export type HomebrewManagementReadInput =
   | { tool: "homebrew"; operation: "version" | "doctor" | "adoptionCandidates" }
   | { tool: "homebrew"; operation: "services"; kind?: "formula" }

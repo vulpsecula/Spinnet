@@ -3,6 +3,12 @@
 import type { Globals, Page, AutoremovePreview, SpotifyVolume, SpotifyNextOutcome } from "../../sdk/spinnet";
 declare const spinnet: Globals["spinnet"];
 const c = spinnet.ui.components;
+const browser: import("../../sdk/spinnet").ReviewedPackage = {
+  kind: "cask", name: "firefox", installed_version: "157.0.1", bundle_id: "org.mozilla.firefox"
+};
+const browserIcon: import("../../sdk/views").AppIconSource = {app: browser.bundle_id!, symbol: "macwindow"};
+c.icon({id:"browser-icon", source:{app: browserIcon.app}});
+c.item({id:"browser", title:"Firefox", icon:browserIcon});
 const cards = c.adaptive({id:"cards", content:[c.text({id:"cpu",text:"CPU"})], fit:{profiles:[
   {id:"compact",minCardWidth:180,minCardHeight:80,overrides:[{id:"cpu",text:"Processor"}]}
 ]}});

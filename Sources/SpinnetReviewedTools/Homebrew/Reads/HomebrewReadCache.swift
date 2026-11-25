@@ -9,7 +9,10 @@ final class HomebrewReadCache {
     private static let maximumBytes = 256 * 1024 * 1024
     private static let maximumEntries = 4096
 
-    init(environment: [String: String], deadline: Date, cancellation: HostFetchedSections.Cancellation) throws {
+    init(environment: [String: String], deadline: Date, cancellation: HostFetchedSections.Cancellation,
+         cloneFile: (Int32, String) -> Int32 = { fd, destination in
+             fclonefileat(fd, AT_FDCWD, destination, 0) == 0 ? 0 : errno
+         }) throws {
         // Sandbox path matching needs realpath; Foundation may retain /var's
         // spelling even though the kernel resolves it through /private/var.
         guard let path = realpath(FileManager.default.temporaryDirectory.path, nil) else { throw PluginHostServiceError.tool(.failed) }
@@ -43,28 +46,50 @@ final class HomebrewReadCache {
                 } else {
                     guard info.st_mode & S_IFMT == S_IFREG, info.st_size >= 0,
                           info.st_size <= Self.maximumBytes - bytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
-                    guard FileManager.default.createFile(atPath: destination.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { throw PluginHostServiceError.tool(.failed) }
-                    let output = try FileHandle(forWritingTo: destination)
-                    defer { try? output.close() }
-                    var buffer = [UInt8](repeating: 0, count: 64 * 1024)
-                    var copied = 0
-                    while true {
-                        try check()
-                        let count = Darwin.read(fd, &buffer, buffer.count)
-                        if count < 0 { if errno == EINTR { continue }; throw PluginHostServiceError.tool(.failed) }
-                        if count == 0 { break }
-                        bytes += count
-                        copied += count
-                        guard bytes <= Self.maximumBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
-                        try output.write(contentsOf: Data(buffer.prefix(count)))
+                    // The clone creates a new entry and fails if the destination exists.
+                    let cloneError = cloneFile(fd, destination.path)
+                    let outputFD: Int32
+                    switch cloneError {
+                    case 0:
+                        outputFD = open(destination.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+                        bytes += Int(info.st_size)
+                    case ENOTSUP, EXDEV, ENOSYS, EINVAL:
+                        outputFD = open(destination.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+                    default:
+                        throw PluginHostServiceError.tool(.failed)
                     }
+                    guard outputFD >= 0 else { throw PluginHostServiceError.tool(.failed) }
+                    defer { close(outputFD) }
+                    guard fchmod(outputFD, 0o600) == 0 else { throw PluginHostServiceError.tool(.failed) }
+
+                    var copied = Int(info.st_size)
+                    if cloneError != 0 {
+                        let output = FileHandle(fileDescriptor: outputFD, closeOnDealloc: false)
+                        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+                        copied = 0
+                        while true {
+                            try check()
+                            let count = Darwin.read(fd, &buffer, buffer.count)
+                            if count < 0 {
+                                if errno == EINTR { continue }
+                                throw PluginHostServiceError.tool(.failed)
+                            }
+                            if count == 0 { break }
+                            bytes += count
+                            copied += count
+                            guard bytes <= Self.maximumBytes else { throw PluginHostServiceError.tool(.outputTooLarge) }
+                            try output.write(contentsOf: Data(buffer.prefix(count)))
+                        }
+                    }
+                    try check()
                     var after = stat()
                     guard fstat(fd, &after) == 0, copied == info.st_size, after.st_size == info.st_size,
                           after.st_mtimespec.tv_sec == info.st_mtimespec.tv_sec, after.st_mtimespec.tv_nsec == info.st_mtimespec.tv_nsec,
                           after.st_ctimespec.tv_sec == info.st_ctimespec.tv_sec, after.st_ctimespec.tv_nsec == info.st_ctimespec.tv_nsec else {
                         throw PluginHostServiceError.tool(.planChanged)
                     }
-                    try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1_000_000_000)], ofItemAtPath: destination.path)
+                    var times = [info.st_atimespec, info.st_mtimespec]
+                    guard futimens(outputFD, &times) == 0 else { throw PluginHostServiceError.tool(.failed) }
                 }
             }
             try copy(source, directory.appendingPathComponent("api"), depth: 0)

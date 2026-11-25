@@ -92,7 +92,7 @@ final class PagePresentationRuntimeTests: XCTestCase {
         XCTAssertEqual(cpu.style?.cornerRadius, 8)
         XCTAssertNotNil(cpu.style?.background)
         guard case .icon(let icon)? = page.component("cpu-icon") else { return XCTFail("No icon") }
-        XCTAssertEqual(icon.symbol.name, "cpu")
+        XCTAssertEqual(icon.source, .symbol("cpu"))
         XCTAssertNil(icon.label, "Decoration: the card's title says what it is")
         let value = try text("cpu-value", in: metrics)
         XCTAssertEqual(value.text, "23%")
@@ -106,7 +106,7 @@ final class PagePresentationRuntimeTests: XCTestCase {
         try metrics.click("refresh")
         XCTAssertEqual(try text("cpu-value", in: metrics).text, "71%")
         guard case .icon(let battery)? = metrics.page?.component("battery-icon") else { return XCTFail("No battery") }
-        XCTAssertEqual(battery.symbol.name, "battery.100.bolt")
+        XCTAssertEqual(battery.source, .symbol("battery.100.bolt"))
     }
 
     /// An Image Source grants nothing: a Command that does not declare

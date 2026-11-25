@@ -88,8 +88,7 @@ struct PageBoxStyle: ViewModifier {
     }
 }
 
-/// A system symbol, tinted by its style's colour; decoration unless it has
-/// a label. A symbol this macOS lacks keeps its space and draws nothing.
+/// An icon keeps its space while the Host resolves it.
 struct PageIconView: View {
     let icon: PluginPageIcon
     @ScaledMetric(relativeTo: .body) private var unit: CGFloat = 1
@@ -97,18 +96,36 @@ struct PageIconView: View {
     var body: some View {
         let side = CGFloat(icon.size) * unit
         Group {
-            if NSImage(systemSymbolName: icon.symbol.name, accessibilityDescription: nil) != nil {
-                Image(systemName: icon.symbol.name)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(icon.style?.color.map { AnyShapeStyle($0.color) } ?? AnyShapeStyle(.secondary))
-            } else {
-                Color.clear
+            switch icon.source {
+            case .app:
+                PageComponentIconImage(source: icon.source, side: side, tint: icon.style?.color?.nsColor ?? .secondaryLabelColor)
+                    .accessibilityElement(children: .ignore)
+            case .symbol(let name):
+                if NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil {
+                    Image(systemName: name)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(icon.style?.color.map { AnyShapeStyle($0.color) } ?? AnyShapeStyle(.secondary))
+                } else {
+                    Color.clear
+                }
             }
         }
         .frame(width: side, height: side)
-        .accessibilityHidden(icon.label == nil)
         .accessibilityLabel(icon.label ?? "")
+        .accessibilityHidden(icon.label == nil)
+    }
+}
+
+private struct PageComponentIconImage: NSViewRepresentable {
+    let source: PluginPageIconSource
+    let side: CGFloat
+    let tint: NSColor
+
+    func makeNSView(context: Context) -> PageIconImageView { PageIconImageView() }
+
+    func updateNSView(_ view: PageIconImageView, context: Context) {
+        view.show(source, side: side, tint: tint, symbolConfiguration: .init(pointSize: side, weight: .regular))
     }
 }
 

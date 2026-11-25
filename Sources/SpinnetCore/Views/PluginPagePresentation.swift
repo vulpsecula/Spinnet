@@ -216,20 +216,8 @@ public struct PluginPageText: Equatable {
 
 // MARK: - Icons and images
 
-/// A system symbol, as an `icon` component or an item's `icon` names it: a
-/// lower-case SF Symbols name such as `cpu` or `memorychip`. A name the
-/// running macOS lacks draws nothing in its place.
 public struct PluginPageSymbol: Equatable, Hashable {
     public let name: String
-
-    init(parsing value: JSONValue?, _ name: String) throws {
-        let fields = try PluginPage.object(value ?? .null, name, allowed: ["symbol"])
-        guard case .string(let symbol)? = fields["symbol"], Self.isValid(symbol) else {
-            throw PluginPage.violation("\(name) names a system symbol such as cpu or memorychip, "
-                + "in lower-case letters, digits and dots, at most \(PagePresentation.maximumSymbolNameLength) characters")
-        }
-        self.name = symbol
-    }
 
     public init(name: String) { self.name = name }
 
@@ -237,6 +225,35 @@ public struct PluginPageSymbol: Equatable, Hashable {
         guard !name.isEmpty, name.count <= PagePresentation.maximumSymbolNameLength,
               !name.hasPrefix("."), !name.hasSuffix("."), !name.contains("..") else { return false }
         return name.unicodeScalars.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "." }
+    }
+}
+
+/// A View Component or Collection item icon. An App icon may fall back to
+/// a system symbol when Launch Services cannot resolve its bundle identifier.
+public enum PluginPageIconSource: Equatable, Hashable {
+    case symbol(String)
+    case app(bundleIdentifier: String, fallbackSymbol: String?)
+
+    init(parsing value: JSONValue?, _ name: String) throws {
+        let fields = try PluginPage.object(value ?? .null, name, allowed: ["app", "symbol"])
+        if let app = fields["app"] {
+            guard case .string(let identifier) = app, AppBundleIdentifier.isPlausible(identifier) else {
+                throw PluginPage.violation("\(name) names an App by bundle identifier, with dot-separated parts "
+                    + "containing ASCII letters, digits or hyphens, at most 255 characters")
+            }
+            let fallback = try fields["symbol"].map { try Self.parseSymbol($0, name) }
+            self = .app(bundleIdentifier: identifier, fallbackSymbol: fallback)
+        } else {
+            self = .symbol(try Self.parseSymbol(fields["symbol"], name))
+        }
+    }
+
+    private static func parseSymbol(_ value: JSONValue?, _ name: String) throws -> String {
+        guard case .string(let symbol)? = value, PluginPageSymbol.isValid(symbol) else {
+            throw PluginPage.violation("\(name) names a system symbol such as cpu or memorychip, "
+                + "in lower-case letters, digits and dots, at most \(PagePresentation.maximumSymbolNameLength) characters")
+        }
+        return symbol
     }
 }
 
@@ -294,11 +311,11 @@ public enum PluginImageSource: Equatable, Hashable {
     }
 }
 
-/// An `icon` component: a system symbol at a size, tinted by its style's
-/// colour. With a `label` VoiceOver reads it; without one it is decoration.
+/// An `icon` component at a given size. With a `label` VoiceOver reads it;
+/// without one it is decoration.
 public struct PluginPageIcon: Equatable {
     public let id: String
-    public let symbol: PluginPageSymbol
+    public let source: PluginPageIconSource
     public let label: String?
     public let size: Double
     public let style: PluginPageStyle?
@@ -307,7 +324,7 @@ public struct PluginPageIcon: Equatable {
         let members = try PluginPage.object(value, "An icon", allowed: ["kind", "id", "source", "label", "size", "style"])
         let id = try PluginPage.identifier(members["id"], "An icon's id")
         self.id = id
-        symbol = try PluginPageSymbol(parsing: members["source"], "The icon \(id)'s source")
+        source = try PluginPageIconSource(parsing: members["source"], "The icon \(id)'s source")
         label = try members["label"].map { try PluginPage.text($0, "The icon \(id)'s label", maximum: CollectionsContract.maximumTitleLength) }
         size = try members["size"].map { try PluginPageStyle.number($0, "The icon \(id)'s size", in: PagePresentation.iconSizes) }
             ?? PagePresentation.defaultIconSize

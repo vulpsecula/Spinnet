@@ -70,6 +70,17 @@ final class CurrentAppIcons {
         return icon(for: key, read: { environment.loadBundle(bundleURL, pixelSide) }, loaded: loaded)
     }
 
+    /// Page icons use a separate store keyed by Launch Services identity and size.
+    func icon(forBundleIdentifier bundleIdentifier: String, pixelSide: Int,
+              loaded: @escaping (NSImage) -> Void) -> NSImage? {
+        let key = Key(app: "bundle:" + bundleIdentifier, launchDate: nil, pixelSide: pixelSide)
+        let environment = environment
+        return icon(for: key, read: {
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else { return nil }
+            return environment.loadBundle(url, pixelSide)
+        }, loaded: loaded)
+    }
+
     private func icon(for key: Key, read: @escaping () -> NSImage?,
                       loaded: @escaping (NSImage) -> Void) -> NSImage? {
         if let entry = entries[key] {

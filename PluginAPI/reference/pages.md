@@ -59,7 +59,7 @@ page has at most 40 components and at most one collection.
 | --- | --- | --- |
 | `row` | `content`: up to 4 components, `style` | Its components side by side; columns inside, but no row directly and no collection |
 | `column` | `content`: up to 8 components, `style` | Its components top to bottom; no columns or collections inside |
-| `icon` | `source` `{symbol}`, `label`, `size`, `style` | A system symbol |
+| `icon` | `source` `{symbol}` or `{app, symbol?}`, `label`, `size`, `style` | A system symbol or App icon |
 | `image` | `source`, `label`, `width`, `height`, `fit`, `style` | A picture the Host loads |
 | `progress` | `title`, `value`, `status`, `stages`, `stage`, `state`, `cancel`, `style` | A task's progress |
 | `text_field` | `title`, `placeholder`, `value`, `status`, `accent`, `collection` | A one-line field; `collection` makes it that collection's search field |
@@ -593,14 +593,30 @@ colour sits on is the Plugin's to keep.
 
 ### Icons
 
-An `icon` is a system symbol by its SF Symbols name, `{"symbol": "cpu"}`, at
-`size` points (10 to 64, default 16, in step with the body text), tinted by its
-style's `color` (default `secondary`). With a `label` VoiceOver reads it;
-without one it is decoration. An item of a list or grid may carry `icon` in
-the same form, drawn as its row's leading icon, or as its grid cell when it
-has no `symbol`; an item has a `symbol` or an `icon`, not both. A name the
-running macOS lacks draws nothing in its place. A symbol needs no loading
-and no Capability.
+The `icon` component's `source` and a list or grid item's `icon` accept the
+same shapes:
+
+| Source | What the Host draws |
+| --- | --- |
+| `{"symbol": "cpu"}` | A system symbol by its SF Symbols name |
+| `{"app": "org.mozilla.firefox"}` | The App's icon in full colour |
+| `{"app": "org.mozilla.firefox", "symbol": "macwindow"}` | The App's icon, with a system symbol as a fallback |
+
+An App bundle identifier has at least two nonempty parts separated by dots.
+Each part uses ASCII letters, digits or hyphens. The whole identifier is at
+most 255 characters. An invalid identifier or fallback refuses the page.
+If macOS cannot find the App, the Host draws the fallback symbol when given
+and available, or leaves the icon blank. The App lookup is display-only and
+requires no Capability. The script receives no lookup result, App path or
+icon pixels.
+
+An `icon` component draws at `size` points (10 to 64, default 16, in step
+with the body text). The style's `color` tints a system symbol (default
+`secondary`). VoiceOver reads `label` when present. Otherwise the component
+is decorative. A Collection draws the icon at its own size as the row's
+leading icon or the grid cell's content. An item can carry either `symbol`
+or `icon`. These sources are for View Pages. The manifest's
+[Plugin Icon and Command Icon](manifest.md#plugin-icon) follow their own rules.
 
 ### Images
 

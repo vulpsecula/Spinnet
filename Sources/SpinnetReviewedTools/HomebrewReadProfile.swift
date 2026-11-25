@@ -32,13 +32,22 @@ public final class HomebrewReadProfile {
     private let executable: () throws -> URL
     private let execute: CancellableExecutor
     private let management: HomebrewManagementReads
-    public init(executable: @escaping () throws -> URL = HomebrewReadProfile.discover, execute: Executor? = nil, management: HomebrewManagementReads = HomebrewManagementReads()) {
+    private let applicationDirectories: [URL]
+
+    public convenience init(executable: @escaping () throws -> URL = HomebrewReadProfile.discover, execute: Executor? = nil, management: HomebrewManagementReads = HomebrewManagementReads()) {
+        self.init(executable: executable, execute: execute, management: management,
+                  applicationDirectories: HomebrewCaskApp.applicationDirectories)
+    }
+
+    init(executable: @escaping () throws -> URL, execute: Executor?, management: HomebrewManagementReads = HomebrewManagementReads(), applicationDirectories: [URL]) {
         self.executable = executable
         self.management = management
+        self.applicationDirectories = applicationDirectories
         self.execute = execute.map { operation in { executable, arguments, environment, deadline, _ in try operation(executable, arguments, environment, deadline) } } ?? Self.executeReadCancellable
     }
     public init(executable: @escaping () throws -> URL, executeCancellable: @escaping CancellableExecutor, management: HomebrewManagementReads = HomebrewManagementReads()) {
         self.executable = executable; self.execute = executeCancellable; self.management = management
+        applicationDirectories = HomebrewCaskApp.applicationDirectories
     }
     public func invalidateManagementTargets(owner: PluginID) { management.invalidateTargets(owner: owner) }
     public static func discover() throws -> URL {
@@ -95,6 +104,7 @@ public final class HomebrewReadProfile {
         }
         var packages: [JSONValue] = [], notFound: [String] = []
         var officialOrigins: [String: Bool] = [:]
+        let prefix = HomebrewManagementReads.prefix(of: executable)
         var runs: [(String?, [String])] = request.operation == "search" ? request.kinds.map { ($0, []) } : [(request.kind, request.names)]
         while !runs.isEmpty {
             let (kind, names) = runs.removeFirst()
@@ -163,8 +173,21 @@ public final class HomebrewReadProfile {
                             }
                             record["_spinnet_official_source"] = officialOrigins[tap] == true
                         }
-                        if let projected = Self.project(record, kind: packageKind, outdated: request.operation == "outdated", prefix: HomebrewManagementReads.prefix(of: executable), includeConfiguration: request.operation == "info") {
-                            packages.append(projected)
+                        if case .object(var projected)? = Self.project(record, kind: packageKind, outdated: request.operation == "outdated", prefix: prefix, includeConfiguration: request.operation == "info") {
+                            if packageKind == "cask", packages.count < ReviewedToolReads.maximumPackages,
+                               Date() < deadline, !cancellation.isCancelled,
+                               case .string(let name)? = projected["name"],
+                               case .string(let installedVersion)? = projected["installed_version"], !installedVersion.isEmpty {
+                                let identifier = request.operation == "outdated"
+                                    ? HomebrewCaskApp.bundleIdentifier(inInstalledHistoryFor: name,
+                                        version: (record["installed_versions"] as? [String])?.first, prefix: prefix,
+                                        applicationDirectories: applicationDirectories)
+                                    : HomebrewCaskApp.bundleIdentifier(in: record, applicationDirectories: applicationDirectories)
+                                if let identifier {
+                                    projected["bundle_id"] = .string(identifier)
+                                }
+                            }
+                            packages.append(.object(projected))
                             if let tap = record["tap"] as? String {
                                 for key in packageKind == "formula" ? ["aliases", "oldnames"] : ["old_tokens"] {
                                     for alias in (record[key] as? [String] ?? []).prefix(2000) where HomebrewReadInput.validPackageName(alias) {
@@ -210,6 +233,7 @@ public final class HomebrewReadProfile {
         result["packages"] = .array(bounded)
         if !truncated { result.removeValue(forKey: "truncated") }
         guard Date() < deadline else { throw PluginHostServiceError.tool(.timedOut) }
+        guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
         try stillAuthorized(); return .object(result)
     }
     private static func validReturnedName(_ name: String) -> Bool { name.range(of: "^([a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/)?[a-z0-9][a-z0-9+_.@-]*$", options: .regularExpression) != nil && name.count <= 160 }
@@ -393,23 +417,65 @@ public final class HomebrewReadProfile {
         let forgetCancellation = cancellation.onCancel { kill(-childGroup, SIGKILL) }
         defer { forgetCancellation() }
         close(out[1]); close(err[1]); out[1] = -1; err[1] = -1
-        _ = fcntl(out[0], F_SETFL, O_NONBLOCK); _ = fcntl(err[0], F_SETFL, O_NONBLOCK)
-        var stdout = Data(), stderr = Data(), status: Int32 = 0, ended = false, open = [true, true]
+        var stdout = Data(), stderr = Data(), status: Int32 = 0, ended = false
         defer { kill(-pid, SIGKILL); if !ended { while waitpid(pid, &status, 0) == -1 && errno == EINTR {} } }
-        while !ended || open.contains(true) {
-            guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
-            guard Date() < deadline else { kill(-pid, SIGKILL); throw PluginHostServiceError.tool(.timedOut) }
-            for (index, fd) in [out[0], err[0]].enumerated() where open[index] {
-                var buffer = [UInt8](repeating: 0, count: 8192)
-                let count = Darwin.read(fd, &buffer, buffer.count)
-                if count > 0 { if index == 0 { stdout.append(contentsOf: buffer.prefix(count)) } else { stderr.append(contentsOf: buffer.prefix(count)) } }
-                else if count == 0 { open[index] = false }
-                else if errno != EAGAIN && errno != EINTR { throw PluginHostServiceError.tool(.failed) }
-            }
-            guard stdout.count <= stdoutLimit, stderr.count <= ReviewedToolReads.stderrBytes else { kill(-pid, SIGKILL); throw PluginHostServiceError.tool(.outputTooLarge) }
-            if !ended { ended = waitpid(pid, &status, WNOHANG) == pid }
-            if !ended || open.contains(true) { usleep(2000) }
+        guard fcntl(out[0], F_SETFL, O_NONBLOCK) == 0, fcntl(err[0], F_SETFL, O_NONBLOCK) == 0 else {
+            throw PluginHostServiceError.tool(.failed)
         }
+
+        func timeRemaining() throws -> TimeInterval {
+            guard !cancellation.isCancelled else { throw PluginHostServiceError.unavailable("The reviewed read was cancelled") }
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else { kill(-pid, SIGKILL); throw PluginHostServiceError.tool(.timedOut) }
+            return remaining
+        }
+
+        let readiness = Int16(POLLIN | POLLHUP | POLLERR)
+        var readers = [out[0], err[0]].map { pollfd(fd: $0, events: Int16(POLLIN), revents: 0) }
+        var openPipes = readers.count
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while !ended || openPipes > 0 {
+            let remaining = try timeRemaining()
+            // With both pipes at EOF, wake sooner to reap the child without spinning.
+            let slice = openPipes > 0 ? 50.0 : 2.0
+            let ready = poll(&readers, nfds_t(readers.count), Int32(min(slice, remaining * 1_000)))
+            if ready < 0 {
+                if errno == EINTR { continue }
+                throw PluginHostServiceError.tool(.failed)
+            }
+            _ = try timeRemaining()
+            if ready > 0 {
+                for index in readers.indices {
+                    let events = readers[index].revents
+                    guard events & Int16(POLLNVAL) == 0 else { throw PluginHostServiceError.tool(.failed) }
+                    guard events & readiness != 0 else { continue }
+                    let limit = index == 0 ? stdoutLimit : ReviewedToolReads.stderrBytes
+                    while true {
+                        _ = try timeRemaining()
+                        let count = Darwin.read(readers[index].fd, &buffer, buffer.count)
+                        if count < 0 {
+                            if errno == EINTR { continue }
+                            if errno == EAGAIN { break }
+                            throw PluginHostServiceError.tool(.failed)
+                        }
+                        if count == 0 {
+                            readers[index].fd = -1
+                            openPipes -= 1
+                            break
+                        }
+                        let captured = index == 0 ? stdout.count : stderr.count
+                        guard count <= limit - captured else {
+                            kill(-pid, SIGKILL)
+                            throw PluginHostServiceError.tool(.outputTooLarge)
+                        }
+                        if index == 0 { stdout.append(contentsOf: buffer.prefix(count)) }
+                        else { stderr.append(contentsOf: buffer.prefix(count)) }
+                    }
+                }
+            }
+            if !ended { ended = waitpid(pid, &status, WNOHANG) == pid }
+        }
+        _ = try timeRemaining()
         return HomebrewReadOutput(status: (status & 0x7f) == 0 ? (status >> 8) & 0xff : 128 + (status & 0x7f), stdout: stdout, stderr: stderr)
     }
 }

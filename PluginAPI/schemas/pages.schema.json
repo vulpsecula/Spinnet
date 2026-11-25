@@ -693,6 +693,31 @@
         }
       }
     },
+    "icon_source": {
+      "description": "A system symbol or a full-colour App icon with an optional fallback symbol.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/symbol_source"
+        },
+        {
+          "type": "object",
+          "required": [
+            "app"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "app": {
+              "type": "string",
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+(?![\\s\\S])"
+            },
+            "symbol": {
+              "$ref": "#/$defs/symbol_source/properties/symbol"
+            }
+          }
+        }
+      ]
+    },
     "image_source": {
       "description": "Where an image comes from: a PNG or JPEG inside the package, by relative path, or an https address the session's handler may contact under its contact_https grant and hosts.",
       "oneOf": [
@@ -727,7 +752,7 @@
       ]
     },
     "icon": {
-      "description": "A system symbol (#81), tinted by its style's colour; VoiceOver reads its label, and without one it is decoration.",
+      "description": "A full-colour App icon or a system symbol tinted by its style's colour. VoiceOver reads its label when provided.",
       "type": "object",
       "required": [
         "kind",
@@ -743,7 +768,7 @@
           "$ref": "#/$defs/identifier"
         },
         "source": {
-          "$ref": "#/$defs/symbol_source"
+          "$ref": "#/$defs/icon_source"
         },
         "label": {
           "$ref": "#/$defs/text",
@@ -1147,7 +1172,7 @@
       ]
     },
     "grid": {
-      "description": "A collection drawn as square cells showing each item's symbol, or its title when it has none.",
+      "description": "A collection drawn as square cells showing each item's symbol, icon or title.",
       "type": "object",
       "required": [
         "kind",
@@ -1427,7 +1452,7 @@
       }
     },
     "item": {
-      "description": "One item of a collection. It may show a system symbol as its icon (#81); images are not part of items.",
+      "description": "One item of a collection. It may show a system symbol or App icon.",
       "type": "object",
       "required": [
         "id",
@@ -1484,8 +1509,8 @@
           }
         },
         "icon": {
-          "$ref": "#/$defs/symbol_source",
-          "description": "A system symbol drawn as the row's leading icon, or as the grid cell when it has no symbol; an item has a symbol or an icon, not both."
+          "$ref": "#/$defs/icon_source",
+          "description": "Drawn as the row's leading icon or the grid cell's content. An item can carry either symbol or icon."
         }
       }
     },

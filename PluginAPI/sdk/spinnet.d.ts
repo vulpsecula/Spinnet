@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // The current Spinnet Plugin interface. Host compatibility is engines.spinnet.
-import type { HomebrewManagementReadInput, HomebrewManagementReadResult } from "./homebrew-management";
+import type { HomebrewManagementReadInput, HomebrewManagementReadResult, ReviewedPackage } from "./homebrew-management";
 import type { Adaptive, FitOptions } from "./adaptive-layout";
 import type { AutoremovePreviewInput, AutoremoveTaskInput, AutoremovePreview, AutoremoveRead } from "./homebrew-autoremove";
 import type { SpotifyControlCallable, SpotifyVolume, SpotifyNextOutcome } from "./spotify-controls";
-export type { HomebrewManagementReadInput, HomebrewManagementReadResult } from "./homebrew-management";
+export type { HomebrewManagementReadInput, HomebrewManagementReadResult, ReviewedPackage } from "./homebrew-management";
 export type { Adaptive, Fit, FitOptions, DensityProfile, DensityProfileOptions } from "./adaptive-layout";
 export type { ExternalAppConnectionDeclaration, ExternalAppConnectionsManifest } from "./external-app-connections";
 export type { AutoremovePreviewInput, AutoremoveTaskInput, AutoremovePreview } from "./homebrew-autoremove";
@@ -19,6 +19,7 @@ import type {
   FocusedWindow,
   HTTPSRequest,
   HTTPSResponse,
+  IconSource,
   JSONValue,
   ScriptAnswer,
   UIArea,
@@ -357,16 +358,14 @@ export interface Column {
   style?: BoxStyle;
 }
 
-/** A system symbol by its SF Symbols name, such as `cpu`. */
-export interface SymbolSource { symbol: string }
 /** A PNG or JPEG in the package, or at an https address the handler may contact under its own `contact_https`. */
 export type ImageSource = { resource: string } | { url: string };
 
-/** A system symbol; decoration unless it has a label. */
+/** A system symbol or App icon. Decorative unless it has a label. */
 export interface Icon {
   kind: "icon";
   id: ID;
-  source: SymbolSource;
+  source: IconSource;
   label?: string;
   /** 10 to 64 points, default 16. */
   size?: number;
@@ -597,8 +596,8 @@ export interface Item {
   actions?: ID[];
   /** Marks the collection's toggle item actions name; each shows its action checked. */
   marks?: ID[];
-  /** A system symbol as the row's leading icon or the grid cell; not with `symbol`. */
-  icon?: SymbolSource;
+  /** A leading row icon or grid cell icon. Mutually exclusive with `symbol`. */
+  icon?: IconSource;
 }
 
 /**
@@ -691,7 +690,7 @@ export interface PageComponents {
   bind(source: ID, pointer: string, options?: { format?: BindingFormat; unavailable?: string }): Binding;
   row(options: { id: ID; content: (Leaf | Column)[]; style?: StyleOptions }): Row;
   column(options: { id: ID; content: (Leaf | Row)[]; style?: StyleOptions }): Column;
-  icon(options: { id: ID; source: SymbolSource; label?: string; size?: number; style?: StyleOptions }): Icon;
+  icon(options: { id: ID; source: IconSource; label?: string; size?: number; style?: StyleOptions }): Icon;
   image(options: { id: ID; source: ImageSource; label: string; width: number; height: number; fit?: "fit" | "fill"; style?: StyleOptions }): Image;
   progress(options: { id: ID; title?: string; value?: number; status?: string; stages?: { id: ID; title: string }[]; stage?: ID; state?: ProgressState; cancel?: { id: ID; title?: string }; style?: StyleOptions }): Progress;
   textField(options: { id: ID; title: string; placeholder?: string; value?: string; status?: string; accent?: Accent; collection?: ID }): TextField;
@@ -707,7 +706,7 @@ export interface PageComponents {
   /** With `items`, a section of a whole collection; with `count`, a header of one with a total. */
   section(options: { id: ID; title?: string; items: Item[] }): Section;
   section(options: { id: ID; title?: string; count: number }): SectionHeader;
-  item(options: { id: ID; title: string; subtitle?: string; symbol?: string; accessory?: string; text?: string; actions?: ID[]; marks?: ID[]; icon?: SymbolSource }): Item;
+  item(options: { id: ID; title: string; subtitle?: string; symbol?: string; accessory?: string; text?: string; actions?: ID[]; marks?: ID[]; icon?: IconSource }): Item;
   itemAction(options: { id: ID; title: string; default?: true; perform?: ItemActionID; closesView?: boolean; notify?: boolean; toggle?: ID; single?: boolean }): ItemAction;
 }
 
@@ -966,15 +965,6 @@ export type ReviewedToolReadInput =
   | {tool: "homebrew"; operation: "outdated"; kind?: ReviewedPackageKind; greedy?: boolean}
   | {tool: "homebrew"; operation: "search"; query: string; kind?: ReviewedPackageKind}
   | {tool: "homebrew"; operation: "info"; kind: ReviewedPackageKind; names: string[]};
-export interface ReviewedPackage {
-  kind: ReviewedPackageKind; name: string; tap?: string; official?: true;
-  title?: string; description?: string; version?: string; installed_version?: string;
-  outdated?: true; pinned?: true; auto_updates?: true; deprecated?: true; disabled?: true;
-  needs_privileges?: true; uninstall_needs_privileges?: true; zap_needs_privileges?: true; quits_app?: true; dependencies?: string[]; homepage?: string; download_url?: string;
-  installed_on_request?: boolean; installed_as_dependency?: boolean;
-  installed_path?: string; linked?: boolean; linkable?: boolean; keg_only?: boolean;
-  languages?: string[]; selected_language?: string;
-}
 export type ReviewedToolReadResult = PackageReadResult | HomebrewManagementReadResult | AutoremovePreview | CommandOutputResult;
 export interface PackageReadResult {
   tool: "homebrew"; operation: "installed" | "outdated" | "search" | "info";

@@ -516,7 +516,7 @@
       "file": "answers/brew-list-icons.json",
       "definition": "answer",
       "valid": true,
-      "note": "List rows with system symbols as their icons (#81)"
+      "note": "List rows with a system symbol and an App icon with a fallback"
     },
     {
       "file": "answers/image-without-size.json",

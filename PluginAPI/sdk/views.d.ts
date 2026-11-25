@@ -9,6 +9,14 @@ export type JSONValue =
   | JSONValue[]
   | { [key: string]: JSONValue };
 
+/** A system symbol by its SF Symbols name, such as `cpu`. */
+export interface SymbolSource { symbol: string }
+
+/** A full-colour App icon by bundle identifier, with an optional fallback SF Symbol. */
+export interface AppIconSource { app: string; symbol?: string }
+
+export type IconSource = SymbolSource | AppIconSource;
+
 /** A rectangle in global points, origin at the top-left of the primary display. */
 export interface WindowRect {
   x: number;

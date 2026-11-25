@@ -23,6 +23,7 @@
             "subtitle": "Web browser",
             "accessory": "131.0",
             "icon": {
+              "app": "org.mozilla.firefox",
               "symbol": "macwindow"
             }
           }

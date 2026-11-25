@@ -82,6 +82,60 @@ final class PagePresentationContractTests: XCTestCase {
         XCTAssertEqual(page.imageRequests, [artwork.request])
     }
 
+    func testAppIconSourcesInComponentsAndCollectionItems() throws {
+        let schema = try JSONSchemaSubsetValidator(definition: "page", inSchemaAt: Self.pluginAPI.appendingPathComponent("schemas/pages.schema.json"))
+        let identifier = "org.mozilla.Firefox-beta"
+        let limit = "a." + String(repeating: "a", count: 253)
+        let cases: [(JSONValue, PluginPageIconSource)] = [
+            (.object(["symbol": .string("cpu")]), .symbol("cpu")),
+            (.object(["app": .string(identifier)]), .app(bundleIdentifier: identifier, fallbackSymbol: nil)),
+            (.object(["app": .string(limit), "symbol": .string("macwindow")]), .app(bundleIdentifier: limit, fallbackSymbol: "macwindow"))
+        ]
+        for (source, expected) in cases {
+            for kind in ["icon", "list", "grid"] {
+                let value = pageWithIcon(source, kind: kind)
+                XCTAssertEqual(schema.errors(for: value), [])
+                let page = try XCTUnwrap(PluginScriptAnswer(parsing: .object(["page": value]), permits: CollectionsFixtures.permits).page)
+                switch page.component(kind) {
+                case .icon(let icon): XCTAssertEqual(icon.source, expected)
+                case .collection(let collection): XCTAssertEqual(collection.items.first?.icon, expected)
+                default: XCTFail("Missing \(kind)")
+                }
+            }
+        }
+    }
+
+    func testInvalidAppIconIdentifiersAndFallbacksRefuseThePage() throws {
+        let schema = try JSONSchemaSubsetValidator(definition: "page", inSchemaAt: Self.pluginAPI.appendingPathComponent("schemas/pages.schema.json"))
+        let invalidIDs: [JSONValue] = [
+            .null, .string("Firefox"), .string("/Applications/Firefox.app"), .string("org..mozilla"),
+            .string("org.mozílla"), .string("org.mozilla\n"), .string("a." + String(repeating: "a", count: 254))
+        ]
+        for id in invalidIDs {
+            let value = pageWithIcon(.object(["app": id, "symbol": .string("macwindow")]))
+            XCTAssertFalse(schema.errors(for: value).isEmpty)
+            XCTAssertThrowsError(try PluginScriptAnswer(parsing: .object(["page": value]), permits: CollectionsFixtures.permits)) {
+                guard case .protocolViolation(let reason)? = $0 as? PluginRuntimeError else { return XCTFail("\($0)") }
+                XCTAssertTrue(reason.contains("bundle identifier"), reason)
+            }
+        }
+        let badFallback = pageWithIcon(.object(["app": .string("org.mozilla.firefox"), "symbol": .string("Bad Symbol")]))
+        XCTAssertFalse(schema.errors(for: badFallback).isEmpty)
+        XCTAssertThrowsError(try PluginScriptAnswer(parsing: .object(["page": badFallback]), permits: CollectionsFixtures.permits)) {
+            guard case .protocolViolation(let reason)? = $0 as? PluginRuntimeError else { return XCTFail("\($0)") }
+            XCTAssertTrue(reason.contains("names a system symbol"), reason)
+        }
+    }
+
+    private func pageWithIcon(_ source: JSONValue, kind: String = "icon") -> JSONValue {
+        let item: JSONValue = .object(["id": .string("app"), "title": .string("Firefox"), "icon": source])
+        let component: JSONValue = .object([
+            "kind": .string(kind), "id": .string(kind),
+            (kind == "icon" ? "source" : "items"): (kind == "icon" ? source : .array([item]))
+        ])
+        return .object(["id": .string("icons"), "title": .string("Icons"), "content": .array([component])])
+    }
+
     /// The types, reference, SDK and catalogue name every kind and style
     /// member.
     func testTheTypesReferenceSDKAndCatalogueNameEveryMember() throws {

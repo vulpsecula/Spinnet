@@ -321,7 +321,7 @@ final class CollectionsFixturesRuntimeTests: XCTestCase {
         try brew.choose("outdated", in: "scope")
         try brew.type("py", into: "query")
         let outdated = try XCTUnwrap(brew.selectedItem)
-        XCTAssertEqual(outdated.icon, PluginPageSymbol(name: "shippingbox"), "A formula's row shows a system symbol")
+        XCTAssertEqual(outdated.icon, .symbol("shippingbox"), "A formula's row shows a system symbol")
         XCTAssertThrowsError(try brew.choose(itemAction: "install", on: outdated.id), "Not offered on an installed package")
         try brew.choose(itemAction: "upgrade", on: outdated.id)
         XCTAssertEqual(brew.page?.id, "task:\(outdated.title)")

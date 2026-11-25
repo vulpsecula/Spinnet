@@ -1986,7 +1986,7 @@
     {
       "id": "ui.components.item",
       "status": "offered",
-      "summary": "A page component"
+      "summary": "A Collection item with an optional system symbol or App icon source"
     },
     {
       "id": "ui.components.itemAction",
@@ -2006,7 +2006,7 @@
     {
       "id": "ui.components.icon",
       "status": "offered",
-      "summary": "A page component (#81): a system symbol"
+      "summary": "A page component: a system symbol or an App icon with an optional fallback symbol"
     },
     {
       "id": "ui.components.progress",

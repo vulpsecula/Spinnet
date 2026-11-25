@@ -80,6 +80,7 @@ final class ReviewedToolReadTests: XCTestCase {
     }
     func testOutdatedCasksExposeCurrentInstalledVersionsAndOutdatedFlag() throws {
         let profile = HomebrewReadProfile(executable: { URL(fileURLWithPath: "/opt/homebrew/bin/brew") }) { _, arguments, _, _ in
+            if arguments.first == "info" { return HomebrewReadOutput(status: 1, stdout: Data()) }
             XCTAssertEqual(arguments, ["outdated", "--json=v2", "--cask", "--greedy"])
             return HomebrewReadOutput(status: 0, stdout: Data(#"{"formulae":[],"casks":[{"name":"surge","installed_versions":["6.6"],"current_version":"6.9","pinned":true}]}"#.utf8))
         }
@@ -132,6 +133,51 @@ final class ReviewedToolReadTests: XCTestCase {
             HomebrewReadOutput(status: 0, stdout: Data(repeating: 65, count: ReviewedToolReads.stdoutBytes + 1))
         }
         XCTAssertThrowsError(try profile.read(.object(["tool": .string("homebrew"), "operation": .string("installed")]), owner: PluginID("probe"))) { XCTAssertEqual($0 as? PluginHostServiceError, .tool(.outputTooLarge)) }
+    }
+
+    func testBoundedReadCapturesLargeStdoutAndInterleavedStderr() throws {
+        let child = """
+        for marker in a b c; do
+            printf '%s' "$marker" >&2
+            /bin/dd if=/dev/zero bs=1048576 count=1 2>/dev/null || exit 1
+            printf '%s' "$marker"
+        done
+        exit 7
+        """
+        let output = try HomebrewReadProfile.executeBounded(URL(fileURLWithPath: "/bin/sh"), ["-c", child],
+            HomebrewReadProfile.environment, Date().addingTimeInterval(5), .init(), stdoutLimit: 4 * 1024 * 1024, readOnly: true)
+        var expected = Data()
+        for marker in "abc".utf8 {
+            expected.append(Data(count: 1024 * 1024))
+            expected.append(marker)
+        }
+        XCTAssertEqual(output.status, 7)
+        XCTAssertEqual(output.stdout, expected)
+        XCTAssertEqual(output.stderr, Data("abc".utf8))
+    }
+
+    func testBoundedReadRejectsOverflowBeforeChildExits() {
+        for redirection in ["2>/dev/null", "2>/dev/null >&3 3>&-"] {
+            let child = """
+            exec 3>&2
+            /bin/dd if=/dev/zero bs=1048576 count=1 \(redirection)
+            exec /bin/sleep 10
+            """
+            let start = Date()
+            XCTAssertThrowsError(try HomebrewReadProfile.executeBounded(URL(fileURLWithPath: "/bin/sh"), ["-c", child],
+                HomebrewReadProfile.environment, start.addingTimeInterval(5), .init(), stdoutLimit: 64 * 1024, readOnly: true)) {
+                XCTAssertEqual($0 as? PluginHostServiceError, .tool(.outputTooLarge))
+            }
+            XCTAssertLessThan(Date().timeIntervalSince(start), 2)
+        }
+    }
+
+    func testBoundedReadTimesOutAfterChildClosesBothPipes() {
+        XCTAssertThrowsError(try HomebrewReadProfile.executeBounded(URL(fileURLWithPath: "/bin/sh"),
+            ["-c", "exec >&- 2>&-; exec /bin/sleep 10"], HomebrewReadProfile.environment,
+            Date().addingTimeInterval(0.15), .init(), stdoutLimit: 1024, readOnly: true)) {
+            XCTAssertEqual($0 as? PluginHostServiceError, .tool(.timedOut))
+        }
     }
 
     func testProcessGroupDeadlineStopsChildAfterLeaderExited() throws {

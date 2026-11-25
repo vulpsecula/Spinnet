@@ -16,6 +16,20 @@ public struct AppBundleIdentifier: RawRepresentable, Codable, Hashable, Comparab
 
     public init?(rawValue: String) { self.init(validating: rawValue) }
 
+    /// The stricter shape used for page icon sources and reviewed cask metadata.
+    public static func isPlausible(_ value: String) -> Bool {
+        guard value.utf8.count <= 255 else { return false }
+        let parts = value.utf8.split(separator: UInt8(ascii: "."), omittingEmptySubsequences: false)
+        return parts.count > 1 && parts.allSatisfy { part in
+            !part.isEmpty && part.allSatisfy { byte in
+                (UInt8(ascii: "A")...UInt8(ascii: "Z")).contains(byte)
+                    || (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte)
+                    || (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte)
+                    || byte == UInt8(ascii: "-")
+            }
+        }
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         guard let identifier = Self(validating: try container.decode(String.self)) else {

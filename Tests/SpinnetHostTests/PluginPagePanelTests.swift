@@ -75,6 +75,55 @@ final class PluginPagePanelTests: XCTestCase {
         return (responder as? PluginPageFocusTarget)?.component
     }
 
+    func testMissingAppIconUsesItsFallbackInThePanelAndCollectionCells() throws {
+        let missing = "example.spinnet.missing." + UUID().uuidString
+        let source: JSONValue = .object(["app": .string(missing), "symbol": .string("shippingbox")])
+        try show(.object([
+            "id": .string("icons"), "title": .string("Icons"),
+            "content": .array([.object(["kind": .string("icon"), "id": .string("hero"), "source": source])])
+        ]))
+        let componentIcon = try XCTUnwrap(iconImageViews(in: window.contentView!).first)
+        XCTAssertTrue(componentIcon.image?.isTemplate == true)
+
+        let fallback = PluginPageItem(id: "fallback", title: "Package",
+                                      icon: .app(bundleIdentifier: missing, fallbackSymbol: "shippingbox"))
+        let blank = PluginPageItem(id: "blank", title: "Package",
+                                   icon: .app(bundleIdentifier: missing, fallbackSymbol: nil))
+        for cell in [PageListCell(), PageGridCell()] as [PageCell] {
+            let view = try XCTUnwrap(iconImageViews(in: cell.view).first)
+            cell.show(fallback, isSelected: true, isFocused: true, label: "Package", actions: [])
+            XCTAssertTrue(view.image?.isTemplate == true)
+            cell.show(blank, isSelected: false, isFocused: false, label: "Package", actions: [])
+            XCTAssertNil(view.image)
+        }
+    }
+
+    func testResolvedAppIconUsesAnUntintedImageSharedAtTheSameSize() throws {
+        let identifier = "com.apple.finder"
+        try XCTSkipUnless(NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) != nil,
+                          "Launch Services cannot resolve Finder")
+        let source = PluginPageIconSource.app(bundleIdentifier: identifier, fallbackSymbol: "shippingbox")
+        let first = PageIconImageView()
+        let configuration = NSImage.SymbolConfiguration(pointSize: 21, weight: .regular)
+        first.show(source, side: 21, tint: .systemRed, symbolConfiguration: configuration)
+        let deadline = Date().addingTimeInterval(2)
+        while first.image?.isTemplate != false, Date() < deadline { settle(0.02) }
+        let image = try XCTUnwrap(first.image)
+        XCTAssertFalse(image.isTemplate)
+        XCTAssertNil(first.contentTintColor)
+        XCTAssertEqual(image.representations.first?.pixelsWide, 42)
+
+        let second = PageIconImageView()
+        second.show(source, side: 21, tint: .systemBlue, symbolConfiguration: configuration)
+        XCTAssertTrue(second.image === image)
+        second.show(source, side: 24, tint: .systemBlue, symbolConfiguration: configuration)
+        XCTAssertFalse(second.image === image)
+    }
+
+    private func iconImageViews(in view: NSView) -> [PageIconImageView] {
+        (view as? PageIconImageView).map { [$0] } ?? view.subviews.flatMap { iconImageViews(in: $0) }
+    }
+
     func testAButtonOnlyPageOpensWithoutFocusingAControl() throws {
         try show(.object([
             "id": .string("coffee"), "title": .string("Coffee"),

@@ -27,6 +27,18 @@ A call has a **3 second** deadline including admission and all subprocesses. One
 
 The result is `{tool, operation, packages, not_found?, truncated?}`. Package records contain `kind`, `name`, and optional `tap`, `official`, `title`, `description`, `version`, `installed_version`, `outdated`, `pinned`, `auto_updates`, `deprecated`, `disabled`, `needs_privileges`, `quits_app`. The state flags above appear only when true. Detail records also expose bounded `dependencies`, safe `homepage` and `download_url`, and installed request/dependency flags. The Host may return `installed_path`, `linked`, `linkable`, `keg_only`, `languages` and `selected_language` as described below. Search returns kind and name only. Caveats, arbitrary artifact paths, raw output and stderr never reach the Plugin. Text strips controls, redacts the home path and credential patterns, and is limited to 200 characters (versions 80). Results hold at most 2,000 packages and 512 KiB; overflow truncates with `truncated: true`. Raw stdout is capped at 4 MiB and stderr at 64 KiB.
 
+On `installed`, `outdated` and `info`, an installed cask may also have a
+`bundle_id`, such as `"org.mozilla.firefox"`. For `outdated`, the Host reads
+local cask history for the reported installed version. This uses bounded JSON
+records and a single Homebrew invocation. The Host uses the first `app`
+artifact, including any target rename, and reads the App's
+`CFBundleIdentifier` from its `Info.plist` under
+`/Applications` or `~/Applications`. The read is bounded and does not follow
+symlinks within or from those directories. The Host returns only a valid
+[bundle identifier](pages.md#icons) from this lookup. If the metadata or App
+is missing, invalid or unavailable within the read budget, the field is
+omitted. Formulae and search results omit it.
+
 `tool_missing`, `tool_timed_out`, `tool_failed` and `output_too_large` are catchable JavaScript errors with `error.code` and a bounded Host message. A Plugin may render a guidance page. Permission denial is governed by the ordinary Capability rules. Unknown packages/search misses return bounded empty results; cache failures and unrelated errors never become a false `not_found`.
 
 Shapes: [schema](../schemas/reviewed-tools.schema.json), [types](../sdk/spinnet.d.ts). The test kit accepts recorded `tools.read` values or `PluginHostServiceError.tool(...)` failures through `RecordedHostServices(operations:)`, with real input/scope checks.

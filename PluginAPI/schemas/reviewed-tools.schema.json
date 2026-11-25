@@ -97,6 +97,12 @@
         "installed_version": {
           "$ref": "#/$defs/version"
         },
+        "bundle_id": {
+          "description": "Bundle identifier of the first installed App artifact, when the Host can determine it.",
+          "type": "string",
+          "maxLength": 255,
+          "pattern": "^[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+(?![\\s\\S])"
+        },
         "outdated": {
           "const": true
         },
@@ -183,6 +189,21 @@
         "zap_needs_privileges": {
           "const": true,
           "description": "Installed Zap directives may require system authorization only for explicitly requested uninstall with zap:true. This flag does not authorize plain uninstall or any Task itself."
+        }
+      },
+      "if": {
+        "required": [
+          "bundle_id"
+        ]
+      },
+      "then": {
+        "required": [
+          "installed_version"
+        ],
+        "properties": {
+          "kind": {
+            "const": "cask"
+          }
         }
       }
     },
@@ -915,6 +936,24 @@
         },
         "truncated": {
           "const": true
+        }
+      },
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "search"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "packages": {
+            "items": {
+              "properties": {
+                "bundle_id": false
+              }
+            }
+          }
         }
       }
     },

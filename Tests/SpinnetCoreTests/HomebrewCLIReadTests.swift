@@ -107,6 +107,41 @@ final class HomebrewCLIReadTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: executable), original)
     }
 
+    func testCacheSnapshotPreservesContentsPermissionsAndModificationTimes() throws {
+        let executable = try fixture("exit 0")
+        let cache = executable.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("cache")
+        let nested = cache.appendingPathComponent("api/nested")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        let files = [
+            ("api/catalog.json", Data("catalog".utf8)),
+            ("api/nested/index", Data(repeating: 0xa5, count: 150_000))
+        ]
+        let modified = Date(timeIntervalSince1970: 1_700_000_000)
+        for (path, contents) in files {
+            let source = cache.appendingPathComponent(path)
+            try contents.write(to: source)
+            try FileManager.default.setAttributes([.posixPermissions: 0o644, .modificationDate: modified], ofItemAtPath: source.path)
+        }
+
+        let environment = ["HOMEBREW_CACHE": cache.path]
+        let snapshot = try HomebrewReadCache(environment: environment, deadline: Date().addingTimeInterval(3), cancellation: .init())
+        var cloneAttempts = 0
+        let fallback = try HomebrewReadCache(environment: environment, deadline: Date().addingTimeInterval(3), cancellation: .init()) { _, _ in
+            cloneAttempts += 1
+            return EXDEV
+        }
+        XCTAssertEqual(cloneAttempts, files.count)
+        for copy in [snapshot, fallback] {
+            for (path, contents) in files {
+                let destination = copy.directory.appendingPathComponent(path)
+                XCTAssertEqual(try Data(contentsOf: destination), contents)
+                let attributes = try FileManager.default.attributesOfItem(atPath: destination.path)
+                XCTAssertEqual(attributes[.posixPermissions] as? Int, 0o600)
+                XCTAssertEqual(attributes[.modificationDate] as? Date, modified)
+            }
+        }
+    }
+
     func testCacheSnapshotRejectsLinksSpecialFilesAndOversizedInput() throws {
         let executable = try fixture("exit 0")
         let root = executable.deletingLastPathComponent().deletingLastPathComponent()

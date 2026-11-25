@@ -985,9 +985,9 @@ public struct PluginPageItem: Equatable, Identifiable {
     public let subtitle: String?
     public let symbol: String?
     public let accessory: String?
-    /// A system symbol drawn as its leading icon, or a grid cell's content;
+    /// The leading icon of a list row, or a grid cell's content;
     /// an item has a `symbol` or an `icon`, not both.
-    public let icon: PluginPageSymbol?
+    public let icon: PluginPageIconSource?
     public let text: String?
     /// The item actions it offers by ID; all of the collection's when nil.
     public let actions: [String]?
@@ -996,7 +996,7 @@ public struct PluginPageItem: Equatable, Identifiable {
     public let marks: [String]
 
     public init(id: String, title: String, subtitle: String? = nil, symbol: String? = nil, accessory: String? = nil,
-                text: String? = nil, actions: [String]? = nil, marks: [String] = [], icon: PluginPageSymbol? = nil) {
+                text: String? = nil, actions: [String]? = nil, marks: [String] = [], icon: PluginPageIconSource? = nil) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
@@ -1028,7 +1028,7 @@ public struct PluginPageItem: Equatable, Identifiable {
         text = try members["text"].map {
             try PluginPage.text($0, "The item \(id)'s text", allowsBlank: true, maximum: CollectionsContract.maximumItemTextLength)
         }
-        icon = try members["icon"].map { try PluginPageSymbol(parsing: $0, "The item \(id)'s icon") }
+        icon = try members["icon"].map { try PluginPageIconSource(parsing: $0, "The item \(id)'s icon") }
         if icon != nil, symbol != nil {
             throw PluginPage.violation("The item \(id) has both a symbol and an icon; it shows one")
         }
